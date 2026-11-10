@@ -34,50 +34,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
-  find-angular-bundle:
-    name: Find exact-source Angular bundle
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      actions: read
-    outputs:
-      run_id: ${{ steps.find.outputs.run_id }}
-      run_attempt: ${{ steps.find.outputs.run_attempt }}
-      artifact_id: ${{ steps.find.outputs.artifact_id }}
-    env:
-      GH_TOKEN: ${{ github.token }}
-      REPOSITORY: ${{ github.repository }}
-      SOURCE_SHA: ${{ github.sha }}
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - name: Check out the exact image source for artifact discovery
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-
-      - name: Find optional retained Angular artifact from successful exact-source CI
-        id: find
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          default_branch="$(gh api "repos/${REPOSITORY}" --jq .default_branch)"
-          python3 scripts/release/ci_build_artifact.py find-angular-bundle \
-            --api-url https://api.github.com \
-            --repository "$REPOSITORY" \
-            --branch "$default_branch" \
-            --source-sha "$SOURCE_SHA" \
-            --github-output "$GITHUB_OUTPUT"
-
   build-and-push:
     name: Build and publish private linux/amd64 image (${{ matrix.name }})
     runs-on: ubuntu-24.04
     timeout-minutes: 75
-    needs: find-angular-bundle
     permissions:
       contents: read
       actions: read
@@ -102,16 +62,37 @@ jobs:
         with:
           persist-credentials: false
 
+      # Automatic push builds begin beside ci.yml, before its Angular artifact exists. Keep that
+      # path non-blocking; manually dispatched rebuilds can reuse the retained exact-SHA bundle.
+      - name: Find optional retained Angular artifact for a manual image rebuild
+        id: find-angular
+        if: ${{ github.event_name == 'workflow_dispatch' && matrix.name == 'API' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          default_branch="$(gh api "repos/${REPOSITORY}" --jq .default_branch)"
+          python3 scripts/release/ci_build_artifact.py find-angular-bundle \
+            --api-url https://api.github.com \
+            --repository "$REPOSITORY" \
+            --branch "$default_branch" \
+            --source-sha "$SOURCE_SHA" \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Download exact-source Angular bundle when already retained
         id: download-angular
-        if: ${{ matrix.name == 'API' && needs.find-angular-bundle.outputs.run_id != '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && matrix.name == 'API' && steps.find-angular.outputs.run_id != '' }}
         continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: angular-ui-browser
           path: ${{ runner.temp }}/release-angular-ui
           repository: ${{ github.repository }}
-          run-id: ${{ needs.find-angular-bundle.outputs.run_id }}
+          run-id: ${{ steps.find-angular.outputs.run_id }}
           github-token: ${{ github.token }}
 
       - name: Discard incomplete optional bundle download
@@ -129,7 +110,7 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
           available="$(sed -n 's/^available=//p' "$GITHUB_OUTPUT" | tail -n 1)"
           if [ "$available" = true ]; then
-            echo "Reusing exact-source Angular artifact from CI run ${{ needs.find-angular-bundle.outputs.run_id }}." \
+            echo "Reusing exact-source Angular artifact from CI run ${{ steps.find-angular.outputs.run_id }}." \
               >> "$GITHUB_STEP_SUMMARY"
           else
             echo "No retained exact-source Angular artifact; using the cached Docker npm fallback." \

@@ -365,7 +365,7 @@ jobs:
           python3 -m unittest discover -s scripts/release -p 'test_ci_*.py'
           python3 -m unittest discover -s scripts/dev/tests -p 'test_*.py'
           python3 -m unittest discover -s scripts/m365 -p 'test_*.py'
-          units=(WU-017 WU-018 WU-019 WU-020 WU-021 WU-022 WU-023 WU-024 WU-025)
+          units=(WU-017 WU-018 WU-020 WU-021 WU-022 WU-023 WU-024 WU-025)
           printf '%s\n' "${units[@]}" | xargs -r -P 8 -I '{}' \
             pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1 \
               -Unit '{}' -Offline
@@ -390,3 +390,24 @@ jobs:
         run: |
           printf 'Docs health outcome: %s\nCommit: %s\nRun: %s / attempt %s\n' \
             "$RESULT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
+
+  # WU-019 is kept intact but isolated from the eight concurrent PowerShell workers above.
+  # One hosted run overflowed the PowerShell stack inside its nested enrollment-test process;
+  # the isolated unit passed locally, so this avoids same-runner process pressure without
+  # weakening or dropping the capability checks.
+  m365-tenant-permission-safety:
+    name: M365 offline · Tenant permission safety (WU-019)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Run offline tenant-permission safety assertions
+        run: >-
+          pwsh -NoProfile -NonInteractive -File scripts/m365/Test-Automation.ps1
+          -Unit WU-019 -Offline

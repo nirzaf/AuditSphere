@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-09T23:34:55Z",
+  "observedAtUtc": "2026-11-10T00:03:07Z",
   "source": {
     "branch": "master",
-    "baseSha": "bd20615bc0af79a40124fb2cb5779275f37c2c7b",
-    "originMasterSha": "bd20615bc0af79a40124fb2cb5779275f37c2c7b",
-    "workingTree": "Uncommitted CI/CD optimization candidate; local checks pass; exact fast/image CI pending; no deployment.",
+    "baseSha": "6c0e59e1ae695cb815f2786557711c3d76723a74",
+    "originMasterSha": "6c0e59e1ae695cb815f2786557711c3d76723a74",
+    "workingTree": "Uncommitted four-path CI workflow/docs follow-up based on 6c0e59e1; prior fast run failed Docs only; candidate CI pending; no deployment.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -20,7 +20,7 @@
       "note": "Exact-source UI reuse is optional; fallback and release gates remain.",
       "currentSourceSha": "beec2e5add3b0f58c12b1602f55618838fb0c12d"
     },
-    "ciCdAcceleration": "Candidate: exact-source Angular reuse in Hostinger images and lockfile-keyed npm layer; local checks pass, exact CI pending; no deployment timing.",
+    "ciCdAcceleration": "42721772097 failed Docs/WU-019 (stack overflow; cause unknown); Angular/Release passed. Images 42721772191 passed/128s, API fallback; speedup unproven. WU-019 isolation pending exact CI; deployment unmeasured.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
