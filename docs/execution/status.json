@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-10T01:13:46Z",
+  "observedAtUtc": "2026-11-10T01:26:35Z",
   "source": {
     "branch": "master",
-    "baseSha": "dba678bdf0a4a6d7d0312cbd39e856c09f887199",
-    "originMasterSha": "e6b800b2bf2a39470b816b7cc0ce359af0772069",
-    "workingTree": "At 2026-11-10T01:13:46Z, tracked master and origin/master were clean and matched at e6b800b2bf2a39470b816b7cc0ce359af0772069. Application workflow candidate dba678bd has exact fast and image gates passing. Latest docs-only run 42733487837 passed on the exact e6b800b2 revision in 133 seconds; protected release-cache import and deployment timing remain unmeasured.",
+    "baseSha": "8beaf9dcfd69a299ab0fdf81e78a431ac0ee75ad",
+    "originMasterSha": "8beaf9dcfd69a299ab0fdf81e78a431ac0ee75ad",
+    "workingTree": "Candidate based on clean master/origin-master 8beaf9dcfd69a299ab0fdf81e78a431ac0ee75ad. Optional exact-source Angular artifact discovery is moved from the common precondition into the API image matrix, overlapping worker/migration image builds and full-regression evidence validation. Exact fast CI is pending; no release or deployment was run.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -20,7 +20,7 @@
       "note": "Exact-source UI reuse is optional; fallback and release gates remain.",
       "currentSourceSha": "dba678bdf0a4a6d7d0312cbd39e856c09f887199"
     },
-    "ciCdAcceleration": "Exact dba678bd candidate: fast run 42729114971 passed all 6 actual checkouts in 18m44s; image run 42729192788 passed all 3 exact checkouts in 38s with registry cache layers. Protected release cache-import path and deployment timing are unmeasured; no release/deployment.",
+    "ciCdAcceleration": "Protected release candidate moves optional exact-source Angular artifact discovery into the API image matrix to overlap worker/migration image builds and full-regression evidence validation. Local workflow/docs checks passed; exact push fast CI is pending. No release dispatch or deployment benchmark.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {

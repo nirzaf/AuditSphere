@@ -76,10 +76,6 @@ jobs:
     name: Precondition · CI passed for this commit
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    outputs:
-      angular_bundle_run_id: ${{ steps.find-angular.outputs.run_id }}
-      angular_bundle_run_attempt: ${{ steps.find-angular.outputs.run_attempt }}
-      angular_bundle_artifact_id: ${{ steps.find-angular.outputs.artifact_id }}
     permissions:
       contents: read
       actions: read
@@ -122,18 +118,6 @@ jobs:
             printf '%s\n' "$runs" | sed 's/^/  - /'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Find optional exact-source Angular bundle artifact
-        id: find-angular
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          default_branch="$(gh api "repos/${REPOSITORY}" --jq .default_branch)"
-          python3 scripts/release/ci_build_artifact.py find-angular-bundle \
-            --api-url https://api.github.com \
-            --repository "$REPOSITORY" \
-            --branch "$default_branch" \
-            --source-sha "$RELEASE_SHA" \
-            --github-output "$GITHUB_OUTPUT"
 
   verify-release-source:
     name: Precondition · Full regression passed for this commit
@@ -244,16 +228,37 @@ jobs:
           [[ "$ACR_NAME" =~ ^[a-z0-9]{5,50}$ ]]
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
+      # Optional artifact discovery is scoped to the API image and runs in parallel with the
+      # worker/migrations builds and full-regression evidence check. The exact-source fallback
+      # remains available when discovery or download does not produce a valid bundle.
+      - name: Find optional exact-source Angular bundle artifact
+        id: find-angular
+        if: ${{ matrix.key == 'api' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          default_branch="$(gh api "repos/${REPOSITORY}" --jq .default_branch)"
+          python3 scripts/release/ci_build_artifact.py find-angular-bundle \
+            --api-url https://api.github.com \
+            --repository "$REPOSITORY" \
+            --branch "$default_branch" \
+            --source-sha "$RELEASE_SHA" \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Download exact-source Angular bundle when retained
         id: download-angular
-        if: ${{ matrix.key == 'api' && needs.verify-ci-passed.outputs.angular_bundle_run_id != '' }}
+        if: ${{ matrix.key == 'api' && steps.find-angular.outputs.run_id != '' }}
         continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: angular-ui-browser
           path: ${{ runner.temp }}/release-angular-ui
           repository: ${{ github.repository }}
-          run-id: ${{ needs.verify-ci-passed.outputs.angular_bundle_run_id }}
+          run-id: ${{ steps.find-angular.outputs.run_id }}
           github-token: ${{ github.token }}
 
       - name: Prepare verified UI bundle or Dockerfile source-build fallback
@@ -268,7 +273,7 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
           available="$(sed -n 's/^available=//p' "$GITHUB_OUTPUT" | tail -n 1)"
           if [ "$available" = true ]; then
-            echo "Reusing tested Angular bundle from successful exact-source CI run ${{ needs.verify-ci-passed.outputs.angular_bundle_run_id }}." \
+            echo "Reusing tested Angular bundle from successful exact-source CI run ${{ steps.find-angular.outputs.run_id }}." \
               >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Exact-source Angular artifact unavailable; API Dockerfile will build Angular from this checkout." \
@@ -313,9 +318,9 @@ jobs:
           IMAGE_NAME: ${{ matrix.image }}
           DOCKERFILE: ${{ matrix.dockerfile }}
           ANGULAR_BUNDLE_AVAILABLE: ${{ matrix.key == 'api' && steps.prepare-angular.outputs.available == 'true' }}
-          ANGULAR_BUNDLE_RUN_ID: ${{ matrix.key == 'api' && needs.verify-ci-passed.outputs.angular_bundle_run_id || '' }}
-          ANGULAR_BUNDLE_RUN_ATTEMPT: ${{ matrix.key == 'api' && needs.verify-ci-passed.outputs.angular_bundle_run_attempt || '' }}
-          ANGULAR_BUNDLE_ARTIFACT_ID: ${{ matrix.key == 'api' && needs.verify-ci-passed.outputs.angular_bundle_artifact_id || '' }}
+          ANGULAR_BUNDLE_RUN_ID: ${{ matrix.key == 'api' && steps.find-angular.outputs.run_id || '' }}
+          ANGULAR_BUNDLE_RUN_ATTEMPT: ${{ matrix.key == 'api' && steps.find-angular.outputs.run_attempt || '' }}
+          ANGULAR_BUNDLE_ARTIFACT_ID: ${{ matrix.key == 'api' && steps.find-angular.outputs.artifact_id || '' }}
         run: |
           set -euo pipefail
           [[ "$ACR_NAME" =~ ^[a-z0-9]{5,50}$ ]]
