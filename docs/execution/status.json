@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-10T02:44:32Z",
+  "observedAtUtc": "2026-11-10T03:14:23Z",
   "source": {
     "branch": "master",
-    "baseSha": "ed1daf883484a6758e51c44cf046460a124f6000",
-    "originMasterSha": "ed1daf883484a6758e51c44cf046460a124f6000",
-    "workingTree": "Uncommitted artifact-manifest correction on ed1daf883484a6758e51c44cf046460a124f6000: record actual two-worker graph-build properties and reject mismatched manifests before restore. Focused helper tests 14/14; exact CI pending. No full release or deployment.",
+    "baseSha": "bab7e3864da3a25c03fd774923a6f58601b0ccd6",
+    "originMasterSha": "bab7e3864da3a25c03fd774923a6f58601b0ccd6",
+    "workingTree": "Four-worker graph-build trial on bab7e386; predecessor fast CI 42744864289 passed all six exact checkouts and verified matching artifact settings plus 20-directory restore. Focused tests, workflow lint and docs checks pass; exact CI pending. No deployment.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -20,7 +20,7 @@
       "note": "Exact-source UI reuse is optional; fallback and release gates remain.",
       "currentSourceSha": "dba678bdf0a4a6d7d0312cbd39e856c09f887199"
     },
-    "ciCdAcceleration": "Exact fast run 42741934134 passed with a two-worker graph build (14m39.95s vs prior 38m01.77s; one observation each, not causal). Its restored artifact manifest had stale build flags. The follow-up now records graphBuild=true, maxCpuCount=2, BuildInParallel=true and rejects mismatch; focused helper tests 14/14, exact CI pending. Release overlap and deployment timing remain unmeasured.",
+    "ciCdAcceleration": "Two-worker graph CI passed; exact artifact profile and 20-directory reuse verified. Compile observations were 14m59s and 20m14s on the same runner image, so timing is variable. A four-worker exact-CI trial captures peak RSS; use it only if faster and within memory headroom. Release overlap and deployment timings remain unmeasured.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
@@ -1882,37 +1882,49 @@
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed.",
   "ciCdAccelerationCandidate20261110": {
-    "observedAtUtc": "2026-11-10T02:44:32Z",
-    "sourceSha": "ed1daf883484a6758e51c44cf046460a124f6000",
-    "status": "LOCAL_CHECKS_PASS; EXACT_FAST_CI_PENDING_FOR_ARTIFACT_PROFILE_CORRECTION",
+    "observedAtUtc": "2026-11-10T03:14:23Z",
+    "sourceSha": "bab7e3864da3a25c03fd774923a6f58601b0ccd6",
+    "status": "TWO_WORKER_GRAPH_FAST_CI_PASS; FOUR_WORKER_TRIAL_PENDING",
     "fast": {
-      "runId": 42741934134,
+      "runId": 42744864289,
       "attempt": 1,
       "result": "SUCCESS",
-      "wallSeconds": 1123,
+      "workflowWallSeconds": 1396,
       "allSixActualCheckoutsVerified": true,
-      "producerElapsedSeconds": 879.95,
-      "coreCompileMilliseconds": 898835,
-      "cscMilliseconds": 898800,
+      "producerBuildSeconds": 1183.05,
+      "coreCompileMilliseconds": 1214394,
+      "cscMilliseconds": 1214343,
       "runnerImageVersion": "20261101.360.1",
-      "priorSerialBuildSeconds": 2281.77,
-      "observedBuildReductionPercent": 61.4,
-      "causalTimingClaim": false,
-      "artifactBytes": 439657405,
-      "artifactSha256": "6431f9871746fbf2a80961934f93e8af66a19b714f1af5cfd9cecff724b4de64",
-      "consumer": "Digest verified; 20 output directories restored; clean rebuild skipped; Domain, API/OpenAPI, EF model and OpenAPI contract checks passed.",
-      "terminalProof": ".local/autonomous/evidence/ci-acceleration-20261110/parallel-build-experiment/run-42741934134/fast-ci-terminal-proof.json"
+      "buildProperties": {
+        "maxCpuCount": 2,
+        "buildInParallel": true,
+        "graphBuild": true,
+        "useSharedCompilation": false,
+        "runAnalyzers": false
+      },
+      "manifestMatchesInvocation": true,
+      "consumerRestoredOutputDirectories": 20,
+      "consumerCleanBuildSkipped": true,
+      "workflowArtifactId": 13732340463,
+      "workflowArtifactBytes": 439661759,
+      "innerArchiveSha256": "d10fbcef66241ae23abec438d7d338f316e65e0f5077c56a12156c52f12fee87",
+      "terminalProof": ".local/autonomous/evidence/ci-acceleration-20261110/artifact-build-properties-followup/fast-42744864289/fast-terminal-proof.json"
     },
-    "manifestIssue": "Corrected in the uncommitted follow-up: manifest now records maxCpuCount=2, BuildInParallel=true and graphBuild=true; expected properties are copied defensively, and a mismatch test verifies refusal before output restoration. Focused helper tests 14/14. Exact CI remains pending.",
-    "preflight": "MSBuild static graph preflight loaded 10 projects / 29 edges; project-target check passed.",
-    "releaseArtifactOverlap": "Implemented in release.yml but not exercised by a release workflow run; wall-time impact unmeasured.",
-    "deployment": "NOT_RUN; deployment timing unmeasured.",
-    "localVerification": {
-      "artifactHelperTests": "PASS 14/14",
-      "actionlint": "PASS ci.yml and release-verification.yml",
-      "documentation": "PASS markdown health, filenames, narrative metrics, generated task board",
-      "diffCheck": "PASS",
-      "stateValidator": "PASS 48 tasks"
-    }
+    "timingComparison": {
+      "serialCoreCompileMilliseconds": 2259130,
+      "firstTwoWorkerCoreCompileMilliseconds": 898835,
+      "secondTwoWorkerCoreCompileMilliseconds": 1214394,
+      "sameRunnerImageVersion": true,
+      "observedSecondReductionVsSerialPercent": 46.2,
+      "causalClaim": false
+    },
+    "fourWorkerTrial": {
+      "status": "LOCAL_CHECKS_PASS; EXACT_FAST_CI_PENDING",
+      "capture": "free -b MemTotal plus /usr/bin/time -v elapsed and peak RSS",
+      "exactCi": "NOT_RUN",
+      "acceptanceRule": "Elapsed build < best observed two-worker 879.95s and peak RSS <=75% MemTotal; otherwise retain two workers."
+    },
+    "releaseArtifactOverlap": "Implemented in release.yml; no release run exercised it, effect unmeasured.",
+    "deployment": "NOT_RUN; timing unmeasured."
   }
 }

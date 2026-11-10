@@ -75,7 +75,7 @@ class CiBuildArtifactTests(unittest.TestCase):
     def test_build_property_mismatch_is_rejected_before_output_restore(self) -> None:
         manifest = self.create_artifact()
         manifest["buildProperties"]["maxCpuCount"] = 1
-        self.assertEqual(2, build_artifact.BUILD_PROPERTIES["maxCpuCount"])
+        self.assertEqual(4, build_artifact.BUILD_PROPERTIES["maxCpuCount"])
         (self.artifact_dir / "source.json").write_text(
             json.dumps(manifest), encoding="utf-8"
         )

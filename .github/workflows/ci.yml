@@ -133,11 +133,12 @@ jobs:
           set -euo pipefail
           test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
           dotnet restore AuditSphereOps.slnx --locked-mode
-          # Use MSBuild's project graph to schedule ProjectReferences as dependencies, with two
-          # bounded workers. This tests whether graph scheduling avoids the shared Api-output
-          # races observed in ordinary parallel solution builds while shortening the 38-minute
-          # serialized compile. Keep compiler/analyzer settings unchanged for this experiment.
-          dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:2 \
+          # Capacity trial: four bounded workers on the dependency graph, with GNU time capturing
+          # elapsed time and peak RSS. Keep compiler/analyzer settings unchanged; adopt four
+          # workers only if this exact build beats the best observed two-worker elapsed time
+          # (879.95s) and peak RSS stays at or below 75% of MemTotal.
+          free -b
+          /usr/bin/time -v dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:4 \
             -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \
             -clp:PerformanceSummary
 
@@ -256,10 +257,8 @@ jobs:
         if: ${{ steps.verify-parallel-build.outputs.reused != 'true' }}
         run: |
           set -euo pipefail
-          # Use the same bounded project-graph scheduling as the fast producer. The graph mode is
-          # intended to order shared ProjectReferences once, avoiding the duplicate Api-output
-          # races seen with ordinary parallel solution builds. Keep the fallback source-bound and
-          # retain the established compiler/analyzer settings.
+          # If exact-run outputs are unavailable, retain the previously validated two-worker
+          # graph fallback until the four-worker producer trial has passed its memory gate.
           dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:2 \
             -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \
             -clp:PerformanceSummary
