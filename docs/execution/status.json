@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-10T04:37:54Z",
+  "observedAtUtc": "2026-11-10T05:01:01Z",
   "source": {
     "branch": "master",
-    "baseSha": "214639532f9fb08f9724563b862a8f273896a56f",
-    "originMasterSha": "214639532f9fb08f9724563b862a8f273896a56f",
-    "workingTree": "Three-worker graph build candidate 214639532 passed exact fast run 42755407738; producer 737.87s, peak RSS 6.81% MemTotal; all six actual checkouts and same-run consumer reuse verified. Docs/status follow-up is uncommitted. No protected release or deployment.",
+    "baseSha": "4f6ac2a18ccb3af707ed124f63f55070e9f16dea",
+    "originMasterSha": "4f6ac2a18ccb3af707ed124f63f55070e9f16dea",
+    "workingTree": "4f6ac2a passed final exact fast run 42757607434; producer 857.15s (6.62% MemTotal), exact artifact consumer PASS. Prior run 427554: 737.87s (6.81%). No deployment.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -20,7 +20,7 @@
       "note": "Exact-source UI reuse is optional; fallback and release gates remain.",
       "currentSourceSha": "dba678bdf0a4a6d7d0312cbd39e856c09f887199"
     },
-    "ciCdAcceleration": "Three-worker producer passed exact fast CI at 214639532: 737.87s vs best observed two-worker 879.95s, with 6.81% MemTotal RSS; same-run artifact consumer restored all 20 directories and passed guards. One observed comparison, not causal/repeatable. Four-worker trial rejected at 91.9% RSS. Two-worker consumer fallback retained. Deployment-stage timing remains unmeasured.",
+    "ciCdAcceleration": "Two exact three-worker CI runs passed at 737.87s and 857.15s; both beat best observed two-worker 879.95s, with RSS under 7%. Exact consumers passed; two-worker fallback retained. No deployment timing.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
@@ -1882,7 +1882,7 @@
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed.",
   "ciCdAccelerationCandidate20261110": {
-    "observedAtUtc": "2026-11-10T04:37:54Z",
+    "observedAtUtc": "2026-11-10T05:01:01Z",
     "sourceSha": "214639532f9fb08f9724563b862a8f273896a56f",
     "status": "THREE_WORKER_PRODUCER_ACCEPTED_EXACT_FAST_PASS",
     "runId": 42755407738,
@@ -1919,10 +1919,18 @@
       "angularTestFiles": 196,
       "workflowWallSeconds": 952
     },
-    "evidence": ".local/autonomous/evidence/ci-acceleration-20261110/three-worker-trial/fast-42755407738/three-worker-trial-review.json",
+    "evidence": ".local/autonomous/evidence/ci-acceleration-20261110/three-worker-trial/fast-42755407738/three-worker-trial-review.json; confirmation: .local/autonomous/evidence/ci-acceleration-20261110/final-source-fast-42757607434/terminal-proof.json",
     "fourWorkerRejectedRunId": 42748480055,
     "twoWorkerFallback": "RETAINED_FOR_UNAVAILABLE_OR_REJECTED_EXACT_ARTIFACT",
     "releaseOverlap": "Source/image parallelism and protected release workflow remain; no protected release exercised for timing.",
-    "deployment": "NOT_RUN; deployment timing remains unmeasured."
+    "deployment": "NOT_RUN; deployment timing remains unmeasured.",
+    "confirmationRun": {
+      "runId": 42757607434,
+      "status": "SUCCESS_ALL_6_ACTUAL_CHECKOUTS",
+      "producerSeconds": 857.15,
+      "peakRssPercentMemTotal": 6.62,
+      "consumer": "PASS; 20 directories restored; fallback skipped; Domain 16/16; OpenAPI 12/12; EF drift PASS",
+      "proof": ".local/autonomous/evidence/ci-acceleration-20261110/final-source-fast-42757607434/terminal-proof.json"
+    }
   }
 }
