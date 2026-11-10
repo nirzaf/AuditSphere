@@ -206,6 +206,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -213,14 +214,17 @@ jobs:
           - key: api
             name: API
             image: auditsphere-api
+            cacheImage: auditsphere-acceptance-api
             dockerfile: src/AuditSphereOps.Api/Dockerfile
           - key: worker
             name: Worker
             image: auditsphere-worker
+            cacheImage: auditsphere-acceptance-worker
             dockerfile: src/AuditSphereOps.Worker/Dockerfile
           - key: migrations
             name: Migrations
             image: auditsphere-migrations
+            cacheImage: auditsphere-acceptance-migrations
             dockerfile: infra/docker/migrations.Dockerfile
     defaults:
       run:
@@ -271,6 +275,17 @@ jobs:
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # The credential-free Hostinger image workflow warms these registry caches on each
+      # relevant master push. Import the matching cache here as well as the per-release GHA
+      # cache so a protected release can reuse already-built layers without changing its
+      # source, image validation, approval, or deployment gates.
+      - name: Log in to GHCR to read the shared image build cache
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
       - name: Set up Buildx with isolated image cache
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
         with:
@@ -286,7 +301,9 @@ jobs:
           tags: ${{ inputs.acr_name }}.azurecr.io/${{ matrix.image }}:${{ github.sha }}
           load: true
           build-args: ${{ matrix.key == 'api' && format('USE_PREBUILT_ANGULAR={0}', steps.prepare-angular.outputs.available) || '' }}
-          cache-from: type=gha,scope=auditsphere-release-${{ matrix.key }}
+          cache-from: |
+            type=gha,scope=auditsphere-release-${{ matrix.key }}
+            type=registry,ref=ghcr.io/${{ github.repository_owner }}/${{ matrix.cacheImage }}:buildcache
           cache-to: type=gha,scope=auditsphere-release-${{ matrix.key }},mode=max,ignore-error=true,timeout=3m
 
       - name: Package and record the exact source image for the approval-gated release

@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-10T00:03:07Z",
+  "observedAtUtc": "2026-11-10T00:25:37Z",
   "source": {
     "branch": "master",
-    "baseSha": "6c0e59e1ae695cb815f2786557711c3d76723a74",
-    "originMasterSha": "6c0e59e1ae695cb815f2786557711c3d76723a74",
-    "workingTree": "Uncommitted four-path CI workflow/docs follow-up based on 6c0e59e1; prior fast run failed Docs only; candidate CI pending; no deployment.",
+    "baseSha": "3a8ab76de5f09e7d7ef715e79c8e6634f2fa7260",
+    "originMasterSha": "3a8ab76de5f09e7d7ef715e79c8e6634f2fa7260",
+    "workingTree": "Three-path release-cache candidate based on 3a8ab76; predecessor exact fast/images PASS; candidate CI pending; no deployment.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -16,11 +16,11 @@
       "result": "PASS",
       "taskRows": 48,
       "activeTaskId": "RUN-003",
-      "nextAction": "Exact fast CI 42713037416 passed; preserve full regression and deployment gates; image reuse timing unmeasured.",
+      "nextAction": "Run exact fast and image CI for the release-cache candidate; do not dispatch release or deploy.",
       "note": "Exact-source UI reuse is optional; fallback and release gates remain.",
-      "currentSourceSha": "beec2e5add3b0f58c12b1602f55618838fb0c12d"
+      "currentSourceSha": "3a8ab76de5f09e7d7ef715e79c8e6634f2fa7260"
     },
-    "ciCdAcceleration": "42721772097 failed Docs/WU-019 (stack overflow; cause unknown); Angular/Release passed. Images 42721772191 passed/128s, API fallback; speedup unproven. WU-019 isolation pending exact CI; deployment unmeasured.",
+    "ciCdAcceleration": "3a8ab76 fast 42725379276 PASS/5 in 21m46s; images 42725379102 PASS/3 in 33s (prior push 128s, uncontrolled). release.yml cache import pending; no release/deployment.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
