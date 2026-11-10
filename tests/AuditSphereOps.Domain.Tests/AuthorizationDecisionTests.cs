@@ -532,6 +532,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Accounting.TrialBalanceImportBatch> TrialBalanceImportBatches => db.TrialBalanceImportBatches;
     public DbSet<AuditSphereOps.Domain.Accounting.TrialBalanceRow> TrialBalanceRows => db.TrialBalanceRows;
     public DbSet<AuditSphereOps.Domain.Accounting.SourceAcceptanceDecision> SourceAcceptanceDecisions => db.SourceAcceptanceDecisions;
+    public DbSet<AuditSphereOps.Domain.Audit.AuditCompletionVarianceCommandReceipt> AuditCompletionVarianceCommandReceipts => db.AuditCompletionVarianceCommandReceipts;
     public DbSet<AuditSphereOps.Domain.Accounting.TrialBalanceValidationIssue> TrialBalanceValidationIssues => db.TrialBalanceValidationIssues;
     public DbSet<AuditSphereOps.Domain.Accounting.StatementLayoutVersion> StatementLayoutVersions => db.StatementLayoutVersions;
     public DbSet<AuditSphereOps.Domain.Accounting.StatementLayoutLine> StatementLayoutLines => db.StatementLayoutLines;

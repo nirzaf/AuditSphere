@@ -225,6 +225,8 @@ public sealed partial class AuditSphereDbContext
 
     var variance = b.Entity<AnalyticalReviewVarianceInvestigation>();
     variance.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_analytical_variance_investigations_firm_id_id");
+    variance.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_analytical_variance_investigations_scope_id");
     variance.Property(x => x.AccountArea).HasMaxLength(80);
     variance.Property(x => x.PeriodReference).HasMaxLength(60);
     variance.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();

@@ -485,6 +485,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<CurrencyRemeasurementItem> CurrencyRemeasurementItems => Set<CurrencyRemeasurementItem>();
 
   public DbSet<AuditPlanningCommandReceipt> AuditPlanningCommandReceipts => Set<AuditPlanningCommandReceipt>();
+  public DbSet<AuditCompletionVarianceCommandReceipt> AuditCompletionVarianceCommandReceipts => Set<AuditCompletionVarianceCommandReceipt>();
   public DbSet<MaterialityAssessment> MaterialityAssessments => Set<MaterialityAssessment>();
 
   public DbSet<MaterialityApproval> MaterialityApprovals => Set<MaterialityApproval>();
@@ -688,6 +689,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureAccountingCreationPreparations(b);
     ConfigurePeriodMaintenanceReceipts(b);
     ConfigureAuditPlanningReceipts(b);
+    ConfigureAuditCompletionCommands(b);
     ConfigureFindingCommands(b);
     ConfigureReviewPointCommands(b);
     ConfigureWorkpaperCommands(b);

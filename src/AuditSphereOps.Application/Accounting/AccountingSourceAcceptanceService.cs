@@ -120,7 +120,7 @@ public static class AccountingSourceAcceptanceService
     if (periodId is { } period)
     {
       var currentPeriod = await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id = {actor.FirmId} AND id = {period} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-      if (currentPeriod is null || currentPeriod.ClientId != request.ClientId || currentPeriod.Status != AccountingWorkflowStates.Active)
+      if (currentPeriod is null || currentPeriod.ClientId != request.ClientId || !AccountingWorkflowStates.IsOpenReportingPeriodStatus(currentPeriod.Status))
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The source reporting period is unavailable or closed.");
     }
     if (request.ReviewRevision is not null)

@@ -4,6 +4,7 @@ using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace AuditSphereOps.Application.Audit;
 
@@ -302,7 +303,7 @@ public static class AuditCompletionService
   /// their own work and an unresolved state is refused.</summary>
   public static async Task<CommandResult> ReviewCompletionRecordAsync(
     IClientAccountingDbContext db, ActorContext actor, string recordKind, Guid recordId,
-    long expectedRevision, CancellationToken ct = default)
+    long expectedRevision, CancellationToken ct = default, VarianceReviewReceiptContext? receiptContext = null)
   {
     if (recordId == Guid.Empty || expectedRevision < 1)
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "A current completion record and revision are required.");
@@ -360,7 +361,41 @@ public static class AuditCompletionService
       return auth;
     }
 
+    if (receiptContext is not null)
+    {
+      if (kind != "VARIANCE" || receiptContext.RequestId == Guid.Empty || receiptContext.RequestHash.Length != 64 ||
+          receiptContext.ReviewBasis.Length != 64 ||
+          receiptContext.EvidenceIdentityHash is { Length: not 64 })
+        return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The variance review recovery identity is invalid.");
+      await AuditCompletionVarianceWorkspace.LockRequestAsync(db, actor, receiptContext.RequestId, true, ct);
+      // A request-barrier wait is another authorization boundary for replay as well as a new review.
+      auth = await AuthorizeExactScopeAsync();
+      if (!auth.Succeeded)
+      {
+        await tx.CommitAsync(ct);
+        return auth;
+      }
+      var prior = await db.AuditCompletionVarianceCommandReceipts.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.ActorId == actor.UserId && x.RequestId == receiptContext.RequestId, ct);
+      if (prior is not null)
+      {
+        if (prior.ActorEpoch != actor.SessionEpoch)
+          return CommandResult.Fail(ErrorCodes.GenerationStale, "This request belongs to a previous session lifetime.");
+        if (prior.ClientId != scope.ClientId || prior.EngagementId != scope.EngagementId ||
+            prior.VarianceInvestigationId != recordId || prior.Action != "REVIEW" ||
+            prior.RequestHash != receiptContext.RequestHash || prior.ReviewBasis != receiptContext.ReviewBasis ||
+            prior.InputJson != receiptContext.InputJson || prior.PreviewJson != receiptContext.PreviewJson)
+          return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "Changed intent cannot reuse this request identity.");
+        await tx.CommitAsync(ct);
+        return CommandResult.Ok();
+      }
+      // A context without an evidence identity is valid only for the exact retained replay above.
+      if (receiptContext.EvidenceIdentityHash is null)
+        return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "The retained review outcome changed; refresh before any new review.");
+    }
+
     CommandResult? refusal = null;
+    AnalyticalReviewVarianceInvestigation? reviewedVariance = null;
     switch (kind)
     {
       case "VARIANCE":
@@ -373,12 +408,39 @@ public static class AuditCompletionService
           refusal = CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
         else if (record.Revision != expectedRevision)
           refusal = CommandResult.Fail(ErrorCodes.GenerationStale, "The variance investigation changed; reload and review its current revision.");
-        else if (record.RecordedByUserId == actor.UserId)
+        else if (receiptContext is not null)
+        {
+          var current = await AuditCompletionVarianceWorkspace.StateAsync(db, actor, scope.EngagementId,
+            record.AccountArea, record.PeriodReference, ct);
+          if (!current.Succeeded)
+            refusal = CommandResult.Fail(current.ErrorCode!, current.Message!);
+          else if (current.Value!.ReviewBasis != receiptContext.ReviewBasis ||
+                   current.Value.ExpectedRevision != expectedRevision.ToString(System.Globalization.CultureInfo.InvariantCulture) ||
+                   current.Value.Record?.Id != recordId)
+            refusal = CommandResult.Fail(ErrorCodes.GenerationStale, "The exact variance basis changed; refresh before review.");
+          else if (AuditCompletionVarianceWorkspace.EvidenceReferences(record).Length == 0)
+            refusal = CommandResult.Fail(ErrorCodes.GateBlocked, "At least one current exact-engagement evidence reference is required before review.");
+          else
+          {
+            var currentEvidence = await AuditCompletionVarianceWorkspace.CurrentEvidenceIdentityAsync(db, actor,
+              scope.ClientId, scope.EngagementId, new(record.ProcedureId, record.AccountArea, record.PeriodReference,
+                record.ExpectedAmount, record.ActualAmount, record.InvestigationThreshold, record.Currency,
+                record.Explanation, AuditCompletionVarianceWorkspace.EvidenceReferences(record)), ct);
+            if (!currentEvidence.Succeeded) refusal = CommandResult.Fail(currentEvidence.ErrorCode!, currentEvidence.Message!);
+            else if (currentEvidence.Value != receiptContext.EvidenceIdentityHash)
+              refusal = CommandResult.Fail(ErrorCodes.GenerationStale,
+                "The independently reviewed procedure evidence changed while waiting to review; preview the current evidence again.");
+            else if (!current.Value.CanReview)
+              refusal = CommandResult.Fail(ErrorCodes.GateBlocked,
+                current.Value.Blockers.FirstOrDefault() ?? "Current independent review authority is required.");
+          }
+        }
+        if (record is not null && refusal is null && record.RecordedByUserId == actor.UserId)
           refusal = CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review their own variance investigation.");
-        else if (record.Conclusion == VarianceInvestigationConclusions.Unexplained)
+        else if (record is not null && refusal is null && record.Conclusion == VarianceInvestigationConclusions.Unexplained)
           refusal = CommandResult.Fail(ErrorCodes.GateBlocked,
             "An unexplained variance above the investigation threshold must be resolved before review.");
-        else
+        else if (record is not null && refusal is null)
         {
           auth = await AuthorizeExactScopeAsync();
           if (!auth.Succeeded) refusal = auth;
@@ -388,6 +450,7 @@ public static class AuditCompletionService
             record.ReviewedAt = DateTimeOffset.UtcNow;
             record.ReviewedRevision = expectedRevision;
             record.Revision++;
+            reviewedVariance = record;
           }
         }
         break;
@@ -460,6 +523,28 @@ public static class AuditCompletionService
     try
     {
       await db.SaveChangesAsync(ct);
+      if (receiptContext is not null)
+      {
+        if (reviewedVariance is null)
+        {
+          await tx.RollbackAsync(ct);
+          return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "A variance review receipt requires the reviewed variance record.");
+        }
+        var persistedVariance = await db.AnalyticalReviewVarianceInvestigations.AsNoTracking().SingleAsync(x =>
+          x.FirmId == actor.FirmId && x.ClientId == scope.ClientId && x.EngagementId == scope.EngagementId &&
+          x.Id == recordId, ct);
+        db.AuditCompletionVarianceCommandReceipts.Add(new AuditCompletionVarianceCommandReceipt
+        {
+          Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = scope.ClientId,
+          EngagementId = scope.EngagementId, VarianceInvestigationId = recordId,
+          ActorId = actor.UserId, ActorEpoch = actor.SessionEpoch, RequestId = receiptContext.RequestId,
+          RequestHash = receiptContext.RequestHash, ReviewBasis = receiptContext.ReviewBasis,
+          Action = "REVIEW", InputJson = receiptContext.InputJson, PreviewJson = receiptContext.PreviewJson,
+          ResultJson = JsonSerializer.Serialize(AuditCompletionVarianceWorkspace.Snapshot(persistedVariance),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web)), CreatedAt = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+      }
     }
     catch (DbUpdateConcurrencyException)
     {

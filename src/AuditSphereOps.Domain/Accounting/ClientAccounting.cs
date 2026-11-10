@@ -15,6 +15,7 @@ public static class AccountingWorkflowStates
   public const string Submitted = "SUBMITTED";
   public const string Approved = "APPROVED";
   public const string Active = "ACTIVE";
+  public static bool IsOpenReportingPeriodStatus(string? status) => status is Draft or Active;
   public const string Closed = "CLOSED";
   public const string Retired = "RETIRED";
   public const string Stale = "STALE";

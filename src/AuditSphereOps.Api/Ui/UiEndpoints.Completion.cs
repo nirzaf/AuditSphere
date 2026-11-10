@@ -28,6 +28,28 @@ public static partial class UiEndpoints
 
   private static void MapCompletionEndpoints(RouteGroupBuilder group)
   {
+    const string varianceCommands = "/engagements/{id:guid}/completion/variance-investigations";
+    group.MapGet(varianceCommands + "/state", (Guid id, string? accountArea, string? periodReference, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditCompletionVarianceWorkspace.StateAsync(db, actor, id, accountArea, periodReference, ct)))
+      .WithUiResponse<VarianceInvestigationCommandState>(includeConflict: true);
+    group.MapPost(varianceCommands + "/prepare/preview", (Guid id, VarianceInvestigationCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditCompletionVarianceWorkspace.PreviewPrepareAsync(db, actor, id, input, ct)))
+      .WithUiResponse<UiValueResponse<VarianceInvestigationCommandPreview>>(includeConflict: true);
+    group.MapPost(varianceCommands + "/prepare", (Guid id, VarianceInvestigationCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditCompletionVarianceWorkspace.ExecutePrepareAsync(db, actor, id, input, ct)))
+      .WithUiResponse<UiValueResponse<VarianceInvestigationCommandReceiptView>>(includeConflict: true);
+    group.MapPost(varianceCommands + "/{varianceId:guid}/review/preview", (Guid id, Guid varianceId,
+      VarianceInvestigationCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditCompletionVarianceWorkspace.PreviewReviewAsync(db, actor, id, varianceId, input, ct)))
+      .WithUiResponse<UiValueResponse<VarianceInvestigationCommandPreview>>(includeConflict: true);
+    group.MapPost(varianceCommands + "/{varianceId:guid}/review", (Guid id, Guid varianceId,
+      VarianceInvestigationCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditCompletionVarianceWorkspace.ExecuteReviewAsync(db, actor, id, varianceId, input, ct)))
+      .WithUiResponse<UiValueResponse<VarianceInvestigationCommandReceiptView>>(includeConflict: true);
+    group.MapGet(varianceCommands + "/receipts/{requestId:guid}", (Guid id, Guid requestId, string? requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditCompletionVarianceWorkspace.LookupAsync(db, actor, id, requestId, requestHash, ct)))
+      .WithUiResponse<VarianceInvestigationCommandLookup>(includeConflict: true);
+
     group.MapGet("/engagements/{id:guid}/completion", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => EngagementCompletionWorkspaceQuery.GetAsync(db, actor, id, DateTimeOffset.UtcNow, ct,
         http.RequestServices.GetRequiredService<IReportSigningCredentialSource>())))

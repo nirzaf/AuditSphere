@@ -67,7 +67,7 @@ public static partial class SourceAcceptanceWorkspace
       !write.Succeeded ? "Current scoped reviewer authority and an unblocked engagement are required." :
       source.CreatedByUserId == Guid.Empty || source.CreatedByUserId == actor.UserId ? "A reviewer other than the source importer must accept this revision." :
       (source.OriginKind == SourceImportOrigins.External && !ValidHash(source.RawFileSha256Hex)) || !ValidHash(source.NormalizedDatasetDigest) ? "The sealed source has no valid immutable identity digest." :
-      period is null || period.Status != AccountingWorkflowStates.Active ? "The source reporting period is unavailable or closed." :
+      period is null || !AccountingWorkflowStates.IsOpenReportingPeriodStatus(period.Status) ? "The source reporting period is unavailable or closed." :
       frozen ? "The engagement file is frozen. An approved amendment is required." :
       !nativeCurrent.Succeeded ? nativeCurrent.Message : null;
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor,

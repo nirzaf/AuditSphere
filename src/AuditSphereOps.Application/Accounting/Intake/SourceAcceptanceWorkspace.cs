@@ -62,7 +62,7 @@ public static partial class SourceAcceptanceWorkspace
       source.ImportedByUserId == Guid.Empty || source.ImportedByUserId == actor.UserId ? "A reviewer other than the source importer must accept this revision." :
       source.ValidationStatus != "Accepted" || !source.Balanced ? "Worker validation must accept a balanced, sealed source before independent source acceptance." :
       !ValidHash(hash) ? "The sealed source has no valid immutable identity digest." :
-      source.PeriodId is not null && (period is null || period.Status != AccountingWorkflowStates.Active) ? "The source reporting period is unavailable or closed." :
+      source.PeriodId is not null && (period is null || !AccountingWorkflowStates.IsOpenReportingPeriodStatus(period.Status)) ? "The source reporting period is unavailable or closed." :
       frozen ? "The engagement file is frozen. An approved amendment is required." : null;
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, source.ClientId, source.EngagementId, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<SourceAcceptanceReview>.Fail(auth.ErrorCode!, auth.Message!);
