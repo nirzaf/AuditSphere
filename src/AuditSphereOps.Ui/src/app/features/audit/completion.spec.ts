@@ -654,3 +654,379 @@ describe('Report certificate signing (ADR-0016)', () => {
   });
 });
 
+describe('Completion variance investigation panel (R03)', () => {
+  afterEach(() => { try { TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true }); } finally { TestBed.resetTestingModule(); sessionStorage.clear(); } });
+
+  it('loads the exact-scope panel independently when the completion projection is denied and preserves exact decimals and revisions', async () => {
+    const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    TestBed.configureTestingModule({ imports: [EngagementCompletion], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+      { provide: ActivatedRoute, useValue: { paramMap: params } }] });
+    const session = TestBed.inject(SessionService);
+    session.current.set({ userId: id3, firmId: id2, generation: '9223372036854775806', staff: true });
+    const http = TestBed.inject(HttpTestingController), fixture = TestBed.createComponent(EngagementCompletion);
+    fixture.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    const page = fixture.componentInstance;
+    page.varianceForm.accountArea = 'revenue'; page.varianceForm.periodReference = '2026-q1';
+    const loading = page.loadVarianceState();
+    http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/state?accountArea=REVENUE&periodReference=2026-Q1`).flush({
+      engagementId: id1, clientId: id2, accountArea: 'REVENUE', periodReference: '2026-Q1', expectedRevision: '9223372036854775807',
+      reviewBasis: hash64, record: { id: id3, clientId: id2, engagementId: id1, procedureId: null, accountArea: 'REVENUE', periodReference: '2026-Q1',
+        expectedAmount: '100.000001', actualAmount: '112.000009', differenceAmount: '12.000008', differencePercent: '12.0000',
+        investigationThreshold: '10.000000', exceedsThreshold: true, explanation: 'Reconciled with the retained source.', conclusion: 'CORROBORATED',
+        currency: 'QAR', evidenceReferences: ['procedure-result:exact'], revision: '9223372036854775807', recordedByUserId: id3,
+        reviewedByUserId: null, recordedAt: '2026-11-10T10:00:00Z', reviewedAt: null, reviewedRevision: null },
+      canPrepare: false, canReview: false, blockers: ['A different current reviewer is required.'],
+    });
+    await loading; fixture.detectChanges();
+    expect(page.varianceState()?.expectedRevision).toBe('9223372036854775807');
+    expect(page.varianceState()?.record?.expectedAmount).toBe('100.000001');
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-variance-investigation]')?.textContent).toContain('100.000001 QAR');
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-variance-investigation]')?.textContent).toContain('Not independently reviewed.');
+    expect(page.ws.error()).toContain('authorized internal staff identity');
+    fixture.destroy();
+  });
+
+  it('preserves an unresolved reference across a session epoch change and clears the old record immediately', async () => {
+    const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    TestBed.configureTestingModule({ imports: [EngagementCompletion], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+      { provide: ActivatedRoute, useValue: { paramMap: params } }] });
+    const session = TestBed.inject(SessionService);
+    session.current.set({ userId: id3, firmId: id2, generation: '1', staff: true });
+    const fixture = TestBed.createComponent(EngagementCompletion); fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    const page = fixture.componentInstance;
+    const key = `auditsphere-variance-pending-v1:${id2}:${id3}:${id1}`;
+    const pending = { version: 2, firmId: id2, actorId: id3, engagementId: id1, accountArea: 'REVENUE', periodReference: '2026-Q1',
+      requestId: '44444444-4444-4444-8444-444444444444', requestHash: hash64, action: 'PREPARE', varianceId: null, actorEpoch: '1',
+      expectedRevision: '0', reviewBasis: hash64, basisContentHash: null, resultContentHash: hash64 };
+    sessionStorage.setItem(key, JSON.stringify(pending));
+    page.varianceState.set({ engagementId: id1, clientId: id2, accountArea: 'REVENUE', periodReference: '2026-Q1', expectedRevision: '1',
+      reviewBasis: hash64, record: null, canPrepare: true, canReview: false, blockers: [] });
+    session.current.set({ userId: id3, firmId: id2, generation: '2', staff: true });
+    session.invalidation.update(x => x + 1); fixture.detectChanges();
+    expect(page.varianceState()).toBeNull();
+    expect(page.variancePending()?.requestId).toBe(pending.requestId);
+    expect(sessionStorage.getItem(key)).not.toBeNull();
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-variance-pending-reference]')?.textContent).toContain('REVENUE / 2026-Q1');
+    const loadingPending = page.loadPendingVarianceScope();
+    expect(page.varianceForm.accountArea).toBe('REVENUE'); expect(page.varianceForm.periodReference).toBe('2026-Q1');
+    http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/state?accountArea=REVENUE&periodReference=2026-Q1`).flush({
+      engagementId: id1, clientId: id2, accountArea: 'REVENUE', periodReference: '2026-Q1', expectedRevision: '0', reviewBasis: hash64,
+      record: null, canPrepare: true, canReview: false, blockers: [],
+    });
+    await loadingPending;
+    fixture.destroy();
+  });
+
+  it('keeps an unknown preparation fenced and validates recovery against the original preview after the basis advances', async () => {
+    const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    TestBed.configureTestingModule({ imports: [EngagementCompletion], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+      { provide: ActivatedRoute, useValue: { paramMap: params } }] });
+    const session = TestBed.inject(SessionService);
+    session.current.set({ userId: id3, firmId: id2, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController), fixture = TestBed.createComponent(EngagementCompletion);
+    fixture.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    const page = fixture.componentInstance;
+    Object.assign(page.varianceForm, { accountArea: 'REVENUE', periodReference: '2026-Q1', expectedAmount: '100.000001', actualAmount: '112.000009',
+      investigationThreshold: '10.000000', currency: 'QAR', explanation: 'Reconciled to the exact source.', evidenceReferences: 'procedure-result:exact' });
+    const firstState = { engagementId: id1, clientId: id2, accountArea: 'REVENUE', periodReference: '2026-Q1', expectedRevision: '0',
+      reviewBasis: hash64, record: null, canPrepare: true, canReview: false, blockers: [] };
+    const stateLoad = page.loadVarianceState();
+    http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/state?accountArea=REVENUE&periodReference=2026-Q1`).flush(firstState);
+    await stateLoad;
+    expect(page.varianceInputsValid()).toBe(true);
+    page.varianceForm.expectedAmount = '100.0000001'; expect(page.varianceInputsValid()).toBe(false);
+    page.varianceForm.expectedAmount = '100.000001'; expect(page.varianceInputsValid()).toBe(true);
+    const previewing = page.previewVariancePreparation();
+    const previewRequest = http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/prepare/preview`);
+    const requestId = previewRequest.request.body.requestId as string;
+    previewRequest.flush({ value: { requestId, action: 'PREPARE', requestHash: hash64, reviewBasis: hash64, expectedRevision: '0', canProceed: true,
+      blockers: [], currentRecord: null, summary: 'Prepare the current variance investigation.' } });
+    await previewing; page.varianceAssent = true;
+    const submitting = page.submitVarianceCommand();
+    const command = http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/prepare`);
+    expect(command.request.body.reviewed).toBe(true);
+    expect(command.request.body.expectedRequestHash).toBe(hash64);
+    command.flush({ message: 'simulated lost acknowledgement' }, { status: 500, statusText: 'Server Error' });
+    await submitting;
+    const storageKey = `auditsphere-variance-pending-v1:${id2}:${id3}:${id1}`;
+    const raw = sessionStorage.getItem(storageKey)!;
+    const pending = JSON.parse(raw);
+    expect(pending.expectedRevision).toBe('0'); expect(pending.reviewBasis).toBe(hash64);
+    expect(page.varianceBasisCurrent()).toBe(false);
+    expect(page.varianceState()).not.toBeNull();
+
+    session.clear(); fixture.detectChanges();
+    session.current.set({ userId: id3, firmId: id2, generation: '1', staff: true }); fixture.detectChanges();
+    expect(page.varianceState()).toBeNull(); expect(page.variancePending()?.requestId).toBe(requestId);
+    page.varianceForm.accountArea = 'REVENUE'; page.varianceForm.periodReference = '2026-Q1';
+    const advanced = { ...firstState, expectedRevision: '1', reviewBasis: 'e'.repeat(64), canPrepare: true,
+      record: { id: id1, clientId: id2, engagementId: id1, procedureId: null, accountArea: 'REVENUE', periodReference: '2026-Q1',
+        expectedAmount: '100.000001', actualAmount: '112.000009', differenceAmount: '12.000008', differencePercent: '12.0000',
+        investigationThreshold: '10.000000', exceedsThreshold: true, explanation: 'Reconciled to the exact source.', conclusion: 'CORROBORATED', currency: 'QAR',
+        evidenceReferences: ['procedure-result:exact'], revision: '1', recordedByUserId: id3, reviewedByUserId: null,
+        recordedAt: '2026-11-10T10:00:00Z', reviewedAt: null, reviewedRevision: null } };
+    const secondState = page.loadVarianceState();
+    http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/state?accountArea=REVENUE&periodReference=2026-Q1`).flush(advanced);
+    await secondState;
+    const lookup = page.lookupVarianceRequest();
+    const receiptRequest = http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/receipts/${requestId}?requestHash=${hash64}`);
+    const receipt = { id: id2, engagementId: id1, varianceInvestigationId: id1, actorId: id3, actorEpoch: '1', requestId,
+      requestHash: hash64, action: 'PREPARE', createdAt: '2026-11-10T10:00:00Z',
+      preview: { requestId, action: 'PREPARE', requestHash: hash64, reviewBasis: hash64, expectedRevision: '0', canProceed: true, blockers: [], currentRecord: null, summary: 'Prepare.' },
+      result: advanced.record };
+    const replacementReference = JSON.stringify({ ...pending, requestId: '55555555-5555-4555-8555-555555555555', requestHash: 'a'.repeat(64) });
+    sessionStorage.setItem(storageKey, replacementReference);
+    receiptRequest.flush({ found: true, receipt });
+    await lookup;
+    expect(sessionStorage.getItem(storageKey)).toBe(replacementReference);
+    expect(page.variancePending()?.requestId).toBe(requestId);
+    expect(page.varianceError()).toContain('could not be cleared safely');
+    http.expectNone(`/api/ui/engagements/${id1}/completion/variance-investigations/state?accountArea=REVENUE&periodReference=2026-Q1`);
+
+    sessionStorage.setItem(storageKey, raw);
+    const confirmedLookup = page.lookupVarianceRequest();
+    const confirmedReceiptRequest = http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/receipts/${requestId}?requestHash=${hash64}`);
+    confirmedReceiptRequest.flush({ found: true, receipt });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const refreshedState = http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/state?accountArea=REVENUE&periodReference=2026-Q1`);
+    refreshedState.flush(advanced);
+    await confirmedLookup;
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+    expect(page.varianceState()?.expectedRevision).toBe('1');
+    expect(page.varianceMessage()).toContain('confirmed the retained prepare request');
+    fixture.destroy();
+  });
+
+  it('rejects late A-B-A variance state responses', async () => {
+    const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    TestBed.configureTestingModule({ imports: [EngagementCompletion], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+      { provide: ActivatedRoute, useValue: { paramMap: params } }] });
+    const session = TestBed.inject(SessionService);
+    session.current.set({ userId: id3, firmId: id2, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController), fixture = TestBed.createComponent(EngagementCompletion);
+    fixture.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    const page = fixture.componentInstance;
+    page.varianceForm.periodReference = '2026-Q1'; page.varianceForm.accountArea = 'A';
+    const a1 = page.loadVarianceState(), r1 = http.expectOne(req => req.url.includes('/variance-investigations/state?accountArea=A'));
+    page.varianceForm.accountArea = 'B'; page.varianceSelectionChanged();
+    const b = page.loadVarianceState(), r2 = http.expectOne(req => req.url.includes('/variance-investigations/state?accountArea=B'));
+    page.varianceForm.accountArea = 'A'; page.varianceSelectionChanged();
+    const a2 = page.loadVarianceState(), r3 = http.expectOne(req => req.url.includes('/variance-investigations/state?accountArea=A'));
+    const payload = (hash: string) => ({ engagementId: id1, clientId: id2, accountArea: page.varianceForm.accountArea,
+      periodReference: '2026-Q1', expectedRevision: '0', reviewBasis: hash, record: null, canPrepare: true, canReview: false, blockers: [] });
+    r1.flush(payload('a'.repeat(64))); await a1; expect(page.varianceState()).toBeNull();
+    r2.flush(payload('b'.repeat(64))); await b; expect(page.varianceState()).toBeNull();
+    r3.flush(payload('c'.repeat(64))); await a2; expect(page.varianceState()?.reviewBasis).toBe('c'.repeat(64));
+
+    fixture.destroy();
+  });
+
+  it('confirms a successful independent review only for the exact reviewer, prior revision and authoritative receipt', async () => {
+    const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    TestBed.configureTestingModule({ imports: [EngagementCompletion], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+      { provide: ActivatedRoute, useValue: { paramMap: params } }] });
+    const session = TestBed.inject(SessionService);
+    session.current.set({ userId: id3, firmId: id2, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController), fixture = TestBed.createComponent(EngagementCompletion);
+    fixture.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    const page = fixture.componentInstance;
+    const original = { id: id2, clientId: id2, engagementId: id1, procedureId: null, accountArea: 'REVENUE', periodReference: '2026-Q1',
+      expectedAmount: '100.000001', actualAmount: '112.000009', differenceAmount: '12.000008', differencePercent: '12.0000',
+      investigationThreshold: '10.000000', exceedsThreshold: true, explanation: 'Reconciled to exact evidence.', conclusion: 'CORROBORATED' as const, currency: 'QAR',
+      evidenceReferences: ['procedure-result:exact'], revision: '4', recordedByUserId: id1, reviewedByUserId: null,
+      recordedAt: '2026-11-10T10:00:00Z', reviewedAt: null, reviewedRevision: null };
+    const current = { engagementId: id1, clientId: id2, accountArea: 'REVENUE', periodReference: '2026-Q1', expectedRevision: '4',
+      reviewBasis: hash64, record: original, canPrepare: false, canReview: true, blockers: [] };
+    page.varianceForm.accountArea = 'REVENUE'; page.varianceForm.periodReference = '2026-Q1';
+    const stateLoad = page.loadVarianceState();
+    http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/state?accountArea=REVENUE&periodReference=2026-Q1`).flush(current);
+    await stateLoad;
+    const previewing = page.previewVarianceReview();
+    const reviewPreview = http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/${id2}/review/preview`);
+    const changedPreviewRecord = { ...original, actualAmount: '999.000000', evidenceReferences: ['procedure-result:other'] };
+    reviewPreview.flush({ value: { requestId: reviewPreview.request.body.requestId, action: 'REVIEW', requestHash: 'a'.repeat(64), reviewBasis: hash64,
+      expectedRevision: '4', canProceed: true, blockers: [], currentRecord: changedPreviewRecord, summary: 'Review exact current evidence.' } });
+    await previewing;
+    expect(page.variancePreview()).toBeNull();
+    expect(page.varianceError()).toContain('exact current variance intent');
+
+    const exactPreviewing = page.previewVarianceReview();
+    const exactReviewPreview = http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/${id2}/review/preview`);
+    const requestId = exactReviewPreview.request.body.requestId as string;
+    exactReviewPreview.flush({ value: { requestId, action: 'REVIEW', requestHash: 'a'.repeat(64), reviewBasis: hash64, expectedRevision: '4',
+      canProceed: true, blockers: [], currentRecord: original, summary: 'Review exact current evidence.' } });
+    await exactPreviewing; page.varianceAssent = true;
+    const submitting = page.submitVarianceCommand();
+    const command = http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/${id2}/review`);
+    expect(command.request.body.expectedRevision).toBe('4'); expect(command.request.body.reviewed).toBe(true);
+    const reviewed = { ...original, revision: '5', reviewedByUserId: id3, reviewedAt: '2026-11-10T11:00:00Z', reviewedRevision: '4' };
+    const receipt = { id: id3, engagementId: id1, varianceInvestigationId: id2, actorId: id3, actorEpoch: '1', requestId,
+      requestHash: 'a'.repeat(64), action: 'REVIEW', createdAt: '2026-11-10T11:00:00Z',
+      preview: { requestId, action: 'REVIEW', requestHash: 'a'.repeat(64), reviewBasis: hash64, expectedRevision: '4', canProceed: true,
+        blockers: [], currentRecord: original, summary: 'Review exact current evidence.' },
+      result: { ...reviewed, actualAmount: '999.000000', evidenceReferences: ['procedure-result:other'] } };
+    command.flush({ value: receipt });
+    await submitting;
+    expect(page.variancePending()?.requestId).toBe(requestId);
+    expect(sessionStorage.length).toBe(1);
+    expect(page.varianceMessage()).not.toContain('server confirmed');
+    expect(page.varianceError()).toContain('cannot confirm this exact variance command');
+    http.expectNone(req => req.url.includes('/variance-investigations/state?'));
+
+    const recovering = page.lookupVarianceRequest();
+    const receiptLookup = http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/receipts/${requestId}?requestHash=${'a'.repeat(64)}`);
+    receiptLookup.flush({ found: true, receipt: { ...receipt, result: reviewed } });
+    const currentReviewed = { ...current, expectedRevision: '5', reviewBasis: 'e'.repeat(64), record: reviewed, canReview: false };
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const refreshed = http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/state?accountArea=REVENUE&periodReference=2026-Q1`);
+    expect(page.isVarianceReviewCurrent(reviewed)).toBe(true);
+    page.varianceForm.accountArea = 'CASH'; page.varianceSelectionChanged();
+    refreshed.flush(currentReviewed);
+    await recovering; fixture.detectChanges();
+    expect(page.varianceState()).toBeNull();
+    expect(page.varianceMessage()).toContain('Current state was not refreshed for the selected scope');
+    expect(page.varianceMessage()).not.toContain('exact variance state was refreshed');
+    expect(page.variancePending()).toBeNull(); expect(sessionStorage.length).toBe(0);
+    fixture.destroy();
+  });
+
+  it('retains the recovery reference when a review receipt contains an unsupported conclusion', async () => {
+    const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    TestBed.configureTestingModule({ imports: [EngagementCompletion], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+      { provide: ActivatedRoute, useValue: { paramMap: params } }] });
+    const session = TestBed.inject(SessionService);
+    session.current.set({ userId: id3, firmId: id2, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController), fixture = TestBed.createComponent(EngagementCompletion);
+    fixture.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    const page = fixture.componentInstance;
+    const original = { id: id2, clientId: id2, engagementId: id1, procedureId: null, accountArea: 'REVENUE', periodReference: '2026-Q1',
+      expectedAmount: '100.000001', actualAmount: '112.000009', differenceAmount: '12.000008', differencePercent: '12.0000',
+      investigationThreshold: '10.000000', exceedsThreshold: true, explanation: 'Reconciled to exact evidence.', conclusion: 'CORROBORATED' as const, currency: 'QAR',
+      evidenceReferences: ['procedure-result:exact'], revision: '4', recordedByUserId: id1, reviewedByUserId: null,
+      recordedAt: '2026-11-10T10:00:00Z', reviewedAt: null, reviewedRevision: null };
+    page.varianceForm.accountArea = 'REVENUE'; page.varianceForm.periodReference = '2026-Q1';
+    const stateLoad = page.loadVarianceState();
+    http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/state?accountArea=REVENUE&periodReference=2026-Q1`).flush({
+      engagementId: id1, clientId: id2, accountArea: 'REVENUE', periodReference: '2026-Q1', expectedRevision: '4',
+      reviewBasis: hash64, record: original, canPrepare: false, canReview: true, blockers: [],
+    });
+    await stateLoad;
+    const previewing = page.previewVarianceReview();
+    const reviewPreview = http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/${id2}/review/preview`);
+    const requestId = reviewPreview.request.body.requestId as string;
+    reviewPreview.flush({ value: { requestId, action: 'REVIEW', requestHash: 'a'.repeat(64), reviewBasis: hash64, expectedRevision: '4',
+      canProceed: true, blockers: [], currentRecord: original, summary: 'Review exact current evidence.' } });
+    await previewing; page.varianceAssent = true;
+    const submitting = page.submitVarianceCommand();
+    http.expectOne(`/api/ui/engagements/${id1}/completion/variance-investigations/${id2}/review`).flush({ value: {
+      id: id3, engagementId: id1, varianceInvestigationId: id2, actorId: id3, actorEpoch: '1', requestId,
+      requestHash: 'a'.repeat(64), action: 'REVIEW', createdAt: '2026-11-10T11:00:00Z',
+      preview: { requestId, action: 'REVIEW', requestHash: 'a'.repeat(64), reviewBasis: hash64, expectedRevision: '4', canProceed: true,
+        blockers: [], currentRecord: original, summary: 'Review exact current evidence.' },
+      result: { ...original, conclusion: 'NOT_ASSESSED', revision: '5', reviewedByUserId: id3,
+        reviewedAt: '2026-11-10T11:00:00Z', reviewedRevision: '4' },
+    } });
+    await submitting;
+    expect(page.variancePending()?.requestId).toBe(requestId);
+    expect(sessionStorage.length).toBe(1);
+    expect(page.varianceMessage()).not.toContain('server confirmed');
+    expect(page.varianceError()).toBeTruthy();
+    http.expectNone(req => req.url.includes('/variance-investigations/state?'));
+    fixture.destroy();
+  });
+
+  it('retires only typed first-send refusals, not arbitrary conflicts or idempotency conflicts', () => {
+    const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    TestBed.configureTestingModule({ imports: [EngagementCompletion], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+      { provide: ActivatedRoute, useValue: { paramMap: params } }] });
+    TestBed.inject(SessionService).current.set({ userId: id3, firmId: id2, generation: '1', staff: true });
+    const fixture = TestBed.createComponent(EngagementCompletion); fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    const classify = (fixture.componentInstance as unknown as { definitiveVarianceRefusal: (value: { ok: false; unknown: false; code: string; status: number }) => boolean }).definitiveVarianceRefusal.bind(fixture.componentInstance);
+    expect(classify({ ok: false, unknown: false, code: 'revision.stale', status: 409 })).toBe(true);
+    expect(classify({ ok: false, unknown: false, code: 'generation.stale', status: 409 })).toBe(true);
+    expect(classify({ ok: false, unknown: false, code: 'idempotency.conflict', status: 409 })).toBe(false);
+    expect(classify({ ok: false, unknown: false, code: 'another.conflict', status: 409 })).toBe(false);
+    fixture.destroy();
+  });
+
+  it('fails closed when recovery storage cannot persist the exact request before command dispatch', async () => {
+    const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    TestBed.configureTestingModule({ imports: [EngagementCompletion], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+      { provide: ActivatedRoute, useValue: { paramMap: params } }] });
+    TestBed.inject(SessionService).current.set({ userId: id3, firmId: id2, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController), fixture = TestBed.createComponent(EngagementCompletion);
+    fixture.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    const page = fixture.componentInstance;
+    Object.assign(page.varianceForm, { accountArea: 'REVENUE', periodReference: '2026-Q1', expectedAmount: '100.000001', actualAmount: '112.000009',
+      investigationThreshold: '10.000000', currency: 'QAR', explanation: 'Reconciled.', evidenceReferences: 'procedure-result:exact' });
+    const state = page.loadVarianceState();
+    http.expectOne(req => req.url.includes('/variance-investigations/state')).flush({ engagementId: id1, clientId: id2, accountArea: 'REVENUE',
+      periodReference: '2026-Q1', expectedRevision: '0', reviewBasis: hash64, record: null, canPrepare: true, canReview: false, blockers: [] });
+    await state;
+    const previewing = page.previewVariancePreparation(), previewRequest = http.expectOne(req => req.url.endsWith('/prepare/preview'));
+    const requestId = previewRequest.request.body.requestId as string;
+    previewRequest.flush({ value: { requestId, action: 'PREPARE', requestHash: hash64, reviewBasis: hash64, expectedRevision: '0', canProceed: true,
+      blockers: [], currentRecord: null, summary: 'Prepare.' } });
+    await previewing; page.varianceAssent = true;
+    const storage = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('quota', 'QuotaExceededError'); });
+    await page.submitVarianceCommand(); storage.mockRestore();
+    http.expectNone(req => req.url.endsWith('/variance-investigations/prepare'));
+    expect(page.variancePending()).toBeNull(); expect(page.varianceRecoveryUnavailable()).toBe(true);
+    expect(page.varianceError()).toContain('No command was sent');
+    fixture.destroy();
+  });
+
+  it('retires a typed 409 stale first-send refusal after refreshing, while preserving ambiguous conflicts', async () => {
+    const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    TestBed.configureTestingModule({ imports: [EngagementCompletion], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+      { provide: ActivatedRoute, useValue: { paramMap: params } }] });
+    TestBed.inject(SessionService).current.set({ userId: id3, firmId: id2, generation: '1', staff: true });
+    const http = TestBed.inject(HttpTestingController), fixture = TestBed.createComponent(EngagementCompletion);
+    fixture.detectChanges();
+    http.expectOne(`/api/ui/engagements/${id1}/completion`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush({ code: 'scope.denied' }, { status: 403, statusText: 'Forbidden' });
+    const page = fixture.componentInstance;
+    Object.assign(page.varianceForm, { accountArea: 'REVENUE', periodReference: '2026-Q1', expectedAmount: '100.000001', actualAmount: '112.000009',
+      investigationThreshold: '10.000000', currency: 'QAR', explanation: 'Reconciled.', evidenceReferences: 'procedure-result:exact' });
+    const state = page.loadVarianceState();
+    http.expectOne(req => req.url.includes('/variance-investigations/state')).flush({ engagementId: id1, clientId: id2, accountArea: 'REVENUE',
+      periodReference: '2026-Q1', expectedRevision: '0', reviewBasis: hash64, record: null, canPrepare: true, canReview: false, blockers: [] });
+    await state;
+    const previewing = page.previewVariancePreparation(), previewRequest = http.expectOne(req => req.url.endsWith('/prepare/preview'));
+    const requestId = previewRequest.request.body.requestId as string;
+    previewRequest.flush({ value: { requestId, action: 'PREPARE', requestHash: hash64, reviewBasis: hash64, expectedRevision: '0', canProceed: true,
+      blockers: [], currentRecord: null, summary: 'Prepare.' } });
+    await previewing; page.varianceAssent = true;
+    const submitting = page.submitVarianceCommand(), command = http.expectOne(req => req.url.endsWith('/variance-investigations/prepare'));
+    command.flush({ code: 'revision.stale', message: 'The exact source revision changed.' }, { status: 409, statusText: 'Conflict' });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const refresh = http.expectOne(req => req.url.includes('/variance-investigations/state'));
+    refresh.flush({ engagementId: id1, clientId: id2, accountArea: 'REVENUE', periodReference: '2026-Q1', expectedRevision: '0', reviewBasis: 'e'.repeat(64),
+      record: null, canPrepare: true, canReview: false, blockers: [] });
+    await submitting;
+    expect(page.variancePending()).toBeNull(); expect(page.varianceBasisCurrent()).toBe(true);
+    expect(page.varianceMessage()).toContain('definitively refused the first request');
+    expect(page.varianceError()).toBe('This record changed since you loaded it. Refresh and review the current revision.');
+    expect(sessionStorage.length).toBe(0);
+    fixture.destroy();
+  });
+});
+

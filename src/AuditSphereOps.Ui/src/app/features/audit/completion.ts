@@ -3,7 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
-import { arr, bool, dec, guid, instant, int, nat, nullable, obj, oneOf, text } from '../../core/decode';
+import { guidPattern } from '../../core/contracts';
+import { arr, bool, dec, decode, guid, instant, int, nat, nullable, obj, oneOf, text } from '../../core/decode';
 import { SHARED } from '../../core/ui';
 import { SessionService } from '../../core/session';
 import { EqrDecision } from './eqr-decision';
@@ -48,6 +49,63 @@ export const decodeCompletion = obj({ engagementId: guid,
 const archiveReadiness = obj({ freezeId: guid, revision: nat, state: text, dueAt: instant, archiveReadinessDigest: nullable(text), blockers: arr(text, 50) });
 const fieldworkBasis = obj({ engagementId: guid, program: nullable(obj({ programCode: text, version: text, sourceHash: text })),
   procedures: arr(obj({ sourceProcedureId: text, title: text, applicabilityStatus: text, status: text }), 5000), canManageFieldwork: bool });
+const varianceRecord = obj({ id: guid, clientId: guid, engagementId: guid, procedureId: nullable(guid), accountArea: text, periodReference: text,
+  expectedAmount: dec, actualAmount: dec, differenceAmount: dec, differencePercent: nullable(dec), investigationThreshold: dec,
+  exceedsThreshold: bool, explanation: nullable(text), conclusion: oneOf('EXPLAINED', 'UNEXPLAINED', 'CORROBORATED'), currency: text, evidenceReferences: arr(text, 100), revision: text,
+  recordedByUserId: guid, reviewedByUserId: nullable(guid), recordedAt: instant, reviewedAt: nullable(instant), reviewedRevision: nullable(text) });
+const varianceStateDecoder = obj({ engagementId: guid, clientId: guid, accountArea: text, periodReference: text, expectedRevision: text,
+  reviewBasis: text, record: nullable(varianceRecord), canPrepare: bool, canReview: bool, blockers: arr(text, 100) });
+const variancePreviewDecoder = obj({ requestId: guid, action: oneOf('PREPARE', 'REVIEW'), requestHash: text, reviewBasis: text,
+  expectedRevision: text, canProceed: bool, blockers: arr(text, 100), currentRecord: nullable(varianceRecord), summary: text });
+const varianceReceiptDecoder = obj({ id: guid, engagementId: guid, varianceInvestigationId: guid, actorId: guid, actorEpoch: text,
+  requestId: guid, requestHash: text, action: oneOf('PREPARE', 'REVIEW'), createdAt: instant, preview: variancePreviewDecoder, result: varianceRecord });
+const varianceLookupDecoder = obj({ found: bool, receipt: nullable(varianceReceiptDecoder) });
+const isCanonicalLong = (value: string) => /^(0|[1-9][0-9]{0,18})$/.test(value) && BigInt(value) <= 9223372036854775807n;
+type VarianceRecord = ReturnType<typeof varianceRecord>;
+type VarianceState = ReturnType<typeof varianceStateDecoder>;
+type VariancePreview = ReturnType<typeof variancePreviewDecoder>;
+type VarianceReceipt = ReturnType<typeof varianceReceiptDecoder>;
+type VarianceOwner = { firmId: string; userId: string; generation: string; epoch: number; engagementId: string };
+type VarianceFields = { procedureId: string | null; accountArea: string; periodReference: string; expectedAmount: string; actualAmount: string;
+  investigationThreshold: string; currency: string; explanation: string | null; evidenceReferences: string[] };
+type VarianceIntent = { action: 'PREPARE' | 'REVIEW'; body: { requestId: string; expectedRevision: string; reviewBasis: string; fields: VarianceFields | null };
+  state: VarianceState; preview: VariancePreview; basisContentHash: string | null; resultContentHash: string };
+type VarianceContentIdentity = { clientId: string; engagementId: string; procedureId: string | null; accountArea: string; periodReference: string;
+  expectedAmount: string; actualAmount: string; differenceAmount: string; differencePercent: string | null; investigationThreshold: string;
+  exceedsThreshold: boolean; explanation: string | null; conclusion: VarianceRecord['conclusion']; currency: string; evidenceReferences: string[] };
+type VariancePending = { version: 2; firmId: string; actorId: string; engagementId: string; accountArea: string; periodReference: string;
+  requestId: string; requestHash: string; action: 'PREPARE' | 'REVIEW'; varianceId: string | null; actorEpoch: string;
+  expectedRevision: string; reviewBasis: string; basisContentHash: string | null; resultContentHash: string };
+const canonicalFixed = (value: string, scale: number): string | null => {
+  const match = /^(-?)(\d{1,13})(?:\.(\d{1,6}))?$/.exec(value);
+  if (!match || (match[3]?.length ?? 0) > scale) return null;
+  const integer = match[2].replace(/^0+(?=\d)/, '');
+  const fraction = (match[3] ?? '').padEnd(scale, '0');
+  const nonZero = /[1-9]/.test(integer + fraction);
+  return `${match[1] === '-' && nonZero ? '-' : ''}${integer}${scale ? `.${fraction}` : ''}`;
+};
+const scaledInteger = (canonical: string, scale: number): bigint => {
+  const negative = canonical.startsWith('-');
+  const unsigned = negative ? canonical.slice(1) : canonical;
+  const [integer, fraction = ''] = unsigned.split('.');
+  const value = BigInt(integer) * (10n ** BigInt(scale)) + BigInt(fraction || '0');
+  return negative ? -value : value;
+};
+const fixedFromScaled = (value: bigint, scale: number): string => {
+  const negative = value < 0n;
+  const unsigned = negative ? -value : value;
+  const factor = 10n ** BigInt(scale);
+  const integer = (unsigned / factor).toString();
+  const fraction = (unsigned % factor).toString().padStart(scale, '0');
+  return `${negative && unsigned !== 0n ? '-' : ''}${integer}${scale ? `.${fraction}` : ''}`;
+};
+const roundedRatioToEven = (numerator: bigint, denominator: bigint): bigint => {
+  const quotient = numerator / denominator, remainder = numerator % denominator;
+  const twiceRemainder = (remainder < 0n ? -remainder : remainder) * 2n;
+  if (twiceRemainder > denominator || twiceRemainder === denominator && (quotient < 0n ? -quotient : quotient) % 2n === 1n)
+    return quotient + (numerator < 0n ? -1n : 1n);
+  return quotient;
+};
 type Completion = ReturnType<typeof decodeCompletion>;
 const OPINION_LABELS: Record<string, string> = { UNMODIFIED: 'Clean (unmodified)', QUALIFIED: 'Qualified', ADVERSE: 'Adverse', DISCLAIMER: 'Disclaimer of opinion' };
 const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings Report'], ['MANAGEMENT_LETTER', 'Management Letter'],
@@ -60,6 +118,90 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a [routerLink]="['/app/engagements', id()]">Engagement</a> / <span>Completion</span></nav>
     <audit-page-header title="Engagement completion checklist" eyebrow="Engagement audit" description="Completion gates, unresolved items, and the exact state required before release." />
     <audit-state [loading]="ws.loading()" [error]="ws.error()" label="completion state" />
+    <section class="panel" aria-labelledby="variance-investigation-heading" data-variance-investigation>
+      <h2 id="variance-investigation-heading">Analytical completion variance investigation</h2>
+      <p>This is the variance investigation used by the completion gate. Preparation and review remain separate decisions; this panel does not make an accounting or audit conclusion for you.</p>
+      <p>Use identifiers for current exact-engagement evidence; other uploads do not become eligible by implication. <a [routerLink]="['/app/engagements', id(), 'audit-fieldwork']">Open fieldwork evidence</a>.</p>
+      <div class="form-grid">
+        <label>Account area<input name="varianceArea" maxlength="80" [disabled]="varianceBusy()" [(ngModel)]="varianceForm.accountArea" (ngModelChange)="varianceSelectionChanged()" /></label>
+        <label>Period reference<input name="variancePeriod" maxlength="60" [disabled]="varianceBusy()" [(ngModel)]="varianceForm.periodReference" (ngModelChange)="varianceSelectionChanged()" /></label>
+      </div>
+      <button matButton="outlined" type="button" (click)="loadVarianceState()" [disabled]="varianceBusy() || !varianceForm.accountArea.trim() || !varianceForm.periodReference.trim()">Load exact variance basis</button>
+      @if (varianceLoading()) { <p role="status">Loading the exact engagement variance basis…</p> }
+      @if (varianceError()) { <p role="alert">{{ varianceError() }}</p> }
+      @if (varianceMessage()) { <p role="status">{{ varianceMessage() }}</p> }
+      @if (varianceRecoveryUnavailable()) { <p role="alert">The unresolved variance recovery reference is unreadable or unavailable. No replacement request will be sent.</p> }
+      @if (variancePending(); as pending) {
+        <div role="alert" data-variance-pending-reference>
+          <p>An earlier {{ pending.action.toLowerCase() }} request remains unresolved for {{ pending.accountArea }} / {{ pending.periodReference }}. No business content is stored in this reference and no request will be resent automatically.</p>
+          <p>Request <code>{{ pending.requestId }}</code> · hash <code>{{ pending.requestHash }}</code></p>
+          @if (varianceState()?.accountArea === pending.accountArea && varianceState()?.periodReference === pending.periodReference) {
+            <button matButton="outlined" type="button" (click)="lookupVarianceRequest()" [disabled]="varianceBusy()">Look up this exact request</button>
+          } @else {
+            <button matButton="outlined" type="button" (click)="loadPendingVarianceScope()" [disabled]="varianceBusy()">Load pending request scope</button>
+          }
+        </div>
+      }
+      @if (varianceState(); as state) {
+        @if (state.engagementId !== id() || state.accountArea !== varianceForm.accountArea.trim().toUpperCase() || state.periodReference !== varianceForm.periodReference.trim().toUpperCase()) {
+          <p role="alert">The displayed variance basis does not match the current engagement, account area and period. Load the exact basis again.</p>
+        } @else {
+          @if (varianceBasisCurrent()) {
+            <p>Current basis revision {{ state.expectedRevision }} · scope {{ state.accountArea }} / {{ state.periodReference }}. Review basis <code>{{ state.reviewBasis }}</code>. Permissions below are server-derived and are rechecked when a command is submitted.</p>
+          } @else {
+            <p role="alert">This is the pre-submission basis only. A request may have changed the authoritative record; it is not presented as current until refreshed.</p>
+          }
+          @if (state.blockers.length) { <div role="alert"><strong>{{ varianceBasisCurrent() ? 'Current variance blockers' : 'Blockers from the pre-submission basis' }}</strong><ul>@for (blocker of state.blockers; track blocker) { <li>{{ blocker }}</li> }</ul></div> }
+          @if (state.record; as record) {
+            <dl class="facts" [attr.data-variance-record]="record.id">
+              <dt>Variance identity and revision</dt><dd><code>{{ record.id }}</code> · {{ record.revision }}</dd>
+              <dt>Expected</dt><dd>{{ record.expectedAmount }} {{ record.currency }}</dd><dt>Actual</dt><dd>{{ record.actualAmount }} {{ record.currency }}</dd>
+              <dt>Difference</dt><dd>{{ record.differenceAmount }} {{ record.currency }}@if (record.differencePercent !== null) { · {{ record.differencePercent }}% }</dd>
+              <dt>Investigation threshold</dt><dd>{{ record.investigationThreshold }} {{ record.currency }} · {{ record.exceedsThreshold ? 'exceeded' : 'not exceeded' }}</dd>
+              <dt>Investigation conclusion</dt><dd>{{ record.conclusion }}</dd><dt>Explanation</dt><dd>{{ record.explanation || 'No explanation recorded' }}</dd>
+              <dt>Evidence references</dt><dd>@for (reference of record.evidenceReferences; track reference) { <code>{{ reference }}</code><br /> } @empty { None recorded }</dd>
+              <dt>Preparation identity</dt><dd><code>{{ record.recordedByUserId }}</code> · {{ record.recordedAt }}</dd>
+              <dt>Independent review</dt><dd>@if (isVarianceReviewCurrent(record)) { Currently reviewed by <code>{{ record.reviewedByUserId }}</code> at {{ record.reviewedAt }} for revision {{ record.revision }}. } @else if (record.reviewedByUserId || record.reviewedRevision !== null) { Historical review metadata does not establish review of this current revision. } @else { Not independently reviewed. }</dd>
+            </dl>
+          } @else { <p>No variance investigation exists for this exact account area and period.</p> }
+          @if (!variancePending() && state.canPrepare && !variancePreview()) {
+            <h3>Prepare or revise the investigation</h3>
+            <div class="form-grid">
+              <label>Procedure ID (optional, exact scope)<input name="varianceProcedure" [disabled]="varianceBusy()" [(ngModel)]="varianceForm.procedureId" (ngModelChange)="clearVarianceAssent()" /></label>
+              <label>Expected amount<input name="varianceExpected" inputmode="decimal" [disabled]="varianceBusy()" [(ngModel)]="varianceForm.expectedAmount" (ngModelChange)="clearVarianceAssent()" /></label>
+              <label>Actual amount<input name="varianceActual" inputmode="decimal" [disabled]="varianceBusy()" [(ngModel)]="varianceForm.actualAmount" (ngModelChange)="clearVarianceAssent()" /></label>
+              <label>Investigation threshold<input name="varianceThreshold" inputmode="decimal" [disabled]="varianceBusy()" [(ngModel)]="varianceForm.investigationThreshold" (ngModelChange)="clearVarianceAssent()" /></label>
+              <label>Currency<input name="varianceCurrency" maxlength="3" [disabled]="varianceBusy()" [(ngModel)]="varianceForm.currency" (ngModelChange)="clearVarianceAssent()" /></label>
+              <label>Investigation explanation<textarea name="varianceExplanation" maxlength="4000" [disabled]="varianceBusy()" [(ngModel)]="varianceForm.explanation" (ngModelChange)="clearVarianceAssent()"></textarea></label>
+              <label>Exact evidence references (one per line)<textarea name="varianceEvidence" maxlength="20000" [disabled]="varianceBusy()" [(ngModel)]="varianceForm.evidenceReferences" (ngModelChange)="clearVarianceAssent()"></textarea></label>
+            </div>
+            <button matButton="filled" type="button" (click)="previewVariancePreparation()" [disabled]="varianceBusy() || !varianceInputsValid()">Review preparation preview</button>
+          }
+          @if (!variancePending() && state.canReview && state.record && !variancePreview()) {
+            <p>A different authorized reviewer may review this exact record after checking its current evidence and basis.</p>
+            <button matButton="filled" type="button" (click)="previewVarianceReview()" [disabled]="varianceBusy()">Review current variance record</button>
+          }
+          @if (variancePreview(); as preview) {
+            <section aria-label="Exact variance command preview" data-variance-preview>
+              <h3>{{ preview.action === 'PREPARE' ? 'Preparation' : 'Independent review' }} preview</h3>
+              <p>{{ preview.summary }}</p><p>Request <code>{{ preview.requestId }}</code> · hash <code>{{ preview.requestHash }}</code></p>
+              <p>Expected basis revision {{ preview.expectedRevision }} · review basis <code>{{ preview.reviewBasis }}</code></p>
+              @if (varianceIntentFields(); as intentFields) {
+                <dl class="facts"><dt>Exact account area / period</dt><dd>{{ intentFields.accountArea }} / {{ intentFields.periodReference }}</dd>
+                  <dt>Expected / actual / threshold</dt><dd>{{ intentFields.expectedAmount }} / {{ intentFields.actualAmount }} / {{ intentFields.investigationThreshold }} {{ intentFields.currency }}</dd>
+                  <dt>Explanation</dt><dd>{{ intentFields.explanation || 'None supplied' }}</dd>
+                  <dt>Exact evidence references</dt><dd>@for (reference of intentFields.evidenceReferences; track reference) { <code>{{ reference }}</code><br /> } @empty { None supplied }</dd>
+                </dl>
+              }
+              @if (preview.blockers.length) { <ul>@for (blocker of preview.blockers; track blocker) { <li>{{ blocker }}</li> }</ul> }
+              <label><input type="checkbox" name="varianceAssent" [disabled]="varianceBusy()" [(ngModel)]="varianceAssent" />I reviewed this exact preview and intend to submit this one request.</label>
+              <button matButton="filled" type="button" (click)="submitVarianceCommand()" [disabled]="varianceBusy() || !varianceAssent || !preview.canProceed">Submit this exact request once</button>
+              <button matButton="outlined" type="button" (click)="cancelVariancePreview()" [disabled]="varianceBusy()">Discard preview</button>
+            </section>
+          }
+        }
+      }
+    </section>
     @if (confirmedEqrDecision(); as decisionId) {
       <p role="status" data-eqr-confirmation>The server confirmed EQR decision {{ decisionId }}. Current concurrence is not assumed; the completion state is refreshed separately.</p>
     }
@@ -457,10 +599,33 @@ export class EngagementCompletion {
   readonly signatureCheck = signal<ReturnType<typeof decodeSignatureCheck> | null>(null);
   readonly verifying = signal(false);
   private readonly signatureSession = inject(SessionService);
+  private readonly varianceSession = inject(SessionService);
+  readonly varianceForm = { accountArea: '', periodReference: '', procedureId: '', expectedAmount: '', actualAmount: '',
+    investigationThreshold: '', currency: '', explanation: '', evidenceReferences: '' };
+  readonly varianceState = signal<VarianceState | null>(null);
+  readonly variancePreview = signal<VariancePreview | null>(null);
+  readonly variancePending = signal<VariancePending | null>(null);
+  readonly varianceRecoveryUnavailable = signal(false);
+  readonly varianceError = signal('');
+  readonly varianceMessage = signal('');
+  readonly varianceLoading = signal(false);
+  readonly varianceBusy = signal(false);
+  varianceAssent = false;
+  private varianceActorIdentity = '';
+  private varianceOperation = 0;
+  private varianceLoadedState: VarianceState | null = null;
+  private varianceIntent: VarianceIntent | null = null;
+  readonly varianceBasisCurrent = signal(true);
   private readonly signatureLifetime = inject(DestroyRef);
   private signatureRequest = 0;
   private signatureDestroyed = false;
   constructor() {
+    effect(() => {
+      const id = this.id()?.toLowerCase() ?? '';
+      const actor = this.varianceSession.current();
+      const invalidation = this.varianceSession.invalidation();
+      untracked(() => this.resetVarianceContext(id, actor, invalidation));
+    });
     effect(() => {
       const context = this.eqrContext();
       untracked(() => {
@@ -475,6 +640,364 @@ export class EngagementCompletion {
       this.id(); this.ws.data(); this.signatureSession.current(); this.signatureSession.invalidation();
       untracked(() => { ++this.signatureRequest; this.signatureCheck.set(null); this.verifying.set(false); });
     });
+  }
+  private varianceStorageKey(owner: { firmId: string; userId: string; engagementId: string }): string {
+    return `auditsphere-variance-pending-v1:${owner.firmId.toLowerCase()}:${owner.userId.toLowerCase()}:${owner.engagementId.toLowerCase()}`;
+  }
+  private varianceOwner() {
+    const actor = this.varianceSession.current(), engagementId = this.id()?.toLowerCase() ?? '';
+    return actor?.staff && guidPattern.test(engagementId) ? { firmId: actor.firmId.toLowerCase(), userId: actor.userId.toLowerCase(),
+      generation: actor.generation, epoch: this.varianceSession.invalidation(), engagementId } : null;
+  }
+  private varianceContext(owner = this.varianceOwner()): string {
+    return owner ? `${owner.firmId}:${owner.userId}:${owner.generation}:${owner.epoch}:${owner.engagementId}` : '';
+  }
+  private varianceIsCurrent(operation: number, context: string): boolean {
+    return operation === this.varianceOperation && context !== '' && context === this.varianceActorIdentity &&
+      context === this.varianceContext() && !this.signatureDestroyed;
+  }
+  private clearVarianceDisplay(message = ''): void {
+    ++this.varianceOperation;
+    this.varianceState.set(null); this.variancePreview.set(null); this.varianceLoadedState = null; this.varianceIntent = null;
+    this.varianceAssent = false; this.varianceLoading.set(false); this.varianceBusy.set(false); this.varianceError.set(''); this.varianceMessage.set(message);
+  }
+  private resetVarianceContext(engagementId: string, actor: ReturnType<SessionService['current']>, epoch: number): void {
+    const next = actor?.staff && guidPattern.test(engagementId)
+      ? `${actor.firmId.toLowerCase()}:${actor.userId.toLowerCase()}:${actor.generation}:${epoch}:${engagementId}` : '';
+    if (next === this.varianceActorIdentity) return;
+    this.varianceActorIdentity = next;
+    this.clearVarianceDisplay(next ? '' : 'Sign in with an authorized internal staff identity to load an exact variance basis.');
+    Object.assign(this.varianceForm, { accountArea: '', periodReference: '', procedureId: '', expectedAmount: '', actualAmount: '',
+      investigationThreshold: '', currency: '', explanation: '', evidenceReferences: '' });
+    this.varianceBasisCurrent.set(true);
+    this.variancePending.set(null); this.varianceRecoveryUnavailable.set(false);
+    const owner = actor?.staff && guidPattern.test(engagementId)
+      ? { firmId: actor.firmId.toLowerCase(), userId: actor.userId.toLowerCase(), engagementId } : null;
+    if (!owner) return;
+    try {
+      const raw = sessionStorage.getItem(this.varianceStorageKey(owner));
+      if (raw === null) return;
+      const pending: unknown = JSON.parse(raw);
+      if (!pending || typeof pending !== 'object') throw new Error('invalid');
+      const p = pending as Partial<VariancePending>;
+      if (p.version !== 2 || p.firmId !== owner.firmId || p.actorId !== owner.userId || p.engagementId !== owner.engagementId ||
+          !['PREPARE', 'REVIEW'].includes(p.action ?? '') || !guidPattern.test(p.requestId ?? '') || !/^[0-9a-f]{64}$/.test(p.requestHash ?? '') ||
+          !isCanonicalLong(p.actorEpoch ?? '') || !isCanonicalLong(p.expectedRevision ?? '') ||
+          !/^[0-9a-f]{64}$/.test(p.reviewBasis ?? '') || typeof p.accountArea !== 'string' || p.accountArea.length > 80 ||
+          typeof p.periodReference !== 'string' || p.periodReference.length > 60 ||
+          (p.varianceId !== null && p.varianceId !== undefined && !guidPattern.test(p.varianceId)) ||
+          (p.basisContentHash !== null && !/^[0-9a-f]{64}$/.test(p.basisContentHash ?? '')) ||
+          !/^[0-9a-f]{64}$/.test(p.resultContentHash ?? '')) throw new Error('invalid');
+      this.variancePending.set(p as VariancePending);
+    } catch {
+      this.varianceRecoveryUnavailable.set(true);
+      this.varianceError.set('The saved variance request reference cannot be verified. No new request will be sent.');
+    }
+  }
+  varianceSelectionChanged(): void {
+    this.clearVarianceDisplay();
+    Object.assign(this.varianceForm, { procedureId: '', expectedAmount: '', actualAmount: '', investigationThreshold: '',
+      currency: '', explanation: '', evidenceReferences: '' });
+    this.varianceBasisCurrent.set(true);
+  }
+  loadPendingVarianceScope(): Promise<boolean> {
+    const pending = this.variancePending();
+    if (!pending || this.varianceBusy()) return Promise.resolve(false);
+    this.varianceForm.accountArea = pending.accountArea; this.varianceForm.periodReference = pending.periodReference;
+    Object.assign(this.varianceForm, { procedureId: '', expectedAmount: '', actualAmount: '', investigationThreshold: '',
+      currency: '', explanation: '', evidenceReferences: '' });
+    this.clearVarianceDisplay(); this.varianceBasisCurrent.set(true);
+    return this.loadVarianceState();
+  }
+  clearVarianceAssent(): void {
+    const invalidatingPreviewRequest = !this.variancePreview() && this.varianceBusy();
+    ++this.varianceOperation;
+    this.variancePreview.set(null); this.varianceIntent = null; this.varianceAssent = false;
+    if (invalidatingPreviewRequest) this.varianceBusy.set(false);
+  }
+  private selectedVarianceScope(): { accountArea: string; periodReference: string } | null {
+    const accountArea = this.varianceForm.accountArea.trim().toUpperCase();
+    const periodReference = this.varianceForm.periodReference.trim().toUpperCase();
+    return accountArea.length > 0 && accountArea.length <= 80 && periodReference.length > 0 && periodReference.length <= 60
+      ? { accountArea, periodReference } : null;
+  }
+  async loadVarianceState(): Promise<boolean> {
+    const owner = this.varianceOwner(), scope = this.selectedVarianceScope();
+    if (!owner || !scope || this.varianceLoading()) return false;
+    this.clearVarianceDisplay();
+    const operation = this.varianceOperation, context = this.varianceContext(owner);
+    this.varianceLoading.set(true);
+    try {
+      const state = await this.api.get(`/api/ui/engagements/${owner.engagementId}/completion/variance-investigations/state?accountArea=${encodeURIComponent(scope.accountArea)}&periodReference=${encodeURIComponent(scope.periodReference)}`, varianceStateDecoder);
+      if (!this.varianceIsCurrent(operation, context)) return false;
+      if (state.engagementId.toLowerCase() !== owner.engagementId || state.accountArea !== scope.accountArea || state.periodReference !== scope.periodReference ||
+          !isCanonicalLong(state.expectedRevision) || state.expectedRevision !== (state.record?.revision ?? '0') || !/^[0-9a-f]{64}$/.test(state.reviewBasis) ||
+          state.record && !this.validVarianceRecord(state.record, state)) throw new Error('The server returned a variance basis for a different scope or unsupported revision.');
+      this.varianceState.set(state); this.varianceLoadedState = state;
+      this.varianceBasisCurrent.set(true);
+      this.varianceForm.accountArea = scope.accountArea; this.varianceForm.periodReference = scope.periodReference;
+      this.varianceError.set('');
+      return true;
+    } catch (error) {
+      if (this.varianceIsCurrent(operation, context)) this.varianceError.set(error instanceof Error ? error.message : 'The exact variance basis could not be verified.');
+      return false;
+    } finally { if (this.varianceIsCurrent(operation, context)) this.varianceLoading.set(false); }
+  }
+  varianceInputsValid(): boolean {
+    const amount = (value: string, nonnegative = false) => /^-?\d{1,13}(?:\.\d{1,6})?$/.test(value.trim()) && (!nonnegative || !value.trim().startsWith('-'));
+    const references = this.varianceForm.evidenceReferences.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+    return !!this.varianceState() && this.varianceState() === this.varianceLoadedState && !this.variancePending() && !this.varianceRecoveryUnavailable() &&
+      this.varianceState()!.canPrepare && amount(this.varianceForm.expectedAmount) && amount(this.varianceForm.actualAmount) &&
+      amount(this.varianceForm.investigationThreshold, true) && /^[A-Za-z]{3}$/.test(this.varianceForm.currency.trim()) &&
+      (!this.varianceForm.procedureId.trim() || guidPattern.test(this.varianceForm.procedureId.trim())) &&
+      this.varianceForm.explanation.length <= 4000 && references.length <= 100 && references.every(x => x.length <= 2000) &&
+      new Set(references).size === references.length;
+  }
+  private varianceRequestId(): string { return crypto.randomUUID(); }
+  private async previewVariance(action: 'PREPARE' | 'REVIEW'): Promise<void> {
+    const owner = this.varianceOwner(), state = this.varianceState(), scope = this.selectedVarianceScope();
+    if (!owner || !state || state !== this.varianceLoadedState || !scope || this.variancePending() || this.varianceRecoveryUnavailable() || this.varianceBusy() ||
+        state.engagementId.toLowerCase() !== owner.engagementId || state.accountArea !== scope.accountArea || state.periodReference !== scope.periodReference ||
+        action === 'PREPARE' && !this.varianceInputsValid() || action === 'REVIEW' && (!state.canReview || !state.record)) return;
+    const operation = ++this.varianceOperation, context = this.varianceContext(owner);
+    this.varianceBusy.set(true); this.varianceError.set(''); this.varianceMessage.set(''); this.variancePreview.set(null); this.varianceAssent = false;
+    const fields = action === 'PREPARE' ? { procedureId: this.varianceForm.procedureId.trim() || null, accountArea: scope.accountArea,
+      periodReference: scope.periodReference, expectedAmount: this.varianceForm.expectedAmount.trim(), actualAmount: this.varianceForm.actualAmount.trim(),
+      investigationThreshold: this.varianceForm.investigationThreshold.trim(), currency: this.varianceForm.currency.trim().toUpperCase(),
+      explanation: this.varianceForm.explanation.trim() || null, evidenceReferences: this.varianceForm.evidenceReferences.split(/\r?\n/).map(x => x.trim()).filter(Boolean) } : null;
+    const body = { requestId: this.varianceRequestId(), expectedRevision: state.expectedRevision, reviewBasis: state.reviewBasis, fields };
+    try {
+      const url = action === 'PREPARE' ? `/api/ui/engagements/${owner.engagementId}/completion/variance-investigations/prepare/preview`
+        : `/api/ui/engagements/${owner.engagementId}/completion/variance-investigations/${state.record!.id}/review/preview`;
+      const outcome = await this.api.command<VariancePreview>(url, body);
+      if (!this.varianceIsCurrent(operation, context)) return;
+      if (!outcome.ok) { this.varianceError.set(outcome.message); return; }
+      const preview = decode(variancePreviewDecoder, outcome.value);
+      if (preview.requestId !== body.requestId || preview.action !== action || !/^[0-9a-f]{64}$/.test(preview.requestHash) ||
+          preview.expectedRevision !== state.expectedRevision || preview.reviewBasis !== state.reviewBasis ||
+          !this.sameVarianceRecord(preview.currentRecord, state.record) ||
+          preview.currentRecord && !this.validVarianceRecord(preview.currentRecord, state)) throw new Error('The preview does not match the exact current variance intent. Refresh before continuing.');
+      const basisContent = state.record ? this.varianceRecordContent(state.record) : null;
+      const resultContent = action === 'PREPARE' && body.fields ? this.varianceFieldsContent(body.fields, state) : basisContent;
+      const [basisContentHash, resultContentHash] = await Promise.all([
+        this.varianceContentHash(basisContent), this.varianceContentHash(resultContent),
+      ]);
+      if (action === 'REVIEW' && !basisContentHash || !resultContentHash) throw new Error('The exact variance content could not be bound to this preview. Refresh before continuing.');
+      if (!this.varianceIsCurrent(operation, context)) return;
+      this.varianceIntent = { action, body, state, preview, basisContentHash, resultContentHash };
+      this.variancePreview.set(preview);
+    } catch (error) {
+      if (this.varianceIsCurrent(operation, context)) this.varianceError.set(error instanceof Error ? error.message : 'The exact preview could not be verified.');
+    } finally { if (this.varianceIsCurrent(operation, context)) this.varianceBusy.set(false); }
+  }
+  private sameVarianceRecord(a: VarianceRecord | null, b: VarianceRecord | null): boolean {
+    return a === null && b === null || !!a && !!b && a.id.toLowerCase() === b.id.toLowerCase() && a.revision === b.revision &&
+      a.clientId.toLowerCase() === b.clientId.toLowerCase() && a.engagementId.toLowerCase() === b.engagementId.toLowerCase() &&
+      a.accountArea === b.accountArea && a.periodReference === b.periodReference &&
+      JSON.stringify(this.varianceRecordContent(a)) === JSON.stringify(this.varianceRecordContent(b));
+  }
+  private varianceRecordContent(record: VarianceRecord): VarianceContentIdentity | null {
+    const expectedAmount = canonicalFixed(record.expectedAmount, 6), actualAmount = canonicalFixed(record.actualAmount, 6);
+    const differenceAmount = canonicalFixed(record.differenceAmount, 6), investigationThreshold = canonicalFixed(record.investigationThreshold, 6);
+    const differencePercent = record.differencePercent === null ? null : canonicalFixed(record.differencePercent, 4);
+    if (!expectedAmount || !actualAmount || !differenceAmount || !investigationThreshold ||
+        record.differencePercent !== null && !differencePercent) return null;
+    return { clientId: record.clientId.toLowerCase(), engagementId: record.engagementId.toLowerCase(),
+      procedureId: record.procedureId?.toLowerCase() ?? null, accountArea: record.accountArea, periodReference: record.periodReference,
+      expectedAmount, actualAmount, differenceAmount, differencePercent, investigationThreshold,
+      exceedsThreshold: record.exceedsThreshold, explanation: record.explanation, conclusion: record.conclusion,
+      currency: record.currency, evidenceReferences: [...record.evidenceReferences] };
+  }
+  private varianceFieldsContent(fields: VarianceFields, state: VarianceState): VarianceContentIdentity | null {
+    const expectedAmount = canonicalFixed(fields.expectedAmount, 6), actualAmount = canonicalFixed(fields.actualAmount, 6);
+    const investigationThreshold = canonicalFixed(fields.investigationThreshold, 6);
+    if (!expectedAmount || !actualAmount || !investigationThreshold) return null;
+    const expected = scaledInteger(expectedAmount, 6), actual = scaledInteger(actualAmount, 6);
+    const difference = actual - expected, threshold = scaledInteger(investigationThreshold, 6);
+    const differencePercent = expected === 0n ? null : fixedFromScaled(
+      roundedRatioToEven(difference * 100n * 10_000n, expected < 0n ? -expected : expected), 4);
+    const exceedsThreshold = (difference < 0n ? -difference : difference) > threshold;
+    const explanation = fields.explanation?.trim() || null;
+    return { clientId: state.clientId.toLowerCase(), engagementId: state.engagementId.toLowerCase(),
+      procedureId: fields.procedureId?.toLowerCase() ?? null, accountArea: fields.accountArea.trim().toUpperCase(),
+      periodReference: fields.periodReference.trim().toUpperCase(), expectedAmount, actualAmount,
+      differenceAmount: fixedFromScaled(difference, 6), differencePercent, investigationThreshold, exceedsThreshold,
+      explanation, conclusion: !exceedsThreshold ? 'EXPLAINED' : explanation ? 'CORROBORATED' : 'UNEXPLAINED',
+      currency: fields.currency.trim().toUpperCase(), evidenceReferences: fields.evidenceReferences.map(x => x.trim()) };
+  }
+  private async varianceContentHash(content: VarianceContentIdentity | null): Promise<string | null> {
+    if (!content) return null;
+    const stable = JSON.stringify([content.clientId, content.engagementId, content.procedureId, content.accountArea,
+      content.periodReference, content.expectedAmount, content.actualAmount, content.differenceAmount, content.differencePercent,
+      content.investigationThreshold, content.exceedsThreshold, content.explanation, content.conclusion,
+      content.currency, content.evidenceReferences]);
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(stable));
+    return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+  }
+  private async varianceRecordContentHash(record: VarianceRecord | null): Promise<string | null> {
+    return record ? this.varianceContentHash(this.varianceRecordContent(record)) : null;
+  }
+  private validVarianceRecord(record: VarianceRecord, state: VarianceState): boolean {
+    const exactMoney = (value: string) => /^-?\d{1,13}(?:\.\d{1,6})?$/.test(value);
+    return record.clientId.toLowerCase() === state.clientId.toLowerCase() && record.engagementId.toLowerCase() === state.engagementId.toLowerCase() &&
+      record.accountArea === state.accountArea && record.periodReference === state.periodReference &&
+      isCanonicalLong(record.revision) && exactMoney(record.expectedAmount) && exactMoney(record.actualAmount) &&
+      exactMoney(record.differenceAmount) && exactMoney(record.investigationThreshold) &&
+      (record.differencePercent === null || /^-?\d{1,13}(?:\.\d{1,4})?$/.test(record.differencePercent)) && /^[A-Z]{3}$/.test(record.currency) &&
+      (record.reviewedRevision === null || isCanonicalLong(record.reviewedRevision));
+  }
+  isVarianceReviewCurrent(record: VarianceRecord): boolean {
+    return !!record.reviewedByUserId && !!record.reviewedAt && !!record.reviewedRevision &&
+      isCanonicalLong(record.reviewedRevision) && isCanonicalLong(record.revision) &&
+      BigInt(record.revision) === BigInt(record.reviewedRevision) + 1n;
+  }
+  varianceIntentFields(): VarianceFields | null { return this.varianceIntent?.body.fields ?? null; }
+  previewVariancePreparation(): Promise<void> { return this.previewVariance('PREPARE'); }
+  previewVarianceReview(): Promise<void> { return this.previewVariance('REVIEW'); }
+  cancelVariancePreview(): void { this.clearVarianceAssent(); }
+  async submitVarianceCommand(): Promise<void> {
+    const owner = this.varianceOwner(), intent = this.varianceIntent, preview = this.variancePreview(), state = this.varianceState();
+    const scope = this.selectedVarianceScope();
+    if (!owner || !intent || !preview || state !== intent.state || !scope || !this.varianceAssent || !preview.canProceed || this.varianceBusy() ||
+        preview !== intent.preview || !this.sameVarianceRecord(state.record, intent.state.record) || state.reviewBasis !== preview.reviewBasis ||
+        state.expectedRevision !== preview.expectedRevision || scope.accountArea !== state.accountArea || scope.periodReference !== state.periodReference ||
+        intent.action === 'PREPARE' && !this.varianceInputsValid()) return;
+    const context = this.varianceContext(owner), operation = ++this.varianceOperation;
+    this.varianceBusy.set(true); this.varianceError.set('');
+    const pending: VariancePending = { version: 2, firmId: owner.firmId, actorId: owner.userId, engagementId: owner.engagementId,
+      accountArea: state.accountArea, periodReference: state.periodReference, requestId: preview.requestId, requestHash: preview.requestHash,
+      action: intent.action, varianceId: state.record?.id ?? null, actorEpoch: owner.generation,
+      expectedRevision: preview.expectedRevision, reviewBasis: preview.reviewBasis, basisContentHash: intent.basisContentHash,
+      resultContentHash: intent.resultContentHash };
+    const key = this.varianceStorageKey(owner);
+    let raw: string;
+    try {
+      if (sessionStorage.getItem(key) !== null) throw new Error('An unresolved variance request already exists. Look it up before starting another request.');
+      raw = JSON.stringify(pending); sessionStorage.setItem(key, raw);
+      if (sessionStorage.getItem(key) !== raw) throw new Error('The recovery reference could not be verified.');
+    } catch (error) {
+      this.varianceRecoveryUnavailable.set(true);
+      this.varianceError.set(error instanceof Error ? error.message : 'The recovery reference could not be stored. No command was sent.');
+      return;
+    }
+    this.variancePending.set(pending); this.varianceError.set('');
+    this.varianceBasisCurrent.set(false);
+    const url = intent.action === 'PREPARE' ? `/api/ui/engagements/${owner.engagementId}/completion/variance-investigations/prepare`
+      : `/api/ui/engagements/${owner.engagementId}/completion/variance-investigations/${state.record!.id}/review`;
+    try {
+      const body = { ...intent.body, expectedRequestHash: preview.requestHash, reviewed: true };
+      const outcome = await this.api.command<VarianceReceipt>(url, body);
+      if (!this.varianceIsCurrent(operation, context)) return;
+      if (!outcome.ok) {
+        if (!outcome.unknown && this.definitiveVarianceRefusal(outcome) && this.clearVarianceRecovery(owner, raw)) {
+          const refusalMessage = outcome.message;
+          this.varianceBusy.set(false);
+          const refreshed = await this.loadVarianceState();
+          if (context === this.varianceContext()) {
+            this.varianceMessage.set(refreshed
+              ? 'The server definitively refused the first request before recording a variance change. Review the refreshed basis before forming a new intent.'
+              : 'The server definitively refused the first request before recording a variance change. The current basis is unavailable; load it before forming a new intent.');
+            this.varianceError.set(refusalMessage);
+          }
+          return;
+        }
+        this.varianceError.set(outcome.unknown ? 'The command outcome is unconfirmed. Look up this exact request; do not create a replacement.' : outcome.message);
+        return;
+      }
+      const receipt = decode(varianceReceiptDecoder, outcome.value);
+      if (!await this.validVarianceReceipt(receipt, pending, state, owner)) throw new Error('The response cannot confirm this exact variance command. Its recovery reference is retained.');
+      this.variancePreview.set(null); this.varianceIntent = null; this.varianceAssent = false;
+      if (!this.clearVarianceRecovery(owner, raw)) return;
+      this.varianceBusy.set(false);
+      const refreshed = await this.loadVarianceState();
+      if (context === this.varianceContext()) {
+        const selected = this.selectedVarianceScope();
+        this.varianceMessage.set(refreshed && selected?.accountArea === pending.accountArea && selected.periodReference === pending.periodReference
+          ? `The server confirmed ${intent.action.toLowerCase()} request ${receipt.requestId}; the exact variance state was refreshed.`
+          : `The server confirmed ${intent.action.toLowerCase()} request ${receipt.requestId}. Current state was not refreshed for the selected scope; reload it before relying on the display.`);
+        if (refreshed && selected?.accountArea === pending.accountArea && selected.periodReference === pending.periodReference &&
+            this.ws.data()?.engagementId.toLowerCase() === owner.engagementId && !this.ws.error()) this.ws.reload();
+      }
+    } catch (error) {
+      if (this.varianceIsCurrent(operation, context)) this.varianceError.set(error instanceof Error ? error.message : 'The command outcome is unconfirmed. Look up the retained request.');
+    } finally { if (this.varianceIsCurrent(operation, context)) this.varianceBusy.set(false); }
+  }
+  private async validVarianceReceipt(receipt: VarianceReceipt, pending: VariancePending, state: VarianceState,
+    owner: VarianceOwner): Promise<boolean> {
+    const identityMatches = receipt.requestId === pending.requestId && receipt.requestHash === pending.requestHash && receipt.action === pending.action && receipt.preview.canProceed &&
+      pending.actorEpoch === owner.generation && receipt.actorId.toLowerCase() === owner.userId && receipt.actorEpoch === pending.actorEpoch && receipt.engagementId.toLowerCase() === owner.engagementId &&
+      receipt.preview.requestId === pending.requestId && receipt.preview.requestHash === pending.requestHash && receipt.preview.action === pending.action &&
+      receipt.preview.reviewBasis === pending.reviewBasis && receipt.preview.expectedRevision === pending.expectedRevision &&
+      state.engagementId.toLowerCase() === pending.engagementId && state.accountArea === pending.accountArea && state.periodReference === pending.periodReference &&
+      (receipt.preview.currentRecord?.id.toLowerCase() ?? null) === (pending.varianceId?.toLowerCase() ?? null) &&
+      (receipt.preview.currentRecord?.revision ?? null) === (pending.varianceId ? pending.expectedRevision : null) &&
+      receipt.varianceInvestigationId.toLowerCase() === receipt.result.id.toLowerCase() && receipt.result.engagementId.toLowerCase() === owner.engagementId &&
+      receipt.result.accountArea === state.accountArea && receipt.result.periodReference === state.periodReference &&
+      receipt.result.clientId.toLowerCase() === state.clientId.toLowerCase() && this.validVarianceRecord(receipt.result, state) &&
+      (!pending.varianceId || receipt.result.id.toLowerCase() === pending.varianceId.toLowerCase()) &&
+      (pending.action === 'PREPARE' ? receipt.result.recordedByUserId.toLowerCase() === owner.userId && receipt.result.reviewedByUserId === null
+        : receipt.varianceInvestigationId.toLowerCase() === pending.varianceId?.toLowerCase() && receipt.result.recordedByUserId.toLowerCase() !== owner.userId &&
+          receipt.result.conclusion !== 'UNEXPLAINED' && receipt.result.reviewedByUserId?.toLowerCase() === owner.userId &&
+          receipt.result.reviewedAt !== null && receipt.result.reviewedRevision === pending.expectedRevision &&
+          BigInt(receipt.result.revision) === BigInt(receipt.result.reviewedRevision) + 1n) &&
+      (pending.action === 'PREPARE' ? BigInt(receipt.result.revision) === BigInt(pending.expectedRevision) + 1n : true);
+    if (!identityMatches) return false;
+    const [basisHash, resultHash] = await Promise.all([
+      this.varianceRecordContentHash(receipt.preview.currentRecord), this.varianceRecordContentHash(receipt.result),
+    ]);
+    return basisHash === pending.basisContentHash && resultHash === pending.resultContentHash;
+  }
+  private definitiveVarianceRefusal(outcome: { ok: false; unknown: false; code: string; status: number }): boolean {
+    return (outcome.status === 400 && ['mapping.invalid', 'gate.blocked', 'revision.stale', 'generation.stale'].includes(outcome.code)) ||
+      (outcome.status === 403 && outcome.code === 'scope.denied') ||
+      (outcome.status === 409 && ['revision.stale', 'generation.stale'].includes(outcome.code));
+  }
+  private clearVarianceRecovery(owner: { firmId: string; userId: string; engagementId: string }, expected: string): boolean {
+    try {
+      const key = this.varianceStorageKey(owner);
+      if (sessionStorage.getItem(key) !== expected) throw new Error('reference changed');
+      sessionStorage.removeItem(key);
+      if (sessionStorage.getItem(key) !== null) throw new Error('remove failed');
+      this.variancePending.set(null); this.varianceRecoveryUnavailable.set(false);
+      return true;
+    } catch {
+      this.varianceError.set('The server confirmed the exact request, but its local recovery reference could not be cleared safely. It remains unresolved.');
+      return false;
+    }
+  }
+  async lookupVarianceRequest(): Promise<void> {
+    const owner = this.varianceOwner(), pending = this.variancePending();
+    if (!owner || !pending || this.varianceBusy() || this.varianceRecoveryUnavailable()) return;
+    const state = this.varianceState(), key = this.varianceStorageKey(owner);
+    if (!state || state.engagementId.toLowerCase() !== pending.engagementId || state.accountArea !== pending.accountArea || state.periodReference !== pending.periodReference) {
+      this.varianceError.set('Load the exact account-area and period recorded with this request before looking it up.'); return;
+    }
+    let raw: string | null;
+    try {
+      raw = sessionStorage.getItem(key);
+      if (raw === null || JSON.stringify(JSON.parse(raw)) !== JSON.stringify(pending)) throw new Error('reference changed');
+    } catch { this.varianceRecoveryUnavailable.set(true); this.varianceError.set('The original recovery reference changed or is unavailable. No request was sent.'); return; }
+    const operation = ++this.varianceOperation, context = this.varianceContext(owner);
+    this.varianceBusy.set(true); this.varianceError.set(''); this.varianceMessage.set('');
+    try {
+      const lookup = await this.api.get(`/api/ui/engagements/${owner.engagementId}/completion/variance-investigations/receipts/${pending.requestId}?requestHash=${pending.requestHash}`, varianceLookupDecoder);
+      if (!this.varianceIsCurrent(operation, context)) return;
+      if (!lookup.found || !lookup.receipt) { this.varianceMessage.set('No receipt is currently available for this exact request. The unresolved reference remains; no new intent was sent.'); return; }
+      if (!await this.validVarianceReceipt(lookup.receipt, pending, state, owner)) throw new Error('The retained receipt does not match this exact actor, epoch, engagement and request. Its reference remains unresolved.');
+      if (!this.clearVarianceRecovery(owner, raw)) return;
+      this.varianceBusy.set(false);
+      const refreshed = await this.loadVarianceState();
+      if (context === this.varianceContext()) {
+        const selected = this.selectedVarianceScope();
+        this.varianceMessage.set(refreshed && selected?.accountArea === pending.accountArea && selected.periodReference === pending.periodReference
+          ? `The server confirmed the retained ${pending.action.toLowerCase()} request ${pending.requestId}; the exact variance state was refreshed.`
+          : `The server confirmed the retained ${pending.action.toLowerCase()} request ${pending.requestId}. Current state was not refreshed for the selected scope; reload it before relying on the display.`);
+        if (refreshed && selected?.accountArea === pending.accountArea && selected.periodReference === pending.periodReference &&
+            this.ws.data()?.engagementId.toLowerCase() === owner.engagementId && !this.ws.error()) this.ws.reload();
+      }
+    } catch (error) {
+      if (this.varianceIsCurrent(operation, context)) this.varianceError.set(error instanceof Error ? error.message : 'The exact request could not be recovered. Its reference remains saved.');
+    } finally { if (this.varianceIsCurrent(operation, context)) this.varianceBusy.set(false); }
   }
   /** Asks the server to re-check the stored signed report; the result is shown, never inferred in the browser. */
   async verifySignature(id: string): Promise<void> {
