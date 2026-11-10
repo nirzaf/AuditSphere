@@ -133,8 +133,8 @@ jobs:
           set -euo pipefail
           test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
           dotnet restore AuditSphereOps.slnx --locked-mode
-          # Measure a bounded three-worker graph build. Keep the validated two-worker consumer
-          # fallback until this candidate beats the best two-worker timing and memory ceiling.
+          # The exact three-worker CI trial beat the best observed two-worker timing within the
+          # memory ceiling. Retain the validated two-worker fallback for rejected artifacts.
           free -b
           /usr/bin/time -v dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:3 \
             -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \

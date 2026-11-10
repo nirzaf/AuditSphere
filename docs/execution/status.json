@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-10T04:21:05Z",
+  "observedAtUtc": "2026-11-10T04:37:54Z",
   "source": {
     "branch": "master",
-    "baseSha": "a4d7d4e6349d81db2ce6e8e31ebf33f740dd9dc1",
-    "originMasterSha": "a4d7d4e6349d81db2ce6e8e31ebf33f740dd9dc1",
-    "workingTree": "Three-worker graph capacity trial on 8db9162e; exact CI will capture MemTotal, elapsed time and peak RSS. Two-worker producer/manifest and full-CI fallback remain separately validated. No deployment.",
+    "baseSha": "214639532f9fb08f9724563b862a8f273896a56f",
+    "originMasterSha": "214639532f9fb08f9724563b862a8f273896a56f",
+    "workingTree": "Three-worker graph build candidate 214639532 passed exact fast run 42755407738; producer 737.87s, peak RSS 6.81% MemTotal; all six actual checkouts and same-run consumer reuse verified. Docs/status follow-up is uncommitted. No protected release or deployment.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -20,7 +20,7 @@
       "note": "Exact-source UI reuse is optional; fallback and release gates remain.",
       "currentSourceSha": "dba678bdf0a4a6d7d0312cbd39e856c09f887199"
     },
-    "ciCdAcceleration": "Two-worker graph build and exact artifact reuse passed. Four workers rejected at 91.9% RSS. A three-worker trial now measures elapsed time and peak RSS; adopt only if faster than the best two-worker result and under 75% MemTotal. Protected release/deployment timing remains unmeasured.",
+    "ciCdAcceleration": "Three-worker producer passed exact fast CI at 214639532: 737.87s vs best observed two-worker 879.95s, with 6.81% MemTotal RSS; same-run artifact consumer restored all 20 directories and passed guards. One observed comparison, not causal/repeatable. Four-worker trial rejected at 91.9% RSS. Two-worker consumer fallback retained. Deployment-stage timing remains unmeasured.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
@@ -1882,29 +1882,47 @@
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed.",
   "ciCdAccelerationCandidate20261110": {
-    "observedAtUtc": "2026-11-10T04:21:05Z",
-    "sourceSha": "8db9162e340d521f082c5094de9dbb24f64f991b",
-    "status": "THREE_WORKER_TRIAL_PENDING_EXACT_FAST_CI",
-    "validatedTwoWorkerFastRun": 42751544725,
-    "validatedTwoWorkerProof": ".local/autonomous/evidence/ci-acceleration-20261110/two-worker-restoration/fast-42751544725/fast-terminal-proof.json",
-    "fourWorker": {
-      "runId": 42748480055,
-      "buildSeconds": 1053.2,
-      "peakRssPercent": 91.9,
-      "decision": "REJECTED_OVER_75_PERCENT_MEMORY_CAP"
+    "observedAtUtc": "2026-11-10T04:37:54Z",
+    "sourceSha": "214639532f9fb08f9724563b862a8f273896a56f",
+    "status": "THREE_WORKER_PRODUCER_ACCEPTED_EXACT_FAST_PASS",
+    "runId": 42755407738,
+    "attempt": 1,
+    "producer": {
+      "jobId": 129628598735,
+      "actualCheckoutSha": "214639532f9fb08f9724563b862a8f273896a56f",
+      "buildSeconds": 737.87,
+      "peakRssKiB": 1114884,
+      "memTotalBytes": 16760344576,
+      "peakRssPercentMemTotal": 6.81,
+      "maxCpuCount": 3
     },
-    "threeWorker": {
-      "buildProperties": {
-        "maxCpuCount": 3,
-        "buildInParallel": true,
-        "graphBuild": true,
-        "useSharedCompilation": false,
-        "runAnalyzers": false
-      },
-      "capture": "free -b; /usr/bin/time -v",
-      "acceptanceRule": "Elapsed <879.95s and peak RSS <=75% MemTotal; otherwise restore two."
+    "comparison": {
+      "bestObservedTwoWorkerSeconds": 879.95,
+      "observedDeltaSeconds": 142.08,
+      "observedReductionPercent": 16.15,
+      "interpretation": "Single-run observed comparison; not a causal or repeatable benchmark."
     },
-    "releaseOverlap": "Source and image evidence already run in parallel; registry-cache import has no protected-release timing observation.",
-    "deployment": "NOT_RUN; no deployment benchmark."
+    "consumer": {
+      "jobId": 129632965668,
+      "actualCheckoutSha": "214639532f9fb08f9724563b862a8f273896a56f",
+      "artifactId": 13735174780,
+      "artifactDigest": "sha256:ad2f10f4d8df2106a78634dab287e891d2b9994b5717c37f380691829bd0b102",
+      "restoredOutputDirectories": 20,
+      "fallbackBuild": "SKIPPED",
+      "domainTests": "16/16",
+      "openApiTests": "12/12",
+      "efModelDrift": "PASS"
+    },
+    "fastCi": {
+      "status": "SUCCESS_ALL_6_ACTUAL_CHECKOUTS",
+      "angularTests": 2029,
+      "angularTestFiles": 196,
+      "workflowWallSeconds": 952
+    },
+    "evidence": ".local/autonomous/evidence/ci-acceleration-20261110/three-worker-trial/fast-42755407738/three-worker-trial-review.json",
+    "fourWorkerRejectedRunId": 42748480055,
+    "twoWorkerFallback": "RETAINED_FOR_UNAVAILABLE_OR_REJECTED_EXACT_ARTIFACT",
+    "releaseOverlap": "Source/image parallelism and protected release workflow remain; no protected release exercised for timing.",
+    "deployment": "NOT_RUN; deployment timing remains unmeasured."
   }
 }
