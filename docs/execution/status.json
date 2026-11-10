@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-10T03:43:20Z",
+  "observedAtUtc": "2026-11-10T04:14:41Z",
   "source": {
     "branch": "master",
-    "baseSha": "b8daaff17db91673e5fe40b9f0a7da68d8c96fc7",
-    "originMasterSha": "b8daaff17db91673e5fe40b9f0a7da68d8c96fc7",
-    "workingTree": "Four-worker trial rejected. Restored two-worker graph build and manifest profile; exact fast CI for this restoration is pending. No deployment.",
+    "baseSha": "a4d7d4e6349d81db2ce6e8e31ebf33f740dd9dc1",
+    "originMasterSha": "a4d7d4e6349d81db2ce6e8e31ebf33f740dd9dc1",
+    "workingTree": "Clean on a4d7d4e6. Restored two-worker graph producer and matching artifact manifest; exact fast CI 42751544725 passed all six jobs. Four-worker trial rejected for high RSS and slower-than-best time. No deployment.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -20,7 +20,7 @@
       "note": "Exact-source UI reuse is optional; fallback and release gates remain.",
       "currentSourceSha": "dba678bdf0a4a6d7d0312cbd39e856c09f887199"
     },
-    "ciCdAcceleration": "Validated two-worker graph build remains preferred. Four-worker trial was slower (17m33s vs 14m40s) and peaked at about 92% of runner memory; reject it. Same-run artifact restore avoids duplicate consumer compilation. Protected-release cache overlap and deployment timing remain unmeasured.",
+    "ciCdAcceleration": "Two-worker MSBuild graph build and same-run Release artifact reuse are retained; exact current fast CI passed. Timings vary (14m40s, 19m43s, 21m51s for two workers); no causal build speedup claim. Four workers rejected at 17m33s and 91.9% runner RSS. Release cache overlap and deployment timings remain unmeasured.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
@@ -1882,37 +1882,19 @@
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed.",
   "ciCdAccelerationCandidate20261110": {
-    "observedAtUtc": "2026-11-10T03:43:20Z",
-    "status": "FOUR_WORKER_REJECTED; TWO_WORKER_RESTORATION_READY",
-    "sourceSha": "b8daaff17db91673e5fe40b9f0a7da68d8c96fc7",
-    "fastRun": {
-      "runId": 42748480055,
+    "observedAtUtc": "2026-11-10T04:14:41Z",
+    "sourceSha": "a4d7d4e6349d81db2ce6e8e31ebf33f740dd9dc1",
+    "status": "TWO_WORKER_GRAPH_FAST_CI_PASS; FOUR_WORKER_REJECTED",
+    "fast": {
+      "runId": 42751544725,
       "attempt": 1,
       "result": "SUCCESS",
-      "producerJobId": 129606249682,
-      "consumerJobId": 129612793123,
-      "producerBuildSeconds": 1053.2,
-      "bestTwoWorkerSeconds": 879.95,
-      "producerCoreCompileMilliseconds": 1097239,
-      "peakRssKiB": 15046292,
-      "runnerMemTotalBytes": 16760344576,
-      "peakRssPercentMemTotal": 91.9,
-      "acceptanceMemoryCeilingPercent": 75,
-      "artifactMetadata": "13732848290; 439659725 bytes; sha256:ed15acb8c273e7d906c57cd55199a0610a5570c1422d87a0131bfd3cad0e55c3",
-      "consumer": "Manifest verified; 20 output directories restored; fallback compilation skipped.",
-      "evidence": ".local/autonomous/evidence/ci-acceleration-20261110/four-worker-graph-trial/fast-42748480055/"
-    },
-    "decision": "Reject four workers: 19.7% slower than best observed two-worker build and over memory threshold. Revert only trial settings; keep truthful maxCpuCount=2 manifest.",
-    "deployment": "NOT_RUN; deployment timing remains unmeasured.",
-    "localVerification": {
-      "artifactHelperTests": "PASS 14/14 after restoring maxCpuCount=2",
-      "actionlint": "PASS ci.yml and release-verification.yml",
-      "documentation": "PASS markdown health, filenames, narrative metrics, generated board",
-      "stateValidator": "PASS 48 tasks",
-      "diffCheck": "PASS",
-      "restorationExactFastCi": "PENDING"
-    },
-    "restoration": {
+      "workflowWallSeconds": 1542,
+      "allSixActualCheckoutsVerified": true,
+      "angularTests": 2029,
+      "angularTestFiles": 196,
+      "producerBuildSeconds": 1311.19,
+      "producerCoreCompileMilliseconds": 1330138,
       "buildProperties": {
         "maxCpuCount": 2,
         "buildInParallel": true,
@@ -1920,8 +1902,31 @@
         "useSharedCompilation": false,
         "runAnalyzers": false
       },
-      "manifestMatchesInvocation": true,
-      "fourWorkerReview": ".local/autonomous/evidence/ci-acceleration-20261110/four-worker-graph-trial/fast-42748480055/four-worker-trial-review.json"
-    }
+      "consumerRestoredDirectories": 20,
+      "consumerFallbackBuild": "SKIPPED",
+      "domainTests": "16/16",
+      "openApiTests": "12/12",
+      "artifactId": 13734935957,
+      "artifactBytes": 439657974,
+      "artifactDigest": "sha256:7c59621d48c9a5f44a7185e35b30afaf6d175831bf0416938fe84c1484dddc94",
+      "terminalProof": ".local/autonomous/evidence/ci-acceleration-20261110/two-worker-restoration/fast-42751544725/fast-terminal-proof.json"
+    },
+    "twoWorkerTimingsSeconds": [
+      879.95,
+      1183.05,
+      1311.19
+    ],
+    "causalTimingClaim": false,
+    "fourWorkerTrial": {
+      "runId": 42748480055,
+      "buildSeconds": 1053.2,
+      "peakRssKiB": 15046292,
+      "memTotalBytes": 16760344576,
+      "peakRssPercent": 91.9,
+      "status": "REJECTED_SLOWER_THAN_BEST_AND_ABOVE_75_PERCENT_RSS_CAP",
+      "evidence": ".local/autonomous/evidence/ci-acceleration-20261110/four-worker-graph-trial/fast-42748480055/four-worker-trial-review.json"
+    },
+    "releaseArtifactOverlap": "Implemented in release.yml; no protected release run exercised it; wall-time impact unmeasured.",
+    "deployment": "NOT_RUN; timing unmeasured."
   }
 }
