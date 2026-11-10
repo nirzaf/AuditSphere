@@ -133,12 +133,9 @@ jobs:
           set -euo pipefail
           test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
           dotnet restore AuditSphereOps.slnx --locked-mode
-          # Capacity trial: four bounded workers on the dependency graph, with GNU time capturing
-          # elapsed time and peak RSS. Keep compiler/analyzer settings unchanged; adopt four
-          # workers only if this exact build beats the best observed two-worker elapsed time
-          # (879.95s) and peak RSS stays at or below 75% of MemTotal.
-          free -b
-          /usr/bin/time -v dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:4 \
+          # Use MSBuild's dependency graph with the validated two-worker limit. This avoids
+          # shared project-reference output races while keeping memory use bounded.
+          dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:2 \
             -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \
             -clp:PerformanceSummary
 
@@ -257,8 +254,7 @@ jobs:
         if: ${{ steps.verify-parallel-build.outputs.reused != 'true' }}
         run: |
           set -euo pipefail
-          # If exact-run outputs are unavailable, retain the previously validated two-worker
-          # graph fallback until the four-worker producer trial has passed its memory gate.
+          # If exact-run outputs are unavailable, retain the validated two-worker graph build.
           dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:2 \
             -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \
             -clp:PerformanceSummary
