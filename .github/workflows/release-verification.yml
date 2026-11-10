@@ -648,9 +648,9 @@ jobs:
         if: ${{ steps.verify-fast-build.outputs.reused != 'true' }}
         run: |
           set -euo pipefail
-          bash scripts/release/run-verification-step.sh "dotnet build (Release, one MSBuild node)" \
-            dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1 \
-              -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RunAnalyzers=false \
+          bash scripts/release/run-verification-step.sh "dotnet build (Release, bounded MSBuild graph)" \
+            dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:2 \
+              -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \
               -clp:PerformanceSummary
 
       - name: Stage source-bound unfiltered test outputs

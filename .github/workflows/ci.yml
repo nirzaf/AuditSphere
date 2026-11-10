@@ -133,12 +133,12 @@ jobs:
           set -euo pipefail
           test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
           dotnet restore AuditSphereOps.slnx --locked-mode
-          # Serialize to a single MSBuild node: Web and test projects ProjectReference the Api,
-          # so parallel solution builds race on shared Api outputs. Match the successful runner
-          # settings for migration-heavy projects. Emit project/task timing so slow compile stages
-          # can be optimized from evidence without changing build parallelism or output ownership.
-          dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1 \
-            -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RunAnalyzers=false \
+          # Use MSBuild's project graph to schedule ProjectReferences as dependencies, with two
+          # bounded workers. This tests whether graph scheduling avoids the shared Api-output
+          # races observed in ordinary parallel solution builds while shortening the 38-minute
+          # serialized compile. Keep compiler/analyzer settings unchanged for this experiment.
+          dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:2 \
+            -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \
             -clp:PerformanceSummary
 
       # The same manifest, confined archive and digest checks protect this same-run handoff and
@@ -256,16 +256,12 @@ jobs:
         if: ${{ steps.verify-parallel-build.outputs.reused != 'true' }}
         run: |
           set -euo pipefail
-          # Serialize to a single MSBuild node: Web and the test projects ProjectReference
-          # the Api, so the default parallel solution build races on the Api's output files
-          # (runtimeconfig.json and Roslyn satellite DLLs), causing intermittent MSB3026/MSB4018
-          # "used by another process" failures.
-          # Match the successful container builds for migration-heavy projects. Analyzer output is
-          # not part of this release gate; the generated migration/model files otherwise push the
-          # single compiler past the hosted runner's useful build budget. Emit project/task timing
-          # for diagnosis without altering the single-node build topology.
-          dotnet build AuditSphereOps.slnx --no-restore --configuration Release --maxcpucount:1 \
-            -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RunAnalyzers=false \
+          # Use the same bounded project-graph scheduling as the fast producer. The graph mode is
+          # intended to order shared ProjectReferences once, avoiding the duplicate Api-output
+          # races seen with ordinary parallel solution builds. Keep the fallback source-bound and
+          # retain the established compiler/analyzer settings.
+          dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:2 \
+            -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \
             -clp:PerformanceSummary
 
       - name: Run fast database-free architecture and rounding guards

@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "observedAtUtc": "2026-11-10T01:26:35Z",
+  "observedAtUtc": "2026-11-10T02:10:09Z",
   "source": {
     "branch": "master",
-    "baseSha": "8beaf9dcfd69a299ab0fdf81e78a431ac0ee75ad",
-    "originMasterSha": "8beaf9dcfd69a299ab0fdf81e78a431ac0ee75ad",
-    "workingTree": "Candidate based on clean master/origin-master 8beaf9dcfd69a299ab0fdf81e78a431ac0ee75ad. Optional exact-source Angular artifact discovery is moved from the common precondition into the API image matrix, overlapping worker/migration image builds and full-regression evidence validation. Exact fast CI is pending; no release or deployment was run.",
+    "baseSha": "624817a3437151fb776631d736397e4bbe90cc45",
+    "originMasterSha": "624817a3437151fb776631d736397e4bbe90cc45",
+    "workingTree": "Clean master/origin-master at 624817a3437151fb776631d736397e4bbe90cc45 before bounded MSBuild graph-parallelism experiment. Exact fast CI 42735915750 passed all six terminal jobs; Release compile took 38m01.77s (CoreCompile 37m39.13s), and its digest-verified 439,654,312-byte artifact restored all 20 output directories. Graph preflight loaded 10 projects/29 edges. No full release or deployment was run.",
     "wholeAssignment": "INCOMPLETE"
   },
   "activeWork": {
@@ -20,7 +20,7 @@
       "note": "Exact-source UI reuse is optional; fallback and release gates remain.",
       "currentSourceSha": "dba678bdf0a4a6d7d0312cbd39e856c09f887199"
     },
-    "ciCdAcceleration": "Protected release candidate moves optional exact-source Angular artifact discovery into the API image matrix to overlap worker/migration image builds and full-regression evidence validation. Local workflow/docs checks passed; exact push fast CI is pending. No release dispatch or deployment benchmark.",
+    "ciCdAcceleration": "Bounded two-worker MSBuild static-graph candidate is being validated after exact fast CI showed 38m01.77s serial compile; graph preflight loaded 10 projects/29 edges. Exact CI not yet run for graph change. Release artifact discovery was moved into the API image job to overlap independent image/regression work; release workflow and deployment timing remain unmeasured.",
     "manualCiArtifactReuse20261109": "Fast run 42637291070 produced and restored exact-source outputs; full run 42581159439 reused matching fast artifact. Manual workflow_dispatch producer event remains untested."
   },
   "localVerification": {
@@ -1882,34 +1882,31 @@
   },
   "externalAndProfessionalAcceptance": "OPEN; no deployment, tenant permission change, provider acceptance, or professional decision is claimed.",
   "ciCdAccelerationCandidate20261110": {
-    "observedAtUtc": "2026-11-10T00:55:59Z",
-    "sourceSha": "dba678bdf0a4a6d7d0312cbd39e856c09f887199",
-    "status": "FAST_CI_AND_IMAGE_CI_PASS; RELEASE_CACHE_IMPORT_AND_DEPLOYMENT_UNMEASURED",
+    "observedAtUtc": "2026-11-10T02:10:09Z",
+    "sourceSha": "624817a3437151fb776631d736397e4bbe90cc45",
+    "status": "EXACT_FAST_CI_PASS; BOUNDED_GRAPH_BUILD_CANDIDATE_PENDING",
     "fast": {
-      "runId": 42729114971,
+      "runId": 42735915750,
       "attempt": 1,
       "result": "SUCCESS",
-      "wallSeconds": 1124,
-      "allSixJobCheckoutsVerified": true,
-      "angularTests": "2029 passed across 196 files",
-      "dotnetBuildSeconds": 882.13,
-      "releaseOutputArtifactBytes": 439659276,
-      "consumer": "restored and verified all 20 output directories; clean build fallback skipped; Domain 16/16 and API 12/12 guards passed",
-      "terminalProof": ".local/autonomous/evidence/ci-acceleration-20261110/hostinger-angular-cache/runs/42729114971/fast-terminal-proof.json",
-      "terminalProofSha256": "388b0e32b01654fbaf442ecf92bcf18e93027614f2b2919bead80de8d1cd8712"
+      "wallSeconds": 2558,
+      "allSixActualCheckoutsVerified": true,
+      "producerBuildSeconds": 2281.77,
+      "coreCompileMilliseconds": 2259130,
+      "artifactBytes": 439654312,
+      "artifactSha256": "a2005d44296d3a759247496c2c73bc7794beadc59a1da1edbf329a981604b70e",
+      "consumer": "Digest verified; all 20 output directories restored; clean rebuild skipped; database-free guards and OpenAPI drift passed.",
+      "terminalProof": ".local/autonomous/evidence/ci-acceleration-20261110/release-artifact-overlap/fast-ci-terminal-proof.json"
     },
-    "images": {
-      "runId": 42729192788,
-      "attempt": 1,
-      "result": "SUCCESS",
-      "wallSeconds": 38,
-      "allThreeActualCheckoutsAndPinsVerified": true,
-      "registryCache": "BuildKit reported 12 cached worker, 8 migrations and 22 API steps",
-      "terminalProof": ".local/autonomous/evidence/ci-acceleration-20261110/hostinger-angular-cache/images-42729192788-terminal-proof.json",
-      "terminalProofSha256": "53f923770fac40e72aebed85e8984ce81268b70fb27cb5c8bb58db7d3ca9067c"
+    "artifactDiscoveryOverlap": "Implemented in release.yml; not exercised by this fast CI. No release/images dispatch was used to benchmark it.",
+    "nextCandidate": {
+      "method": "MSBuild static project graph with two workers; retain shared compilation disabled and analyzers disabled. Graph preflight succeeded (10 nodes, 29 edges); exact fast CI is required to establish race-free success and timing.",
+      "paths": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/release-verification.yml"
+      ],
+      "deployment": "NOT_MEASURED; deployment not run."
     },
-    "timingInterpretation": "Compared with predecessor fast 42725379276 (1306s), this run took 1124s; one-run comparison is uncontrolled and not causal. Image workflow was 38s versus 33s on the immediate predecessor, so no image timing gain is demonstrated.",
-    "protectedReleaseCache": "release.yml imports matching GHCR BuildKit cache and retains the per-release GHA cache; the protected build-images path was not executed, so cache import hit and release-stage duration are unverified.",
-    "releaseAndDeployment": "NOT_DISPATCHED; NOT_PERFORMED; no deployment timing or release acceptance claimed."
+    "releaseAndDeployment": "NOT_DISPATCHED; NOT_PERFORMED; no release acceptance claimed."
   }
 }
