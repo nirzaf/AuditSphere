@@ -133,9 +133,10 @@ jobs:
           set -euo pipefail
           test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
           dotnet restore AuditSphereOps.slnx --locked-mode
-          # Use MSBuild's dependency graph with the validated two-worker limit. This avoids
-          # shared project-reference output races while keeping memory use bounded.
-          dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:2 \
+          # Measure a bounded three-worker graph build. Keep the validated two-worker consumer
+          # fallback until this candidate beats the best two-worker timing and memory ceiling.
+          free -b
+          /usr/bin/time -v dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:3 \
             -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \
             -clp:PerformanceSummary
 
