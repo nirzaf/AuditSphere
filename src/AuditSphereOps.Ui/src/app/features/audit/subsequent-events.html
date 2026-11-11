@@ -1,0 +1,72 @@
+<section class="panel" aria-labelledby="subsequent-events-heading" data-subsequent-events>
+  <h2 id="subsequent-events-heading">Subsequent events</h2>
+  <p>Each event is assessed separately. Saving a pending assessment is not independent review. These observations do not waive unrelated completion gates.</p>
+  <button matButton="outlined" type="button" (click)="loadList()" [disabled]="busy()">Refresh event list</button>
+  @if (records().length) {
+    <label>Select an existing event<select name="seSelection" [ngModel]="selectedId() ?? ''" (ngModelChange)="select($event || null)" [disabled]="busy()">
+      <option value="">No existing event selected</option>
+      @for (r of records(); track r.id) { <option [value]="r.id">{{ r.eventDate }} · {{ r.description }} · {{ r.classification }} · {{ r.id }}</option> }
+    </select></label>
+  }
+  @if (pageOffset() > 0) { <button matButton="outlined" type="button" (click)="loadList(pageOffset() - 100)" [disabled]="busy()">Previous events</button> }
+  @if (hasMore()) { <button matButton="outlined" type="button" (click)="loadList(pageOffset() + 100)" [disabled]="busy()">Next events</button> }
+  <button matButton="outlined" type="button" (click)="select(null); load()" [disabled]="busy() || !!pending() || unavailable()">Create a different event</button>
+  <button matButton="outlined" type="button" (click)="load()" [disabled]="busy()">Load exact selected basis</button>
+  <p>Selection: {{ selectedId() ?? 'Explicit new event (revision zero)' }}. No event is automatically chosen as the governing event.</p>
+  @if (busy()) { <p role="status">Checking the exact event request…</p> }
+  @if (error()) { <p role="alert">{{ error() }}</p> }
+  @if (history()) { <p role="status" data-se-history>{{ history() }}</p> }
+  @if (unavailable()) { <p role="alert">Recovery is unavailable. No replacement command may be sent.</p> }
+  @if (pending(); as p) {
+    <div role="alert" data-se-pending><p>Unresolved {{ p.action.toLowerCase() }} request {{ p.requestId }}. No professional or financial draft is stored; no automatic resend.</p>
+      <button matButton="outlined" type="button" (click)="loadPending()" [disabled]="busy()">Load saved request scope</button>
+      <button matButton="outlined" type="button" (click)="recover()" [disabled]="busy() || !state()">Look up exact request</button>
+    </div>
+  }
+  @if (state(); as s) {
+    <p>Exact revision {{ s.expectedRevision }} · basis {{ s.reviewBasis }}. Authority is server-derived and rechecked on submission.</p>
+    @if (s.blockers.length) { <ul aria-label="Event blockers">@for (blocker of s.blockers; track $index) { <li>{{ blocker }}</li> }</ul> }
+    @if (s.record; as r) {
+      <dl class="facts" data-se-record>
+        <dt>Event</dt><dd>{{ r.id }} · revision {{ r.revision }}</dd>
+        <dt>Period end / event date</dt><dd>{{ r.periodEndDate }} / {{ r.eventDate }}</dd>
+        <dt>Description</dt><dd>{{ r.description }}</dd><dt>Classification</dt><dd>{{ r.classification }}</dd>
+        <dt>Adjustment required</dt><dd>{{ r.adjustmentRequired ? 'Yes' : 'No' }}</dd>
+        <dt>Disclosure required</dt><dd>{{ r.disclosureRequired ? 'Yes' : 'No' }}</dd>
+        <dt>Disclosure reference</dt><dd>{{ r.disclosureReference ?? 'Not recorded' }}</dd>
+        <dt>Financial effect / currency</dt><dd>{{ r.financialEffect ?? 'Not recorded' }} / {{ r.currency }}</dd>
+        <dt>Rationale</dt><dd>{{ r.rationale ?? 'Not recorded' }}</dd>
+        <dt>Linked procedure</dt><dd>{{ r.procedureId ?? 'No procedure linked' }}</dd>
+        <dt>Evidence</dt><dd><ul>@for (reference of r.evidenceReferences; track $index) { <li>{{ reference }}</li> }</ul></dd>
+        <dt>Preparer</dt><dd>{{ r.recordedByUserId }} · {{ r.recordedAt }}</dd>
+        <dt>Independent review</dt><dd>@if (r.reviewedByUserId) { {{ r.reviewedByUserId }} · {{ r.reviewedAt }} · reviewed revision {{ r.reviewedRevision }} } @else { Not independently reviewed }</dd>
+      </dl>
+    } @else { <p>No existing event selected. This is an explicit new-event preparation.</p> }
+    @if (s.canPrepare) {
+      <fieldset [disabled]="busy() || !!pending() || unavailable()"><legend>Explicit event preparation</legend>
+        <label>Period end date<input type="date" name="sePeriodEnd" [(ngModel)]="form.periodEndDate" (ngModelChange)="inputsChanged()" /></label>
+        <label>Event date<input type="date" name="seEventDate" [(ngModel)]="form.eventDate" (ngModelChange)="inputsChanged()" [disabled]="!!s.record" /></label>
+        <label>Event description<textarea name="seDescription" maxlength="4000" [(ngModel)]="form.description" (ngModelChange)="inputsChanged()" [disabled]="!!s.record"></textarea></label>
+        @if (s.record) { <p>The selected event date and description identify this event. Use “Create a different event” for another identity.</p> }
+        <label>Classification<select name="seClassification" [(ngModel)]="form.classification" (ngModelChange)="inputsChanged()"><option value="">Unanswered</option><option value="PENDING_ASSESSMENT">Pending assessment</option><option value="ADJUSTING">Adjusting</option><option value="NON_ADJUSTING">Non-adjusting</option></select></label>
+        <label>Adjustment required<select name="seAdjustment" [(ngModel)]="form.adjustmentRequired" (ngModelChange)="inputsChanged()"><option value="">Unanswered</option><option value="true">Yes</option><option value="false">No</option></select></label>
+        <label>Disclosure required<select name="seDisclosure" [(ngModel)]="form.disclosureRequired" (ngModelChange)="inputsChanged()"><option value="">Unanswered</option><option value="true">Yes</option><option value="false">No</option></select></label>
+        <label>Disclosure reference<input name="seDisclosureReference" maxlength="200" [(ngModel)]="form.disclosureReference" (ngModelChange)="inputsChanged()" /></label>
+        <label>Financial effect (optional; blank means not recorded)<input name="seEffect" inputmode="decimal" [(ngModel)]="form.financialEffect" (ngModelChange)="inputsChanged()" /></label>
+        <label>Currency<input name="seCurrency" maxlength="3" [(ngModel)]="form.currency" (ngModelChange)="inputsChanged()" /></label>
+        <label>Rationale<textarea name="seRationale" maxlength="4000" [(ngModel)]="form.rationale" (ngModelChange)="inputsChanged()"></textarea></label>
+        <label>Procedure identifier (optional)<input name="seProcedure" [(ngModel)]="form.procedureId" (ngModelChange)="inputsChanged()" /></label>
+        <label>Evidence references (optional; one per line)<textarea name="seEvidence" [(ngModel)]="form.evidenceReferences" (ngModelChange)="inputsChanged()"></textarea></label>
+      </fieldset>
+      <button matButton="outlined" type="button" (click)="preparePreview('PREPARE')" [disabled]="!canPreview('PREPARE')">Preview event preparation</button>
+    }
+    <button matButton="outlined" type="button" (click)="preparePreview('REVIEW')" [disabled]="!canPreview('REVIEW')">Preview event independent review</button>
+  }
+  @if (preview(); as p) {
+    <div data-se-preview><p>{{ p.summary }} · request {{ p.requestId }} · revision {{ p.expectedRevision }} · hash {{ p.requestHash }}</p>
+      <ul>@for (blocker of p.blockers; track $index) { <li>{{ blocker }}</li> }</ul>
+      <label><input type="checkbox" name="seAssent" [(ngModel)]="assent" [disabled]="busy()" />I reviewed this exact event intent and evidence. Preparation is not independent approval.</label>
+      <button matButton="filled" type="button" (click)="submit()" [disabled]="busy() || !assent || !p.canProceed || p.blockers.length > 0">Confirm {{ p.action === 'PREPARE' ? 'unreviewed event preparation' : 'independent event review' }}</button>
+    </div>
+  }
+</section>

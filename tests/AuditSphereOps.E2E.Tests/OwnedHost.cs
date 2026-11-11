@@ -218,8 +218,8 @@ internal sealed class OwnedHost : IAsyncDisposable
   {
     if (PhaseOutput is null) return;
     if (phase is not ("provisioning-finished" or "browser-ready" or "scenario-finished"
-      or "successor-proof-response-observed" or "successor-proof-completion-started" or "successor-proof-completion-finished"
-      or "portfolio-progress-response-observed" or "portfolio-progress-completion-started" or "portfolio-progress-completion-finished"
+      or "successor-proof-response-observed" or "successor-proof-render-started" or "successor-proof-render-ready"
+      or "portfolio-progress-response-observed" or "portfolio-progress-render-started" or "portfolio-progress-render-ready"
       or "snapshot-before-started" or "snapshot-before-finished" or "snapshot-after-started" or "snapshot-after-finished"
       or "snapshot-route-0" or "snapshot-route-1" or "snapshot-route-2" or "snapshot-route-3" or "snapshot-route-4"
       or "snapshot-route-5" or "snapshot-route-6" or "snapshot-route-7" or "snapshot-route-8" or "snapshot-route-9"

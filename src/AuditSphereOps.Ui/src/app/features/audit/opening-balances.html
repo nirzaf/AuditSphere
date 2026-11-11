@@ -1,0 +1,70 @@
+<section class="panel" aria-labelledby="opening-balances-heading" data-opening-balances>
+  <h2 id="opening-balances-heading">Opening-balance verification</h2>
+  <p>Preparation records the comparison and evidence. A resolved comparison is not independent review and does not waive any unrelated completion requirement.</p>
+  <label>Exact as-of date<input type="date" name="obDate" [(ngModel)]="form.asOfDate" (ngModelChange)="selectionChanged()" [disabled]="busy()" /></label>
+  <button matButton="outlined" type="button" (click)="load()" [disabled]="busy() || !form.asOfDate">Load exact opening-balance basis</button>
+  @if (busy()) { <p role="status">Checking the exact opening-balance request…</p> }
+  @if (error()) { <p role="alert">{{ error() }}</p> }
+  @if (history()) { <p role="status">{{ history() }}</p> }
+  @if (unavailable()) { <p role="alert">Recovery cannot be verified. No replacement command may be sent.</p> }
+  @if (pending(); as p) {
+    <div role="alert" data-ob-pending>
+      <p>Unresolved {{ p.action.toLowerCase() }} request {{ p.requestId }} for {{ p.asOfDate }}. No financial draft is stored and no request is automatically resent.</p>
+      <button matButton="outlined" type="button" (click)="loadPending()" [disabled]="busy()">Load saved request scope</button>
+      <button matButton="outlined" type="button" (click)="recover()" [disabled]="busy() || !state()">Look up exact request</button>
+    </div>
+  }
+  @if (state(); as s) {
+    <p>Exact revision {{ s.expectedRevision }} · basis {{ s.reviewBasis }}. Authority is server-derived and rechecked on submission.</p>
+    @if (s.blockers.length) { <ul aria-label="Opening-balance blockers">@for (blocker of s.blockers; track $index) { <li>{{ blocker }}</li> }</ul> }
+    @if (s.record; as r) {
+      <dl class="facts" data-ob-record>
+        <dt>Verification</dt><dd>{{ r.id }} · revision {{ r.revision }} · {{ r.asOfDate }}</dd>
+        <dt>Prior reference</dt><dd>{{ r.priorReference }}</dd>
+        <dt>Prior period</dt><dd>{{ r.priorPeriodId ?? 'No prior period linked' }}</dd>
+        <dt>Linked procedure</dt><dd>{{ r.procedureId ?? 'No procedure linked' }}</dd>
+        <dt>Currency</dt><dd>{{ r.currency }}</dd>
+        <dt>Opening signed total</dt><dd>{{ r.openingSignedTotal }}</dd>
+        <dt>Agreed signed total</dt><dd>{{ r.agreedSignedTotal }}</dd>
+        <dt>Difference</dt><dd>{{ r.differenceAmount }}</dd>
+        <dt>Accounting policies consistent</dt><dd>{{ r.accountingPoliciesConsistent ? 'Yes' : 'No' }}</dd>
+        <dt>Calculated conclusion</dt><dd>{{ r.conclusion }}</dd>
+        <dt>Comparison resolved</dt><dd>{{ r.comparisonResolved ? 'Yes, independent review is separate' : 'No' }}</dd>
+        <dt>Rationale</dt><dd>{{ r.rationale }}</dd>
+        <dt>Evidence</dt><dd><ul>@for (reference of r.evidenceReferences; track $index) { <li>{{ reference }}</li> }</ul></dd>
+        <dt>Preparer</dt><dd>{{ r.recordedByUserId }} · {{ r.recordedAt }}</dd>
+        <dt>Current independent review</dt><dd>{{ r.currentIndependentReview ? 'Yes' : 'Not currently independently reviewed' }}</dd>
+        @if (r.reviewedByUserId) {
+          <dt>Recorded review identity</dt><dd>{{ r.reviewedByUserId }} · {{ r.reviewedAt }} · basis revision {{ r.reviewedBasisRevision }}</dd>
+          <dt>Review comment</dt><dd>{{ r.reviewComment }}</dd>
+        }
+      </dl>
+    } @else { <p>No verification exists at this exact date.</p> }
+    @if (s.canPrepare) {
+      <fieldset [disabled]="busy() || !!pending() || unavailable()">
+        <legend>Prepare or amend exact opening balances</legend>
+        <p>Amending the preparation invalidates its independent review.</p>
+        <label>Procedure identifier (optional, same engagement)<input name="obProcedure" [(ngModel)]="form.procedureId" (ngModelChange)="inputsChanged()" /></label>
+        <label>Prior period identifier (optional, same client)<input name="obPriorPeriod" [(ngModel)]="form.priorPeriodId" (ngModelChange)="inputsChanged()" /></label>
+        <label>Prior reference<input name="obReference" maxlength="200" [(ngModel)]="form.priorReference" (ngModelChange)="inputsChanged()" /></label>
+        <label>Currency<input name="obCurrency" maxlength="3" [(ngModel)]="form.currency" (ngModelChange)="inputsChanged()" /></label>
+        <label>Opening signed total<input type="text" inputmode="decimal" name="obOpening" [(ngModel)]="form.openingSignedTotal" (ngModelChange)="inputsChanged()" /></label>
+        <label>Agreed signed total<input type="text" inputmode="decimal" name="obAgreed" [(ngModel)]="form.agreedSignedTotal" (ngModelChange)="inputsChanged()" /></label>
+        <label>Accounting policies consistent<select name="obPolicies" [(ngModel)]="form.accountingPoliciesConsistent" (ngModelChange)="inputsChanged()"><option value="">Unanswered</option><option value="true">Yes</option><option value="false">No</option></select></label>
+        <label>Rationale<textarea name="obRationale" maxlength="2000" [(ngModel)]="form.rationale" (ngModelChange)="inputsChanged()"></textarea></label>
+        <label>Exact-scope evidence references (one per line)<textarea name="obEvidence" [(ngModel)]="form.evidenceReferences" (ngModelChange)="inputsChanged()"></textarea></label>
+      </fieldset>
+      <button matButton="outlined" type="button" (click)="preparePreview('PREPARE')" [disabled]="!canPreview('PREPARE')">Preview preparation</button>
+    }
+    <label>Independent review comment (optional)<textarea name="obComment" maxlength="2000" [(ngModel)]="form.comment" (ngModelChange)="inputsChanged()" [disabled]="busy() || !!pending() || unavailable() || !s.canReview"></textarea></label>
+    <button matButton="outlined" type="button" (click)="preparePreview('REVIEW')" [disabled]="!canPreview('REVIEW')">Preview independent review</button>
+  }
+  @if (preview(); as p) {
+    <div data-ob-preview>
+      <p>{{ p.summary }} · request {{ p.requestId }} · revision {{ p.expectedRevision }} · hash {{ p.requestHash }}</p>
+      <ul>@for (blocker of p.blockers; track $index) { <li>{{ blocker }}</li> }</ul>
+      <label><input type="checkbox" name="obAssent" [(ngModel)]="assent" [disabled]="busy()" />I reviewed this exact intent and evidence. Preparation is not independent approval.</label>
+      <button matButton="filled" type="button" (click)="submit()" [disabled]="busy() || !assent || !p.canProceed || p.blockers.length > 0">Confirm {{ p.action === 'PREPARE' ? 'unreviewed preparation' : 'independent review' }}</button>
+    </div>
+  }
+</section>

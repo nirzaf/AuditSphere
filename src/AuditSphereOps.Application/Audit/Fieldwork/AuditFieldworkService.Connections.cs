@@ -499,9 +499,11 @@ public static partial class AuditFieldworkService
         blockers.Add("analytical-review:unreviewed");
       if (analytics.Any(x => x.ExceedsThreshold && x.Conclusion == VarianceInvestigationConclusions.Unexplained)) blockers.Add("analytical-review:unexplained-variance");
     }
-    var goingConcern = await db.GoingConcernAssessments.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId)
-      .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);
-    if (goingConcern is null) blockers.Add("going-concern:missing");
+    var selection = GoingConcernAssessmentSelection.Select(await db.GoingConcernAssessments.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.EngagementId == engagementId).ToListAsync(ct));
+    var goingConcern = selection.Assessment;
+    if (selection.Ambiguous) blockers.Add(GoingConcernAssessmentSelection.AmbiguousBlocker);
+    else if (goingConcern is null) blockers.Add("going-concern:missing");
     else
     {
       if (!IsCurrentReviewedBasis(goingConcern.ReviewedByUserId, goingConcern.ReviewedAt,

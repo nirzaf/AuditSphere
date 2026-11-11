@@ -24,7 +24,7 @@ public sealed record VarianceInvestigationValue(
 public sealed record GoingConcernAssessmentRequest(
   Guid EngagementId, Guid? ProcedureId, DateOnly AssessmentDate, DateOnly PeriodCoveredTo,
   string ForecastReviewOutcome, bool MaterialUncertaintyIdentified, bool DisclosureAdequate,
-  string Currency, string Rationale, IReadOnlyList<string> EvidenceReferences);
+  string Currency, string Rationale, IReadOnlyList<string> EvidenceReferences, long ExpectedRevision = 0);
 
 public sealed record GoingConcernAssessmentValue(
   Guid AssessmentId, string Conclusion, bool MaterialUncertaintyIdentified, long Revision);
@@ -33,7 +33,7 @@ public sealed record SubsequentEventReviewRequest(
   Guid EngagementId, Guid? ProcedureId, DateOnly PeriodEndDate, DateOnly EventDate,
   string Description, string Classification, bool AdjustmentRequired, bool DisclosureRequired,
   string? DisclosureReference, string? Rationale, string Currency, decimal? FinancialEffect,
-  IReadOnlyList<string> EvidenceReferences);
+  IReadOnlyList<string> EvidenceReferences, long ExpectedRevision = 0, Guid? SelectedRecordId = null);
 
 public sealed record SubsequentEventReviewValue(
   Guid ReviewId, string Classification, bool AdjustmentRequired, bool DisclosureRequired,
@@ -171,6 +171,9 @@ public static class AuditCompletionService
     if (existing is not null && existing.RecordedByUserId != actor.UserId)
       return CommandResult<GoingConcernAssessmentValue>.Fail(ErrorCodes.ScopeDenied,
         "Only the recording auditor can revise this going-concern assessment.");
+    if (request.ExpectedRevision != (existing?.Revision ?? 0))
+      return CommandResult<GoingConcernAssessmentValue>.Fail(ErrorCodes.GenerationStale,
+        "The going-concern assessment changed; reload its exact revision before preparing.");
     if (existing is null)
     {
       existing = new GoingConcernAssessment
@@ -217,37 +220,75 @@ public static class AuditCompletionService
   /// classification and disclosure decision. The platform never infers the classification,
   /// and the count of events still pending assessment is reported so finalisation can be
   /// blocked while any event is unassessed.</summary>
-  public static async Task<CommandResult<SubsequentEventReviewValue>> RecordSubsequentEventAsync(
-    IClientAccountingDbContext db, ActorContext actor, SubsequentEventReviewRequest request,
-    CancellationToken ct = default)
+  internal static CommandResult ValidateSubsequentEvent(SubsequentEventReviewRequest request)
   {
     var currency = request.Currency?.Trim().ToUpperInvariant() ?? string.Empty;
     var classification = request.Classification?.Trim().ToUpperInvariant() ?? string.Empty;
-    if (request.EngagementId == Guid.Empty || currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
+    if (request.EngagementId == Guid.Empty || request.ExpectedRevision < 0 ||
+        (request.FinancialEffect is { } effect && (effect < -9999999999999.999999m || effect > 9999999999999.999999m || decimal.Round(effect, 6) != effect)) || request.PeriodEndDate == default || request.EventDate == default ||
+        (request.Rationale?.Trim().Length ?? 0) > 4000 || (request.DisclosureReference?.Trim().Length ?? 0) > 200 ||
+        JsonSerializer.Serialize((request.EvidenceReferences ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToArray()).Length > 20000 || currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
         !SubsequentEventClassifications.All.Contains(classification) ||
         string.IsNullOrWhiteSpace(request.Description) || request.Description.Trim().Length > 4000 ||
         request.EventDate < request.PeriodEndDate ||
         (classification == SubsequentEventClassifications.Adjusting && !request.AdjustmentRequired) ||
         (classification == SubsequentEventClassifications.NonAdjusting && request.AdjustmentRequired))
-      return CommandResult<SubsequentEventReviewValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A subsequent event needs the engagement, dates, description and a supported classification consistent with the adjustment decision.");
     if (classification != SubsequentEventClassifications.PendingAssessment &&
         string.IsNullOrWhiteSpace(request.Rationale))
-      return CommandResult<SubsequentEventReviewValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A classified subsequent event requires the rationale supporting the assessment.");
     if (request.DisclosureRequired && string.IsNullOrWhiteSpace(request.DisclosureReference))
-      return CommandResult<SubsequentEventReviewValue>.Fail(ErrorCodes.Accounting.MappingInvalid,
+      return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid,
         "A subsequent event requiring disclosure needs the disclosure reference.");
-    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, EngagementId: request.EngagementId, RequiredRoles: PlanningRoles,
-        InternalOnly: true, RequireProfessionalWork: true), ct);
-    if (!auth.Succeeded)
-      return CommandResult<SubsequentEventReviewValue>.Fail(auth.ErrorCode!, auth.Message!);
-    var engagement = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == request.EngagementId, ct);
+    return CommandResult.Ok();
+  }
 
-    var existing = await db.SubsequentEventReviews.SingleOrDefaultAsync(x =>
-      x.FirmId == actor.FirmId && x.EngagementId == request.EngagementId &&
-      x.EventDate == request.EventDate && x.Description == request.Description.Trim(), ct);
+  public static async Task<CommandResult<SubsequentEventReviewValue>> RecordSubsequentEventAsync(
+    IClientAccountingDbContext db, ActorContext actor, SubsequentEventReviewRequest request,
+    CancellationToken ct = default)
+  {
+    var validation = ValidateSubsequentEvent(request);
+    if (!validation.Succeeded) return CommandResult<SubsequentEventReviewValue>.Fail(validation.ErrorCode!, validation.Message!);
+    var currency = request.Currency.Trim().ToUpperInvariant();
+    var classification = request.Classification.Trim().ToUpperInvariant();
+    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == request.EngagementId, ct);
+    if (engagement is null) return CommandResult<SubsequentEventReviewValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    async Task<CommandResult> AuthorizeAsync() => await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new(actor.FirmId, engagement.PracticeClientId, request.EngagementId, PlanningRoles,
+        InternalOnly: true, RequireProfessionalWork: true), ct);
+    var auth = await AuthorizeAsync();
+    if (!auth.Succeeded) return CommandResult<SubsequentEventReviewValue>.Fail(auth.ErrorCode!, auth.Message!);
+    await using var ownedTx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
+    var safety = await AuditPlanningCommandWorkspace.LockAsync(db, actor, request.EngagementId, true, ct);
+    if (!safety.Succeeded) return CommandResult<SubsequentEventReviewValue>.Fail(safety.ErrorCode!, safety.Message!);
+    var locked = await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={request.EngagementId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+    if (locked is null || locked.PracticeClientId != engagement.PracticeClientId)
+      return CommandResult<SubsequentEventReviewValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    auth = await AuthorizeAsync();
+    if (!auth.Succeeded) return CommandResult<SubsequentEventReviewValue>.Fail(auth.ErrorCode!, auth.Message!);
+    var evidence = await AuditCompletionSubsequentEventWorkspace.CurrentEvidenceIdentityAsync(db, actor,
+      engagement.PracticeClientId, request.EngagementId, new(request.ProcedureId, request.PeriodEndDate, request.EventDate,
+        request.Description, request.Classification, request.AdjustmentRequired, request.DisclosureRequired,
+        request.DisclosureReference, request.Rationale, request.Currency,
+        request.FinancialEffect?.ToString(System.Globalization.CultureInfo.InvariantCulture), request.EvidenceReferences ?? []), ct);
+    if (!evidence.Succeeded) return CommandResult<SubsequentEventReviewValue>.Fail(evidence.ErrorCode!, evidence.Message!);
+    var existing = request.SelectedRecordId is { } selectedId
+      ? await db.SubsequentEventReviews.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+          x.ClientId == engagement.PracticeClientId && x.EngagementId == request.EngagementId && x.Id == selectedId, ct)
+      : null;
+    if (request.SelectedRecordId is not null && existing is null)
+      return CommandResult<SubsequentEventReviewValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (existing is not null && (existing.EventDate != request.EventDate || existing.Description != request.Description.Trim()))
+      return CommandResult<SubsequentEventReviewValue>.Fail(ErrorCodes.GenerationStale, "The selected event identity cannot change; explicitly create another event instead.");
+    if (request.SelectedRecordId is null && await db.SubsequentEventReviews.AnyAsync(x => x.FirmId == actor.FirmId &&
+        x.ClientId == engagement.PracticeClientId && x.EngagementId == request.EngagementId &&
+        x.EventDate == request.EventDate && x.Description == request.Description.Trim(), ct))
+      return CommandResult<SubsequentEventReviewValue>.Fail(ErrorCodes.GenerationStale, "This event already exists; select its exact record and revision.");
+    if (request.ExpectedRevision != (existing?.Revision ?? 0))
+      return CommandResult<SubsequentEventReviewValue>.Fail(ErrorCodes.GenerationStale, "The subsequent event changed; refresh its exact revision.");
     if (existing is not null && existing.RecordedByUserId != actor.UserId)
       return CommandResult<SubsequentEventReviewValue>.Fail(ErrorCodes.ScopeDenied,
         "Only the recording auditor can revise this subsequent-event review.");
@@ -291,6 +332,13 @@ public static class AuditCompletionService
         "The subsequent-event assessment changed; reload its current revision before revising it.");
     }
 
+    auth = await AuthorizeAsync();
+    if (!auth.Succeeded)
+    {
+      if (ownedTx is not null) await ownedTx.RollbackAsync(ct);
+      return CommandResult<SubsequentEventReviewValue>.Fail(auth.ErrorCode!, auth.Message!);
+    }
+    if (ownedTx is not null) await ownedTx.CommitAsync(ct);
     var pending = await db.SubsequentEventReviews.AsNoTracking()
       .CountAsync(x => x.FirmId == actor.FirmId && x.EngagementId == request.EngagementId &&
         x.Classification == SubsequentEventClassifications.PendingAssessment, ct);
@@ -303,7 +351,9 @@ public static class AuditCompletionService
   /// their own work and an unresolved state is refused.</summary>
   public static async Task<CommandResult> ReviewCompletionRecordAsync(
     IClientAccountingDbContext db, ActorContext actor, string recordKind, Guid recordId,
-    long expectedRevision, CancellationToken ct = default, VarianceReviewReceiptContext? receiptContext = null)
+    long expectedRevision, CancellationToken ct = default, VarianceReviewReceiptContext? receiptContext = null,
+    GoingConcernReviewReceiptContext? goingConcernReceiptContext = null,
+    SubsequentEventReviewReceiptContext? subsequentEventReceiptContext = null)
   {
     if (recordId == Guid.Empty || expectedRevision < 1)
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "A current completion record and revision are required.");
@@ -394,8 +444,76 @@ public static class AuditCompletionService
         return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "The retained review outcome changed; refresh before any new review.");
     }
 
+    if (goingConcernReceiptContext is not null)
+    {
+      if (kind != "GOING_CONCERN" || goingConcernReceiptContext.RequestId == Guid.Empty || goingConcernReceiptContext.RequestHash.Length != 64 ||
+          goingConcernReceiptContext.ReviewBasis.Length != 64 ||
+          goingConcernReceiptContext.EvidenceIdentityHash is { Length: not 64 })
+        return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The going-concern review recovery identity is invalid.");
+      await AuditCompletionGoingConcernWorkspace.LockRequestAsync(db, actor, goingConcernReceiptContext.RequestId, true, ct);
+      // A request-barrier wait is another authorization boundary for replay as well as a new review.
+      auth = await AuthorizeExactScopeAsync();
+      if (!auth.Succeeded)
+      {
+        await tx.CommitAsync(ct);
+        return auth;
+      }
+      var prior = await db.AuditCompletionGoingConcernCommandReceipts.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.ActorId == actor.UserId && x.RequestId == goingConcernReceiptContext.RequestId, ct);
+      if (prior is not null)
+      {
+        if (prior.ActorEpoch != actor.SessionEpoch)
+          return CommandResult.Fail(ErrorCodes.GenerationStale, "This request belongs to a previous session lifetime.");
+        if (prior.ClientId != scope.ClientId || prior.EngagementId != scope.EngagementId ||
+            prior.GoingConcernAssessmentId != recordId || prior.Action != "REVIEW" ||
+            prior.RequestHash != goingConcernReceiptContext.RequestHash || prior.ReviewBasis != goingConcernReceiptContext.ReviewBasis ||
+            prior.InputJson != goingConcernReceiptContext.InputJson || prior.PreviewJson != goingConcernReceiptContext.PreviewJson)
+          return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "Changed intent cannot reuse this request identity.");
+        await tx.CommitAsync(ct);
+        return CommandResult.Ok();
+      }
+      // A context without an evidence identity is valid only for the exact retained replay above.
+      if (goingConcernReceiptContext.EvidenceIdentityHash is null)
+        return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "The retained review outcome changed; refresh before any new review.");
+    }
+
+    if (subsequentEventReceiptContext is not null)
+    {
+      if (kind != "SUBSEQUENT_EVENT" || subsequentEventReceiptContext.RequestId == Guid.Empty || subsequentEventReceiptContext.RequestHash.Length != 64 ||
+          subsequentEventReceiptContext.ReviewBasis.Length != 64 ||
+          subsequentEventReceiptContext.EvidenceIdentityHash is { Length: not 64 })
+        return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "The subsequent-event review recovery identity is invalid.");
+      await AuditCompletionSubsequentEventWorkspace.LockRequestAsync(db, actor, subsequentEventReceiptContext.RequestId, true, ct);
+      // A request-barrier wait is another authorization boundary for replay as well as a new review.
+      auth = await AuthorizeExactScopeAsync();
+      if (!auth.Succeeded)
+      {
+        await tx.CommitAsync(ct);
+        return auth;
+      }
+      var prior = await db.AuditCompletionSubsequentEventCommandReceipts.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.ActorId == actor.UserId && x.RequestId == subsequentEventReceiptContext.RequestId, ct);
+      if (prior is not null)
+      {
+        if (prior.ActorEpoch != actor.SessionEpoch)
+          return CommandResult.Fail(ErrorCodes.GenerationStale, "This request belongs to a previous session lifetime.");
+        if (prior.ClientId != scope.ClientId || prior.EngagementId != scope.EngagementId ||
+            prior.SubsequentEventReviewId != recordId || prior.Action != "REVIEW" ||
+            prior.RequestHash != subsequentEventReceiptContext.RequestHash || prior.ReviewBasis != subsequentEventReceiptContext.ReviewBasis ||
+            prior.InputJson != subsequentEventReceiptContext.InputJson || prior.PreviewJson != subsequentEventReceiptContext.PreviewJson)
+          return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "Changed intent cannot reuse this request identity.");
+        await tx.CommitAsync(ct);
+        return CommandResult.Ok();
+      }
+      // A context without an evidence identity is valid only for the exact retained replay above.
+      if (subsequentEventReceiptContext.EvidenceIdentityHash is null)
+        return CommandResult.Fail(ErrorCodes.IdempotencyConflict, "The retained review outcome changed; refresh before any new review.");
+    }
+
     CommandResult? refusal = null;
     AnalyticalReviewVarianceInvestigation? reviewedVariance = null;
+    GoingConcernAssessment? reviewedGoingConcern = null;
+    SubsequentEventReview? reviewedSubsequentEvent = null;
     switch (kind)
     {
       case "VARIANCE":
@@ -465,12 +583,37 @@ public static class AuditCompletionService
           refusal = CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
         else if (record.Revision != expectedRevision)
           refusal = CommandResult.Fail(ErrorCodes.GenerationStale, "The going-concern assessment changed; reload and review its current revision.");
-        else if (record.RecordedByUserId == actor.UserId)
+        else if (goingConcernReceiptContext is not null)
+        {
+          var current = await AuditCompletionGoingConcernWorkspace.StateAsync(db, actor, scope.EngagementId,
+            record.AssessmentDate, ct);
+          if (!current.Succeeded)
+            refusal = CommandResult.Fail(current.ErrorCode!, current.Message!);
+          else if (current.Value!.ReviewBasis != goingConcernReceiptContext.ReviewBasis ||
+                   current.Value.ExpectedRevision != expectedRevision.ToString(System.Globalization.CultureInfo.InvariantCulture) ||
+                   current.Value.Record?.Id != recordId)
+            refusal = CommandResult.Fail(ErrorCodes.GenerationStale, "The exact going-concern basis changed; refresh before review.");
+          else if (AuditCompletionGoingConcernWorkspace.EvidenceReferences(record).Length == 0)
+            refusal = CommandResult.Fail(ErrorCodes.GateBlocked, "At least one current exact-engagement evidence reference is required before review.");
+          else
+          {
+            var currentEvidence = await AuditCompletionGoingConcernWorkspace.CurrentEvidenceIdentityAsync(db, actor,
+              scope.ClientId, scope.EngagementId, AuditCompletionGoingConcernWorkspace.Fields(record), ct);
+            if (!currentEvidence.Succeeded) refusal = CommandResult.Fail(currentEvidence.ErrorCode!, currentEvidence.Message!);
+            else if (currentEvidence.Value != goingConcernReceiptContext.EvidenceIdentityHash)
+              refusal = CommandResult.Fail(ErrorCodes.GenerationStale,
+                "The independently reviewed procedure evidence changed while waiting to review; preview the current evidence again.");
+            else if (!current.Value.CanReview)
+              refusal = CommandResult.Fail(ErrorCodes.GateBlocked,
+                current.Value.Blockers.FirstOrDefault() ?? "Current independent review authority is required.");
+          }
+        }
+        if (record is not null && refusal is null && record.RecordedByUserId == actor.UserId)
           refusal = CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review their own going-concern assessment.");
-        else if (record.Conclusion is GoingConcernConclusions.NotAssessed or GoingConcernConclusions.InadequateDisclosure)
+        else if (record is not null && refusal is null && record.Conclusion is GoingConcernConclusions.NotAssessed or GoingConcernConclusions.InadequateDisclosure)
           refusal = CommandResult.Fail(ErrorCodes.GateBlocked,
             "The going-concern conclusion must be assessed and adequately disclosed before review.");
-        else
+        else if (record is not null && refusal is null)
         {
           auth = await AuthorizeExactScopeAsync();
           if (!auth.Succeeded) refusal = auth;
@@ -480,6 +623,7 @@ public static class AuditCompletionService
             record.ReviewedAt = DateTimeOffset.UtcNow;
             record.ReviewedRevision = expectedRevision;
             record.Revision++;
+            reviewedGoingConcern = record;
           }
         }
         break;
@@ -494,12 +638,31 @@ public static class AuditCompletionService
           refusal = CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
         else if (record.Revision != expectedRevision)
           refusal = CommandResult.Fail(ErrorCodes.GenerationStale, "The subsequent-event assessment changed; reload and review its current revision.");
-        else if (record.RecordedByUserId == actor.UserId)
+        else if (subsequentEventReceiptContext is not null)
+        {
+          var current = await AuditCompletionSubsequentEventWorkspace.StateAsync(db, actor, scope.EngagementId, recordId, ct);
+          if (!current.Succeeded) refusal = CommandResult.Fail(current.ErrorCode!, current.Message!);
+          else if (current.Value!.ReviewBasis != subsequentEventReceiptContext.ReviewBasis ||
+                   current.Value.ExpectedRevision != expectedRevision.ToString(System.Globalization.CultureInfo.InvariantCulture) ||
+                   current.Value.Record?.Id != recordId)
+            refusal = CommandResult.Fail(ErrorCodes.GenerationStale, "The exact event basis changed; refresh before review.");
+          else
+          {
+            var evidence = await AuditCompletionSubsequentEventWorkspace.CurrentEvidenceIdentityAsync(db, actor,
+              scope.ClientId, scope.EngagementId, AuditCompletionSubsequentEventWorkspace.Fields(record), ct);
+            if (!evidence.Succeeded) refusal = CommandResult.Fail(evidence.ErrorCode!, evidence.Message!);
+            else if (evidence.Value != subsequentEventReceiptContext.EvidenceIdentityHash)
+              refusal = CommandResult.Fail(ErrorCodes.GenerationStale, "The exact linked evidence changed; preview it again.");
+            else if (!current.Value.CanReview)
+              refusal = CommandResult.Fail(ErrorCodes.GateBlocked, current.Value.Blockers.FirstOrDefault() ?? "Independent current review authority is required.");
+          }
+        }
+        if (record is not null && refusal is null && record.RecordedByUserId == actor.UserId)
           refusal = CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review their own subsequent-event assessment.");
-        else if (record.Classification == SubsequentEventClassifications.PendingAssessment)
+        else if (record is not null && refusal is null && record.Classification == SubsequentEventClassifications.PendingAssessment)
           refusal = CommandResult.Fail(ErrorCodes.GateBlocked,
             "A subsequent event must be classified before it can be reviewed.");
-        else
+        else if (record is not null && refusal is null)
         {
           auth = await AuthorizeExactScopeAsync();
           if (!auth.Succeeded) refusal = auth;
@@ -509,6 +672,7 @@ public static class AuditCompletionService
             record.ReviewedAt = DateTimeOffset.UtcNow;
             record.ReviewedRevision = expectedRevision;
             record.Revision++;
+            reviewedSubsequentEvent = record;
           }
         }
         break;
@@ -541,6 +705,50 @@ public static class AuditCompletionService
           RequestHash = receiptContext.RequestHash, ReviewBasis = receiptContext.ReviewBasis,
           Action = "REVIEW", InputJson = receiptContext.InputJson, PreviewJson = receiptContext.PreviewJson,
           ResultJson = JsonSerializer.Serialize(AuditCompletionVarianceWorkspace.Snapshot(persistedVariance),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web)), CreatedAt = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+      }
+      if (goingConcernReceiptContext is not null)
+      {
+        if (reviewedGoingConcern is null)
+        {
+          await tx.RollbackAsync(ct);
+          return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "A going-concern review receipt requires the reviewed going-concern record.");
+        }
+        var persistedGoingConcern = await db.GoingConcernAssessments.AsNoTracking().SingleAsync(x =>
+          x.FirmId == actor.FirmId && x.ClientId == scope.ClientId && x.EngagementId == scope.EngagementId &&
+          x.Id == recordId, ct);
+        db.AuditCompletionGoingConcernCommandReceipts.Add(new AuditCompletionGoingConcernCommandReceipt
+        {
+          Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = scope.ClientId,
+          EngagementId = scope.EngagementId, GoingConcernAssessmentId = recordId,
+          ActorId = actor.UserId, ActorEpoch = actor.SessionEpoch, RequestId = goingConcernReceiptContext.RequestId,
+          RequestHash = goingConcernReceiptContext.RequestHash, ReviewBasis = goingConcernReceiptContext.ReviewBasis,
+          Action = "REVIEW", InputJson = goingConcernReceiptContext.InputJson, PreviewJson = goingConcernReceiptContext.PreviewJson,
+          ResultJson = JsonSerializer.Serialize(AuditCompletionGoingConcernWorkspace.Snapshot(persistedGoingConcern),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web)), CreatedAt = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+      }
+      if (subsequentEventReceiptContext is not null)
+      {
+        if (reviewedSubsequentEvent is null)
+        {
+          await tx.RollbackAsync(ct);
+          return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "A subsequent-event review receipt requires the reviewed subsequent-event record.");
+        }
+        var persistedSubsequentEvent = await db.SubsequentEventReviews.AsNoTracking().SingleAsync(x =>
+          x.FirmId == actor.FirmId && x.ClientId == scope.ClientId && x.EngagementId == scope.EngagementId &&
+          x.Id == recordId, ct);
+        db.AuditCompletionSubsequentEventCommandReceipts.Add(new AuditCompletionSubsequentEventCommandReceipt
+        {
+          Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = scope.ClientId,
+          EngagementId = scope.EngagementId, SubsequentEventReviewId = recordId,
+          ActorId = actor.UserId, ActorEpoch = actor.SessionEpoch, RequestId = subsequentEventReceiptContext.RequestId,
+          RequestHash = subsequentEventReceiptContext.RequestHash, ReviewBasis = subsequentEventReceiptContext.ReviewBasis,
+          Action = "REVIEW", InputJson = subsequentEventReceiptContext.InputJson, PreviewJson = subsequentEventReceiptContext.PreviewJson,
+          ResultJson = JsonSerializer.Serialize(AuditCompletionSubsequentEventWorkspace.Snapshot(persistedSubsequentEvent),
             new JsonSerializerOptions(JsonSerializerDefaults.Web)), CreatedAt = DateTimeOffset.UtcNow
         });
         await db.SaveChangesAsync(ct);

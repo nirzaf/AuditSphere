@@ -89,10 +89,11 @@ if (!composition.Approved)
 var connection = builder.Configuration.GetConnectionString("AuditSphere");
 if (string.IsNullOrWhiteSpace(connection))
   throw new InvalidOperationException("ConnectionStrings:AuditSphere is required.");
-var dataSourceBuilder = new NpgsqlDataSourceBuilder(connection) { Name = "AuditSphere.Worker" };
-var dataSource = dataSourceBuilder.Build();
-builder.Services.AddSingleton(dataSource);
-builder.Services.AddDbContextFactory<AuditSphereDbContext>(options => options.UseNpgsql(dataSource));
+// Container-created singleton: host shutdown owns the pool and metric registrations.
+builder.Services.AddSingleton<NpgsqlDataSource>(_ =>
+  new NpgsqlDataSourceBuilder(connection) { Name = "AuditSphere.Worker" }.Build());
+builder.Services.AddDbContextFactory<AuditSphereDbContext>((services, options) =>
+  options.UseNpgsql(services.GetRequiredService<NpgsqlDataSource>()));
 if (!Guid.TryParse(builder.Configuration["Worker:FirmId"], out var firmId))
   throw new InvalidOperationException("Worker:FirmId is required.");
 if (!long.TryParse(builder.Configuration["Worker:DeploymentEpoch"], out var deploymentEpoch) || deploymentEpoch < 1)

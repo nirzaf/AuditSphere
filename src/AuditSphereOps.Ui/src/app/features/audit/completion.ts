@@ -8,6 +8,9 @@ import { arr, bool, dec, decode, guid, instant, int, nat, nullable, obj, oneOf, 
 import { SHARED } from '../../core/ui';
 import { SessionService } from '../../core/session';
 import { EqrDecision } from './eqr-decision';
+import { GoingConcern } from './going-concern';
+import { SubsequentEvents } from './subsequent-events';
+import { OpeningBalancesPanel } from './opening-balances';
 
 const deliverable = obj({ id: guid, kind: text, title: text, version: nat, signed: bool, current: bool, contentSha256: text, createdAt: instant,
   signatureKind: oneOf('NONE', 'VISUAL', 'CERTIFICATE'), certificateSubject: nullable(text) });
@@ -114,11 +117,12 @@ const REPORTS: [string, string][] = [['AUDIT_FINDINGS_REPORT', 'Audit Findings R
 
 @Component({
   selector: 'audit-completion',
-  imports: [FormsModule, RouterLink, MatButtonModule, EqrDecision, ...SHARED],
+  imports: [FormsModule, RouterLink, MatButtonModule, EqrDecision, GoingConcern, SubsequentEvents, OpeningBalancesPanel, ...SHARED],
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a [routerLink]="['/app/engagements', id()]">Engagement</a> / <span>Completion</span></nav>
     <audit-page-header title="Engagement completion checklist" eyebrow="Engagement audit" description="Completion gates, unresolved items, and the exact state required before release." />
     <audit-state [loading]="ws.loading()" [error]="ws.error()" label="completion state" />
+    @if (id(); as engagementId) { <audit-going-concern [engagementId]="engagementId" (refreshed)="ws.reload()" /><audit-subsequent-events [engagementId]="engagementId" (refreshed)="ws.reload()" /><audit-opening-balances [engagementId]="engagementId" (refreshed)="ws.reload()" /> }
     <section class="panel" aria-labelledby="variance-investigation-heading" data-variance-investigation>
       <h2 id="variance-investigation-heading">Analytical completion variance investigation</h2>
       <p>This is the variance investigation used by the completion gate. Preparation and review remain separate decisions; this panel does not make an accounting or audit conclusion for you.</p>

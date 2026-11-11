@@ -1,0 +1,60 @@
+<section class="panel" aria-labelledby="going-concern-heading" data-going-concern>
+  <h2 id="going-concern-heading">Going-concern assessment</h2>
+  <p>Preparation records your explicit observations. Independent review is a separate professional decision. Assessment review does not waive the completion horizon or any unrelated blocker.</p>
+  <label>Exact assessment date<input type="date" name="gcAssessmentDate" [(ngModel)]="form.assessmentDate" (ngModelChange)="selectionChanged()" [disabled]="busy()" /></label>
+  <button matButton="outlined" type="button" (click)="load()" [disabled]="busy() || !form.assessmentDate">Load exact assessment basis</button>
+  @if (busy()) { <p role="status">Checking the exact assessment request…</p> }
+  @if (error()) { <p role="alert">{{ error() }}</p> }
+  @if (history()) { <p role="status" data-gc-history>{{ history() }}</p> }
+  @if (unavailable()) { <p role="alert">Recovery is unavailable. No new command may be sent.</p> }
+  @if (pending(); as p) {
+    <div role="alert" data-gc-pending>
+      <p>Unresolved {{ p.action.toLowerCase() }} request {{ p.requestId }} for {{ p.assessmentDate }}. No financial draft is stored and no request is automatically resent.</p>
+      <button matButton="outlined" type="button" (click)="loadPending()" [disabled]="busy()">Load saved request scope</button>
+      <button matButton="outlined" type="button" (click)="recover()" [disabled]="busy() || !state()">Look up exact request</button>
+    </div>
+  }
+  @if (state(); as s) {
+    <p>These are exact-date persisted observations, not a designation of the governing assessment or a claim that completion is ready.</p>
+    <p>Exact revision {{ s.expectedRevision }} · basis {{ s.reviewBasis }}. Authority is server-derived and rechecked on submission.</p>
+    @if (s.blockers.length) { <ul aria-label="Assessment blockers">@for (blocker of s.blockers; track blocker) { <li>{{ blocker }}</li> }</ul> }
+    @if (s.record; as r) {
+      <dl class="facts" data-gc-record>
+        <dt>Assessment</dt><dd>{{ r.id }} · revision {{ r.revision }}</dd>
+        <dt>Assessment date / coverage through</dt><dd>{{ r.assessmentDate }} / {{ r.periodCoveredTo }}</dd>
+        <dt>Forecast observations</dt><dd>{{ r.forecastReviewOutcome }}</dd>
+        <dt>Material uncertainty identified</dt><dd>{{ r.materialUncertaintyIdentified ? 'Yes' : 'No' }}</dd>
+        <dt>Disclosure adequate</dt><dd>{{ r.disclosureAdequate ? 'Yes' : 'No' }}</dd>
+        <dt>Persisted conclusion</dt><dd>{{ r.conclusion }}</dd>
+        <dt>Currency</dt><dd>{{ r.currency }}</dd><dt>Rationale</dt><dd>{{ r.rationale }}</dd>
+        <dt>Linked procedure</dt><dd>{{ r.procedureId ?? 'No procedure linked' }}</dd>
+        <dt>Evidence</dt><dd><ul>@for (reference of r.evidenceReferences; track $index) { <li>{{ reference }}</li> }</ul></dd>
+        <dt>Preparer</dt><dd>{{ r.recordedByUserId }} · {{ r.recordedAt }}</dd>
+        <dt>Independent review</dt><dd>@if (r.reviewedByUserId) { {{ r.reviewedByUserId }} · {{ r.reviewedAt }} · reviewed revision {{ r.reviewedRevision }} } @else { Not independently reviewed }</dd>
+      </dl>
+    } @else { <p>No assessment exists at this exact date. This does not designate a governing assessment.</p> }
+    @if (s.canPrepare) {
+      <fieldset [disabled]="busy() || !!pending() || unavailable()">
+        <legend>Explicit assessment preparation</legend>
+        <label>Coverage through<input type="date" name="gcCoveredTo" [(ngModel)]="form.periodCoveredTo" (ngModelChange)="inputsChanged()" /></label>
+        <label>Procedure identifier (optional)<input name="gcProcedure" [(ngModel)]="form.procedureId" (ngModelChange)="inputsChanged()" /></label>
+        <label>Forecast review observations<textarea name="gcForecast" maxlength="4000" [(ngModel)]="form.forecastReviewOutcome" (ngModelChange)="inputsChanged()"></textarea></label>
+        <label>Material uncertainty identified<select name="gcUncertainty" [(ngModel)]="form.materialUncertaintyIdentified" (ngModelChange)="inputsChanged()"><option value="">Unanswered</option><option value="true">Yes</option><option value="false">No</option></select></label>
+        <label>Disclosure adequate<select name="gcDisclosure" [(ngModel)]="form.disclosureAdequate" (ngModelChange)="inputsChanged()"><option value="">Unanswered</option><option value="true">Yes</option><option value="false">No</option></select></label>
+        <label>Currency<input name="gcCurrency" maxlength="3" [(ngModel)]="form.currency" (ngModelChange)="inputsChanged()" /></label>
+        <label>Rationale<textarea name="gcRationale" maxlength="4000" [(ngModel)]="form.rationale" (ngModelChange)="inputsChanged()"></textarea></label>
+        <label>Current exact-engagement evidence references (one per line)<textarea name="gcEvidence" [(ngModel)]="form.evidenceReferences" (ngModelChange)="inputsChanged()"></textarea></label>
+      </fieldset>
+      <button matButton="outlined" type="button" (click)="preparePreview('PREPARE')" [disabled]="!canPreview('PREPARE')">Preview preparation</button>
+    }
+    <button matButton="outlined" type="button" (click)="preparePreview('REVIEW')" [disabled]="!canPreview('REVIEW')">Preview independent review</button>
+  }
+  @if (preview(); as p) {
+    <div data-gc-preview>
+      <p>{{ p.summary }} · request {{ p.requestId }} · revision {{ p.expectedRevision }} · hash {{ p.requestHash }}</p>
+      <ul>@for (blocker of p.blockers; track blocker) { <li>{{ blocker }}</li> }</ul>
+      <label><input type="checkbox" name="gcAssent" [(ngModel)]="assent" [disabled]="busy()" />I reviewed this exact intent and evidence. Preparation is not independent approval.</label>
+      <button matButton="filled" type="button" (click)="submit()" [disabled]="busy() || !assent || !p.canProceed || p.blockers.length > 0">Confirm {{ p.action === 'PREPARE' ? 'unreviewed preparation' : 'independent review' }}</button>
+    </div>
+  }
+</section>

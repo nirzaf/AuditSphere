@@ -138,6 +138,28 @@ internal static class SupportedAuditCompletionWorldBuilder
       reviewer.Actor, admin.Actor);
   }
 
+  internal static async Task<Guid> CreateAdditionalClientAsync(ITestPostgresDatabase pg, SupportedAuditCompletionWorld world)
+  {
+    async Task<ActorContext> Actor(string role)
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var id = await db.RoleGrants.AsNoTracking().Where(x => x.FirmId == world.Administrator.FirmId && x.Role == role &&
+        x.ClientId == null && x.EngagementId == null && x.RevokedAt == null).Select(x => x.UserId).SingleAsync();
+      var user = await db.Users.AsNoTracking().SingleAsync(x => x.Id == id);
+      return new(user.Id, user.FirmId, user.SessionEpoch, [role]);
+    }
+    var relationship = await Actor("RelationshipManager");
+    var proposal = await CreateAcceptedProposalAsync(pg, relationship, await Actor("Partner"), await Actor("Manager"),
+      "OtherClient", "2024-01-01", "2024-12-31", _ => Task.CompletedTask);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var result = await PracticeCrmService.ConvertToClientDraftAsync(db, relationship,
+      new(proposal, "Synthetic R06 separate client", "Separate R06 client"));
+    Assert.True(result.Succeeded, result.Message);
+    Assert.NotEqual(world.Primary.ClientId, result.Value);
+    return result.Value;
+  }
+
+
   internal static Task<(Guid FirmId, Guid ClientId, ActorContext Actor)> CreateClientBeforeAcceptanceAsync(PgTestSchema pg, string role)
     => CreateClientBeforeAcceptanceAsync((ITestPostgresDatabase)pg, role);
 

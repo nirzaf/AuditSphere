@@ -175,15 +175,6 @@ public static class RecordsArchiveService
     var lockedArchiveAuth = await AuthorizeArchiveScopeAsync(db, actor, archive, ct);
     if (!lockedArchiveAuth.Succeeded)
       return CommandResult<ArchiveManifestResult>.Fail(lockedArchiveAuth.ErrorCode!, lockedArchiveAuth.Message!);
-    if (archive.Status is not (ArchiveStates.Issued or ArchiveStates.AssemblyInProgress or ArchiveStates.ManifestBuilt))
-      return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ProtectedState,
-        "The archive is not in an assembly state.");
-    var profile = await db.RecordsProfiles.AsNoTracking().SingleOrDefaultAsync(x =>
-      x.FirmId == archive.FirmId && x.ProfileCode == archive.ProfileId && x.Version == archive.ProfileVersion, ct);
-    if (profile is null || !profile.Approved)
-      return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GateBlocked,
-        "An approved records profile version is required.");
-
     requestKey = string.IsNullOrWhiteSpace(requestKey) ? null : requestKey.Trim();
     if (requestKey is { Length: > 64 })
       return CommandResult<ArchiveManifestResult>.Fail("records-manifest.request.invalid", "The build request identity is invalid.");
@@ -197,14 +188,19 @@ public static class RecordsArchiveService
           return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.IdempotencyConflict,
             "This build request identity is already bound to a different bundle selection.");
         if (tx is not null) await tx.CommitAsync(ct);
-        var prior = new ArchiveManifestResult(archive.Id, priorRequest.Id, priorRequest.Version, priorRequest.Status,
-          priorRequest.ManifestDigest, priorRequest.EntryCount, priorRequest.CompletenessStatus);
-        return priorRequest.CompletenessStatus == "COMPLETE"
-          ? CommandResult<ArchiveManifestResult>.Ok(prior)
-          : CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GateBlocked,
-            "The original build request is retained but incomplete; missing references must be resolved.");
+        return RetainedBuildOutcome(priorRequest);
       }
     }
+
+    // Current write eligibility applies only when no exact retained request exists.
+    if (archive.Status is not (ArchiveStates.Issued or ArchiveStates.AssemblyInProgress or ArchiveStates.ManifestBuilt))
+      return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.ProtectedState,
+        "The archive is not in an assembly state.");
+    var profile = await db.RecordsProfiles.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == archive.FirmId && x.ProfileCode == archive.ProfileId && x.Version == archive.ProfileVersion, ct);
+    if (profile is null || !profile.Approved)
+      return CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GateBlocked,
+        "An approved records profile version is required.");
 
     var snapshots = await db.DocumentSnapshots.AsNoTracking()
       .Where(x => x.FirmId == archive.FirmId && x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
@@ -309,13 +305,17 @@ public static class RecordsArchiveService
         .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, ArchiveStates.ManifestBuilt), ct);
     if (tx is not null) await tx.CommitAsync(ct);
 
-    var result = new ArchiveManifestResult(archive.Id, manifest.Id, manifest.Version, manifest.Status, manifest.ManifestDigest,
-      manifest.EntryCount, manifest.CompletenessStatus);
-    return complete
-      ? CommandResult<ArchiveManifestResult>.Ok(result)
+    return complete || requestKey is not null
+      ? RetainedBuildOutcome(manifest)
       : CommandResult<ArchiveManifestResult>.Fail(ErrorCodes.GateBlocked,
         "The archive manifest was stored but is incomplete; missing references must be resolved.");
   }
+
+  // A retained build receipt describes the original build, not later review/archive readiness.
+  // Incomplete receipts preserve their outcome; they do not enable review, export or a new write.
+  internal static CommandResult<ArchiveManifestResult> RetainedBuildOutcome(ArchiveManifest manifest) =>
+    CommandResult<ArchiveManifestResult>.Ok(new(manifest.ArchiveId, manifest.Id, manifest.Version, "BUILT",
+      manifest.ManifestDigest, manifest.EntryCount, manifest.CompletenessStatus));
 
   private static string ComputeManifestDigest(IEnumerable<ArchiveManifestEntry> entries) =>
     Hashing.Sha256Hex(JsonSerializer.Serialize(entries.OrderBy(x => x.Ordinal).Select(x => new

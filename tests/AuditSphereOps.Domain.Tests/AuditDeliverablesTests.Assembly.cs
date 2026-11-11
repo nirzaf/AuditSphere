@@ -1336,6 +1336,10 @@ public sealed partial class AuditDeliverablesTests
         // Supported finance approval evidence is the first applicable retained-evidence guard.
         // The older Audience and structured-export guards remain pending in the historical slice.
         Assert.False(await db.AuditCompletionVarianceCommandReceipts.AnyAsync());
+        Assert.False(await db.AuditCompletionGoingConcernCommandReceipts.AnyAsync());
+        Assert.False(await db.AuditCompletionSubsequentEventCommandReceipts.AnyAsync());
+        Assert.False(await db.OpeningBalanceCommandReceipts.AnyAsync());
+        Assert.False(await db.OpeningBalanceVerifications.AnyAsync(x => x.ReviewedBasisRevision != null || x.ReviewComment != null));
         var financeEvidence = await db.FirmFinanceProfiles.AsNoTracking()
           .SingleAsync(x => x.FirmId == w.FirmId && x.Approved);
         Assert.NotNull(financeEvidence.CreatedByUserId);
@@ -1347,10 +1351,14 @@ public sealed partial class AuditDeliverablesTests
         var retainedFinanceJson = JsonSerializer.Serialize(financeEvidence);
         const string financeGuard = "20261110102702_FirmFinanceProfileMakerChecker";
         var financeGuardIndex = Array.IndexOf(migrations, financeGuard);
-        Assert.Equal(migrations.Length - 2, financeGuardIndex);
-        Assert.Equal("20261110123614_AuditCompletionVarianceCommandReceipts", migrations[^1]);
+        Assert.Equal(migrations.Length - 6, financeGuardIndex);
+        Assert.Equal(new[] { "20261110123614_AuditCompletionVarianceCommandReceipts",
+          "20261110181648_AuditCompletionGoingConcernCommandReceipts",
+          "20261111041752_AuditCompletionSubsequentEventCommandReceipts",
+          "20261111051049_OpeningBalanceReviewedBasis",
+          "20261111160000_OpeningBalanceCommandReceipts" }, migrations[(financeGuardIndex + 1)..]);
         // EF Core 10.0.12 commits each completed migration command list. The empty receipt
-        // migration is removed, while the failed finance Down transaction is rolled back.
+        // migrations are removed, while the failed finance Down transaction is rolled back.
         var expectedAppliedAfterRefusal = migrations[..(financeGuardIndex + 1)];
         var refusedV2Downgrade = await Assert.ThrowsAnyAsync<Exception>(() =>
           migrator.MigrateAsync(migrations[foundationIndex]));
@@ -1365,6 +1373,10 @@ public sealed partial class AuditDeliverablesTests
           Assert.Equal(migrations, (await restoreDb.Database.GetAppliedMigrationsAsync()).ToArray());
         }
         Assert.False(await db.AuditCompletionVarianceCommandReceipts.AnyAsync());
+        Assert.False(await db.AuditCompletionGoingConcernCommandReceipts.AnyAsync());
+        Assert.False(await db.AuditCompletionSubsequentEventCommandReceipts.AnyAsync());
+        Assert.False(await db.OpeningBalanceCommandReceipts.AnyAsync());
+        Assert.False(await db.OpeningBalanceVerifications.AnyAsync(x => x.ReviewedBasisRevision != null || x.ReviewComment != null));
         Assert.Equal(retainedFinanceJson, JsonSerializer.Serialize(await db.FirmFinanceProfiles.AsNoTracking()
           .SingleAsync(x => x.Id == financeEvidence.Id)));
         var restoredLegacyHashes = await db.ArchiveCopyTargetRevisions.AsNoTracking()
@@ -1480,6 +1492,10 @@ public sealed partial class AuditDeliverablesTests
         Assert.Contains(sharedArchiveMigrationId, await db.Database.GetAppliedMigrationsAsync());
         Assert.Equal(migrations, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.False(await db.AuditCompletionVarianceCommandReceipts.AnyAsync());
+        Assert.False(await db.AuditCompletionGoingConcernCommandReceipts.AnyAsync());
+        Assert.False(await db.AuditCompletionSubsequentEventCommandReceipts.AnyAsync());
+        Assert.False(await db.OpeningBalanceCommandReceipts.AnyAsync());
+        Assert.False(await db.OpeningBalanceVerifications.AnyAsync(x => x.ReviewedBasisRevision != null || x.ReviewComment != null));
         var financeEvidence = await db.FirmFinanceProfiles.AsNoTracking()
           .SingleAsync(x => x.FirmId == w.FirmId && x.Approved);
         Assert.NotNull(financeEvidence.CreatedByUserId);
@@ -1490,8 +1506,12 @@ public sealed partial class AuditDeliverablesTests
         Assert.Equal(financeEvidence.DraftBasisSha256, financeEvidence.ApprovedDraftBasisSha256);
         var retainedFinanceJson = JsonSerializer.Serialize(financeEvidence);
         var financeGuardIndex = Array.IndexOf(migrations, "20261110102702_FirmFinanceProfileMakerChecker");
-        Assert.Equal(migrations.Length - 2, financeGuardIndex);
-        Assert.Equal("20261110123614_AuditCompletionVarianceCommandReceipts", migrations[^1]);
+        Assert.Equal(migrations.Length - 6, financeGuardIndex);
+        Assert.Equal(new[] { "20261110123614_AuditCompletionVarianceCommandReceipts",
+          "20261110181648_AuditCompletionGoingConcernCommandReceipts",
+          "20261111041752_AuditCompletionSubsequentEventCommandReceipts",
+          "20261111051049_OpeningBalanceReviewedBasis",
+          "20261111160000_OpeningBalanceCommandReceipts" }, migrations[(financeGuardIndex + 1)..]);
         var expectedAppliedAfterRefusal = migrations[..(financeGuardIndex + 1)];
         var refused = await Assert.ThrowsAnyAsync<Exception>(() =>
           db.GetService<IMigrator>().MigrateAsync(migrations[foundationIndex]));
@@ -1522,6 +1542,8 @@ public sealed partial class AuditDeliverablesTests
         await verifyDb.GetService<IMigrator>().MigrateAsync();
         Assert.Equal(migrations, (await verifyDb.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.False(await verifyDb.AuditCompletionVarianceCommandReceipts.AnyAsync());
+        Assert.False(await verifyDb.AuditCompletionGoingConcernCommandReceipts.AnyAsync());
+        Assert.False(await verifyDb.AuditCompletionSubsequentEventCommandReceipts.AnyAsync());
         Assert.Equal(retainedFinanceJson, JsonSerializer.Serialize(await verifyDb.FirmFinanceProfiles.AsNoTracking()
           .SingleAsync(x => x.Id == financeEvidence.Id)));
       }

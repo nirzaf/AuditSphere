@@ -41,7 +41,7 @@ export function workbenchLinksFor(phaseCode: string, engagementId: string, clien
     pbc: { label: 'Client requests (PBC)', href: `/app/engagements/${engagementId}/pbc` },
     completion: { label: 'Completion and report', href: `/app/engagements/${engagementId}/completion` },
     finance: { label: 'Finance', href: '/app/finance' },
-    records: { label: 'Records and archive', href: `/app/records/archives/${engagementId}` },
+    records: { label: 'Records and archive', href: `/app/engagements/${engagementId}/archive` },
   };
   return keys.map((key) => ({ key, ...build[key] }));
 }

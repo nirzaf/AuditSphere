@@ -15,6 +15,7 @@ import { FindingAction, FindingReceipt, findingRevision } from './finding-comman
 import { ReviewPointCommandState } from './review-point-command-state';
 import { ReviewPointCommandReview } from './review-point-command-review';
 import { reviewPointRevision, reviewPointTargetRevision } from './review-point-command-contracts';
+import { ArchiveIntent, ArchiveReference, clearArchiveIntent, readArchiveIntent, sameArchiveReference, saveArchiveIntent } from './archive-intent-recovery';
 
 export const decodePopulation = obj({ id: guid, engagementId: guid, purpose: text, assertion: text, sourceReceiptReference: text, extractionParameters: text, rowCount: nat,
   monetaryControlTotal: dec, currency: text, exclusions: nullable(text), status: text, createdAt: instant,
@@ -39,7 +40,7 @@ export const decodeArchive = obj({ id: guid, engagementId: guid, status: text, c
     operationId: nullable(guid), targetRevision: nullable(int), manifestVersion: nullable(int), manifestSha256: nullable(sha256),
     latestFileReadBackAt: nullable(instant), permissionReadBackAt: nullable(instant), note: text })),
   manifestId: nullable(guid), canReview: bool });
-type ArchiveActionOwner = { token: number; archiveId: string; actor: ReturnType<SessionService['current']>; sessionGeneration: number };
+type ArchiveActionOwner = { token: number; archiveId: string; engagementId: string; actor: ReturnType<SessionService['current']>; sessionGeneration: number };
 const sum = (rows: { reviewedTestCount: number }[]) => rows.reduce((n, r) => n + r.reviewedTestCount, 0);
 
 @Component({
@@ -310,11 +311,17 @@ export class ReleaseCandidate {
           <dt>Manifest hash</dt><dd><code>{{ a.manifestDigest ?? 'Not built' }}</code></dd><dt>Active holds</dt><dd>{{ a.activeHoldCount }}</dd></dl>
         @if (a.completenessStatus === 'INCOMPLETE') { <p role="alert">Manifest incomplete: {{ a.completenessException }}</p> }
         @if (a.manifestVersion === null || a.completenessStatus === 'INCOMPLETE') {
-          <button matButton="filled" type="button" [disabled]="actionBusy()" (click)="buildManifest(a)">{{ actionBusy() ? 'Building…' : 'Build archive manifest' }}</button>
+          <button matButton="filled" type="button" [disabled]="actionBusy() || recoveryBlocked()" (click)="buildManifest(a)">Build archive manifest</button>
         }
         @if (a.canReview) {
-          <button matButton="filled" type="button" [disabled]="actionBusy()" (click)="reviewManifest(a)">{{ actionBusy() ? 'Reviewing…' : 'Review exact manifest' }}</button>
+          <button matButton="filled" type="button" [disabled]="actionBusy() || recoveryBlocked()" (click)="reviewManifest(a)">Review exact manifest</button>
         }
+        @if (pendingIntent(); as pending) {
+          <p role="status">An original {{ pending.intent.action }} request is unconfirmed. Recover it before starting another action.</p>
+          @if (pending.intent.action === 'review') { <p>Original manifest {{ pending.intent.manifestId }} · version {{ pending.intent.manifestVersion }} · {{ pending.intent.manifestDigest }}</p> }
+          <button matButton="outlined" type="button" [disabled]="actionBusy() || recoveryUnavailable()" (click)="recoverManifest(a)">Retry original {{ pending.intent.action }}</button>
+        }
+        @if (recoveryUnavailable()) { <p role="alert">The original archive request could not be checked safely. No replacement request will be sent.</p> }
         @if (actionError()) { <p role="alert">{{ actionError() }}</p> }
         @if (a.actionState === 'REQUESTED') { <p>Records action requested; this is not evidence of Purview protection.</p> }</section>
       <section class="panel" aria-labelledby="secondary-copy"><h2 id="secondary-copy">SharePoint secondary access copy</h2>
@@ -378,13 +385,16 @@ export class ArchiveRecord {
   });
   readonly actionError = signal('');
   private generation = 0;
-  private pendingReview: { archiveId: string; manifestId: string; manifestVersion: number; manifestDigest: string; sessionIdentity: string; requestKey: string } | null = null;
+  readonly pendingIntent = signal<ArchiveReference | null>(null);
+  readonly recoveryUnavailable = signal(false);
+  readonly recoveryBlocked = computed(() => this.pendingIntent() !== null || this.recoveryUnavailable());
+  private visibleOwner = '';
   private destroyed = false;
 
   constructor() {
     const params = inject(ActivatedRoute).paramMap.subscribe(() => this.invalidate());
     const route = inject(Router).events.subscribe(event => {
-      if (event instanceof NavigationStart) { this.active.set(false); this.invalidate(); }
+      if (event instanceof NavigationStart) { this.active.set(false); this.actionOwner.set(null); this.invalidate(); }
       else if (event instanceof NavigationCancel || event instanceof NavigationError) this.active.set(true);
       else if (event instanceof NavigationEnd) this.active.set(/^\/(?:ui\/)?app\/records\/archives\/[^/]+$/.test(event.urlAfterRedirects.split(/[?#]/)[0]));
     });
@@ -393,40 +403,68 @@ export class ArchiveRecord {
       const archive = this.rec.data();
       untracked(() => { this.invalidate(); this.nextOrdinal.set(this.archive() === archive ? archive?.nextOrdinal ?? null : null); });
     });
+    effect(() => {
+      const actor = this.session.current(), archive = this.archive();
+      const identity = `${this.id()}/${actor?.firmId}/${actor?.userId}/${actor?.generation}/${this.session.invalidation()}/${this.active()}`;
+      untracked(() => {
+        if (identity !== this.visibleOwner) {
+          this.visibleOwner = identity; this.actionOwner.set(null); this.actionError.set('');
+          this.pendingIntent.set(null); this.recoveryUnavailable.set(false);
+        }
+        if (!archive || !actor?.staff) { this.pendingIntent.set(null); return; }
+        try {
+          this.pendingIntent.set(readArchiveIntent({ firmId: actor.firmId, actorUserId: actor.userId, engagementId: archive.engagementId, archiveId: archive.id }));
+          this.recoveryUnavailable.set(false);
+        } catch { this.pendingIntent.set(null); this.recoveryUnavailable.set(true); }
+      });
+    });
     inject(DestroyRef).onDestroy(() => { this.destroyed = true; this.invalidate(); params.unsubscribe(); route.unsubscribe(); });
   }
   private invalidate(): void {
     ++this.generation; this.additionalEntries.set([]); this.nextOrdinal.set(null); this.loadingEntries.set(false); this.entriesError.set('');
   }
-  refresh(): void { this.invalidate(); this.rec.reload(); }
+  refresh(): void { this.invalidate(); this.baseEpoch.set(-1); this.rec.reload(); }
   async buildManifest(archive: ReturnType<typeof decodeArchive>): Promise<void> {
-    await this.archiveAction(archive, 'build', { commercialBundleId: null, requestKey: crypto.randomUUID() });
+    if (archive.manifestVersion !== null && archive.completenessStatus !== 'INCOMPLETE') return;
+    await this.archiveAction(archive, 'build');
   }
   async reviewManifest(archive: ReturnType<typeof decodeArchive>): Promise<void> {
     if (!archive.canReview || !archive.manifestId || archive.manifestVersion === null || !archive.manifestDigest) {
       this.actionError.set('The exact reviewed manifest is unavailable. Refresh the archive before reviewing.');
       return;
     }
-    const basis = { archiveId: archive.id, manifestId: archive.manifestId, manifestVersion: archive.manifestVersion, manifestDigest: archive.manifestDigest };
-    const actor = this.session.current();
-    if (!actor?.staff) return;
-    const sessionIdentity = `${actor.firmId}/${actor.userId}/${actor.generation}/${this.session.invalidation()}`;
-    if (!this.pendingReview || this.pendingReview.archiveId !== basis.archiveId || this.pendingReview.manifestId !== basis.manifestId ||
-        this.pendingReview.manifestVersion !== basis.manifestVersion || this.pendingReview.manifestDigest !== basis.manifestDigest ||
-        this.pendingReview.sessionIdentity !== sessionIdentity) {
-      this.pendingReview = { ...basis, sessionIdentity, requestKey: crypto.randomUUID() };
-    }
-    await this.archiveAction(archive, 'review', { manifestId: basis.manifestId, manifestVersion: basis.manifestVersion,
-      manifestDigest: basis.manifestDigest, requestKey: this.pendingReview.requestKey }, basis);
+    await this.archiveAction(archive, 'review');
   }
-  private async archiveAction(archive: ReturnType<typeof decodeArchive>, action: 'build' | 'review',
-    body: Record<string, unknown>, reviewBasis?: { manifestId: string; manifestVersion: number; manifestDigest: string }): Promise<void> {
+  async recoverManifest(archive: ReturnType<typeof decodeArchive>): Promise<void> {
+    const reference = this.pendingIntent();
+    if (reference && !this.recoveryUnavailable()) await this.archiveAction(archive, reference.intent.action, reference);
+  }
+  private async archiveAction(archive: ReturnType<typeof decodeArchive>, action: 'build' | 'review', recovering?: ArchiveReference): Promise<void> {
     if (this.destroyed || this.actionBusy() || this.archive() !== archive) return;
     const id = this.id(), actor = this.session.current(), sessionGeneration = this.session.invalidation();
-    if (!id || !actor?.staff) return;
-    const owner: ArchiveActionOwner = { token: ++this.actionSequence, archiveId: id, actor, sessionGeneration };
+    if (!id || !actor?.staff || !recovering && this.recoveryBlocked()) return;
+    const owner: ArchiveActionOwner = { token: ++this.actionSequence, archiveId: id, engagementId: archive.engagementId, actor, sessionGeneration };
     this.actionOwner.set(owner); this.actionError.set('');
+    let reference: ArchiveReference | null = null, dispatched = false;
     try {
+      const scope = { firmId: actor.firmId, actorUserId: actor.userId, engagementId: archive.engagementId, archiveId: id };
+      if (recovering) {
+        reference = readArchiveIntent(scope);
+        if (!reference || reference.raw !== recovering.raw || reference.key !== recovering.key) throw new Error('The original archive recovery reference changed');
+      } else {
+        // This screen has no commercial-bundle selector. Preserve its explicit null intent.
+        const intent: ArchiveIntent = { version: 1, ...scope, action, requestKey: crypto.randomUUID(), commercialBundleId: null,
+          manifestId: action === 'review' ? archive.manifestId : null, manifestVersion: action === 'review' ? archive.manifestVersion : null,
+          manifestDigest: action === 'review' ? archive.manifestDigest : null };
+        reference = saveArchiveIntent(intent);
+      }
+      this.pendingIntent.set(reference);
+      if (!this.isCurrentAction(owner) || !sameArchiveReference(reference)) throw new Error('The original archive request could not be verified');
+      const intent = reference.intent;
+      const reviewBasis = intent.action === 'review' ? intent : null;
+      const body = reviewBasis ? { manifestId: intent.manifestId, manifestVersion: intent.manifestVersion, manifestDigest: intent.manifestDigest, requestKey: intent.requestKey }
+        : { commercialBundleId: intent.commercialBundleId, requestKey: intent.requestKey };
+      dispatched = true;
       const raw = await firstValueFrom(this.http.post<unknown>('/api/ui/records/archives/' + id + '/' + action, body).pipe(timeout(30000)));
       if (!this.isCurrentAction(owner)) return;
       let receipt: ReturnType<typeof decodeArchiveManifestResult>;
@@ -439,7 +477,7 @@ export class ArchiveRecord {
       const matchesAction = reviewBasis
         ? receipt.manifestId === reviewBasis.manifestId && receipt.manifestVersion === reviewBasis.manifestVersion &&
           receipt.digest === reviewBasis.manifestDigest && receipt.status === 'REVIEWED' && receipt.completenessStatus === 'COMPLETE'
-        : receipt.status === 'BUILT' && receipt.manifestVersion > 0 && /^[a-f0-9]{64}$/i.test(receipt.digest);
+        : receipt.status === 'BUILT' && receipt.manifestVersion > 0 && ['COMPLETE', 'INCOMPLETE'].includes(receipt.completenessStatus);
       if (receipt.archiveId !== id || !matchesAction) {
         this.refresh();
         this.actionError.set(reviewBasis
@@ -447,10 +485,23 @@ export class ArchiveRecord {
           : 'The response did not confirm the archive manifest build. Refresh and verify the retained archive state.');
         return;
       }
-      if (reviewBasis) this.pendingReview = null;
+      // The response is tied to this POST; it does not attest an actor or echo the request key.
+      clearArchiveIntent(reference);
+      this.pendingIntent.set(null);
       this.refresh();
     } catch (error) {
       if (this.isCurrentAction(owner)) {
+        if (!dispatched) this.recoveryUnavailable.set(true);
+        if (error instanceof HttpErrorResponse && [401, 403, 404].includes(error.status)) {
+          this.blocked.set(true); this.invalidate(); this.pendingIntent.set(null); this.recoveryUnavailable.set(true);
+        }
+        // Only this explicit first-transmission validation refusal proves no business write.
+        // A replay, access denial, generic conflict or absent history cannot resolve uncertainty.
+        if (dispatched && !recovering && reference && error instanceof HttpErrorResponse && error.status === 400 &&
+          error.error?.code === 'records-manifest.request.invalid') {
+          try { clearArchiveIntent(reference); this.pendingIntent.set(null); this.refresh(); }
+          catch { this.recoveryUnavailable.set(true); }
+        }
         if (error instanceof HttpErrorResponse && error.status === 401) void this.session.refresh();
         this.actionError.set(error instanceof HttpErrorResponse && typeof (error.error as { message?: unknown })?.message === 'string'
           ? (error.error as { message: string }).message
@@ -463,7 +514,7 @@ export class ArchiveRecord {
   private isCurrentAction(owner: ArchiveActionOwner): boolean {
     return this.actionOwner() === owner && owner.actor?.staff === true && !this.destroyed && this.active() &&
       owner.archiveId === this.id() && this.session.current() === owner.actor &&
-      this.session.invalidation() === owner.sessionGeneration;
+      this.session.invalidation() === owner.sessionGeneration && this.rec.data()?.engagementId === owner.engagementId;
   }
   visibleEntries(archive: ReturnType<typeof decodeArchive>) {
     return this.archive() === archive ? [...archive.entries, ...this.additionalEntries()] : [];

@@ -58,13 +58,11 @@ public static class TrialBalanceCsvImporter
     if (csvText.Length > 10_000_000)
       throw new InvalidOperationException("Trial-balance file exceeds the 10 MB intake limit.");
 
-    var lines = csvText.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
-    if (lines.Length < 2)
+    using var records = ReadRecords(csvText, profile.Delimiter).GetEnumerator();
+    if (!records.MoveNext())
       throw new InvalidOperationException("Trial-balance file has no data rows.");
-    if (lines.Length - 1 > MaxRows)
-      throw new InvalidOperationException($"Trial-balance file exceeds the {MaxRows:N0}-row intake limit.");
 
-    var header = SplitLine(lines[0], profile.Delimiter);
+    var header = records.Current;
     var index = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
     for (var i = 0; i < header.Count; i++)
       index.TryAdd(header[i].Trim(), i);
@@ -72,13 +70,14 @@ public static class TrialBalanceCsvImporter
       if (!index.ContainsKey(required))
         throw new InvalidOperationException($"Trial-balance file is missing column '{required}'.");
 
-    var rows = new List<TbImportRow>(lines.Length - 1);
+    var rows = new List<TbImportRow>();
     var keys = new HashSet<(string Entity, string AccountCode)>();
     string? currency = null;
     var rawFileSha256Hex = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(csvText));
-    for (var n = 1; n < lines.Length; n++)
+    while (records.MoveNext())
     {
-      var fields = SplitLine(lines[n], profile.Delimiter);
+      var n = rows.Count + 1;
+      var fields = records.Current;
       string Get(string column) =>
         index[column] < fields.Count ? fields[index[column]].Trim() : string.Empty;
       var code = Get("AccountCode");
@@ -160,36 +159,67 @@ public static class TrialBalanceCsvImporter
       throw new InvalidOperationException($"Row {row}: non-finite amounts are rejected.");
     if (!decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount))
       throw new InvalidOperationException($"Row {row}: amount '{text}' is not a valid invariant-culture decimal.");
-    if (decimal.GetBits(amount)[3] >> 16 > MoneyPolicy.MaxScale)
+    if (((decimal.GetBits(amount)[3] >> 16) & 0xff) > MoneyPolicy.MaxScale)
       throw new InvalidOperationException($"Row {row}: amount exceeds 6 decimal places; no silent rounding.");
     return MoneyPolicy.Normalize(amount);
   }
 
-  // Minimal RFC-4180 reader: quoted fields with embedded commas/doubled quotes.
-  private static List<string> SplitLine(string line, char delimiter)
+  // Scan the bounded source once and retain only the current logical record.
+  private static IEnumerable<List<string>> ReadRecords(string text, char delimiter)
   {
     var fields = new List<string>();
     var current = new StringBuilder();
     var quoted = false;
-    for (var i = 0; i < line.Length; i++)
+    var afterQuote = false;
+    var recordStarted = false;
+    var recordCount = 0;
+    for (var i = 0; i < text.Length; i++)
     {
-      var c = line[i];
+      var c = text[i];
+      if (!recordStarted && c is not ('\r' or '\n'))
+      {
+        if (recordCount > MaxRows)
+          throw new InvalidOperationException($"Trial-balance file exceeds the {MaxRows:N0}-row intake limit.");
+        recordStarted = true;
+      }
       if (quoted)
       {
         if (c == '"')
         {
-          if (i + 1 < line.Length && line[i + 1] == '"') { current.Append('"'); i++; }
-          else quoted = false;
+          if (i + 1 < text.Length && text[i + 1] == '"') { current.Append('"'); i++; }
+          else { quoted = false; afterQuote = true; }
         }
         else current.Append(c);
       }
-      else if (c == '"') quoted = true;
-      else if (c == delimiter) { fields.Add(current.ToString()); current.Clear(); }
+      else if (c == delimiter)
+      {
+        fields.Add(current.ToString());
+        current.Clear();
+        afterQuote = false;
+      }
+      else if (c is '\r' or '\n')
+      {
+        if (c == '\r' && i + 1 < text.Length && text[i + 1] == '\n') i++;
+        if (!recordStarted) continue;
+        fields.Add(current.ToString());
+        recordCount++;
+        yield return fields;
+        fields = [];
+        current.Clear();
+        afterQuote = false;
+        recordStarted = false;
+      }
+      else if (c == '"' && current.Length == 0 && !afterQuote) quoted = true;
+      else if (c == '"' || afterQuote)
+        throw new InvalidOperationException("Malformed quoted field in trial-balance file.");
       else current.Append(c);
     }
     if (quoted)
       throw new InvalidOperationException("Unterminated quoted field in trial-balance file.");
-    fields.Add(current.ToString());
-    return fields;
+    if (recordStarted)
+    {
+      fields.Add(current.ToString());
+      yield return fields;
+    }
   }
 }

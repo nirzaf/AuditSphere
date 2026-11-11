@@ -16,6 +16,8 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 using System.Data;
+using System.Data.Common;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using System.Text.Json;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -23,6 +25,28 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed class RecordsArchiveTests
 {
+  [Theory]
+  [InlineData("COMPLETE", "REVIEWED")]
+  [InlineData("INCOMPLETE", "BUILT")]
+  public void RetainedBuildOutcome_PreservesExactEvidenceWithoutPromotingCompleteness(string completeness, string currentStatus)
+  {
+    // Projection-only coverage of legacy incomplete evidence, not a persisted incomplete fixture.
+    var manifest = new ArchiveManifest
+    {
+      Id = Guid.CreateVersion7(), ArchiveId = Guid.CreateVersion7(), Version = 7,
+      Status = currentStatus, ManifestDigest = new string('a', 64), EntryCount = 3,
+      CompletenessStatus = completeness, BuildRequestKey = "retained-build",
+      CompletenessException = completeness == "INCOMPLETE" ? "1 snapshot reference(s) are missing." : null,
+      BuiltAt = DateTimeOffset.Parse("2026-11-01T00:00:00Z")
+    };
+    var before = JsonSerializer.Serialize(manifest);
+    var outcome = RecordsArchiveService.RetainedBuildOutcome(manifest);
+    Assert.True(outcome.Succeeded);
+    Assert.Equal(new ArchiveManifestResult(manifest.ArchiveId, manifest.Id, 7, "BUILT",
+      manifest.ManifestDigest, 3, completeness), outcome.Value);
+    Assert.Equal(before, JsonSerializer.Serialize(manifest));
+  }
+
   [Fact]
   public async Task EngagementScopedPartner_CannotCreateFirmWideRecordsProfile()
   {
@@ -157,6 +181,165 @@ public sealed class RecordsArchiveTests
     using var payload = JsonDocument.Parse(narrowPayload);
     Assert.Equal(1, payload.RootElement.GetProperty("sourceReceipts").GetArrayLength());
     Assert.Equal(scope.EngagementId, payload.RootElement.GetProperty("scope").GetProperty("engagementId").GetGuid());
+  }
+
+  [Fact]
+  public async Task ArchiveBuild_SupportedScopeRecoversExactRetainedOutcomeWithoutNewWrites()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var world = await SupportedAuditCompletionWorldBuilder.CreateAsync(pg);
+    var primary = world.Primary;
+    ActorContext actor;
+    Guid partnerGrant;
+    var archiveId = Guid.CreateVersion7();
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      var grant = await RoleAdministrationService.ApplyRoleGrantAsync(setup, world.Administrator,
+        new(primary.Preparer.UserId, "Partner", "ENGAGEMENT", primary.ClientId, primary.EngagementId));
+      Assert.True(grant.Succeeded, grant.Message);
+      partnerGrant = grant.Value;
+      var user = await setup.Users.AsNoTracking().SingleAsync(x => x.Id == primary.Preparer.UserId);
+      actor = new(user.Id, user.FirmId, user.SessionEpoch, ["Manager", "Partner"]);
+      var engagement = await setup.Engagements.AsNoTracking().SingleAsync(x => x.Id == primary.EngagementId);
+      Assert.NotEqual("Completed", engagement.Status);
+      Assert.NotEqual("Closed", engagement.Status);
+      // Explicitly permitted synthetic TEST profile + issued archive specimen only.
+      // Identity, grants, client and active engagement above come from supported command owners.
+      setup.RecordsProfiles.Add(new RecordsProfile
+      {
+        Id = Guid.CreateVersion7(), FirmId = primary.FirmId, ProfileCode = "REPLAY-TEST", Version = 1,
+        RecordClass = "Synthetic archive", Jurisdiction = "TEST", ServiceRoute = engagement.ServiceRoute,
+        RetentionTrigger = "REPORT_DATE", ProtectionMode = "LOCAL_ONLY", LabelId = "test-only",
+        LegalHoldBehavior = "SUSPEND_DISPOSITION", AmendmentRoute = "CONTROLLED_AMENDMENT",
+        DispositionOwner = "Records Custodian", BackupRequirements = "Synthetic fixture",
+        CreatedByUserId = actor.UserId, Approved = true, ApprovedByUserId = actor.UserId,
+        ApprovedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
+      });
+      setup.Archives.Add(new Archive
+      {
+        Id = archiveId, FirmId = primary.FirmId, ClientId = primary.ClientId, EngagementId = primary.EngagementId,
+        ProfileId = "REPLAY-TEST", ProfileVersion = 1, Status = ArchiveStates.Issued, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await setup.SaveChangesAsync();
+    }
+    var scope = new PlanningScope(primary.FirmId, primary.ClientId, primary.EngagementId, actor);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var handoff = await EngagementArchiveHandoffQuery.GetAsync(db, actor, primary.EngagementId);
+    Assert.True(handoff.Succeeded, handoff.Message);
+    Assert.Equal(archiveId, Assert.Single(handoff.Value!.Archives).ArchiveId);
+    Assert.NotEqual(primary.EngagementId, archiveId);
+    Assert.False(handoff.Value.CanCreate);
+    Assert.Equal(primary.ClientId, world.Sibling.ClientId);
+    var deniedHandoff = await EngagementArchiveHandoffQuery.GetAsync(db, actor, world.Sibling.EngagementId);
+    Assert.False(deniedHandoff.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, deniedHandoff.ErrorCode);
+    var deniedDestination = await AuditRecordQueries.ArchiveAsync(db, world.Sibling.Preparer, archiveId);
+    Assert.False(deniedDestination.Succeeded);
+    Assert.Null(deniedDestination.Value);
+    var build = await RecordsArchiveService.BuildManifestWithRequestAsync(db, scope.Actor,
+      archiveId, null, "build-request-1");
+    Assert.True(build.Succeeded, build.Message);
+    var replay = await RecordsArchiveService.BuildManifestWithRequestAsync(db, scope.Actor,
+      archiveId, null, "build-request-1");
+    Assert.True(replay.Succeeded, replay.Message);
+    Assert.Equal(build.Value!.ManifestId, replay.Value!.ManifestId);
+    Assert.Equal(1, await db.ArchiveManifests.CountAsync(x => x.ArchiveId == archiveId));
+    Assert.Equal("build-request-1", await db.ArchiveManifests.Where(x => x.Id == build.Value.ManifestId)
+      .Select(x => x.BuildRequestKey).SingleAsync());
+
+    var reviewRequest = new ArchiveManifestReviewRequest(build.Value.ManifestId, build.Value.ManifestVersion,
+      build.Value.Digest, "review-request-1");
+    var reviewed = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId, reviewRequest);
+    Assert.True(reviewed.Succeeded, reviewed.Message);
+    var reviewReplay = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor, archiveId, reviewRequest);
+    Assert.True(reviewReplay.Succeeded, reviewReplay.Message);
+    Assert.Equal(build.Value.ManifestId, reviewReplay.Value!.ManifestId);
+    Assert.Equal("review-request-1", await db.ArchiveManifests.Where(x => x.Id == build.Value.ManifestId)
+      .Select(x => x.ReviewRequestKey).SingleAsync());
+
+    Assert.True((await RecordsArchiveService.RequestRecordsActionAsync(db, scope.Actor,
+      new RequestRecordsActionRequest(archiveId, "purview-request-replay-test"))).Succeeded);
+    var historicalReviewReplay = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor,
+      archiveId, reviewRequest);
+    Assert.True(historicalReviewReplay.Succeeded, historicalReviewReplay.Message);
+    Assert.Equal(build.Value.ManifestId, historicalReviewReplay.Value!.ManifestId);
+    Assert.Equal(build.Value.ManifestVersion, historicalReviewReplay.Value.ManifestVersion);
+    Assert.Equal(build.Value.Digest, historicalReviewReplay.Value.Digest);
+    Assert.Equal(ArchiveStates.RecordsActionRequested,
+      await db.Archives.Where(x => x.Id == archiveId).Select(x => x.Status).SingleAsync());
+    // The original build remains recoverable after review and the records-action transition.
+    // Recovery returns build evidence, not a newly built manifest or current readiness.
+    var retainedBeforeReplay = JsonSerializer.Serialize(await db.ArchiveManifests.AsNoTracking()
+      .SingleAsync(x => x.Id == build.Value.ManifestId));
+    var entriesBeforeReplay = await db.ArchiveManifestEntries.CountAsync(x => x.ArchiveManifestId == build.Value.ManifestId);
+    var exportsBeforeReplay = await db.ArchiveStructuredExports.CountAsync(x => x.ArchiveId == archiveId);
+    var historicalBuildReplay = await RecordsArchiveService.BuildManifestWithRequestAsync(db, scope.Actor,
+      archiveId, null, "build-request-1");
+    Assert.True(historicalBuildReplay.Succeeded, historicalBuildReplay.Message);
+    Assert.Equal(build.Value, historicalBuildReplay.Value);
+    // Fault-injected retained read only: this does not claim a physically incomplete database row.
+    var incompleteRead = new IncompleteRetainedBuildRead(archiveId, build.Value.ManifestId, "build-request-1");
+    await using (var faultDb = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(incompleteRead).Options))
+    {
+      var incompleteReplay = await RecordsArchiveService.BuildManifestWithRequestAsync(faultDb, scope.Actor,
+        archiveId, null, "build-request-1");
+      Assert.True(incompleteReplay.Succeeded, incompleteReplay.Message);
+      Assert.Equal(build.Value with { CompletenessStatus = "INCOMPLETE" }, incompleteReplay.Value);
+      Assert.Equal(1, incompleteRead.MatchedQueries);
+      Assert.Equal(1, incompleteRead.AlteredRows);
+    }
+    await using (var normalDb = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(retainedBeforeReplay, JsonSerializer.Serialize(await normalDb.ArchiveManifests.AsNoTracking()
+        .SingleAsync(x => x.Id == build.Value.ManifestId)));
+      Assert.Equal(1, await normalDb.ArchiveManifests.CountAsync(x => x.ArchiveId == archiveId));
+      Assert.Equal(entriesBeforeReplay, await normalDb.ArchiveManifestEntries.CountAsync(x => x.ArchiveManifestId == build.Value.ManifestId));
+      Assert.Equal(exportsBeforeReplay, await normalDb.ArchiveStructuredExports.CountAsync(x => x.ArchiveId == archiveId));
+    }
+    var changedIntent = await RecordsArchiveService.BuildManifestWithRequestAsync(db, scope.Actor,
+      archiveId, Guid.CreateVersion7(), "build-request-1");
+    Assert.False(changedIntent.Succeeded);
+    Assert.Equal(ErrorCodes.IdempotencyConflict, changedIntent.ErrorCode);
+    Assert.Null(changedIntent.Value);
+    var freshBuildAfterTransition = await RecordsArchiveService.BuildManifestWithRequestAsync(db, scope.Actor,
+      archiveId, null, "new-build-after-transition");
+    Assert.False(freshBuildAfterTransition.Succeeded);
+    Assert.Equal(ErrorCodes.ProtectedState, freshBuildAfterTransition.ErrorCode);
+    Assert.Null(freshBuildAfterTransition.Value);
+    var staleSessionReplay = await RecordsArchiveService.BuildManifestWithRequestAsync(db,
+      scope.Actor with { SessionEpoch = scope.Actor.SessionEpoch + 1 },
+      archiveId, null, "build-request-1");
+    Assert.False(staleSessionReplay.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, staleSessionReplay.ErrorCode);
+    Assert.Null(staleSessionReplay.Value);
+    Assert.Equal(1, await db.ArchiveManifests.CountAsync(x => x.ArchiveId == archiveId));
+    Assert.Equal(entriesBeforeReplay, await db.ArchiveManifestEntries.CountAsync(x => x.ArchiveManifestId == build.Value.ManifestId));
+    Assert.Equal(exportsBeforeReplay, await db.ArchiveStructuredExports.CountAsync(x => x.ArchiveId == archiveId));
+    Assert.Equal(retainedBeforeReplay, JsonSerializer.Serialize(await db.ArchiveManifests.AsNoTracking()
+      .SingleAsync(x => x.Id == build.Value.ManifestId)));
+
+    var differentReviewAfterTransition = await RecordsArchiveService.ReviewManifestAsync(db, scope.Actor,
+      archiveId, reviewRequest with { RequestKey = "review-request-after-transition" });
+    Assert.False(differentReviewAfterTransition.Succeeded);
+    Assert.Equal(ErrorCodes.ProtectedState, differentReviewAfterTransition.ErrorCode);
+    var wrongScopeReplay = await RecordsArchiveService.BuildManifestWithRequestAsync(db, world.Sibling.Preparer,
+      archiveId, null, "build-request-1");
+    Assert.False(wrongScopeReplay.Succeeded);
+    Assert.Null(wrongScopeReplay.Value);
+    var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db, world.Administrator,
+      new(partnerGrant));
+    Assert.True(revoked.Succeeded, revoked.Message);
+    var revokedReplay = await RecordsArchiveService.BuildManifestWithRequestAsync(db, actor,
+      archiveId, null, "build-request-1");
+    Assert.False(revokedReplay.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, revokedReplay.ErrorCode);
+    Assert.Null(revokedReplay.Value);
+    Assert.Equal(retainedBeforeReplay, JsonSerializer.Serialize(await db.ArchiveManifests.AsNoTracking()
+      .SingleAsync(x => x.Id == build.Value.ManifestId)));
+    Assert.Equal(1, await db.ArchiveManifests.CountAsync(x => x.ArchiveId == archiveId));
+    Assert.Equal(entriesBeforeReplay, await db.ArchiveManifestEntries.CountAsync(x => x.ArchiveManifestId == build.Value.ManifestId));
+    Assert.Equal(exportsBeforeReplay, await db.ArchiveStructuredExports.CountAsync(x => x.ArchiveId == archiveId));
   }
 
   [Fact]
@@ -1836,6 +2019,78 @@ public sealed class RecordsArchiveTests
     Assert.False(ArchiveStructuredExportGuard.IsEngagementSafe(archive, "records-export.v2",
       "structured/records-export.v2.json", metadata,
       Payload(archive.ClientId, archive.EngagementId, false, embeddedRunManifest: true), out _));
+  }
+
+  private sealed class IncompleteRetainedBuildRead(Guid archiveId, Guid manifestId, string requestKey) : DbCommandInterceptor
+  {
+    public int MatchedQueries { get; private set; }
+    public int AlteredRows { get; private set; }
+    public override ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (!command.CommandText.Contains("FROM archive_manifests AS", StringComparison.Ordinal) ||
+          !command.CommandText.Contains("build_request_key =", StringComparison.Ordinal)) return ValueTask.FromResult(result);
+      Assert.Contains(command.Parameters.Cast<DbParameter>(), x => Equals(x.Value, archiveId));
+      Assert.Contains(command.Parameters.Cast<DbParameter>(), x => Equals(x.Value, requestKey));
+      Assert.Equal(1, ++MatchedQueries);
+      return ValueTask.FromResult<DbDataReader>(new IncompleteManifestRead(result, manifestId, () => AlteredRows++));
+    }
+  }
+
+  // Preserve provider conversions; alter only the exact retained row completeness string.
+  private sealed class IncompleteManifestRead(DbDataReader source, Guid manifestId, Action altered) : DbDataReader
+  {
+    private readonly int completenessOrdinal = source.GetOrdinal("completeness_status");
+    private bool Observe(bool hasRow)
+    {
+      if (!hasRow) return false;
+      Assert.Equal(manifestId, source.GetGuid(source.GetOrdinal("id")));
+      Assert.Equal("COMPLETE", source.GetString(completenessOrdinal));
+      altered();
+      return true;
+    }
+    public override bool Read() => Observe(source.Read());
+    public override async Task<bool> ReadAsync(CancellationToken ct) => Observe(await source.ReadAsync(ct));
+    public override string GetString(int i) => i == completenessOrdinal ? "INCOMPLETE" : source.GetString(i);
+    public override object GetValue(int i) => i == completenessOrdinal ? "INCOMPLETE" : source.GetValue(i);
+    public override T GetFieldValue<T>(int i) => i == completenessOrdinal ? (T)(object)"INCOMPLETE" : source.GetFieldValue<T>(i);
+    public override Task<T> GetFieldValueAsync<T>(int i, CancellationToken ct) => i == completenessOrdinal
+      ? Task.FromResult((T)(object)"INCOMPLETE") : source.GetFieldValueAsync<T>(i, ct);
+    public override int GetValues(object[] values)
+    { var count = source.GetValues(values); if (count > completenessOrdinal) values[completenessOrdinal] = "INCOMPLETE"; return count; }
+    public override object this[int i] => GetValue(i);
+    public override object this[string name] => GetValue(GetOrdinal(name));
+    public override int Depth => source.Depth;
+    public override int FieldCount => source.FieldCount;
+    public override bool HasRows => source.HasRows;
+    public override bool IsClosed => source.IsClosed;
+    public override int RecordsAffected => source.RecordsAffected;
+    public override string GetName(int i) => source.GetName(i);
+    public override int GetOrdinal(string name) => source.GetOrdinal(name);
+    public override Type GetFieldType(int i) => source.GetFieldType(i);
+    public override string GetDataTypeName(int i) => source.GetDataTypeName(i);
+    public override bool GetBoolean(int i) => source.GetBoolean(i);
+    public override byte GetByte(int i) => source.GetByte(i);
+    public override long GetBytes(int i, long offset, byte[]? buffer, int bufferOffset, int length) => source.GetBytes(i, offset, buffer, bufferOffset, length);
+    public override char GetChar(int i) => source.GetChar(i);
+    public override long GetChars(int i, long offset, char[]? buffer, int bufferOffset, int length) => source.GetChars(i, offset, buffer, bufferOffset, length);
+    public override DateTime GetDateTime(int i) => source.GetDateTime(i);
+    public override decimal GetDecimal(int i) => source.GetDecimal(i);
+    public override double GetDouble(int i) => source.GetDouble(i);
+    public override float GetFloat(int i) => source.GetFloat(i);
+    public override Guid GetGuid(int i) => source.GetGuid(i);
+    public override short GetInt16(int i) => source.GetInt16(i);
+    public override int GetInt32(int i) => source.GetInt32(i);
+    public override long GetInt64(int i) => source.GetInt64(i);
+    public override bool IsDBNull(int i) => source.IsDBNull(i);
+    public override Task<bool> IsDBNullAsync(int i, CancellationToken ct) => source.IsDBNullAsync(i, ct);
+    public override bool NextResult() => source.NextResult();
+    public override Task<bool> NextResultAsync(CancellationToken ct) => source.NextResultAsync(ct);
+    public override System.Collections.IEnumerator GetEnumerator() => new DbEnumerator(this, false);
+    public override DataTable? GetSchemaTable() => source.GetSchemaTable();
+    public override void Close() => source.Close();
+    protected override void Dispose(bool disposing) { if (disposing) source.Dispose(); base.Dispose(disposing); }
+    public override ValueTask DisposeAsync() => source.DisposeAsync();
   }
 
   private static async Task<Guid> SeedArchiveAuthorityScenarioAsync(

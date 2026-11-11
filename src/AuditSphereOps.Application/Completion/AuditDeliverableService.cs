@@ -134,8 +134,8 @@ public static partial class AuditDeliverableService
         !AuditFieldworkService.IsCurrentReviewedBasis(x.ReviewedByUserId, x.ReviewedAt, x.ReviewedRevision, x.Revision))
       .Select(x => new UnresolvedVariance(x.AccountArea, x.PeriodReference, x.DifferenceAmount, x.Currency, x.Conclusion))
       .ToList();
-    var gc = await db.GoingConcernAssessments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).OrderByDescending(x => x.Revision)
-      .Select(x => new { x.Id, x.Revision, x.Conclusion, x.ReviewedByUserId, x.ReviewedAt, x.ReviewedRevision }).FirstOrDefaultAsync(ct);
+    var gc = GoingConcernAssessmentSelection.Select(await db.GoingConcernAssessments.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).ToListAsync(ct)).Assessment;
     var currentGoingConcern = gc is null ? null : new
     {
       gc.Id,

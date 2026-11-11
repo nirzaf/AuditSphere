@@ -200,7 +200,7 @@ public sealed class AuditCompletionTests
           new DateOnly(2027, 1, 20), "Major customer entered administration in January 2027.",
           SubsequentEventClassifications.NonAdjusting, false, true, "Note 27 subsequent events",
           "Conditions arose after the reporting date, so no adjustment is made.", "QAR", 250000m,
-          ["news-article-1", "admin-order"]));
+          ["news-article-1", "admin-order"], ExpectedRevision: pendingEvent.Value!.Revision, SelectedRecordId: pendingEvent.Value.ReviewId));
       Assert.True(classified.Succeeded);
       Assert.Equal(2, classified.Value!.Revision);
       Assert.Equal(0, classified.Value.PendingEventCount);

@@ -159,18 +159,46 @@ public sealed class AngularPortfolioJourneyTests
     Assert.Equal(1, downloadCount);
     var documentToken = await page.EvaluateAsync<string>("window.__portfolioRevocationToken = crypto.randomUUID()");
 
-    await using (var db = host.CreateDbContext())
+    var exportUrl = origin + "/api/ui/portfolio/export";
+    var exportReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var releaseExport = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    Task? exportForwarding = null;
+    async Task ForwardExportAsync(IRoute route)
     {
-      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
-        PbcSeed.Actor(f.Admin, "Administrator"),
-        new RevokeRoleGrantRequest(staffGrantId, Reason: "Migration parity export revocation"));
-      Assert.True(revoked.Succeeded, revoked.Message);
+      Assert.Equal("POST", route.Request.Method);
+      exportReached.TrySetResult();
+      await releaseExport.Task.WaitAsync(TimeSpan.FromSeconds(30));
+      await route.ContinueAsync();
     }
-
-    var refusedExport = page.WaitForResponseAsync(response =>
-      response.Url.EndsWith("/api/ui/portfolio/export", StringComparison.Ordinal) && response.Status == 401);
-    await page.GetByRole(AriaRole.Button, new() { Name = "Download scoped CSV", Exact = true }).ClickAsync();
-    await refusedExport;
+    Task HoldExportAsync(IRoute route) => exportForwarding = ForwardExportAsync(route);
+    await page.RouteAsync(exportUrl, HoldExportAsync);
+    try
+    {
+      var refusedExport = page.WaitForResponseAsync(response =>
+        response.Request.Method == "POST" && response.Url == exportUrl, new() { Timeout = 30000 });
+      // Click while the rendered authorization is still current, then revoke before
+      // forwarding this same request to the real server. No denial is simulated.
+      await page.GetByRole(AriaRole.Button, new() { Name = "Download scoped CSV", Exact = true }).ClickAsync();
+      await exportReached.Task.WaitAsync(TimeSpan.FromSeconds(30));
+      await using (var db = host.CreateDbContext())
+      {
+        var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db,
+          PbcSeed.Actor(f.Admin, "Administrator"),
+          new RevokeRoleGrantRequest(staffGrantId, Reason: "Migration parity export revocation"));
+        Assert.True(revoked.Succeeded, revoked.Message);
+      }
+      releaseExport.TrySetResult();
+      Assert.Equal(401, (await refusedExport).Status);
+    }
+    finally
+    {
+      releaseExport.TrySetResult();
+      try
+      {
+        if (exportForwarding is not null) await exportForwarding.WaitAsync(TimeSpan.FromSeconds(30));
+      }
+      finally { await page.UnrouteAsync(exportUrl, HoldExportAsync); }
+    }
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Access unavailable", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
     Assert.DoesNotContain(privateClientName, await page.Locator("body").InnerTextAsync());

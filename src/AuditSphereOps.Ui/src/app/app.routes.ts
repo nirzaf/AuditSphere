@@ -50,6 +50,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/audit/records').then(m => m.ReviewPointRecord) },
   { path: 'app/releases/:id', canActivate: [staffGuard], title: 'Release candidate · AuditSphere',
     loadComponent: () => import('./features/audit/records').then(m => m.ReleaseCandidate) },
+  { path: 'app/engagements/:id/archive', canActivate: [staffGuard], title: 'Engagement archive · AuditSphere',
+    loadComponent: () => import('./features/audit/engagement-archive-handoff').then(m => m.EngagementArchiveHandoff) },
   { path: 'app/records/archives/:id', canActivate: [staffGuard], title: 'Records archive · AuditSphere',
     loadComponent: () => import('./features/audit/records').then(m => m.ArchiveRecord) },
   { path: 'app/finance', canActivate: [staffGuard], pathMatch: 'full', title: 'Firm ledger · AuditSphere',

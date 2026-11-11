@@ -50,6 +50,76 @@ public static partial class UiEndpoints
       ReadAsync(http, (db, actor, ct) => AuditCompletionVarianceWorkspace.LookupAsync(db, actor, id, requestId, requestHash, ct)))
       .WithUiResponse<VarianceInvestigationCommandLookup>(includeConflict: true);
 
+    const string goingConcernCommands = "/engagements/{id:guid}/completion/going-concern-assessments";
+    group.MapGet(goingConcernCommands + "/state", (Guid id, DateOnly assessmentDate, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditCompletionGoingConcernWorkspace.StateAsync(db, actor, id, assessmentDate, ct)))
+      .WithUiResponse<GoingConcernAssessmentCommandState>(includeConflict: true);
+    group.MapPost(goingConcernCommands + "/prepare/preview", (Guid id, GoingConcernAssessmentCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditCompletionGoingConcernWorkspace.PreviewPrepareAsync(db, actor, id, input, ct)))
+      .WithUiResponse<UiValueResponse<GoingConcernAssessmentCommandPreview>>(includeConflict: true);
+    group.MapPost(goingConcernCommands + "/prepare", (Guid id, GoingConcernAssessmentCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditCompletionGoingConcernWorkspace.ExecutePrepareAsync(db, actor, id, input, ct)))
+      .WithUiResponse<UiValueResponse<GoingConcernAssessmentCommandReceiptView>>(includeConflict: true);
+    group.MapPost(goingConcernCommands + "/{assessmentId:guid}/review/preview", (Guid id, Guid assessmentId,
+      GoingConcernAssessmentCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditCompletionGoingConcernWorkspace.PreviewReviewAsync(db, actor, id, assessmentId, input, ct)))
+      .WithUiResponse<UiValueResponse<GoingConcernAssessmentCommandPreview>>(includeConflict: true);
+    group.MapPost(goingConcernCommands + "/{assessmentId:guid}/review", (Guid id, Guid assessmentId,
+      GoingConcernAssessmentCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditCompletionGoingConcernWorkspace.ExecuteReviewAsync(db, actor, id, assessmentId, input, ct)))
+      .WithUiResponse<UiValueResponse<GoingConcernAssessmentCommandReceiptView>>(includeConflict: true);
+    group.MapGet(goingConcernCommands + "/receipts/{requestId:guid}", (Guid id, Guid requestId, string? requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditCompletionGoingConcernWorkspace.LookupAsync(db, actor, id, requestId, requestHash, ct)))
+      .WithUiResponse<GoingConcernAssessmentCommandLookup>(includeConflict: true);
+
+    const string subsequentEventCommands = "/engagements/{id:guid}/completion/subsequent-events";
+    group.MapGet(subsequentEventCommands + "/state", (Guid id, Guid? selectedRecordId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditCompletionSubsequentEventWorkspace.StateAsync(db, actor, id, selectedRecordId, ct)))
+      .WithUiResponse<SubsequentEventReviewCommandState>(includeConflict: true);
+    group.MapPost(subsequentEventCommands + "/prepare/preview", (Guid id, SubsequentEventReviewCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditCompletionSubsequentEventWorkspace.PreviewPrepareAsync(db, actor, id, input, ct)))
+      .WithUiResponse<UiValueResponse<SubsequentEventReviewCommandPreview>>(includeConflict: true);
+    group.MapPost(subsequentEventCommands + "/prepare", (Guid id, SubsequentEventReviewCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditCompletionSubsequentEventWorkspace.ExecutePrepareAsync(db, actor, id, input, ct)))
+      .WithUiResponse<UiValueResponse<SubsequentEventReviewCommandReceiptView>>(includeConflict: true);
+    group.MapPost(subsequentEventCommands + "/{eventId:guid}/review/preview", (Guid id, Guid eventId,
+      SubsequentEventReviewCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditCompletionSubsequentEventWorkspace.PreviewReviewAsync(db, actor, id, eventId, input, ct)))
+      .WithUiResponse<UiValueResponse<SubsequentEventReviewCommandPreview>>(includeConflict: true);
+    group.MapPost(subsequentEventCommands + "/{eventId:guid}/review", (Guid id, Guid eventId,
+      SubsequentEventReviewCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditCompletionSubsequentEventWorkspace.ExecuteReviewAsync(db, actor, id, eventId, input, ct)))
+      .WithUiResponse<UiValueResponse<SubsequentEventReviewCommandReceiptView>>(includeConflict: true);
+    group.MapGet(subsequentEventCommands + "/receipts/{requestId:guid}", (Guid id, Guid requestId, string? requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditCompletionSubsequentEventWorkspace.LookupAsync(db, actor, id, requestId, requestHash, ct)))
+      .WithUiResponse<SubsequentEventReviewCommandLookup>(includeConflict: true);
+    group.MapGet(subsequentEventCommands, (Guid id, int? skip, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditCompletionSubsequentEventWorkspace.ListAsync(db, actor, id, skip ?? 0, ct)))
+      .WithUiResponse<SubsequentEventReviewList>(includeConflict: true);
+
+    const string openingCommands = "/engagements/{id:guid}/completion/opening-balances";
+    group.MapGet(openingCommands + "/state", (Guid id, DateOnly asOfDate, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditOpeningBalanceWorkspace.StateAsync(db, actor, id, asOfDate, ct)))
+      .WithUiResponse<OpeningBalanceCommandState>(includeConflict: true);
+    group.MapGet(openingCommands + "/{verificationId:guid}", (Guid id, Guid verificationId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditOpeningBalanceWorkspace.DetailAsync(db, actor, id, verificationId, ct)))
+      .WithUiResponse<OpeningBalanceSnapshot>(includeConflict: true);
+    group.MapPost(openingCommands + "/prepare/preview", (Guid id, OpeningBalanceCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditOpeningBalanceWorkspace.PreviewPrepareAsync(db, actor, id, input, ct)))
+      .WithUiResponse<UiValueResponse<OpeningBalanceCommandPreview>>(includeConflict: true);
+    group.MapPost(openingCommands + "/prepare", (Guid id, OpeningBalanceCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditOpeningBalanceWorkspace.ExecutePrepareAsync(db, actor, id, input, ct)))
+      .WithUiResponse<UiValueResponse<OpeningBalanceCommandReceiptView>>(includeConflict: true);
+    group.MapPost(openingCommands + "/{verificationId:guid}/review/preview", (Guid id, Guid verificationId, OpeningBalanceCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditOpeningBalanceWorkspace.PreviewReviewAsync(db, actor, id, verificationId, input, ct)))
+      .WithUiResponse<UiValueResponse<OpeningBalanceCommandPreview>>(includeConflict: true);
+    group.MapPost(openingCommands + "/{verificationId:guid}/review", (Guid id, Guid verificationId, OpeningBalanceCommandRequest input, HttpContext http) =>
+      CommandAsync(http, (db, actor, ct) => AuditOpeningBalanceWorkspace.ExecuteReviewAsync(db, actor, id, verificationId, input, ct)))
+      .WithUiResponse<UiValueResponse<OpeningBalanceCommandReceiptView>>(includeConflict: true);
+    group.MapGet(openingCommands + "/receipts/{requestId:guid}", (Guid id, Guid requestId, string? requestHash, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditOpeningBalanceWorkspace.LookupAsync(db, actor, id, requestId, requestHash, ct)))
+      .WithUiResponse<OpeningBalanceCommandLookup>(includeConflict: true);
+
     group.MapGet("/engagements/{id:guid}/completion", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => EngagementCompletionWorkspaceQuery.GetAsync(db, actor, id, DateTimeOffset.UtcNow, ct,
         http.RequestServices.GetRequiredService<IReportSigningCredentialSource>())))

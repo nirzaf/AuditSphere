@@ -211,6 +211,10 @@ public sealed partial class AuditSphereDbContext
 
     var openingBalance = b.Entity<OpeningBalanceVerification>();
     openingBalance.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_opening_balance_verifications_firm_id_id");
+    openingBalance.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("AK_opening_balance_verifications_scope_id");
+    openingBalance.Property(x => x.Revision).IsConcurrencyToken();
+    openingBalance.Property(x => x.ReviewComment).HasMaxLength(2000);
     openingBalance.Property(x => x.PriorReference).HasMaxLength(200);
     openingBalance.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
     openingBalance.Property(x => x.Conclusion).HasMaxLength(30);

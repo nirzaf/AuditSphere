@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angul
 import { BehaviorSubject } from 'rxjs';
 import { SessionService } from '../../core/session';
 import { ArchiveRecord } from './records';
+import { archiveIntentKey } from './archive-intent-recovery';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const hash = 'e'.repeat(64), created = '2026-10-02T18:00:00Z';
@@ -29,14 +30,20 @@ const page3 = () => ({ ...archive(), entries: Array.from({ length: 5 }, (_, i) =
 describe('Archive detail and exact paging safety', () => {
   let fixture: ComponentFixture<ArchiveRecord>, component: ArchiveRecord, http: HttpTestingController, params: BehaviorSubject<ReturnType<typeof convertToParamMap>>, session: SessionService;
   const url = (n = 1) => `/api/ui/records/archives/${id(n)}`;
+  const ownedRecoveryKeys = [[90, 1], [90, 2], [92, 1]].map(([actor, archive]) => archiveIntentKey({
+    firmId: id(91), actorUserId: id(actor), engagementId: id(20), archiveId: id(archive),
+  }));
   beforeEach(async () => {
+    ownedRecoveryKeys.forEach(key => sessionStorage.removeItem(key));
     params = new BehaviorSubject(convertToParamMap({ id: id(1) }));
     TestBed.configureTestingModule({ imports: [ArchiveRecord], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([{ path: '**', component: ArchiveRecord }]), { provide: ActivatedRoute, useValue: { paramMap: params } }] });
     session = TestBed.inject(SessionService); session.current.set({ userId: id(90), firmId: id(91), generation: '1', staff: true });
     http = TestBed.inject(HttpTestingController); fixture = TestBed.createComponent(ArchiveRecord); component = fixture.componentInstance;
     TestBed.tick(); http.expectOne(url()).flush(archive()); await fixture.whenStable();
   });
-  afterEach(() => { try { http.verify({ ignoreCancelled: true }); } finally { TestBed.resetTestingModule(); } });
+  afterEach(() => { try { http.verify({ ignoreCancelled: true }); } finally {
+    TestBed.resetTestingModule(); ownedRecoveryKeys.forEach(key => sessionStorage.removeItem(key));
+  } });
   it('renders creation, exact rows, holds and requested-versus-observed protection honestly', () => {
     const host: HTMLElement = fixture.nativeElement;
     expect(host.textContent).toContain(created); expect(host.textContent).toContain('Records action requested; this is not evidence of Purview protection.');
@@ -54,7 +61,7 @@ describe('Archive detail and exact paging safety', () => {
     component.refresh(); TestBed.tick(); http.expectOne(url()).flush(unbuiltArchive()); await fixture.whenStable();
     const remainedBusyForSameOwner = component.actionBusy();
     const buildButton = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'))
-      .find(button => button.textContent?.includes('Building'));
+      .find(button => button.textContent?.includes('Build archive manifest'));
 
     request.flush({}, { status: 503, statusText: 'Build outcome unavailable' }); await task;
     expect(remainedBusyForSameOwner).toBe(true);
@@ -135,11 +142,15 @@ describe('Archive detail and exact paging safety', () => {
     http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true })); await fixture.whenStable();
     const firstTask = component.reviewManifest(component.archive()!);
     const first = http.expectOne(url() + '/review');
-    const firstKey = first.request.body.requestKey;
+    const firstBody = first.request.body, firstKey = firstBody.requestKey;
     first.flush({}, { status: 502, statusText: 'Gateway response lost' }); await firstTask;
-    const secondTask = component.reviewManifest(component.archive()!);
+    expect(component.pendingIntent()?.intent.requestKey).toBe(firstKey);
+    await component.reviewManifest(component.archive()!);
+    http.expectNone(url() + '/review');
+    const secondTask = component.recoverManifest(component.archive()!);
     const second = http.expectOne(url() + '/review');
     expect(second.request.body.requestKey).toBe(firstKey);
+    expect(second.request.body).toEqual(firstBody);
     second.flush({ value: { archiveId: id(1), manifestId: id(41), manifestVersion: 1, status: 'REVIEWED',
       digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
     await secondTask;
@@ -147,7 +158,7 @@ describe('Archive detail and exact paging safety', () => {
     await fixture.whenStable();
     expect(component.archive()?.status).toBe('ASSEMBLY_REVIEWED');
   });
-  it('does not reuse a pending review request identity after session replacement', async () => {
+  it('does not expose or reuse another actor pending review after session replacement', async () => {
     component.refresh(); TestBed.tick();
     http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true })); await fixture.whenStable();
     const firstTask = component.reviewManifest(component.archive()!);

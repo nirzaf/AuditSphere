@@ -102,6 +102,9 @@ public static partial class UiEndpoints
     group.MapPost("/releases/{id:guid}/issue", (Guid id, IssueInput i, HttpContext http, ReleaseSafetyOptions safety) =>
       CommandAsync(http, (db, actor, ct) => ReleaseService.IssueAsync(db, actor, new IssueReleaseRequest(id, i.ExpectedRevision, i.ManifestDigest ?? "", i.ReleaseKey ?? ""), safety, ct)))
       .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
+    group.MapGet("/engagements/{id:guid}/archive", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => EngagementArchiveHandoffQuery.GetAsync(db, actor, id, ct)))
+      .WithUiResponse<EngagementArchiveHandoff>();
     group.MapPost("/records/archives", (ArchiveCreateInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => RecordsArchiveService.EnsureArchiveAsync(db, actor,
         new EnsureArchiveRequest(i.ClientId, i.EngagementId, i.ProfileId ?? "", i.ProfileVersion), ct)))

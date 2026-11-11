@@ -473,9 +473,20 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests(Xunit.Abs
       response => response.Request.Method == "GET" && response.Url.EndsWith($"/operational-opening-successors/{successorId:D}", StringComparison.Ordinal));
     host.ReportPhase("successor-proof-response-observed");
     Assert.Equal(200, retainedProof.Status);
-    host.ReportPhase("successor-proof-completion-started");
-    Assert.Null(await retainedProof.FinishedAsync().WaitAsync(TimeSpan.FromSeconds(30)));
-    host.ReportPhase("successor-proof-completion-finished");
+    host.ReportPhase("successor-proof-render-started");
+    // The application clears the prior view, decodes this scoped proof and checks its
+    // catalogue identity before rendering it. Transport completion is not that boundary.
+    var proofView = reviewPage.Locator("section[aria-labelledby='native-successor-heading']");
+    await Assertions.Expect(proofView.GetByText(proofHash, new() { Exact = true })).ToBeVisibleAsync(new() { Timeout = 30000 });
+    await Assertions.Expect(proofView.GetByText(manifestHash, new() { Exact = true })).ToBeVisibleAsync(new() { Timeout = 30000 });
+    await Assertions.Expect(proofView.GetByText(tb.DatasetId.ToString("D"), new() { Exact = true })).ToBeVisibleAsync(new() { Timeout = 30000 });
+    await Assertions.Expect(proofView.GetByRole(AriaRole.Status).Filter(new() { HasText = "Retained successor proof matches current source checks" }))
+      .ToBeVisibleAsync(new() { Timeout = 30000 });
+    await Assertions.Expect(reviewPage.GetByText("Loading scoped successor source and retained proof context…", new() { Exact = true }))
+      .ToHaveCountAsync(0, new() { Timeout = 30000 });
+    await Assertions.Expect(reviewPage.Locator("section[aria-labelledby='native-openings-heading'] [role='alert']"))
+      .ToHaveCountAsync(0, new() { Timeout = 30000 });
+    host.ReportPhase("successor-proof-render-ready");
     var approve = reviewPage.GetByRole(AriaRole.Button, new() { Name = "Approve exact successor proof and opening", Exact = true });
     await Assertions.Expect(approve).ToBeDisabledAsync();
     await reviewPage.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact successor proof and opening manifest, original source, carried original items and account population.", Exact = true }).CheckAsync();

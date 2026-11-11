@@ -13996,6 +13996,186 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditCompletionGoingConcernCommandReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("GoingConcernAssessmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("going_concern_assessment_id");
+
+                    b.Property<string>("InputJson")
+                        .IsRequired()
+                        .HasMaxLength(120000)
+                        .HasColumnType("character varying(120000)")
+                        .HasColumnName("input_json");
+
+                    b.Property<string>("PreviewJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("preview_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("result_json");
+
+                    b.Property<string>("ReviewBasis")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("review_basis");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ActorId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_completion_going_concern_receipt_actor_request");
+
+                    b.HasIndex("FirmId", "EngagementId", "CreatedAt")
+                        .HasDatabaseName("ix_audit_completion_going_concern_receipt_engagement_history");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "GoingConcernAssessmentId");
+
+                    b.ToTable("audit_completion_going_concern_command_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_completion_going_concern_command_receipt_values", "actor_epoch >= 0 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND going_concern_assessment_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash ~ '^[0-9a-f]{64}$' AND review_basis ~ '^[0-9a-f]{64}$' AND action IN ('PREPARE','REVIEW') AND length(input_json) BETWEEN 1 AND 120000 AND length(preview_json) BETWEEN 1 AND 1000000 AND length(result_json) BETWEEN 1 AND 1000000 AND jsonb_typeof(input_json::jsonb) = 'object' AND jsonb_typeof(preview_json::jsonb) = 'object' AND jsonb_typeof(result_json::jsonb) = 'object'");
+                        });
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditCompletionSubsequentEventCommandReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("InputJson")
+                        .IsRequired()
+                        .HasMaxLength(120000)
+                        .HasColumnType("character varying(120000)")
+                        .HasColumnName("input_json");
+
+                    b.Property<string>("PreviewJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("preview_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("result_json");
+
+                    b.Property<string>("ReviewBasis")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("review_basis");
+
+                    b.Property<Guid>("SubsequentEventReviewId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("subsequent_event_review_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ActorId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_audit_completion_subsequent_event_receipt_actor_request");
+
+                    b.HasIndex("FirmId", "EngagementId", "CreatedAt")
+                        .HasDatabaseName("ix_audit_completion_subsequent_event_receipt_engagement_history");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "SubsequentEventReviewId");
+
+                    b.ToTable("audit_completion_subsequent_event_command_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_audit_completion_subsequent_event_command_receipt_values", "actor_epoch >= 0 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND subsequent_event_review_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash ~ '^[0-9a-f]{64}$' AND review_basis ~ '^[0-9a-f]{64}$' AND action IN ('PREPARE','REVIEW') AND length(input_json) BETWEEN 1 AND 120000 AND length(preview_json) BETWEEN 1 AND 1000000 AND length(result_json) BETWEEN 1 AND 1000000 AND jsonb_typeof(input_json::jsonb) = 'object' AND jsonb_typeof(preview_json::jsonb) = 'object' AND jsonb_typeof(result_json::jsonb) = 'object'");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditCompletionVarianceCommandReceipt", b =>
                 {
                     b.Property<Guid>("Id")
@@ -17407,8 +17587,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasAlternateKey("FirmId", "Id")
                         .HasName("AK_going_concern_assessments_firm_id_id");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId");
-
                     b.HasIndex("FirmId", "EngagementId", "AssessmentDate")
                         .IsUnique()
                         .HasDatabaseName("ux_going_concern_engagement_date");
@@ -17800,6 +17978,97 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.OpeningBalanceCommandReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("EngagementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("engagement_id");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("InputJson")
+                        .IsRequired()
+                        .HasMaxLength(120000)
+                        .HasColumnType("character varying(120000)")
+                        .HasColumnName("input_json");
+
+                    b.Property<string>("PreviewJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("preview_json");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("result_json");
+
+                    b.Property<string>("ReviewBasis")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("review_basis");
+
+                    b.Property<Guid>("VerificationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("verification_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ActorId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_opening_balance_receipt_actor_request");
+
+                    b.HasIndex("FirmId", "EngagementId", "CreatedAt")
+                        .HasDatabaseName("ix_opening_balance_receipt_engagement_history");
+
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "VerificationId")
+                        .HasDatabaseName("ix_opening_balance_receipt_verification");
+
+                    b.ToTable("opening_balance_command_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_opening_balance_command_receipt_values", "actor_epoch >= 0 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND verification_id <> '00000000-0000-0000-0000-000000000000'::uuid AND request_hash ~ '^[0-9a-f]{64}$' AND review_basis ~ '^[0-9a-f]{64}$' AND action IN ('PREPARE','REVIEW') AND length(input_json) BETWEEN 1 AND 120000 AND length(preview_json) BETWEEN 1 AND 1000000 AND length(result_json) BETWEEN 1 AND 1000000 AND jsonb_typeof(input_json::jsonb) = 'object' AND jsonb_typeof(preview_json::jsonb) = 'object' AND jsonb_typeof(result_json::jsonb) = 'object'");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.OpeningBalanceVerification", b =>
                 {
                     b.Property<Guid>("Id")
@@ -17886,15 +18155,25 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("recorded_by_user_id");
 
+                    b.Property<string>("ReviewComment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("review_comment");
+
                     b.Property<DateTimeOffset?>("ReviewedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("reviewed_at");
+
+                    b.Property<long?>("ReviewedBasisRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reviewed_basis_revision");
 
                     b.Property<Guid?>("ReviewedByUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("reviewed_by_user_id");
 
                     b.Property<long>("Revision")
+                        .IsConcurrencyToken()
                         .HasColumnType("bigint")
                         .HasColumnName("revision");
 
@@ -17903,7 +18182,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasAlternateKey("FirmId", "Id")
                         .HasName("AK_opening_balance_verifications_firm_id_id");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId");
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("AK_opening_balance_verifications_scope_id");
 
                     b.HasIndex("FirmId", "EngagementId", "AsOfDate")
                         .IsUnique()
@@ -18535,8 +18815,6 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasAlternateKey("FirmId", "Id")
                         .HasName("AK_subsequent_event_reviews_firm_id_id");
-
-                    b.HasIndex("FirmId", "ClientId", "EngagementId");
 
                     b.ToTable("subsequent_event_reviews", null, t =>
                         {
@@ -36647,6 +36925,54 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditCompletionGoingConcernCommandReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.GoingConcernAssessment", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "GoingConcernAssessmentId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditCompletionSubsequentEventCommandReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.SubsequentEventReview", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "SubsequentEventReviewId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.AuditCompletionVarianceCommandReceipt", b =>
                 {
                     b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
@@ -37617,6 +37943,33 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("SourceAssessmentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Audit.OpeningBalanceCommandReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_opening_balance_receipt_actor");
+
+                    b.HasOne("AuditSphereOps.Domain.Engagements.Engagement", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId")
+                        .HasPrincipalKey("FirmId", "PracticeClientId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_opening_balance_receipt_scope");
+
+                    b.HasOne("AuditSphereOps.Domain.Audit.OpeningBalanceVerification", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "EngagementId", "VerificationId")
+                        .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_opening_balance_receipt_verification");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Audit.OpeningBalanceVerification", b =>

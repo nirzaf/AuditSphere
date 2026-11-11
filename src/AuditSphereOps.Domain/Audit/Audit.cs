@@ -435,6 +435,17 @@ public sealed class OpeningBalanceVerification
   public long Revision { get; set; } = 1;
   public Guid RecordedByUserId { get; set; }
   public Guid? ReviewedByUserId { get; set; }
+  public long? ReviewedBasisRevision { get; set; }
+  public string? ReviewComment { get; set; }
   public DateTimeOffset RecordedAt { get; set; }
   public DateTimeOffset? ReviewedAt { get; set; }
+}
+
+/// <summary>Current review requires a retained exact preparation basis; legacy reviewer/time alone is insufficient.</summary>
+public static class OpeningBalanceReviewCurrentness
+{
+  public static bool IsCurrent(OpeningBalanceVerification row) => row.ReviewedBasisRevision is > 0 &&
+    row.ReviewedBasisRevision == row.Revision - 1 && row.ReviewedByUserId is { } reviewer && reviewer != row.RecordedByUserId &&
+    row.ReviewedAt is not null && row.DifferenceAmount == 0 &&
+    row.Conclusion is OpeningBalanceVerificationConclusions.Agreed or OpeningBalanceVerificationConclusions.DifferencesResolved;
 }

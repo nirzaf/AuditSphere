@@ -395,9 +395,18 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
         response.Request.Method == "GET" && new Uri(response.Url).AbsolutePath == "/api/ui/portfolio/progress");
       reportPhase?.Invoke("portfolio-progress-response-observed");
       Assert.Equal(200, progress.Status);
-      reportPhase?.Invoke("portfolio-progress-completion-started");
-      Assert.Null(await progress.FinishedAsync().WaitAsync(TimeSpan.FromSeconds(30)));
-      reportPhase?.Invoke("portfolio-progress-completion-finished");
+      reportPhase?.Invoke("portfolio-progress-render-started");
+      // A fresh navigation has no prior progress view. Both controls are rendered
+      // only after the current scoped response passes the application decoder.
+      var progressView = page.Locator("audit-portfolio-progress");
+      await Assertions.Expect(progressView.GetByRole(AriaRole.Navigation, new() { Name = "Engagement progress pages", Exact = true }))
+        .ToBeVisibleAsync(new() { Timeout = 30000 });
+      await Assertions.Expect(progressView.GetByRole(AriaRole.Table, new() { Name = "Engagement progress across your portfolio", Exact = true }))
+        .ToBeVisibleAsync(new() { Timeout = 30000 });
+      await Assertions.Expect(progressView.GetByRole(AriaRole.Progressbar, new() { Name = "Loading portfolio progress", Exact = true }))
+        .ToHaveCountAsync(0, new() { Timeout = 30000 });
+      await Assertions.Expect(progressView.GetByRole(AriaRole.Alert)).ToHaveCountAsync(0, new() { Timeout = 30000 });
+      reportPhase?.Invoke("portfolio-progress-render-ready");
     }
     else await page.GotoAsync(url);
     return await SettleAsync(page);

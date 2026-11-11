@@ -160,7 +160,7 @@ public static class EngagementLifecycleQuery
     {
       return await ProjectAsync(new EngagementLifecycleSummary(
         CanonicalEngagementStages.ArchivedReadOnly, "Archived (Read-Only)", 11, [],
-        "None", $"/app/records/archives/{engagementId}", 0, true, false, ComplianceWarningFor(freeze),
+        "None", $"/app/engagements/{engagementId}/archive", 0, true, false, ComplianceWarningFor(freeze),
         freeze.State, freeze.ExternalReadOnly));
     }
 

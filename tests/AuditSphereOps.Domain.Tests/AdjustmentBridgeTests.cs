@@ -21,6 +21,72 @@ namespace AuditSphereOps.Domain.Tests;
 // profit must stay 175,000 — not drop to 170,000.
 public sealed class TrialBalanceCsvParserTests
 {
+  private const string CsvHeader = "AccountCode,AccountName,NetClosingBalance,Currency,Entity,MappingCode";
+
+  [Theory]
+  [Trait("Profile", "Unit")]
+  [InlineData("\n", ',')]
+  [InlineData("\r\n", ',')]
+  [InlineData("\n", ';')]
+  public void QuotedMultilineRecord_PreservesLiteralNameAndExactAmount(string newline, char delimiter)
+  {
+    var name = $"Cash{newline}account{delimiter} \"main\"";
+    var csv = CsvHeader.Replace(',', delimiter) + newline +
+      $"001{delimiter}\"{name.Replace("\"", "\"\"")}\"{delimiter}100.000000{delimiter}QAR{delimiter}CLIENT-A{delimiter}";
+    var parsed = TrialBalanceCsvImporter.Parse(csv, TrialBalanceImportProfile.SignedNetV1 with { Delimiter = delimiter });
+
+    Assert.Equal(new TbImportRow("001", name, 100.000000m, "QAR", "CLIENT-A", null), Assert.Single(parsed.Rows));
+    Assert.Equal(Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes(csv)), parsed.RawFileSha256Hex);
+  }
+
+  [Theory]
+  [Trait("Profile", "Unit")]
+  [InlineData("\n")]
+  [InlineData("\r\n")]
+  [InlineData("\r")]
+  public void OrdinarySignedNet_PreservesRowsAndCanonicalIdentity(string newline)
+  {
+    var csv = newline + CsvHeader + newline + newline + "001, Cash ,100.000000,qar,CLIENT-A,CASH" + newline;
+    var parsed = TrialBalanceCsvImporter.Parse(csv);
+    Assert.Equal(new TbImportRow("001", "Cash", 100m, "QAR", "CLIENT-A", "CASH"), Assert.Single(parsed.Rows));
+    Assert.Equal(Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes(csv)), parsed.RawFileSha256Hex);
+    Assert.Equal(Hashing.Sha256Hex("tb-csv-normalized.v2|tb-signed-net.v1|SIGNED_NET\n" +
+      "CLIENT-A|001|Cash|100.000000|||QAR|CASH\n"), parsed.NormalizedDatasetDigest);
+  }
+
+  [Theory]
+  [Trait("Profile", "Unit")]
+  [InlineData("001,\"Cash\naccount,100,QAR,CLIENT-A,CASH")]
+  [InlineData("001,Ca\"sh\",100,QAR,CLIENT-A,CASH")]
+  [InlineData("001,\"Cash\"junk,100,QAR,CLIENT-A,CASH")]
+  [InlineData("001,\"=Cash\naccount\",100,QAR,CLIENT-A,CASH")]
+  [InlineData("001,\"Cash\naccount\",=100,QAR,CLIENT-A,CASH")]
+  [InlineData("001,Cash,-100.1234567,QAR,CLIENT-A,CASH")]
+  public void UnsupportedQuotingAndMultilineFormulas_AreRejected(string row)
+  {
+    Assert.Throws<InvalidOperationException>(() => TrialBalanceCsvImporter.Parse(CsvHeader + "\n" + row));
+  }
+
+  [Fact]
+  [Trait("Profile", "Unit")]
+  public void LogicalRecordAndSourceLimits_RemainBounded()
+  {
+    var csv = new System.Text.StringBuilder(CsvHeader).Append('\n');
+    for (var i = 0; i < TrialBalanceCsvImporter.MaxRows; i++)
+      csv.Append(i).Append(",\"Cash\naccount\",100,QAR,CLIENT-A,CASH\n");
+    Assert.Equal(TrialBalanceCsvImporter.MaxRows, TrialBalanceCsvImporter.Parse(csv.ToString()).Rows.Count);
+    csv.Append("extra,\"unterminated");
+    Assert.Contains("row intake limit", Assert.Throws<InvalidOperationException>(() =>
+      TrialBalanceCsvImporter.Parse(csv.ToString())).Message);
+
+    var prefix = CsvHeader + "\n001,\"";
+    var boundedUnterminated = prefix + new string('x', 10_000_000 - prefix.Length);
+    Assert.Contains("Unterminated", Assert.Throws<InvalidOperationException>(() =>
+      TrialBalanceCsvImporter.Parse(boundedUnterminated)).Message);
+    Assert.Contains("10 MB", Assert.Throws<InvalidOperationException>(() =>
+      TrialBalanceCsvImporter.Parse(boundedUnterminated + "x")).Message);
+  }
+
   [Fact]
   [Trait("Profile", "Unit")]
   public void AppendixD_Parses14Rows_WithD2ControlTotals()
@@ -67,6 +133,15 @@ public sealed class TrialBalanceCsvParserTests
     Assert.Equal(125.50m, parsed.Rows[0].SourceDebit);
     Assert.Equal(0m, parsed.Rows[0].SourceCredit);
     Assert.Equal(-125.50m, parsed.Rows[1].Amount);
+    Assert.Equal(new[]
+    {
+      new TbImportRow("100101", "Bank", 125.50m, "QAR", "DEMO", "CA_CASH", 125.50m, 0m),
+      new TbImportRow("400100", "Revenue", -125.50m, "QAR", "DEMO", "PL_REVENUE", 0m, 125.50m)
+    }, parsed.Rows);
+    Assert.Equal(Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes(csv)), parsed.RawFileSha256Hex);
+    Assert.Equal(Hashing.Sha256Hex("tb-csv-normalized.v2|tb-debit-credit.v1|DEBIT_CREDIT\n" +
+      "DEMO|100101|Bank|125.500000|125.500000|0.000000|QAR|CA_CASH\n" +
+      "DEMO|400100|Revenue|-125.500000|0.000000|125.500000|QAR|PL_REVENUE\n"), parsed.NormalizedDatasetDigest);
   }
 
   [Theory]

@@ -486,6 +486,9 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<AuditPlanningCommandReceipt> AuditPlanningCommandReceipts => Set<AuditPlanningCommandReceipt>();
   public DbSet<AuditCompletionVarianceCommandReceipt> AuditCompletionVarianceCommandReceipts => Set<AuditCompletionVarianceCommandReceipt>();
+  public DbSet<AuditCompletionGoingConcernCommandReceipt> AuditCompletionGoingConcernCommandReceipts => Set<AuditCompletionGoingConcernCommandReceipt>();
+  public DbSet<AuditCompletionSubsequentEventCommandReceipt> AuditCompletionSubsequentEventCommandReceipts => Set<AuditCompletionSubsequentEventCommandReceipt>();
+  public DbSet<OpeningBalanceCommandReceipt> OpeningBalanceCommandReceipts => Set<OpeningBalanceCommandReceipt>();
   public DbSet<MaterialityAssessment> MaterialityAssessments => Set<MaterialityAssessment>();
 
   public DbSet<MaterialityApproval> MaterialityApprovals => Set<MaterialityApproval>();

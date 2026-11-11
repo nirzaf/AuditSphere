@@ -4,10 +4,13 @@ using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
@@ -18,7 +21,7 @@ using NativeSourceWorker = AuditSphereOps.Worker.Worker;
 
 namespace AuditSphereOps.Api.Tests;
 
-public sealed class CompletionVarianceCommandsApiTests
+public sealed partial class CompletionVarianceCommandsApiTests
 {
   [Fact]
   public async Task DraftPeriodSourceAcceptanceAndCloseReopenCurrentnessUseSupportedTransitions()
@@ -140,6 +143,42 @@ public sealed class CompletionVarianceCommandsApiTests
       Assert.True(submitted.Succeeded, submitted.Message);
       Assert.NotEqual(Guid.Empty, submitted.Value!.AuditProcedureResultId);
     }
+
+    // R11 connects supported producers to the existing readiness boundary, not a fabricated clearance.
+    async Task<AuditCompletionEvaluation> CompletionAsync()
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var result = await AuditFieldworkService.EvaluateCompletionAsync(db, programReviewer, world.Primary.EngagementId);
+      Assert.True(result.Succeeded, result.Message);
+      return result.Value!;
+    }
+    var missing = await CompletionAsync();
+    Assert.False(missing.Ready);
+    Assert.Contains("analytical-review:missing", missing.Blockers);
+    Assert.Contains("going-concern:missing", missing.Blockers);
+    var unrelatedBlockers = missing.Blockers.Where(x =>
+      !x.StartsWith("analytical-review:", StringComparison.Ordinal) &&
+      !x.StartsWith("going-concern:", StringComparison.Ordinal)).ToArray();
+    Assert.NotEmpty(unrelatedBlockers);
+    Assert.Contains(unrelatedBlockers, x => x.StartsWith("procedure:", StringComparison.Ordinal));
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var task = await EngagementWorkflowTaskService.CreateAsync(db, preparer, world.Primary.EngagementId,
+        new("Synthetic completion evidence checked", WorkflowTaskPhases.ManagerReview, 1,
+          AssigneeUserId: preparer.UserId, IdempotencyKey: Guid.CreateVersion7()));
+      Assert.True(task.Succeeded, task.Message);
+      var tasks = await EngagementWorkflowTaskService.GetAsync(db, preparer, world.Primary.EngagementId, task.Value);
+      Assert.True(tasks.Succeeded, tasks.Message);
+      var row = Assert.Single(tasks.Value!.Tasks);
+      Assert.True(row.CanComplete);
+      var completed = await EngagementWorkflowTaskService.CompleteAsync(db, preparer, task.Value, row.Revision);
+      Assert.True(completed.Succeeded, completed.Message);
+      Assert.Equal(PracticeTimeStates.TaskCompleted,
+        await db.WorkTasks.Where(x => x.Id == task.Value).Select(x => x.Status).SingleAsync());
+    }
+    var checkedOnly = await CompletionAsync();
+    Assert.False(checkedOnly.Ready);
+    Assert.Equal(missing.Blockers.OrderBy(x => x), checkedOnly.Blockers.OrderBy(x => x));
 
     var preparerUser = await UserAsync(pg, preparer.UserId);
     using var preparerFactory = Factory(pg, preparerUser);
@@ -339,6 +378,67 @@ public sealed class CompletionVarianceCommandsApiTests
       using var reviewReplayJson = JsonDocument.Parse(await reviewReplay.Content.ReadAsStringAsync());
       Assert.Equal(reviewReceipt.GetProperty("id").GetGuid(), reviewReplayJson.RootElement.GetProperty("value").GetProperty("id").GetGuid());
 
+      var varianceReady = await CompletionAsync();
+      Assert.DoesNotContain(varianceReady.Blockers, x => x.StartsWith("analytical-review:", StringComparison.Ordinal));
+      Assert.Contains("going-concern:missing", varianceReady.Blockers);
+      Assert.False(varianceReady.Ready);
+
+      // Use the same current procedure evidence and independently authenticated actors for going concern.
+      var concernRoot = $"/api/ui/engagements/{world.Primary.EngagementId:D}/completion/going-concern-assessments";
+      var assessmentDate = new DateOnly(2026, 12, 31);
+      async Task<GoingConcernAssessmentCommandState> ConcernStateAsync(HttpClient client)
+      {
+        using var response = await client.GetAsync(concernRoot + $"/state?assessmentDate={assessmentDate:yyyy-MM-dd}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<GoingConcernAssessmentCommandState>())!;
+      }
+      async Task<T> ConcernValueAsync<T>(HttpResponseMessage response)
+      {
+        using (response)
+        {
+          var body = await response.Content.ReadAsStringAsync();
+          Assert.True(response.IsSuccessStatusCode, $"{response.StatusCode}: {body}");
+          using var json = JsonDocument.Parse(body);
+          return json.RootElement.GetProperty("value").Deserialize<T>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        }
+      }
+      var concernState = await ConcernStateAsync(preparerClient);
+      var concernRequest = new GoingConcernAssessmentCommandRequest(Guid.CreateVersion7(),
+        concernState.ExpectedRevision, concernState.ReviewBasis,
+        new(procedureId, assessmentDate, assessmentDate.AddMonths(12),
+          "Synthetic forecast inspected against current procedure evidence.", false, true, "QAR",
+          "Synthetic practitioner assessment for this connected test only.", [evidenceReference]));
+      var concernPreview = await ConcernValueAsync<GoingConcernAssessmentCommandPreview>(
+        await Post(preparerClient, preparerCsrf, concernRoot + "/prepare/preview", concernRequest));
+      Assert.True(concernPreview.CanProceed);
+      var concernReceipt = await ConcernValueAsync<GoingConcernAssessmentCommandReceiptView>(
+        await Post(preparerClient, preparerCsrf, concernRoot + "/prepare",
+          concernRequest with { Reviewed = true, ExpectedRequestHash = concernPreview.RequestHash }));
+      Assert.Null(concernReceipt.Result.ReviewedByUserId);
+      var unreviewedConcern = await CompletionAsync();
+      Assert.Contains("going-concern:unreviewed", unreviewedConcern.Blockers);
+      Assert.DoesNotContain("going-concern:missing", unreviewedConcern.Blockers);
+      Assert.False(unreviewedConcern.Ready);
+      var concernReviewState = await ConcernStateAsync(reviewerClient);
+      var concernReviewRequest = new GoingConcernAssessmentCommandRequest(Guid.CreateVersion7(),
+        concernReviewState.ExpectedRevision, concernReviewState.ReviewBasis);
+      var concernReviewRoot = concernRoot + $"/{concernReceipt.GoingConcernAssessmentId:D}/review";
+      var concernReviewPreview = await ConcernValueAsync<GoingConcernAssessmentCommandPreview>(
+        await Post(reviewerClient, reviewerCsrf, concernReviewRoot + "/preview", concernReviewRequest));
+      Assert.True(concernReviewPreview.CanProceed);
+      var concernReviewed = await ConcernValueAsync<GoingConcernAssessmentCommandReceiptView>(
+        await Post(reviewerClient, reviewerCsrf, concernReviewRoot,
+          concernReviewRequest with { Reviewed = true, ExpectedRequestHash = concernReviewPreview.RequestHash }));
+      Assert.Equal(concernReceipt.GoingConcernAssessmentId, concernReviewed.GoingConcernAssessmentId);
+      Assert.NotEqual(preparer.UserId, reviewer.UserId);
+      Assert.Equal(reviewer.UserId, concernReviewed.Result.ReviewedByUserId);
+      Assert.Equal("1", concernReviewed.Result.ReviewedRevision);
+      var correspondingReady = await CompletionAsync();
+      Assert.DoesNotContain(correspondingReady.Blockers, x =>
+        x.StartsWith("analytical-review:", StringComparison.Ordinal) || x.StartsWith("going-concern:", StringComparison.Ordinal));
+      Assert.False(correspondingReady.Ready);
+      Assert.Equal(unrelatedBlockers.OrderBy(x => x), correspondingReady.Blockers.OrderBy(x => x));
+
       var reviewReceiptId = reviewReceipt.GetProperty("id").GetGuid();
       var reviewReceiptCount = 0;
       DateTimeOffset reviewedAt;
@@ -433,6 +533,16 @@ public sealed class CompletionVarianceCommandsApiTests
       Assert.DoesNotContain("analytical-review:unreviewed", completion.Value!.Blockers);
       Assert.DoesNotContain("analytical-review:unexplained-variance", completion.Value.Blockers);
       Assert.NotEmpty(completion.Value.Blockers); // unrelated completion gates remain in force.
+      Assert.DoesNotContain(completion.Value.Blockers, x => x.StartsWith("going-concern:", StringComparison.Ordinal));
+      Assert.False(completion.Value.Ready);
+      var workspace = await EngagementCompletionWorkspaceQuery.GetAsync(completionDb, programReviewer,
+        world.Primary.EngagementId, DateTimeOffset.UtcNow);
+      Assert.True(workspace.Succeeded, workspace.Message);
+      Assert.Contains(workspace.Value!.Gates, x => x.Name == "Final financial statements approved" && x.Status == "NO_PACKAGE");
+      Assert.False(workspace.Value.PartnerApproved);
+      Assert.Null(workspace.Value.Clearance);
+      Assert.Null(workspace.Value.Opinion);
+      Assert.Null(workspace.Value.ReleaseCandidateId);
     }
   }
 
