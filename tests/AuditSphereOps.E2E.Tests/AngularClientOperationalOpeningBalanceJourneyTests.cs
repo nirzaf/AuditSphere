@@ -201,14 +201,14 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests(Xunit.Abs
   [Trait("CaseId", "ANGULAR-NATIVE-SUCCESSOR-OPENING-01")]
   public async Task NativeSuccessorOpeningUsesExactReviewedClosedSourceAndRecoversOriginalUiRequest(bool withOriginalItem)
   {
-    if (!withOriginalItem) output.WriteLine($"phase=provisioning-started; utc={DateTimeOffset.UtcNow:O}");
+    output.WriteLine($"phase=provisioning-started; utc={DateTimeOffset.UtcNow:O}");
     SupportedNativeOpeningScope? prepared = null;
     await using var host = await OwnedHost.StartSupportedAsync("ANGULAR-NATIVE-SUCCESSOR-OPENING-01", async database =>
     {
       prepared = await SupportedNativeOpeningScope.CreateAsync(database);
       return prepared.FirmId;
     });
-    if (!withOriginalItem) host.PhaseOutput = message => output.WriteLine(message);
+    host.PhaseOutput = message => output.WriteLine(message);
     host.ReportPhase("provisioning-finished");
     var f = prepared ?? throw new InvalidOperationException("Supported native opening scope was not prepared.");
     var maker = f.MakerActor;
@@ -471,8 +471,11 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests(Xunit.Abs
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Approve exact successor proof and opening", Exact = true })).ToHaveCountAsync(0);
     var retainedProof = await reviewPage.RunAndWaitForResponseAsync(() => OpenAsync(reviewPage, reviewerOrigin),
       response => response.Request.Method == "GET" && response.Url.EndsWith($"/operational-opening-successors/{successorId:D}", StringComparison.Ordinal));
+    host.ReportPhase("successor-proof-response-observed");
     Assert.Equal(200, retainedProof.Status);
-    Assert.Null(await retainedProof.FinishedAsync());
+    host.ReportPhase("successor-proof-completion-started");
+    Assert.Null(await retainedProof.FinishedAsync().WaitAsync(TimeSpan.FromSeconds(30)));
+    host.ReportPhase("successor-proof-completion-finished");
     var approve = reviewPage.GetByRole(AriaRole.Button, new() { Name = "Approve exact successor proof and opening", Exact = true });
     await Assertions.Expect(approve).ToBeDisabledAsync();
     await reviewPage.GetByRole(AriaRole.Checkbox, new() { Name = "I independently reviewed this exact successor proof and opening manifest, original source, carried original items and account population.", Exact = true }).CheckAsync();

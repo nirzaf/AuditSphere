@@ -28,8 +28,29 @@ slug="$(printf '%s' "$label" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' 
 log_file="$(printf '%s/%02d-%s.log' "$VERIFICATION_LOG_DIR" "$sequence" "$slug")"
 
 printf '### %s\n$ %s\n\n' "$label" "$command_text" | tee "$log_file"
+# Only the full API gate needs runner-loss evidence. Do not change its test command,
+# deadline or exit status. The sampler has no child processes and prints no command lines.
+sampler_pid=
+stop_sampler() {
+  if [ -n "$sampler_pid" ]; then
+    # A failed optional sampler may already have exited; signal only our still-running job.
+    if jobs -pr | grep -qx "$sampler_pid"; then
+      kill "$sampler_pid" 2>/dev/null || true
+    fi
+    wait "$sampler_pid" 2>/dev/null || true
+    sampler_pid=
+  fi
+}
+if [ "${TEST_PROJECT_KEY:-}" = api ] && [ "$label" = 'Full api test project (no --filter)' ]; then
+  trap stop_sampler EXIT
+  trap 'exit 143' TERM
+  trap 'exit 130' INT
+  python3 -B "$(dirname "$0")/ci-api-resource-sampler.py" "$log_file" &
+  sampler_pid=$!
+fi
 "$@" 2>&1 | tee -a "$log_file"
 status=${PIPESTATUS[0]}
+stop_sampler
 printf '\nexit status: %s\n' "$status" | tee -a "$log_file"
 
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then

@@ -59,7 +59,13 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
     await page.Locator("h1").First.WaitForAsync(new() { Timeout = 15000 });
 
     var before = new Dictionary<string, string>();
-    foreach (var route in ListRoutes) before[route] = await SnapshotAsync(page, origin + route);
+    foreach (var route in ListRoutes)
+    {
+      host.ReportPhase("snapshot-before-started");
+      host.ReportPhase($"snapshot-route-{Array.IndexOf(ListRoutes, route)}");
+      before[route] = await SnapshotAsync(page, origin + route, host.ReportPhase);
+      host.ReportPhase("snapshot-before-finished");
+    }
 
     var sibling = await SiblingClientSeed.SeedAsync(host.Database, host.Fixture.FirmId, Marker);
     try
@@ -67,7 +73,10 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
       var leaks = new List<string>();
       foreach (var route in ListRoutes)
       {
-        var after = await SnapshotAsync(page, origin + route);
+        host.ReportPhase("snapshot-after-started");
+        host.ReportPhase($"snapshot-route-{Array.IndexOf(ListRoutes, route)}");
+        var after = await SnapshotAsync(page, origin + route, host.ReportPhase);
+        host.ReportPhase("snapshot-after-finished");
         if (after.Contains(Marker, StringComparison.OrdinalIgnoreCase)) leaks.Add($"{route}: sibling marker rendered");
         else
         {
@@ -376,7 +385,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
   }
 
   /// <summary>Visible main text once rendering has settled (two equal reads with no loading indicator).</summary>
-  private static async Task<string> SnapshotAsync(IPage page, string url)
+  private static async Task<string> SnapshotAsync(IPage page, string url, Action<string>? reportPhase = null)
   {
     if (new Uri(url).AbsolutePath is "/app" or "/ui/app")
     {
@@ -384,8 +393,11 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
       // main-text reads do not establish that this independent read has completed.
       var progress = await page.RunAndWaitForResponseAsync(() => page.GotoAsync(url), response =>
         response.Request.Method == "GET" && new Uri(response.Url).AbsolutePath == "/api/ui/portfolio/progress");
+      reportPhase?.Invoke("portfolio-progress-response-observed");
       Assert.Equal(200, progress.Status);
-      await progress.FinishedAsync();
+      reportPhase?.Invoke("portfolio-progress-completion-started");
+      Assert.Null(await progress.FinishedAsync().WaitAsync(TimeSpan.FromSeconds(30)));
+      reportPhase?.Invoke("portfolio-progress-completion-finished");
     }
     else await page.GotoAsync(url);
     return await SettleAsync(page);

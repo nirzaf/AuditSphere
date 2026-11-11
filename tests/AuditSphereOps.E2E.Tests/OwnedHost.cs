@@ -218,6 +218,13 @@ internal sealed class OwnedHost : IAsyncDisposable
   {
     if (PhaseOutput is null) return;
     if (phase is not ("provisioning-finished" or "browser-ready" or "scenario-finished"
+      or "successor-proof-response-observed" or "successor-proof-completion-started" or "successor-proof-completion-finished"
+      or "portfolio-progress-response-observed" or "portfolio-progress-completion-started" or "portfolio-progress-completion-finished"
+      or "snapshot-before-started" or "snapshot-before-finished" or "snapshot-after-started" or "snapshot-after-finished"
+      or "snapshot-route-0" or "snapshot-route-1" or "snapshot-route-2" or "snapshot-route-3" or "snapshot-route-4"
+      or "snapshot-route-5" or "snapshot-route-6" or "snapshot-route-7" or "snapshot-route-8" or "snapshot-route-9"
+      or "snapshot-route-10" or "snapshot-route-11" or "snapshot-route-12" or "snapshot-route-13"
+      or "snapshot-route-14" or "snapshot-route-15" or "snapshot-route-16"
       or "host-cleanup-started" or "host-cleanup-attempts-finished")) return;
     // Diagnostic output must not interrupt owned cleanup or change scenario results.
     try
