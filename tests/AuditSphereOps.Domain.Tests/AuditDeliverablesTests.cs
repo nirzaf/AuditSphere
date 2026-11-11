@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
@@ -21,6 +22,7 @@ using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 
@@ -82,16 +84,102 @@ public sealed partial class AuditDeliverablesTests
     var firstSrm = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId &&
       x.Kind == DeliverableKinds.SummaryReviewMemorandum && x.SignedFromDeliverableId == null);
 
-    await db.ClientSafetyStates.Where(x => x.FirmId == w.FirmId && x.Id == w.ClientId)
-      .ExecuteUpdateAsync(x => x.SetProperty(state => state.InputGeneration, state => state.InputGeneration + 1));
+    await AdvanceCompletionInputThroughContactAsync(db, w);
     var stale = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, w.FirmId, w.ClientId, w.EngagementId);
-    Assert.Contains(stale.Value!.Blockers, x => x == $"procedure:{w.ProcedureCode}:stale-generation");
+    Assert.True(stale.Succeeded, stale.Message);
+    Assert.Contains($"procedure:{w.ProcedureCode}:stale-generation", stale.Value!.Blockers);
+    Assert.False(await AuditDeliverableService.IsCurrentAsync(db, manager, firstSrm));
 
-    var refreshedId = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId,
-      "Current procedure evidence was refreshed after the planning generation changed.")).Value;
+    var generated = await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId,
+      "Regenerated memorandum records the current incomplete evidence after client inputs changed.");
+    Assert.True(generated.Succeeded, $"{generated.ErrorCode}: {generated.Message}");
+    var refreshedId = generated.Value;
     Assert.NotEqual(firstSrm.Id, refreshedId);
-    Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.PartnerClearAsync(db, partner, refreshedId,
-      "Risk areas reviewed.", "Notes reviewed.")).ErrorCode);
+    var refreshed = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == refreshedId);
+    Assert.True(await AuditDeliverableService.IsCurrentAsync(db, manager, refreshed),
+      $"New SRM {refreshedId} is unexpectedly stale; retained digest {refreshed.InputDigest}.");
+    var stillIncomplete = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, w.FirmId, w.ClientId, w.EngagementId);
+    Assert.True(stillIncomplete.Succeeded, stillIncomplete.Message);
+    Assert.Contains($"procedure:{w.ProcedureCode}:stale-generation", stillIncomplete.Value!.Blockers);
+    var clearance = await AuditDeliverableService.PartnerClearAsync(db, partner, refreshedId,
+      "Risk areas reviewed.", "Notes reviewed.");
+    Assert.True(clearance.ErrorCode == ErrorCodes.GateBlocked,
+      $"Expected {ErrorCodes.GateBlocked}; got {clearance.ErrorCode}: {clearance.Message}; SRM digest {refreshed.InputDigest}; blockers: {string.Join(", ", stillIncomplete.Value.Blockers)}");
+    var retained = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == firstSrm.Id);
+    Assert.Equal((firstSrm.InputDigest, firstSrm.ContentSha256, firstSrm.InputSummaryJson),
+      (retained.InputDigest, retained.ContentSha256, retained.InputSummaryJson));
+    Assert.Equal(firstSrm.Content, retained.Content);
+  }
+
+  [Fact]
+  public async Task CompletionBlockersAndSrmCurrentnessIgnoreProcedureReadOrder()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var order = new CompletionProcedureReadOrder();
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(order).Options;
+    await using var db = new AuditSphereDbContext(options);
+    var manager = w.A("manager", "Manager");
+    await AdvanceCompletionInputThroughContactAsync(db, w);
+    var ascending = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, w.FirmId, w.ClientId, w.EngagementId);
+    Assert.True(ascending.Succeeded, ascending.Message);
+    Assert.Equal(164, ascending.Value!.Blockers.Count(x => x.StartsWith("applicability:", StringComparison.Ordinal)));
+    Assert.Contains($"procedure:{w.ProcedureCode}:stale-generation", ascending.Value.Blockers);
+    var generated = await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId,
+      "Current incomplete evidence, compiled with ascending procedure reads.");
+    Assert.True(generated.Succeeded, $"{generated.ErrorCode}: {generated.Message}");
+    var srm = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == generated.Value);
+    Assert.True(order.AscendingReads >= 2, "The evaluation and SRM compilation must both use the controlled procedure read order.");
+
+    order.Descending = true;
+    var descending = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, w.FirmId, w.ClientId, w.EngagementId);
+    Assert.True(descending.Succeeded, descending.Message);
+    Assert.Equal(ascending.Value.Blockers.ToArray(), descending.Value!.Blockers.ToArray());
+    Assert.Equal(ascending.Value.Blockers.OrderBy(x => x, StringComparer.Ordinal).ToArray(), descending.Value.Blockers.ToArray());
+    Assert.True(await AuditDeliverableService.IsCurrentAsync(db, manager, srm),
+      $"Unchanged evidence must retain SRM currentness across opposite read orders; digest {srm.InputDigest}.");
+    var clearance = await AuditDeliverableService.PartnerClearAsync(db, w.A("partner", "Partner"), srm.Id,
+      "Risk areas reviewed.", "Notes reviewed.");
+    Assert.True(clearance.ErrorCode == ErrorCodes.GateBlocked, $"{clearance.ErrorCode}: {clearance.Message}");
+    Assert.True(order.DescendingReads >= 3, "Evaluation, currentness and clearance must use the opposite procedure read order.");
+  }
+
+  private static async Task AdvanceCompletionInputThroughContactAsync(AuditSphereDbContext db, World w)
+  {
+    var before = await db.ClientSafetyStates.AsNoTracking().Where(x => x.FirmId == w.FirmId && x.Id == w.ClientId)
+      .Select(x => x.InputGeneration).SingleAsync();
+    var contact = await PracticeCrmService.CreateClientContactAsync(db, w.A("partner", "Partner"),
+      new(w.ClientId, "Synthetic completion contact", "completion-contact@example.test", "Finance contact",
+        Primary: false, ExpectedSafetyGeneration: before));
+    Assert.True(contact.Succeeded, $"{contact.ErrorCode}: {contact.Message}");
+    var after = await db.ClientSafetyStates.AsNoTracking().Where(x => x.FirmId == w.FirmId && x.Id == w.ClientId)
+      .Select(x => x.InputGeneration).SingleAsync();
+    Assert.Equal(before + 1, after);
+  }
+
+  // Perturb only the unordered, full-scope procedure SELECT. No business rows or facts are changed.
+  private sealed class CompletionProcedureReadOrder : DbCommandInterceptor
+  {
+    public bool Descending { get; set; }
+    public int AscendingReads { get; private set; }
+    public int DescendingReads { get; private set; }
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+      CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.StartsWith("SELECT a.id,", StringComparison.Ordinal) &&
+          command.CommandText.Contains("FROM audit_procedures AS a\nWHERE", StringComparison.Ordinal) &&
+          command.CommandText.Contains("a.firm_id =", StringComparison.Ordinal) &&
+          command.CommandText.Contains("a.client_id =", StringComparison.Ordinal) &&
+          command.CommandText.Contains("a.engagement_id =", StringComparison.Ordinal) &&
+          !command.CommandText.Contains("ORDER BY", StringComparison.Ordinal) &&
+          !command.CommandText.Contains("LIMIT", StringComparison.Ordinal))
+      {
+        command.CommandText += "\nORDER BY a.source_procedure_id COLLATE \"C\" " + (Descending ? "DESC" : "ASC");
+        if (Descending) DescendingReads++; else AscendingReads++;
+      }
+      return ValueTask.FromResult(result);
+    }
   }
 
   [Fact]

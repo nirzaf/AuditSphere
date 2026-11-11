@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -153,30 +154,79 @@ internal sealed class OwnedHost : IAsyncDisposable
 
   public async ValueTask DisposeAsync()
   {
-    foreach (var process in processes.AsEnumerable().Reverse())
+    ReportPhase("host-cleanup-started");
+    try
     {
-      try
-      {
-        RecordLifecycle(
-          $"pid={process.Id}; exitedBeforeCleanup={process.HasExited}; exitCode={(process.HasExited ? process.ExitCode.ToString() : "running")}; utc={DateTimeOffset.UtcNow:O}\n");
-        if (!process.HasExited)
+      await CleanupOwnedResourcesAsync(processes.Select(process => new ProcessCleanup(
+        () => RecordLifecycle(
+          $"pid={process.Id}; exitedBeforeCleanup={process.HasExited}; exitCode={(process.HasExited ? process.ExitCode.ToString() : "running")}; utc={DateTimeOffset.UtcNow:O}\n"),
+        () => { if (!process.HasExited) process.Kill(entireProcessTree: true); },
+        async () =>
         {
-          process.Kill(entireProcessTree: true);
-          await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
-        }
-      }
-      catch (InvalidOperationException) { }
-      catch (System.ComponentModel.Win32Exception) { }
-      finally
-      {
-        if (process.HasExited) RecordLifecycle($"stopped pid={process.Id}; exitCode={process.ExitCode}; utc={DateTimeOffset.UtcNow:O}\n");
-        process.Dispose();
-      }
+          if (!process.HasExited) await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        },
+        () => { if (process.HasExited) RecordLifecycle($"stopped pid={process.Id}; exitCode={process.ExitCode}; utc={DateTimeOffset.UtcNow:O}\n"); },
+        process.Dispose)),
+        () => pg.DisposeAsync().AsTask(),
+        () => DeleteOwnedDirectory(runRoot, Path.Combine(runRoot, "staging")),
+        () => DeleteOwnedDirectory(runRoot, Path.Combine(runRoot, "provider")),
+        () => DeleteOwnedDirectory(runRoot, Path.Combine(runRoot, "checkpoints")));
     }
-    await pg.DisposeAsync();
-    DeleteOwnedDirectory(runRoot, Path.Combine(runRoot, "staging"));
-    DeleteOwnedDirectory(runRoot, Path.Combine(runRoot, "provider"));
-    DeleteOwnedDirectory(runRoot, Path.Combine(runRoot, "checkpoints"));
+    finally
+    {
+      // Attempts finished does not assert that every owned process terminated.
+      ReportPhase("host-cleanup-attempts-finished");
+    }
+  }
+
+  internal sealed record ProcessCleanup(Action RecordBefore, Action Stop, Func<Task> Wait,
+    Action RecordAfter, Action Dispose);
+
+  internal static async Task CleanupOwnedResourcesAsync(IEnumerable<ProcessCleanup> ownedProcesses,
+    Func<Task> database, Action staging, Action provider, Action checkpoints)
+  {
+    List<Exception> failures = [];
+    void Attempt(Action action)
+    {
+      try { action(); }
+      catch (Exception error) { failures.Add(error); }
+    }
+    async Task AttemptAsync(Func<Task> action)
+    {
+      try { await action(); }
+      catch (Exception error) { failures.Add(error); }
+    }
+    foreach (var process in ownedProcesses.Reverse())
+    {
+      Attempt(process.RecordBefore);
+      Attempt(process.Stop);
+      await AttemptAsync(process.Wait);
+      Attempt(process.RecordAfter);
+      Attempt(process.Dispose);
+    }
+    await AttemptAsync(database);
+    Attempt(staging);
+    Attempt(provider);
+    Attempt(checkpoints);
+    if (failures.Count == 1) ExceptionDispatchInfo.Capture(failures[0]).Throw();
+    if (failures.Count > 1) throw new AggregateException("Owned host cleanup failed.", failures);
+  }
+
+  internal Action<string>? PhaseOutput { get; set; }
+
+  internal void ReportPhase(string phase)
+  {
+    if (PhaseOutput is null) return;
+    if (phase is not ("provisioning-finished" or "browser-ready" or "scenario-finished"
+      or "host-cleanup-started" or "host-cleanup-attempts-finished")) return;
+    // Diagnostic output must not interrupt owned cleanup or change scenario results.
+    try
+    {
+      var marker = $"phase={phase}; utc={DateTimeOffset.UtcNow:O}";
+      RecordLifecycle(marker + Environment.NewLine);
+      PhaseOutput(marker);
+    }
+    catch (Exception) { }
   }
 
   private void RecordLifecycle(string value)
@@ -420,7 +470,7 @@ internal sealed class OwnedHost : IAsyncDisposable
     if (!path.StartsWith(Path.GetFullPath(root) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
       throw new InvalidOperationException("Refusing to clean a path outside the scenario-owned root.");
     try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); }
-    catch (IOException) { }
+    catch (DirectoryNotFoundException) { }
   }
 
   private static int ReserveLoopbackPort()

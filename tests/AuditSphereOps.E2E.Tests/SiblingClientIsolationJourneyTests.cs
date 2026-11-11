@@ -33,7 +33,10 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
   [Trait("CaseId", "AS-PAR-002-SIBLING-CLIENT-DIFF-01")]
   public async Task SiblingClientDataNeverChangesWhatAClientScopedUserSees(string grantScope)
   {
+    if (grantScope == "CLIENT") output.WriteLine($"phase=provisioning-started; utc={DateTimeOffset.UtcNow:O}");
     await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-PAR-002-SIBLING-CLIENT-DIFF-01");
+    if (grantScope == "CLIENT") host.PhaseOutput = message => output.WriteLine(message);
+    host.ReportPhase("provisioning-finished");
     var scoped = PbcSeed.User(host.Fixture.FirmId, "Staff");
     await using (var db = host.CreateDbContext())
     {
@@ -49,6 +52,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
+    host.ReportPhase("browser-ready");
     var diagnostics = new List<string>();
     page.PageError += (_, error) => diagnostics.Add($"page-error: {error}");
     await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString("/app")}");
@@ -91,6 +95,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
       Assert.Empty(leaks);
       Assert.DoesNotContain(diagnostics, x => x.StartsWith("page-error:", StringComparison.Ordinal));
       output.WriteLine($"{grantScope}-scoped user: {ListRoutes.Length} list routes unchanged, {detailRoutes.Length} sibling detail routes and the byte endpoint indistinguishable from random identifiers");
+      host.ReportPhase("scenario-finished");
     }
     finally
     {

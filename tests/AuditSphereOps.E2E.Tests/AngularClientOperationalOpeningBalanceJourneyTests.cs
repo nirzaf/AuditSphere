@@ -12,7 +12,7 @@ using Microsoft.Playwright;
 
 namespace AuditSphereOps.E2E.Tests;
 
-public sealed class AngularClientOperationalOpeningBalanceJourneyTests
+public sealed class AngularClientOperationalOpeningBalanceJourneyTests(Xunit.Abstractions.ITestOutputHelper output)
 {
   [Fact]
   [Trait("CaseId", "ANGULAR-CLIENT-OPERATIONAL-OPENING-01")]
@@ -201,12 +201,15 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
   [Trait("CaseId", "ANGULAR-NATIVE-SUCCESSOR-OPENING-01")]
   public async Task NativeSuccessorOpeningUsesExactReviewedClosedSourceAndRecoversOriginalUiRequest(bool withOriginalItem)
   {
+    if (!withOriginalItem) output.WriteLine($"phase=provisioning-started; utc={DateTimeOffset.UtcNow:O}");
     SupportedNativeOpeningScope? prepared = null;
     await using var host = await OwnedHost.StartSupportedAsync("ANGULAR-NATIVE-SUCCESSOR-OPENING-01", async database =>
     {
       prepared = await SupportedNativeOpeningScope.CreateAsync(database);
       return prepared.FirmId;
     });
+    if (!withOriginalItem) host.PhaseOutput = message => output.WriteLine(message);
+    host.ReportPhase("provisioning-finished");
     var f = prepared ?? throw new InvalidOperationException("Supported native opening scope was not prepared.");
     var maker = f.MakerActor;
     var reviewer = f.ReviewerActor;
@@ -341,6 +344,7 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     await using var makerContext = await browser.NewContextAsync();
     await using var reviewerContext = await browser.NewContextAsync();
     var page = await makerContext.NewPageAsync(); var reviewPage = await reviewerContext.NewPageAsync();
+    host.ReportPhase("browser-ready");
     await using var makerEvidence = new SyntheticBrowserEvidence(page, host, "successor-maker", f.Admin.Id);
     await using var reviewerEvidence = new SyntheticBrowserEvidence(reviewPage, host, "successor-reviewer", f.Reviewer.Id);
     var errors = new List<string>();
@@ -497,5 +501,6 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     Assert.Empty(errors);
     if (withOriginalItem)
       await OwnedBrowserFixtureHandoff.WaitAsync(reviewerOrigin, path, "native-successor-carry-retained");
+    host.ReportPhase("scenario-finished");
   }
 }

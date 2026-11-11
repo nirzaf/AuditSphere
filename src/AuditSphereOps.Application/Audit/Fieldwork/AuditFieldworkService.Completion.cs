@@ -131,6 +131,9 @@ public static partial class AuditFieldworkService
       blockers.Add("materiality:stale");
     else if (latestMateriality is null || !await MaterialityEngineService.IsPartnerApprovedCurrentAsync(db, latestMateriality, ct))
       blockers.Add("materiality:partner-approval-required");
+    // Completion facts are hashed into immutable deliverables. Database read order is not a change in evidence.
+    // Sort only: every blocker, including repeated values, must remain in the completion gate.
+    blockers.Sort(StringComparer.Ordinal);
     var evaluation = new AuditCompletionEvaluation(blockers.Count == 0, procedures.Count, applicable.Length, reviewed, blockers);
     return CommandResult<AuditCompletionEvaluation>.Ok(evaluation);
   }
