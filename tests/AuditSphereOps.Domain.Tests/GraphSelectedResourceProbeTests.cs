@@ -42,69 +42,57 @@ public sealed class GraphSelectedResourceProbeTests
   [Fact]
   public async Task PendingDraft_CanBeProbedBeforeActivationWithoutChangingItsState()
   {
-    await using var fixture = await Fixture.CreateAsync();
-    var draftId = Guid.NewGuid();
+    await using var pg = await PgTestSchema.CreateAsync();
+    var firmId = Guid.NewGuid();
     var now = DateTimeOffset.UtcNow;
-    await using (var db = new AuditSphereDbContext(fixture.Options))
+    const string administratorObjectId = "04a79efe-eb38-43c8-af19-34352cb8c779";
+    Guid draftId;
+    ActorContext actor;
+    await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      db.FirmWorkspaceConfigurations.Remove(await db.FirmWorkspaceConfigurations.SingleAsync());
-      var connection = await db.Microsoft365ConnectionRevisions.SingleAsync();
-      connection.State = Microsoft365RevisionStates.ConsentRequired;
-      connection.ConsentState = "REQUIRED";
-      var sessionId = Guid.NewGuid();
-      db.Microsoft365SetupSessions.Add(new Microsoft365SetupSession
-      {
-        Id = sessionId, FirmId = fixture.FirmId, InstallationId = "probe-test",
-        BootstrapProofHash = new string('a', 64), CapabilityHash = new string('b', 64),
-        ClaimedAt = now, ExpiresAt = now.AddHours(1)
-      });
-      db.Microsoft365SetupDrafts.Add(new Microsoft365SetupDraft
-      {
-        Id = draftId, FirmId = fixture.FirmId, SetupSessionId = sessionId,
-        ConnectionRevisionId = connection.Id, State = Microsoft365RevisionStates.ConsentRequired,
-        ExpectedTenantId = TenantId, SiteUrl = SiteUrl, SiteId = SiteId,
-        DriveId = "drive-1", RootFolderId = "root-1", CreatedAt = now, UpdatedAt = now
-      });
-      await db.SaveChangesAsync();
+      const string proof = "synthetic-pending-probe-installation-proof";
+      var claim = await Microsoft365OnboardingService.ClaimAsync(db, firmId, "probe-test",
+        proof, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(proof))).ToLowerInvariant(), now);
+      Assert.True(claim.Succeeded, claim.Message);
+      var bootstrap = await Microsoft365OnboardingService.CompleteInitialAdministratorBootstrapAsync(db,
+        new(claim.Value!.SessionId, claim.Value.Capability, TenantGuid, administratorObjectId,
+          "admin@example.test", "Synthetic administrator"), TenantGuid, administratorObjectId, now);
+      Assert.True(bootstrap.Succeeded, bootstrap.Message);
+      var user = await db.Users.AsNoTracking().SingleAsync(x => x.Id == bootstrap.Value);
+      actor = new ActorContext(user.Id, firmId, user.SessionEpoch, ["Administrator"]);
+      Assert.True(await db.FirmSafetyStates.AnyAsync(x => x.Id == firmId));
+      var saved = await Microsoft365OnboardingService.SaveDraftAsync(db,
+        new(claim.Value.SessionId, claim.Value.Capability, 1, TenantGuid, "Synthetic tenant",
+          SiteUrl, SiteId, "drive-1", "root-1", Microsoft365AccessProfiles.AppMediated,
+          "NOT_CONFIGURED", "NOT_CONFIGURED"), now);
+      Assert.True(saved.Succeeded, saved.Message);
+      draftId = saved.Value;
+      var revision = await db.Microsoft365SetupDrafts.Where(x => x.Id == draftId).Select(x => x.Revision).SingleAsync();
+      var prepared = await Microsoft365ConfigurationService.PrepareConnectionRevisionAsync(db, actor,
+        new(draftId, revision, "slot:login", "slot:runtime"), now);
+      Assert.True(prepared.Succeeded, prepared.Message);
     }
 
     var http = new StubGraphHandler();
-    var probe = fixture.Probe(http, new SelectedSiteToken("test-token", TenantId,
-      new HashSet<string> { "Sites.Selected" }));
-    var adminId = Guid.NewGuid();
-    var actor = new ActorContext(adminId, fixture.FirmId, 1, ["Administrator"]);
-    var service = new Microsoft365SelectedResourceTestService(new TestFactory(fixture.Options), probe);
+    var probe = new GraphSelectedResourceProbe(new TestFactory(pg.Options), new HttpClient(http),
+      new StubTokenSource(new SelectedSiteToken("test-token", TenantGuid, new HashSet<string> { "Sites.Selected" }), TenantGuid));
+    var service = new Microsoft365SelectedResourceTestService(new TestFactory(pg.Options), probe);
     await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-      service.TestDraftAsync(actor, draftId, CancellationToken.None));
+      service.TestDraftAsync(actor with { UserId = Guid.NewGuid() }, draftId, CancellationToken.None));
     Assert.Empty(http.Paths);
-    await using (var db = new AuditSphereDbContext(fixture.Options))
-    {
-      db.Users.Add(new AppUser
-      {
-        Id = adminId, FirmId = fixture.FirmId, TenantId = TenantId, Subject = "synthetic-admin",
-        Email = "admin@example.test", DisplayName = "Synthetic administrator", CreatedAt = now,
-        SessionEpoch = 1
-      });
-      db.RoleGrants.Add(new RoleGrant
-      {
-        Id = Guid.NewGuid(), FirmId = fixture.FirmId, UserId = adminId, Role = "Administrator",
-        GrantedAt = now, GrantedByUserId = adminId
-      });
-      await db.SaveChangesAsync();
-    }
     await service.TestDraftAsync(actor, draftId, CancellationToken.None);
     Assert.Equal(3, http.Paths.Count);
     http.Paths.Clear();
     await Assert.ThrowsAsync<OperationBlockedException>(() =>
       probe.ProbeDraftAsync(Guid.NewGuid(), draftId, CancellationToken.None));
     Assert.Empty(http.Paths);
-    var observation = await probe.ProbeDraftAsync(fixture.FirmId, draftId, CancellationToken.None);
+    var observation = await probe.ProbeDraftAsync(firmId, draftId, CancellationToken.None);
     Assert.Equal(draftId, observation.DraftId);
     Assert.Equal(SiteId, observation.SiteId);
     Assert.Equal(3, http.Paths.Count);
     Assert.All(http.Authenticated, Assert.True);
     Assert.Equal(0, http.PostCount);
-    await using var readback = new AuditSphereDbContext(fixture.Options);
+    await using var readback = new AuditSphereDbContext(pg.Options);
     Assert.Equal(Microsoft365RevisionStates.ConsentRequired,
       (await readback.Microsoft365SetupDrafts.SingleAsync()).State);
     Assert.Empty(readback.IntegrationVerificationEvidences);
@@ -112,12 +100,12 @@ public sealed class GraphSelectedResourceProbeTests
     const string negativeSite = "https://synthetic.sharepoint.com/sites/unrelated-control";
     http.Paths.Clear();
     await Assert.ThrowsAsync<OperationBlockedException>(() =>
-      probe.ProbeDraftBoundaryAsync(fixture.FirmId, draftId, negativeSite, CancellationToken.None));
+      probe.ProbeDraftBoundaryAsync(firmId, draftId, negativeSite, CancellationToken.None));
     Assert.Equal(4, http.Paths.Count); // An accessible control fails closed.
     http.Paths.Clear();
     http.DenyNegativeControl = true;
     var boundaryService = new Microsoft365SelectedResourceTestService(
-      new TestFactory(fixture.Options), probe, negativeSite);
+      new TestFactory(pg.Options), probe, negativeSite);
     await boundaryService.TestDraftBoundaryAsync(actor, draftId, CancellationToken.None);
     Assert.Equal(4, http.Paths.Count);
     Assert.All(http.Authenticated, Assert.True);
@@ -125,28 +113,28 @@ public sealed class GraphSelectedResourceProbeTests
     Assert.Empty(readback.IntegrationVerificationEvidences);
     http.Paths.Clear();
     await Assert.ThrowsAsync<OperationBlockedException>(() =>
-      probe.ProbeDraftBoundaryAsync(fixture.FirmId, draftId, SiteUrl, CancellationToken.None));
+      probe.ProbeDraftBoundaryAsync(firmId, draftId, SiteUrl, CancellationToken.None));
     Assert.Equal(3, http.Paths.Count); // The selected site cannot be its own negative control.
 
     var consentConnection = await readback.Microsoft365ConnectionRevisions.SingleAsync();
-    consentConnection.ConsentState = "VERIFIED";
-    var consentId = Guid.CreateVersion7();
-    readback.TenantConsentAttempts.Add(new TenantConsentAttempt
-    {
-      Id = consentId, FirmId = fixture.FirmId, SetupDraftId = draftId,
-      InitiatedByUserId = adminId, InitiatingSessionEpoch = 1,
-      InitiatorObjectId = "synthetic-admin", ExpectedTenantId = TenantId,
-      ApplicationClientId = "synthetic-consent-app", StateHash = new string('c', 64),
-      State = TenantConsentAttemptStates.ConsentVerified,
-      CreatedAt = now, ExpiresAt = now.AddHours(1),
-      ConsentingTenantId = TenantId, ConsentingObjectId = "synthetic-admin",
-      ConsentVerifiedAt = now
-    });
-    await readback.SaveChangesAsync();
+    var begin = await TenantConsentService.BeginAsync(readback, actor, draftId, TenantGuid,
+      Guid.NewGuid().ToString("D"), now);
+    Assert.True(begin.Succeeded, begin.Message);
+    var returned = await TenantConsentService.CompleteCallbackAsync(readback, actor,
+      begin.Value!.State, TenantGuid, true, false, now);
+    Assert.True(returned.Succeeded, returned.Message);
+    var consentId = returned.Value!.AttemptId;
+    var challenge = await TenantConsentService.BeginIdentityVerificationAsync(readback, actor, consentId, now);
+    Assert.True(challenge.Succeeded, challenge.Message);
+    var microsoft = new SimulatedMicrosoftTenant(TenantGuid,
+      [new(administratorObjectId, "Synthetic administrator", "admin@example.test")], []);
+    var consent = await TenantConsentService.CompleteIdentityVerificationAsync(readback, actor, microsoft,
+      challenge.Value!.State, microsoft.IssueCode(TenantGuid, administratorObjectId, challenge.Value.Nonce), false, now);
+    Assert.True(consent.Succeeded, consent.Message);
     http.Paths.Clear();
-    var recorder = new SelectedSiteBoundaryVerificationService(new TestFactory(fixture.Options), probe, negativeSite);
+    var recorder = new SelectedSiteBoundaryVerificationService(new TestFactory(pg.Options), probe, negativeSite);
     await recorder.VerifyDraftAsync(actor, draftId, CancellationToken.None);
-    await using (var verified = new AuditSphereDbContext(fixture.Options))
+    await using (var verified = new AuditSphereDbContext(pg.Options))
     {
       Assert.Equal(Microsoft365RevisionStates.Verified,
         (await verified.Microsoft365ConnectionRevisions.SingleAsync()).State);
@@ -160,14 +148,14 @@ public sealed class GraphSelectedResourceProbeTests
     http.DenyNegativeControl = false;
     await Assert.ThrowsAsync<OperationBlockedException>(() =>
       recorder.VerifyDraftAsync(actor, draftId, CancellationToken.None));
-    await using (var failed = new AuditSphereDbContext(fixture.Options))
+    await using (var failed = new AuditSphereDbContext(pg.Options))
     {
       var status = await failed.TenantCapabilityVerifications
         .OrderByDescending(x => x.ObservedAt).FirstAsync(x => x.Capability == Microsoft365Capabilities.SelectedSite);
       Assert.Equal(CapabilityVerificationStates.BlockedExternal, status.State);
     }
     Guid approvedTemplateId;
-    await using (var activation = new AuditSphereDbContext(fixture.Options))
+    await using (var activation = new AuditSphereDbContext(pg.Options))
     {
       var template = await Microsoft365ConfigurationService.SaveFolderTemplateAsync(activation, actor,
         new(FolderTemplatePurposes.ClientWorkspace,
@@ -176,14 +164,6 @@ public sealed class GraphSelectedResourceProbeTests
       approvedTemplateId = template.Value!.Id;
       Assert.True((await Microsoft365ConfigurationService.ApproveFolderTemplateAsync(
         activation, actor, approvedTemplateId, now)).Succeeded);
-      activation.IntegrationVerificationEvidences.Add(new IntegrationVerificationEvidence
-      {
-        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, SetupDraftId = draftId,
-        ConnectionRevisionId = consentConnection.Id, ResourceKind = "TENANT",
-        ResourceId = TenantId, Operation = "CONSENT", IdentityReference = "synthetic-admin",
-        Result = "PASS", EvidenceReference = "synthetic trusted consent fixture", ObservedAt = now
-      });
-      await activation.SaveChangesAsync();
       var current = await activation.Microsoft365SetupDrafts.SingleAsync(x => x.Id == draftId);
       var request = new ActivateConnectionRequest(draftId, consentConnection.Id, approvedTemplateId,
         current.Revision, SiteId, "drive-1", "root-1", SiteUrl, Microsoft365AccessProfiles.AppMediated);
@@ -193,7 +173,7 @@ public sealed class GraphSelectedResourceProbeTests
     }
     http.DenyNegativeControl = true;
     await recorder.VerifyDraftAsync(actor, draftId, CancellationToken.None);
-    await using (var activation = new AuditSphereDbContext(fixture.Options))
+    await using (var activation = new AuditSphereDbContext(pg.Options))
     {
       var current = await activation.Microsoft365SetupDrafts.SingleAsync(x => x.Id == draftId);
       var wrongUrl = await Microsoft365ConfigurationService.ActivateConnectionAsync(activation, actor,
@@ -209,7 +189,7 @@ public sealed class GraphSelectedResourceProbeTests
     }
     http.Paths.Clear();
     await Assert.ThrowsAsync<OperationBlockedException>(() =>
-      probe.ProbeDraftAsync(fixture.FirmId, draftId, CancellationToken.None));
+      probe.ProbeDraftAsync(firmId, draftId, CancellationToken.None));
     Assert.Empty(http.Paths);
   }
 
@@ -352,13 +332,13 @@ public sealed class GraphSelectedResourceProbeTests
       Task.FromResult<IAuditSphereDbContext>(new AuditSphereDbContext(options));
   }
 
-  private sealed class StubTokenSource(SelectedSiteToken token) : ISelectedSiteTokenSource
+  private sealed class StubTokenSource(SelectedSiteToken token, string expectedTenantId = TenantId) : ISelectedSiteTokenSource
   {
     public int Calls { get; private set; }
     public Task<SelectedSiteToken> GetAsync(string tenantId, string credentialReference, CancellationToken ct)
     {
       Calls++;
-      Assert.Equal(TenantId, tenantId);
+      Assert.Equal(expectedTenantId, tenantId);
       Assert.Equal("slot:runtime", credentialReference);
       return Task.FromResult(token);
     }
