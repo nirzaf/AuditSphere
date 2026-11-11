@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Records;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Reviews;
 using AuditSphereOps.Domain.Audit;
@@ -22,6 +23,15 @@ public sealed partial class AuditDeliverablesTests
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
+    Guid workpaperId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var created = await AuditPlanningService.CreateWorkpaperAsync(db, w.A("associate", "Staff"),
+        new(w.EngagementId, "ARCHIVE-WP-01", "Synthetic archive selection workpaper",
+          "Verify the archive readiness selects the issued financial package.", "test-v1", w.ProcedureId, "Inspect the issued release identity."));
+      Assert.True(created.Succeeded, created.Message);
+      workpaperId = created.Value!.WorkpaperId;
+    }
     await SignedReportAsync(pg, w);
     var partner = w.A("partner", "Partner");
     var manager = w.A("manager", "Manager");
@@ -42,9 +52,9 @@ public sealed partial class AuditDeliverablesTests
       Assert.Contains("final-release-missing", (await FileFreezeService.GetArchiveReadinessAsync(db, partner, w.EngagementId, now)).Value!.Blockers);
     }
 
-    var (_, financialReleaseId) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(
+    var (_, financialReleaseId) = await CompletionBundleFixture.ReleasedSupportedFinancialPackageAsync(
       pg.Options, new CompletionBundleScope(w.FirmId, w.ClientId, w.EngagementId, w.U));
-    var laterWorkpaperRelease = await IssueLaterWorkpaperReleaseAsync(pg, w, now);
+    var laterWorkpaperRelease = await IssueLaterWorkpaperReleaseAsync(pg, w, workpaperId);
     Assert.True(laterWorkpaperRelease.ReleasedAt > (await GetReleaseAsync(pg, financialReleaseId)).ReleasedAt);
 
     string digest;
@@ -97,9 +107,8 @@ public sealed partial class AuditDeliverablesTests
   }
 
   private static async Task<(Guid ReleaseId, DateTimeOffset ReleasedAt)> IssueLaterWorkpaperReleaseAsync(
-    PgTestSchema pg, World w, DateTimeOffset now)
+    PgTestSchema pg, World w, Guid workpaperId)
   {
-    var workpaperId = Guid.NewGuid();
     var partner = w.A("partner", "Partner");
     var manager = w.A("manager", "Manager");
     var manifest = System.Text.Encoding.UTF8.GetBytes("Synthetic later workpaper release for archive selection regression.");
@@ -110,16 +119,6 @@ public sealed partial class AuditDeliverablesTests
     try
     {
       await using var db = new AuditSphereDbContext(pg.Options);
-      db.Workpapers.Add(new Workpaper
-      {
-        Id = workpaperId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
-        ProcedureId = w.ProcedureId, ActorId = w.U["associate"].Id, Index = "ARCHIVE-WP-01", Title = "Synthetic archive selection workpaper",
-        Objective = "Verify the archive readiness selects the issued financial package.", TemplateVersion = "test-v1",
-        Procedure = "Inspect the issued release identity.", Revision = 1,
-        Status = WorkpaperStatuses.Working, CreatedAt = now
-      });
-      await db.SaveChangesAsync();
-
       var inputGeneration = await db.ClientSafetyStates.AsNoTracking()
         .Where(x => x.FirmId == w.FirmId && x.Id == w.ClientId).Select(x => x.InputGeneration).SingleAsync();
       var policyGeneration = await db.FirmSafetyStates.AsNoTracking()

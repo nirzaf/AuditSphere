@@ -8,6 +8,7 @@ using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Records;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Records;
 using Microsoft.Extensions.Logging.Abstractions;
 using AuditSphereOps.Domain.Accounting;
@@ -33,104 +34,32 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed partial class AuditDeliverablesTests
 {
-  private sealed record World(Guid FirmId, Guid ClientId, Guid EngagementId, Dictionary<string, AppUser> U, Guid ProcedureId, Guid ResultId)
-  {
-    public ActorContext A(string name, params string[] roles) => new(U[name].Id, FirmId, U[name].SessionEpoch, roles);
-  }
-
   private static AppUser NewUser(Guid firmId, string name, string kind = "Staff") => new()
   {
     Id = Guid.NewGuid(), FirmId = firmId, Subject = name + Guid.NewGuid().ToString("N"), TenantId = "tenant-del", Email = $"{name}-{Guid.NewGuid():N}@example.test",
     DisplayName = name, UserKind = kind, CreatedAt = DateTimeOffset.UtcNow
   };
 
-  private static async Task<World> SeedAsync(PgTestSchema pg)
+  private static async Task<World> SeedAsync(PgTestSchema pg, bool prepareHoldingRecipient = false)
   {
-    var (firmId, clientId, engagementId) = await pg.SeedScopeAsync();
-    var u = new[] { "partner", "partner2", "manager", "senior", "associate", "associate2" }.ToDictionary(x => x, x => NewUser(firmId, x));
-    u["client"] = NewUser(firmId, "client", "Client");
-    var now = DateTimeOffset.UtcNow;
-    await using var db = new AuditSphereDbContext(pg.Options);
-    await db.Engagements.Where(x => x.Id == engagementId).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, "Active").SetProperty(x => x.ProfessionalWorkBlocked, false)
-      .SetProperty(x => x.ServiceRoute, "FinancialStatementAudit").SetProperty(x => x.PeriodEnd, "2026-12-31"));
-    db.Users.AddRange(u.Values);
-    db.ClientPortalFirstSignIns.Add(PbcSeed.FirstSignIn(u["client"]));
-    RoleGrant G(string name, string role, Guid? client = null, Guid? engagement = null) => new()
-    { Id = Guid.NewGuid(), FirmId = firmId, UserId = u[name].Id, Role = role, ClientId = client, EngagementId = engagement, GrantedAt = now, GrantedByUserId = u[name].Id };
-    db.RoleGrants.AddRange(G("partner", "Partner"), G("partner2", "Partner"), G("client", "ClientUser", clientId, engagementId));
-    db.StaffCertifications.AddRange(new[] { "partner", "manager" }.Select(n => new StaffCertification { Id = Guid.NewGuid(), FirmId = firmId, UserId = u[n].Id, Name = "ACCA", RecordedAt = now, RecordedByUserId = u["partner"].Id }));
-    var versionId = Guid.NewGuid();
-    db.AuditProgramVersions.Add(new AuditProgramVersion { Id = versionId, FirmId = firmId, Version = "2026.1", SourceHash = Hashing.Sha256Hex("p"), Status = AuditProgramStatuses.Published,
-      CreatedByUserId = u["partner"].Id, ApprovedByUserId = u["partner"].Id, CreatedAt = now, ApprovedAt = now });
-    await db.SaveChangesAsync();
-    var administrator = await StaffingCertificationTestEvidence.CreateAdministratorAsync(db, firmId);
-    foreach (var certificationId in db.StaffCertifications.Local.Select(x => x.Id).ToArray())
-      await StaffingCertificationTestEvidence.ReviewAsync(db, administrator, certificationId);
-    var programId = Guid.NewGuid();
-    db.EngagementAuditPrograms.Add(new EngagementAuditProgram { Id = programId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId, ProgramVersionId = versionId, AdoptedByUserId = u["partner"].Id, AdoptedAt = now });
-    var procedure = new AuditProcedure { Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, EngagementProgramId = programId, SourceProcedureId = "REV-01",
-      SourceSectionTitle = "Revenue", Title = "Revenue cut-off", ApplicabilityStatus = AuditApplicabilityStatuses.Applicable, Status = AuditProcedureStatuses.Submitted, CurrentResultRevision = 1, CreatedAt = now };
-    db.AuditProcedures.Add(procedure);
-    var result = new AuditProcedureResult { Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, AuditProcedureId = procedure.Id, Revision = 1, InputGeneration = 1,
-      WorkPerformed = "Selected 25 invoices around year end and agreed them to dispatch notes.", StructuredResultJson = "{}", Conclusion = "Revenue is recorded in the correct period.",
-      PreparedByUserId = u["associate"].Id, SubmittedAt = now };
-    db.GoingConcernAssessments.Add(new GoingConcernAssessment { Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, AssessmentDate = new DateOnly(2027, 2, 1),
-      PeriodCoveredTo = new DateOnly(2028, 3, 31), ForecastReviewOutcome = "Reviewed", DisclosureAdequate = true, Conclusion = GoingConcernConclusions.NoMaterialUncertainty, Rationale = "Forecast reviewed",
-      Currency = "QAR", RecordedByUserId = u["senior"].Id, ReviewedByUserId = u["manager"].Id, RecordedAt = now, ReviewedAt = now });
-    db.AnalyticalReviewVarianceInvestigations.Add(new AnalyticalReviewVarianceInvestigation { Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId,
-      AccountArea = "Revenue", PeriodReference = "FY2026", ExpectedAmount = 100m, ActualAmount = 105m, DifferenceAmount = 5m, InvestigationThreshold = 10m, Conclusion = VarianceInvestigationConclusions.Explained,
-      Currency = "QAR", RecordedByUserId = u["senior"].Id, ReviewedByUserId = u["manager"].Id, RecordedAt = now, ReviewedAt = now });
-    db.Findings.Add(new Finding { Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, ActorId = u["senior"].Id, FindingType = "Control deficiency",
-      ImpactDescription = "Credit notes approved without review", MonetaryAmount = 12_000m, ManagementResponse = "Approval workflow introduced from March.", CreatedAt = now });
-    await CompletionTestFixtures.SeedTaxonomyAsync(db, firmId, u["partner"].Id);
-    var datasetId = Guid.NewGuid();
-    var mappingId = Guid.NewGuid();
-    var accounts = new (string Code, string Name, decimal Amount, string Destination, string Section)[]
-    {
-      ("1000", "Cash", 100m, "CASH", "ASSETS"),
-      ("4000", "Revenue", -100m, "REVENUE", "INCOME")
-    };
-    db.TrialBalanceDatasets.Add(new TrialBalanceDataset
-    {
-      Id = datasetId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId, SourceKind = "Raw", Currency = "QAR", Balanced = true,
-      ValidationStatus = "Accepted", ImportState = TrialBalanceImportStates.Loading, NormalizedDatasetDigest = Hashing.Sha256Hex(datasetId.ToString()),
-      ImportedAt = now, ImportedByUserId = u["partner2"].Id
-    });
-    db.TrialBalanceRows.AddRange(accounts.Select(a => new TrialBalanceRow
-    {
-      Id = Guid.NewGuid(), DatasetId = datasetId, AccountCode = a.Code, AccountName = a.Name, Amount = a.Amount, Currency = "QAR", Entity = "TEST"
-    }));
-    await db.SaveChangesAsync();
-    await db.TrialBalanceDatasets.Where(x => x.Id == datasetId).ExecuteUpdateAsync(s => s.SetProperty(x => x.ImportState, TrialBalanceImportStates.Sealed));
-    db.MappingVersions.Add(new MappingVersion
-    {
-      Id = mappingId, FirmId = firmId, ClientId = clientId, EngagementId = engagementId, DatasetId = datasetId, TaxonomyVersion = "TEST-IFRS",
-      PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Status = AccountingPackageStates.MappingApproved, CreatedByUserId = u["partner2"].Id,
-      ApprovedByUserId = u["partner"].Id, ApprovedAt = now, CreatedAt = now
-    });
-    db.MappingAllocations.AddRange(accounts.Select(a => new MappingAllocation
-    {
-      Id = Guid.NewGuid(), FirmId = firmId, ClientId = clientId, EngagementId = engagementId, MappingVersionId = mappingId,
-      SourceAccountCode = a.Code, DestinationCode = a.Destination, StatementSection = a.Section, Fraction = 1m, Rationale = "Mapped", CreatedAt = now
-    }));
-    await db.SaveChangesAsync();
-    var calc = await MaterialityEngineService.CalculateAsync(db, new ActorContext(u["partner2"].Id, firmId, u["partner2"].SessionEpoch, ["Partner"]),
-      new(engagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Revenue-driven trading entity"));
-    Assert.True(calc.Succeeded, calc.Message);
-    var apprv = await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, new ActorContext(u["partner"].Id, firmId, u["partner"].SessionEpoch, ["Partner"]), calc.Value!.AssessmentId);
-    Assert.True(apprv.Succeeded, apprv.Message);
-    result.InputGeneration = await db.ClientSafetyStates.AsNoTracking()
-      .Where(x => x.FirmId == firmId && x.Id == clientId).Select(x => x.InputGeneration).SingleAsync();
-    db.AuditProcedureResults.Add(result);
-    await db.SaveChangesAsync();
-    var w = new World(firmId, clientId, engagementId, u, procedure.Id, result.Id);
-    foreach (var (name, level) in new[] { ("partner", StaffingLevels.EngagementPartner), ("manager", StaffingLevels.AuditManager), ("senior", StaffingLevels.SeniorAuditor),
-      ("associate", StaffingLevels.StaffAssociate), ("associate2", StaffingLevels.StaffAssociate) })
-    {
-      await using var staffDb = new AuditSphereDbContext(pg.Options);
-      var assigned = await StaffingService.AssignAsync(staffDb, w.A("partner2", "Partner"), new(engagementId, u[name].Id, level));
-      Assert.True(assigned.Succeeded, $"{name}: {assigned.Message}");
-    }
+    var w = await SeedSupportedDeliverablesAsync(pg, prepareHoldingRecipient: prepareHoldingRecipient);
+    var engagementId = w.EngagementId;
+    // Completion prerequisites retain the independent review basis through the supported commands.
+    await using var completionDb = new AuditSphereDbContext(pg.Options);
+    var goingConcern = await AuditCompletionService.RecordGoingConcernAssessmentAsync(completionDb, w.A("senior", "Senior"),
+      new(engagementId, null, new DateOnly(2027, 2, 1), new DateOnly(2028, 3, 31),
+        "Reviewed", false, true, "QAR", "Forecast reviewed", ["synthetic-evidence:forecast"]));
+    Assert.True(goingConcern.Succeeded, goingConcern.Message);
+    var goingConcernReview = await AuditCompletionService.ReviewCompletionRecordAsync(completionDb, w.A("manager", "Manager"),
+      "GOING_CONCERN", goingConcern.Value!.AssessmentId, goingConcern.Value.Revision);
+    Assert.True(goingConcernReview.Succeeded, goingConcernReview.Message);
+    var variance = await AuditCompletionService.RecordVarianceInvestigationAsync(completionDb, w.A("senior", "Senior"),
+      new(engagementId, null, "Revenue", "FY2026", 100m, 105m, 10m, "QAR", null,
+        ["synthetic-evidence:revenue-analysis"]));
+    Assert.True(variance.Succeeded, variance.Message);
+    var varianceReview = await AuditCompletionService.ReviewCompletionRecordAsync(completionDb, w.A("manager", "Manager"),
+      "VARIANCE", variance.Value!.InvestigationId, variance.Value.Revision);
+    Assert.True(varianceReview.Succeeded, varianceReview.Message);
     return w;
   }
 
@@ -149,14 +78,14 @@ public sealed partial class AuditDeliverablesTests
     Assert.True((await AuditFieldworkService.ApproveWorkprogramsAsync(db, manager,
       new(w.EngagementId, "Current independent review of the applicable workprogram."))).Succeeded);
     var current = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, w.FirmId, w.ClientId, w.EngagementId);
-    Assert.DoesNotContain(current.Value!.Blockers, x => x.StartsWith("procedure:REV-01:", StringComparison.Ordinal));
+    Assert.DoesNotContain(current.Value!.Blockers, x => x.StartsWith($"procedure:{w.ProcedureCode}:", StringComparison.Ordinal));
     var firstSrm = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId &&
       x.Kind == DeliverableKinds.SummaryReviewMemorandum && x.SignedFromDeliverableId == null);
 
     await db.ClientSafetyStates.Where(x => x.FirmId == w.FirmId && x.Id == w.ClientId)
       .ExecuteUpdateAsync(x => x.SetProperty(state => state.InputGeneration, state => state.InputGeneration + 1));
     var stale = await AuditFieldworkService.EvaluateCompletionForAuthorizedScopeAsync(db, w.FirmId, w.ClientId, w.EngagementId);
-    Assert.Contains(stale.Value!.Blockers, x => x == "procedure:REV-01:stale-generation");
+    Assert.Contains(stale.Value!.Blockers, x => x == $"procedure:{w.ProcedureCode}:stale-generation");
 
     var refreshedId = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId,
       "Current procedure evidence was refreshed after the planning generation changed.")).Value;
@@ -171,8 +100,8 @@ public sealed partial class AuditDeliverablesTests
     const string baseline = "20261029134026_CompletionDecisionParentScope";
     const string current = "20261030104042_ReviewNoteParentScope";
     await using var pg = await PgTestSchema.CreateAsync(baseline);
-    var own = await SeedAsync(pg);
-    var foreign = await SeedAsync(pg);
+    var own = await SeedHistoricalScopeSpecimenAsync(pg);
+    var foreign = await SeedHistoricalScopeSpecimenAsync(pg);
     Guid ownNote;
     Guid foreignNote;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -346,7 +275,7 @@ public sealed partial class AuditDeliverablesTests
     foreach (var eventProbe in new[] { false, true })
     {
       await using var invalidPg = await PgTestSchema.CreateAsync(baseline);
-      var world = await SeedAsync(invalidPg);
+      var world = await SeedHistoricalScopeSpecimenAsync(invalidPg);
       var (foreignFirm, _, _) = await invalidPg.SeedScopeAsync();
       Guid source;
       await using (var db = new AuditSphereDbContext(invalidPg.Options))
@@ -473,7 +402,7 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal(ErrorCodes.GateBlocked, (await AuditDeliverableService.PartnerClearAsync(db, partner, afterResolve, "Risk areas reviewed.", "Notes reviewed.")).ErrorCode);
 
     // The preparer resubmits the reworked result and the reviewer issues the renewed review.
-    var resubmit = await AuditProgramService.SubmitResultAsync(db, associate, new SubmitProcedureResultRequest(w.ProcedureId, 1,
+    var resubmit = await AuditProgramService.SubmitResultAsync(db, associate, new SubmitProcedureResultRequest(w.ProcedureId, w.InputGeneration,
       "Selected 25 invoices around year end and agreed them to dispatch notes.", "{\"result\":\"PASS\"}", ["source:invoice-25"],
       "Revenue is recorded in the correct period; the sample size follows the firm table for moderate risk."));
     Assert.True(resubmit.Succeeded, resubmit.Message);
@@ -530,6 +459,7 @@ public sealed partial class AuditDeliverablesTests
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
+    var signedId = await SignedReportAsync(pg, w);
     var senior = w.A("senior", "Senior");
     var manager = w.A("manager", "Manager");
     var partner = w.A("partner", "Partner");
@@ -537,27 +467,22 @@ public sealed partial class AuditDeliverablesTests
     Guid srm, noteId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      Assert.True((await AuditProgramService.ReviewResultAsync(db, senior, new(w.ResultId, "REVIEWED", null))).Succeeded);
-      srm = (await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId, "Ready.")).Value;
-      Assert.True((await AuditDeliverableService.PartnerClearAsync(db, partner, srm, "Risk areas reviewed.", "Notes reviewed.")).Succeeded);
-      Assert.True((await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "UNMODIFIED", null, null)).Succeeded);
+      srm = (await db.PartnerCompletionClearances.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId)).SummaryReviewMemorandumId;
       // An open note and an unreviewed submitted revision stay available for the frozen attempts below.
       var note = await ReviewNotesService.AddNoteAsync(db, senior, new(w.ResultId, "WORK_PERFORMED", "25 invoices", "Show the sample derivation."));
       Assert.True(note.Succeeded, note.Message);
       noteId = note.Value;
-      Assert.True((await AuditProgramService.SubmitResultAsync(db, associate, new SubmitProcedureResultRequest(w.ProcedureId, 1,
+      Assert.True((await AuditProgramService.SubmitResultAsync(db, associate, new SubmitProcedureResultRequest(w.ProcedureId, w.InputGeneration,
         "Reworked evidence review.", "{\"result\":\"PASS\"}", ["source:invoice-25"], "No exception noted."))).Succeeded);
     }
-    var signedAt = DateTimeOffset.UtcNow.AddDays(-61);
-    var freezeId = Guid.NewGuid();
+    Guid freezeId;
+    DateTimeOffset dueAt;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      db.EngagementFileFreezes.Add(new EngagementFileFreeze
-      {
-        Id = freezeId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, ReportDeliverableId = srm,
-        ReportSignedAt = signedAt, DueAt = signedAt.AddDays(60), State = FileFreezeStates.Scheduled, Revision = 1, UpdatedAt = signedAt
-      });
-      await db.SaveChangesAsync();
+      var freeze = await db.EngagementFileFreezes.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId);
+      Assert.Equal((FileFreezeStates.Scheduled, signedId), (freeze.State, freeze.ReportDeliverableId));
+      freezeId = freeze.Id;
+      dueAt = freeze.DueAt;
     }
 
     // The frozen-state check takes a shared lock on the engagement row inside the caller's transaction:
@@ -579,10 +504,11 @@ public sealed partial class AuditDeliverablesTests
     // The worker freezes the due file through its public discovery/handler path.
     var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
     var store = new PostgresOperationStore(factory);
-    var handler = new FileFreezeHandler(TimeProvider.System);
+    var clock = new FixedClock(dueAt);
+    var handler = new FileFreezeHandler(clock);
     var options = new WorkerOptions(w.FirmId, "Test");
     var worker = new AuditSphereOps.Worker.Worker(new OperationDispatcher(store, new DurableOperationRegistry([handler], options), options),
-      [new FileFreezeDiscovery(factory, store, handler, options, TimeProvider.System)], NullLogger<AuditSphereOps.Worker.Worker>.Instance);
+      [new FileFreezeDiscovery(factory, store, handler, options, clock)], NullLogger<AuditSphereOps.Worker.Worker>.Instance);
     Assert.True(await worker.ProcessNextAsync());
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -601,7 +527,7 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(ErrorCodes.ProtectedState, (await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "UNMODIFIED", null, null)).ErrorCode);
       Assert.Equal(ErrorCodes.ProtectedState, (await ReviewNotesService.AddNoteAsync(db, senior, new(w.ResultId, "WORK_PERFORMED", "25 invoices", "Frozen attempt."))).ErrorCode);
       Assert.Equal(ErrorCodes.ProtectedState, (await ReviewNotesService.RespondAsync(db, associate, noteId, "Frozen attempt.")).ErrorCode);
-      Assert.Equal(ErrorCodes.ProtectedState, (await AuditProgramService.SubmitResultAsync(db, associate, new SubmitProcedureResultRequest(w.ProcedureId, 1,
+      Assert.Equal(ErrorCodes.ProtectedState, (await AuditProgramService.SubmitResultAsync(db, associate, new SubmitProcedureResultRequest(w.ProcedureId, w.InputGeneration,
         "Frozen attempt.", "{\"result\":\"PASS\"}", ["source:frozen"], "Frozen attempt."))).ErrorCode);
       var currentResult = await db.AuditProcedureResults.AsNoTracking().Where(x => x.AuditProcedureId == w.ProcedureId).OrderByDescending(x => x.Revision).FirstAsync();
       Assert.Equal(ErrorCodes.ProtectedState, (await AuditProgramService.ReviewResultAsync(db, senior, new(currentResult.Id, "REVIEWED", null))).ErrorCode);
@@ -631,25 +557,23 @@ public sealed partial class AuditDeliverablesTests
   public async Task CriticalUnreturnedConfirmationKeepsBlockingAfterAlternativeClosureAndCriticalityReassessment(bool legacySnapshot)
   {
     await using var pg = await PgTestSchema.CreateAsync();
-    var w = await SeedAsync(pg);
+    var w = await SeedAsync(pg, prepareHoldingRecipient: true);
     var senior = w.A("senior", "Senior");
     var manager = w.A("manager", "Manager");
     var partner = w.A("partner", "Partner");
-    Guid bankId = Guid.NewGuid();
-    Guid debtorId = Guid.NewGuid();
+    Guid bankId;
+    Guid debtorId;
     await using var db = new AuditSphereDbContext(pg.Options);
     Assert.True((await AuditProgramService.ReviewResultAsync(db, senior, new(w.ResultId, "REVIEWED", null))).Succeeded);
-    foreach (var (id, area, respondent) in new[] { (bankId, "BANK", "Qatar National Bank"), (debtorId, "RECEIVABLES", "Gulf Trading Customer") })
-    {
-      db.AuditConfirmationCases.Add(new AuditConfirmationCase
-      {
-        Id = id, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, AreaCode = area,
-        SourceRecordId = "ACC-" + area, BookedAmount = 500_000m, Currency = "QAR", ConfirmationDate = new DateOnly(2026, 12, 31), Respondent = respondent,
-        ContactValidationSource = "Verified channel", Status = AuditConfirmationStatuses.Dispatched, DispatchReference = "DISP-" + area,
-        DispatchedAt = DateTimeOffset.UtcNow.AddDays(-25), CreatedByUserId = w.U["senior"].Id, CreatedAt = DateTimeOffset.UtcNow.AddDays(-26)
-      });
-    }
-    await db.SaveChangesAsync();
+    bankId = await CreateSupportedDispatchedConfirmationAsync(db, w, AuditAreaCodes.CashBank, "ACC-BANK", 500_000m,
+      "Qatar National Bank", "Verified channel", "DISP-BANK");
+    debtorId = await CreateSupportedDispatchedConfirmationAsync(db, w, "RECEIVABLES", "ACC-RECEIVABLES", 500_000m,
+      "Gulf Trading Customer", "Verified channel", "DISP-RECEIVABLES");
+    var observation = (await db.AuditConfirmationCases.AsNoTracking().Where(x => x.EngagementId == w.EngagementId)
+      .MaxAsync(x => x.DispatchedAt))!.Value.AddDays(25);
+    var aged = await AuditDeliverableService.ConfirmationDashboardAtAsync(db, senior, w.EngagementId, observation);
+    Assert.True(aged.Succeeded, aged.Message);
+    Assert.All(aged.Value!, row => Assert.Equal(25, row.DaysSinceDispatch));
     Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, bankId, true, "Bank is material to cash and the opinion")).Succeeded);
     Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, debtorId, true, "Receivables are material")).Succeeded);
 
@@ -706,14 +630,12 @@ public sealed partial class AuditDeliverablesTests
     Assert.Empty(await db.CommercialNotifications.AsNoTracking().Where(x => x.DeliverableId == held.HoldingLetterId).ToListAsync());
 
     // Configuring the client-management recipient dispatches the exact letter once, to that recipient only.
-    var recipient = new ClientContact { Id = Guid.NewGuid(), FirmId = w.FirmId, PracticeClientId = w.ClientId, FullName = "Client MD",
-      Email = "md@client.example.test", Role = "Managing Director", Primary = true, IsActive = true };
-    var routingId = Guid.NewGuid();
-    db.ClientContacts.Add(recipient);
-    db.ClientContactRoutings.Add(new ClientContactRouting { Id = routingId, FirmId = w.FirmId, PracticeClientId = w.ClientId,
-      ClientContactId = recipient.Id, Purpose = CorrespondencePurposes.Completion, IsPrimaryForPurpose = true,
-      CreatedByUserId = w.U["manager"].Id, CreatedAt = DateTimeOffset.UtcNow });
-    await db.SaveChangesAsync();
+    var recipient = await db.ClientContacts.AsNoTracking().SingleAsync(x => x.FirmId == w.FirmId &&
+      x.PracticeClientId == w.ClientId && x.Email == "md@client.example.test");
+    var routing = await PracticeCrmService.AssignContactRoutingAsync(db, partner,
+      new(w.ClientId, recipient.Id, CorrespondencePurposes.Completion));
+    Assert.True(routing.Succeeded, routing.Message);
+    var routingId = routing.Value;
 
     var currentLetter = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == held.HoldingLetterId);
     if (legacySnapshot)
@@ -960,21 +882,19 @@ public sealed partial class AuditDeliverablesTests
     var senior = w.A("senior", "Senior");
     var manager = w.A("manager", "Manager");
     var partner = w.A("partner", "Partner");
-    Guid bankId = Guid.NewGuid();
-    Guid debtorId = Guid.NewGuid();
+    Guid bankId;
+    Guid debtorId;
     await using var db = new AuditSphereDbContext(pg.Options);
     Assert.True((await AuditProgramService.ReviewResultAsync(db, senior, new(w.ResultId, "REVIEWED", null))).Succeeded);
-    foreach (var (id, area, respondent) in new[] { (bankId, "BANK", "Qatar National Bank"), (debtorId, "RECEIVABLES", "Gulf Trading Customer") })
-    {
-      db.AuditConfirmationCases.Add(new AuditConfirmationCase
-      {
-        Id = id, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, AreaCode = area,
-        SourceRecordId = "ACC-" + area, BookedAmount = 500_000m, Currency = "QAR", ConfirmationDate = new DateOnly(2026, 12, 31), Respondent = respondent,
-        ContactValidationSource = "Verified channel", Status = AuditConfirmationStatuses.Dispatched, DispatchReference = "DISP-" + area,
-        DispatchedAt = DateTimeOffset.UtcNow.AddDays(-25), CreatedByUserId = w.U["senior"].Id, CreatedAt = DateTimeOffset.UtcNow.AddDays(-26)
-      });
-    }
-    await db.SaveChangesAsync();
+    bankId = await CreateSupportedDispatchedConfirmationAsync(db, w, AuditAreaCodes.CashBank, "ACC-BANK", 500_000m,
+      "Qatar National Bank", "Verified channel", "DISP-BANK");
+    debtorId = await CreateSupportedDispatchedConfirmationAsync(db, w, "RECEIVABLES", "ACC-RECEIVABLES", 500_000m,
+      "Gulf Trading Customer", "Verified channel", "DISP-RECEIVABLES");
+    var observation = (await db.AuditConfirmationCases.AsNoTracking().Where(x => x.EngagementId == w.EngagementId)
+      .MaxAsync(x => x.DispatchedAt))!.Value.AddDays(25);
+    var aged = await AuditDeliverableService.ConfirmationDashboardAtAsync(db, senior, w.EngagementId, observation);
+    Assert.True(aged.Succeeded, aged.Message);
+    Assert.All(aged.Value!, row => Assert.Equal(25, row.DaysSinceDispatch));
     Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, bankId, true, "Bank is material to cash and the opinion")).Succeeded);
     Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, debtorId, true, "Receivables are material")).Succeeded);
 
@@ -1016,18 +936,16 @@ public sealed partial class AuditDeliverablesTests
     var partner = w.A("partner", "Partner");
     var manager = w.A("manager", "Manager");
     var client = w.A("client", "ClientUser");
-    Guid confirmationId = Guid.NewGuid();
+    Guid confirmationId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       Assert.True((await AuditProgramService.ReviewResultAsync(db, w.A("senior", "Senior"), new(w.ResultId, "REVIEWED", null))).Succeeded);
-      db.AuditConfirmationCases.Add(new AuditConfirmationCase { Id = confirmationId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, AreaCode = "BANK",
-        SourceRecordId = "ACC-1000", BookedAmount = 800_000m, Currency = "QAR", ConfirmationDate = new DateOnly(2026, 12, 31), Respondent = "Qatar National Bank",
-        ContactValidationSource = "Bank website", Status = AuditConfirmationStatuses.Dispatched, DispatchReference = "DISP-1", DispatchedAt = DateTimeOffset.UtcNow.AddDays(-20),
-        CreatedByUserId = w.U["senior"].Id, CreatedAt = DateTimeOffset.UtcNow.AddDays(-21) });
-      await db.SaveChangesAsync();
+      confirmationId = await CreateSupportedDispatchedConfirmationAsync(db, w, AuditAreaCodes.CashBank, "ACC-1000", 800_000m,
+        "Qatar National Bank", "Bank website", "DISP-1");
+      var dispatchedAt = (await db.AuditConfirmationCases.AsNoTracking().SingleAsync(x => x.Id == confirmationId)).DispatchedAt!.Value;
       Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.SetConfirmationCriticalityAsync(db, w.A("senior", "Senior"), confirmationId, true, "Cash is material")).ErrorCode);
       Assert.True((await AuditDeliverableService.SetConfirmationCriticalityAsync(db, manager, confirmationId, true, "Cash balance is material to the opinion")).Succeeded);
-      var dashboard = (await AuditDeliverableService.ConfirmationDashboardAsync(db, w.A("senior", "Senior"), w.EngagementId)).Value!.Single();
+      var dashboard = (await AuditDeliverableService.ConfirmationDashboardAtAsync(db, w.A("senior", "Senior"), w.EngagementId, dispatchedAt.AddDays(20))).Value!.Single();
       Assert.Equal(("Bank", "FOLLOW_UP_DUE", true, 20), (dashboard.Type, dashboard.Monitoring, dashboard.Critical, dashboard.DaysSinceDispatch));
     }
 
@@ -1138,20 +1056,7 @@ public sealed partial class AuditDeliverablesTests
 
       // EQR enforcement: when an EQR case exists, non-concurred status blocks signing
       var eqrPartner = w.A("partner2", "Partner");
-      var adminId = Guid.NewGuid();
-      db.Users.Add(new AppUser
-      {
-        Id = adminId, FirmId = w.FirmId, Subject = "eqr-admin-" + adminId.ToString("N"), TenantId = "tenant-del",
-        Email = $"eqr-admin-{adminId:N}@example.test", DisplayName = "EQR Administrator", UserKind = "Staff",
-        SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
-      });
-      db.RoleGrants.Add(new RoleGrant
-      {
-        Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = adminId, Role = "Administrator",
-        GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = partner.UserId
-      });
-      await db.SaveChangesAsync();
-      var eqrAdmin = new ActorContext(adminId, w.FirmId, 1, ["Administrator"]);
+      var eqrAdmin = w.A("administrator", "Administrator");
 
       async Task<RecordEqrDecisionRequest> Reviewed(ActorContext reviewer, string status, string notes, bool discussed)
       {
@@ -1179,7 +1084,7 @@ public sealed partial class AuditDeliverablesTests
         await Reviewed(eqrAdmin, "CHANGES_REQUESTED", "Administrative review note", false));
       Assert.True(adminChanges.Succeeded, adminChanges.Message);
       var adminDecision = await db.EqrDecisions.AsNoTracking().SingleAsync(x => x.Id == adminChanges.Value);
-      Assert.Equal(adminId, adminDecision.DecidedByUserId);
+      Assert.Equal(eqrAdmin.UserId, adminDecision.DecidedByUserId);
       Assert.Equal(2, adminDecision.Revision);
 
       // Concurrence without findings discussed is refused
@@ -1339,21 +1244,34 @@ public sealed partial class AuditDeliverablesTests
     var retained = await db.EqrDecisions.AsNoTracking().SingleAsync(x => x.Id == decided.Value);
     Assert.Equal((reviewer.UserId, basis.Value.FactsDigest, basis.Value.ReportDeliverableId, basis.Value.ReportSha256),
       (retained.DecidedByUserId, retained.ReviewedFactsDigest, retained.ReviewedReportDeliverableId, retained.ReviewedReportSha256));
+    // Sign while the exact independent concurrence is current, before the later review reopens.
+    var signed = await AuditDeliverableService.SignIndependentReportAsync(db, w.A("partner", "Partner"), nextReport.Value!.DeliverableId!.Value);
+    Assert.True(signed.Succeeded, signed.Message);
     var laterBasis = await AuditDeliverableService.GetEqrReviewBasisAsync(db, reviewer, w.EngagementId);
     Assert.True(laterBasis.Succeeded, laterBasis.Message);
     var later = await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId,
       new("IN_PROGRESS", null, false, Guid.NewGuid().ToString("D"), laterBasis.Value!.CaseRevision,
         laterBasis.Value.FactsDigest, laterBasis.Value.ReportDeliverableId, laterBasis.Value.ReportSha256));
     Assert.True(later.Succeeded, later.Message);
-    var otherReviewer = NewUser(w.FirmId, "unassigned-eqr");
-    var siblingEngagement = Guid.NewGuid();
-    db.Engagements.Add(new Engagement { Id = siblingEngagement, FirmId = w.FirmId, PracticeClientId = w.ClientId, CreatedAt = DateTimeOffset.UtcNow });
-    db.Users.Add(otherReviewer);
-    db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = otherReviewer.Id,
-      Role = "Partner", ClientId = w.ClientId, EngagementId = w.EngagementId, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = reviewer.UserId });
-    db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = otherReviewer.Id,
-      Role = "Administrator", ClientId = w.ClientId, EngagementId = siblingEngagement, GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = reviewer.UserId });
-    await db.SaveChangesAsync();
+    var admin = w.A("administrator", "Administrator");
+    var state = await EngagementCreationWorkspace.StateAsync(db, w.A("partner", "Partner"), w.ClientId);
+    Assert.True(state.Succeeded, state.Message);
+    var draft = new EngagementCreationRequest(Guid.NewGuid(), state.Value!.ReviewBasis,
+      new("Audit", "Audit", "2027-01-01", "2027-12-31"));
+    var preview = await EngagementCreationWorkspace.PreviewAsync(db, w.A("partner", "Partner"), w.ClientId, draft);
+    Assert.True(preview.Succeeded, preview.Message);
+    var sibling = await EngagementCreationWorkspace.ExecuteAsync(db, w.A("partner", "Partner"), w.ClientId,
+      draft with { Reviewed = true, ExpectedRequestHash = preview.Value!.RequestHash });
+    Assert.True(sibling.Succeeded, sibling.Message);
+    var other = await RoleAdministrationService.EnsureUserAsync(db, admin,
+      new(w.U["administrator"].TenantId, Guid.NewGuid().ToString("D"), $"unassigned-eqr-{Guid.NewGuid():N}@example.test",
+        "unassigned-eqr", "Staff", "APPROVED_ROSTER"));
+    Assert.True(other.Succeeded, other.Message);
+    Assert.True((await RoleAdministrationService.ApplyRoleGrantAsync(db, admin,
+      new(other.Value, "Partner", "ENGAGEMENT", w.ClientId, w.EngagementId))).Succeeded);
+    Assert.True((await RoleAdministrationService.ApplyRoleGrantAsync(db, admin,
+      new(other.Value, "Administrator", "ENGAGEMENT", w.ClientId, sibling.Value!.EngagementId))).Succeeded);
+    var otherReviewer = await db.Users.AsNoTracking().SingleAsync(x => x.Id == other.Value);
     var otherActor = new ActorContext(otherReviewer.Id, w.FirmId, otherReviewer.SessionEpoch, ["Partner", "Administrator"]);
     Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.GetEqrReviewBasisAsync(db, otherActor, w.EngagementId)).ErrorCode);
     Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.RecordEqrDecisionAsync(db, otherActor, w.EngagementId, original)).ErrorCode);
@@ -1378,11 +1296,17 @@ public sealed partial class AuditDeliverablesTests
     hold.Released = true;
     hold.ReleasedAt = DateTimeOffset.UtcNow;
     await db.SaveChangesAsync();
-    var frozenAt = DateTimeOffset.UtcNow;
-    db.EngagementFileFreezes.Add(new EngagementFileFreeze { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId,
-      EngagementId = w.EngagementId, ReportDeliverableId = Assert.IsType<Guid>(nextReport.Value!.DeliverableId), ReportSignedAt = frozenAt.AddDays(-61),
-      DueAt = frozenAt.AddDays(-1), State = FileFreezeStates.Frozen, FrozenAt = frozenAt, UpdatedAt = frozenAt });
-    await db.SaveChangesAsync();
+    var scheduled = await db.EngagementFileFreezes.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId);
+    Assert.Equal((FileFreezeStates.Scheduled, signed.Value), (scheduled.State, scheduled.ReportDeliverableId));
+    var clock = new FixedClock(scheduled.DueAt);
+    var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    var store = new PostgresOperationStore(factory);
+    var handler = new FileFreezeHandler(clock);
+    var options = new WorkerOptions(w.FirmId, "Test");
+    var worker = new AuditSphereOps.Worker.Worker(new OperationDispatcher(store, new DurableOperationRegistry([handler], options), options),
+      [new FileFreezeDiscovery(factory, store, handler, options, clock)], NullLogger<AuditSphereOps.Worker.Worker>.Instance);
+    Assert.True(await worker.ProcessNextAsync());
+    Assert.Equal(FileFreezeStates.Frozen, (await db.EngagementFileFreezes.AsNoTracking().SingleAsync(x => x.Id == scheduled.Id)).State);
     Assert.Equal(ErrorCodes.ProtectedState, (await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId, fresh)).ErrorCode);
     Assert.Equal(decided.Value, (await AuditDeliverableService.RecordEqrDecisionAsync(db, reviewer, w.EngagementId, original)).Value);
     Assert.Single(await db.FrozenAccessAttempts.AsNoTracking().Where(x => x.EngagementId == w.EngagementId && x.Action == "record EQR decision").ToListAsync());
@@ -1413,9 +1337,11 @@ public sealed partial class AuditDeliverablesTests
     await using var db = new AuditSphereDbContext(pg.Options);
     Assert.True((await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId, "UNMODIFIED", null, null)).Succeeded);
     var letter = (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.RepresentationLetter)).Value!.DeliverableId!.Value;
-    var review = (await AuditDeliverableService.ShareWithClientAsync(db, manager, letter)).Value;
-    Assert.True((await AuditDeliverableService.AcknowledgeAsync(db, w.A("client", "ClientUser"), review,
-      (await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == letter)).ContentSha256)).Succeeded);
+    var shared = await AuditDeliverableService.ShareWithClientAsync(db, manager, letter);
+    Assert.True(shared.Succeeded, $"ShareWithClientAsync: {shared.ErrorCode} - {shared.Message}");
+    var acknowledged = await AuditDeliverableService.AcknowledgeAsync(db, w.A("client", "ClientUser"), shared.Value,
+      (await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == letter)).ContentSha256);
+    Assert.True(acknowledged.Succeeded, $"AcknowledgeAsync: {acknowledged.ErrorCode} - {acknowledged.Message}");
     var representation = await db.AuditDeliverables.AsNoTracking().SingleAsync(x => x.Id == letter);
     var scan = await AuditDeliverableService.UploadSignedRepresentationAsync(db, w.A("client", "ClientUser"), letter,
       representation.ContentSha256, "Authorized Management", CompletionTestFixtures.SignedPdf());
@@ -1465,12 +1391,12 @@ public sealed partial class AuditDeliverablesTests
   {
     const string baseline = "20261029124914_ArchiveCopyOperationScope";
     const string current = "20261029134026_CompletionDecisionParentScope";
-    await using var pg = await PgTestSchema.CreateAsync(baseline);
+    await using var sourcePg = await PgTestSchema.CreateAsync();
     async Task<(World World, Guid Srm, Guid Clearance, Guid Opinion)> CompleteAsync()
     {
-      var w = await SeedAsync(pg);
-      var srmId = await PartnerClearCurrentSummaryAsync(pg, w);
-      await using var db = new AuditSphereDbContext(pg.Options);
+      var w = await SeedAsync(sourcePg);
+      var srmId = await PartnerClearCurrentSummaryAsync(sourcePg, w);
+      await using var db = new AuditSphereDbContext(sourcePg.Options);
       var partner = w.A("partner", "Partner");
       var decided = await AuditDeliverableService.DecideOpinionAsync(db, partner, w.EngagementId,
         AuditOpinionTypes.Unmodified, null, null);
@@ -1479,6 +1405,7 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(DeliverableKinds.SummaryReviewMemorandum, srm.Kind);
       Assert.Equal((w.FirmId, w.ClientId, w.EngagementId), (srm.FirmId, srm.ClientId, srm.EngagementId));
       Assert.NotEmpty(srm.Content);
+      Assert.Null(srm.SignedFromDeliverableId);
       Assert.Equal(Hashing.Sha256Hex(srm.Content), srm.ContentSha256);
       var amounts = await db.TrialBalanceRows.AsNoTracking()
         .Where(r => db.TrialBalanceDatasets.Any(d => d.Id == r.DatasetId && d.FirmId == w.FirmId && d.EngagementId == w.EngagementId))
@@ -1495,12 +1422,13 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(clearance.Id, opinion.PartnerClearanceId);
       Assert.Equal(AuditOpinionTypes.Unmodified, opinion.OpinionType);
       Assert.Null(opinion.BasisText);
+      Assert.Null(opinion.AffectedTaxonomyNodeId);
       return (w, srmId, clearance.Id, opinion.Id);
     }
     var own = await CompleteAsync();
     var foreign = await CompleteAsync();
     Assert.NotEqual(own.World.FirmId, foreign.World.FirmId);
-    await using (var db = new AuditSphereDbContext(pg.Options))
+    await using (var db = new AuditSphereDbContext(sourcePg.Options))
       foreach (var (actor, other) in new[]
       {
         (own.World.A("partner", "Partner"), foreign), (foreign.World.A("partner", "Partner"), own)
@@ -1513,6 +1441,14 @@ public sealed partial class AuditDeliverablesTests
         Assert.Null(await AuditDeliverableService.CurrentClearanceAsync(db, actor, other.World.EngagementId));
         Assert.Null(await AuditDeliverableService.CurrentOpinionAsync(db, actor, other.World.EngagementId));
       }
+
+    // Actual current commands above prove professional approval/currentness and permission denial.
+    // The old schema below proves only retained exact output bytes and relational migration behavior.
+    await using var pg = await PgTestSchema.CreateAsync(baseline);
+    await SeedHistoricalOpinionRetentionAsync(pg, own.World);
+    await SeedHistoricalOpinionRetentionAsync(pg, foreign.World);
+    await ImportExactOpinionOutputsAsync(sourcePg, pg,
+      [own.Srm, foreign.Srm], [own.Clearance, foreign.Clearance], [own.Opinion, foreign.Opinion]);
 
     var otherClient = Guid.CreateVersion7();
     var otherClientEngagement = Guid.CreateVersion7();
@@ -2019,7 +1955,7 @@ public sealed partial class AuditDeliverablesTests
     await using (var migrationDb = new AuditSphereDbContext(pg.Options))
       await migrationDb.GetService<IMigrator>().MigrateAsync(priorMigration);
 
-    var w = await SeedAsync(pg);
+    var w = await SeedHistoricalScopeSpecimenAsync(pg);
     var (foreignFirmId, _, _) = await pg.SeedScopeAsync();
     var manager = w.A("manager", "Manager");
     var caseId = Guid.NewGuid();

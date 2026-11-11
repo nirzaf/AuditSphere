@@ -79,7 +79,7 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal(1, (await MyTask()).UnmetEvidencePrerequisites);
 
     var resubmission = await AuditProgramService.SubmitResultAsync(db, associate,
-      new SubmitProcedureResultRequest(w.ProcedureId, 1, "Reworked the sample against source evidence.",
+      new SubmitProcedureResultRequest(w.ProcedureId, w.InputGeneration, "Reworked the sample against source evidence.",
         "{\"result\":\"PASS\"}", ["source:updated-sample"], "Updated evidence addresses the review comment."));
     Assert.True(resubmission.Succeeded, resubmission.Message);
     var underReview = await WorkflowTaskQueueQuery.GetAsync(db, associate, new WorkflowTaskQueueRequest("UNDER_REVIEW"));

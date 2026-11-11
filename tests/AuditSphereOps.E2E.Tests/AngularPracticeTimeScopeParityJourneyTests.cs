@@ -325,114 +325,22 @@ public sealed class AngularPracticeTimeScopeParityJourneyTests
   [Trait("CaseId", "AS-PAR-002-ANG-TIME-ENG-01")]
   public async Task EngagementScopedTimeQueueHidesSiblingTasksEntriesAndClientPeriods()
   {
-    await using var host = await OwnedHost.StartAsync(startWorker: false,
-      caseId: "AS-PAR-002-ANG-TIME-ENG-01");
-    var f = host.Fixture;
-    var engagementManager = PbcSeed.User(f.FirmId, "Staff");
-    var siblingEngagementId = Guid.NewGuid();
-    var assignedTaskId = Guid.NewGuid();
-    var siblingTaskId = Guid.NewGuid();
     const string periodCode = "SYN-PAR-002-TIME-CLIENT-PERIOD";
     const string assignedTaskTitle = "SYN-PAR-002-ASSIGNED-ENGAGEMENT-TASK";
     const string siblingTaskTitle = "SYN-PAR-002-SIBLING-ENGAGEMENT-TASK";
     const string assignedNarrative = "SYN-PAR-002-ASSIGNED-TIME-NARRATIVE";
     const string siblingNarrative = "SYN-PAR-002-SIBLING-TIME-NARRATIVE";
-    var pagedEntryIds = new List<Guid>();
-
-    await using (var db = host.CreateDbContext())
+    SupportedTimeScopeFixture? prepared = null;
+    await using var host = await OwnedHost.StartSupportedAsync("AS-PAR-002-ANG-TIME-ENG-01", async database =>
     {
-      var mappingId = Guid.NewGuid();
-      var datasetId = Guid.NewGuid();
-      var now = DateTimeOffset.UtcNow;
-      db.Users.Add(engagementManager);
-      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, engagementManager, "Manager",
-        clientId: f.ClientId, engagementId: f.EngagementId));
-      db.Engagements.Add(new AuditSphereOps.Domain.Engagements.Engagement
-      {
-        Id = siblingEngagementId, FirmId = f.FirmId, PracticeClientId = f.ClientId,
-        Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
-      });
-      db.ClientReportingPeriods.Add(new ClientReportingPeriod
-      {
-        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId,
-        PeriodCode = periodCode, StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31),
-        Basis = "STATUTORY", Currency = "QAR", CreatedByUserId = f.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
-      });
-      db.TrialBalanceDatasets.Add(new TrialBalanceDataset
-      {
-        Id = datasetId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
-        SourceKind = "Raw", Currency = "QAR", Balanced = true, ControlTotal = 0m,
-        ValidationStatus = "Accepted", ImportState = TrialBalanceImportStates.Loading,
-        NormalizedDatasetDigest = AuditSphereOps.Domain.Shared.Hashing.Sha256Hex(datasetId.ToString()),
-        ImportedAt = now, ImportedByUserId = f.Staff.Id
-      });
-      await db.SaveChangesAsync();
-      await db.TrialBalanceDatasets.Where(x => x.Id == datasetId)
-        .ExecuteUpdateAsync(update => update.SetProperty(x => x.ImportState, TrialBalanceImportStates.Sealed));
-      db.MappingVersions.Add(new MappingVersion
-      {
-        Id = mappingId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
-        DatasetId = datasetId, TaxonomyVersion = "time-e2e-v1", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
-        Status = AccountingPackageStates.MappingApproved, CreatedByUserId = f.Staff.Id,
-        ApprovedByUserId = f.Reviewer.Id, ApprovedAt = now, CreatedAt = now
-      });
-      db.MappingAllocations.Add(new MappingAllocation
-      {
-        Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
-        MappingVersionId = mappingId, SourceAccountCode = "1000", DestinationCode = "CASH",
-        StatementSection = "ASSETS", Fraction = 1m, Rationale = "Synthetic approved mapping", CreatedAt = now
-      });
-      db.WorkTasks.AddRange(
-        new WorkTask
-        {
-          Id = assignedTaskId, FirmId = f.FirmId, ClientId = f.ClientId,
-          EngagementId = f.EngagementId, Title = assignedTaskTitle, MappingVersionId = mappingId,
-          FsliCode = "CASH", CreatedAt = DateTimeOffset.UtcNow
-        },
-        new WorkTask
-        {
-          Id = siblingTaskId, FirmId = f.FirmId, ClientId = f.ClientId,
-          EngagementId = siblingEngagementId, Title = siblingTaskTitle, CreatedAt = DateTimeOffset.UtcNow
-        });
-      db.TimeEntries.AddRange(
-        new TimeEntry
-        {
-          Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId,
-          EngagementId = f.EngagementId, TaskId = assignedTaskId, UserId = f.Staff.Id,
-          WorkDate = new DateOnly(2026, 9, 10), StartMinute = 540, DurationMinutes = 60,
-          Role = "Staff", Activity = "Fieldwork", Narrative = assignedNarrative,
-          MappingVersionId = mappingId, FsliCode = "CASH",
-          BillableClassification = PracticeTimeStates.NonBillable,
-          Status = PracticeTimeStates.TimeSubmitted, SubmittedAt = DateTimeOffset.UtcNow,
-          NarrativeVisibility = PracticeTimeStates.NarrativeInternal, Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
-        },
-        new TimeEntry
-        {
-          Id = Guid.NewGuid(), FirmId = f.FirmId, ClientId = f.ClientId,
-          EngagementId = siblingEngagementId, TaskId = siblingTaskId, UserId = f.Staff.Id,
-          WorkDate = new DateOnly(2026, 9, 11), StartMinute = 540, DurationMinutes = 60,
-          Role = "Staff", Activity = "Review", Narrative = siblingNarrative,
-          BillableClassification = PracticeTimeStates.NonBillable,
-          Status = PracticeTimeStates.TimeSubmitted, SubmittedAt = DateTimeOffset.UtcNow,
-          NarrativeVisibility = PracticeTimeStates.NarrativeInternal, Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
-        });
-      // Retained synthetic pending rows cross the default approval page boundary; no review is fabricated.
-      for (var index = 0; index < 50; index++)
-      {
-        var entryId = Guid.NewGuid();
-        pagedEntryIds.Add(entryId);
-        db.TimeEntries.Add(new TimeEntry
-        {
-          Id = entryId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
-          TaskId = assignedTaskId, UserId = f.Staff.Id, WorkDate = new DateOnly(2026, 9, 11),
-          StartMinute = 600 + index * 2, DurationMinutes = 1, Role = "Staff", Activity = "Fieldwork",
-          Narrative = $"SYN-PAGING-TIME-{index}", MappingVersionId = mappingId, FsliCode = "CASH",
-          BillableClassification = PracticeTimeStates.NonBillable, Status = PracticeTimeStates.TimeSubmitted,
-          SubmittedAt = now, NarrativeVisibility = PracticeTimeStates.NarrativeInternal, Currency = "QAR", CreatedAt = now
-        });
-      }
-      await db.SaveChangesAsync();
-    }
+      prepared = await SupportedTimeScopeFixture.CreateAsync(database, periodCode,
+        assignedTaskTitle, siblingTaskTitle, assignedNarrative, siblingNarrative);
+      return prepared.Manager.FirmId;
+    });
+    var fixture = prepared ?? throw new InvalidOperationException("Supported time scope was not prepared.");
+    var engagementManager = fixture.Manager;
+    var assignedTaskId = fixture.AssignedTaskId;
+    var pagedEntryIds = fixture.PagedEntryIds;
 
     var origin = await host.StartApiForIdentityAsync(engagementManager,
       new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" });
@@ -440,6 +348,7 @@ public sealed class AngularPracticeTimeScopeParityJourneyTests
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
+    await using var evidence = new SyntheticBrowserEvidence(page, host, "time-scope-manager", engagementManager.Id);
     var errors = new List<string>();
     page.PageError += (_, error) => errors.Add(error);
     var writes = new List<string>();

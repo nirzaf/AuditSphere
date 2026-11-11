@@ -17,7 +17,7 @@ public sealed class AcceptanceDecisionTests
     await using var pg = await PgTestSchema.CreateAsync();
     var scope = await SeedAsync(pg, "Partner", withResponse: true);
     var request = new RecordAcceptanceDecisionRequest(scope.ClientId, null, "FinancialStatementAudit",
-      "ACCEPTED", "Independence and continuance evidence reviewed.", null, 1);
+      "ACCEPTED", "Independence and continuance evidence reviewed.", null, scope.Generation);
 
     Guid decisionId;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -59,7 +59,7 @@ public sealed class AcceptanceDecisionTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var blocked = await AcceptanceDecisionService.RecordAsync(db, incomplete.Actor,
-        new(incomplete.ClientId, null, "AccountingOnly", "ACCEPTED", "Reviewed.", null, 1));
+        new(incomplete.ClientId, null, "AccountingOnly", "ACCEPTED", "Reviewed.", null, incomplete.Generation));
       Assert.False(blocked.Succeeded);
       Assert.Equal("gate.blocked", blocked.ErrorCode);
       Assert.Empty(await db.AcceptanceDecisions.Where(x => x.FirmId == incomplete.FirmId && x.Decision != "Pending").ToListAsync());
@@ -70,7 +70,7 @@ public sealed class AcceptanceDecisionTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var denied = await AcceptanceDecisionService.RecordAsync(db, manager.Actor,
-        new(manager.ClientId, null, "AccountingOnly", "DECLINED", "Not accepted.", null, 1));
+        new(manager.ClientId, null, "AccountingOnly", "DECLINED", "Not accepted.", null, manager.Generation));
       Assert.False(denied.Succeeded);
       Assert.Equal("scope.denied", denied.ErrorCode);
     }
@@ -78,41 +78,28 @@ public sealed class AcceptanceDecisionTests
 
   private static async Task<Scope> SeedAsync(PgTestSchema pg, string role, bool withResponse)
   {
-    var (firmId, clientId, _) = await pg.SeedScopeAsync();
-    var user = new AppUser
-    {
-      Id = Guid.NewGuid(), FirmId = firmId, Subject = "acceptance-" + Guid.NewGuid().ToString("N"),
-      TenantId = "tenant", Email = $"{role.ToLowerInvariant()}@example.test", DisplayName = role,
-      CreatedAt = DateTimeOffset.UtcNow
-    };
+    var (firmId, clientId, actor) = await SupportedAuditCompletionWorldBuilder.CreateClientBeforeAcceptanceAsync(pg, role);
     await using var db = new AuditSphereDbContext(pg.Options);
-    db.Users.Add(user);
-    db.RoleGrants.Add(new RoleGrant
-    {
-      Id = Guid.NewGuid(), FirmId = firmId, UserId = user.Id, Role = role,
-      GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = user.Id
-    });
-    var template = new QuestionnaireTemplate
-    {
-      Id = Guid.NewGuid(), Bank = "CE", Version = "1.0-" + firmId.ToString("N")[..8], Name = "Acceptance test", IsActive = true,
-      CreatedAt = DateTimeOffset.UtcNow
-    };
-    db.QuestionnaireTemplates.Add(template);
-    db.QuestionDefinitions.Add(new QuestionDefinition
-    {
-      Id = Guid.NewGuid(), TemplateId = template.Id, QuestionCode = "CE-01", Section = "A",
-      Category = "General", PromptText = "Test question", AnswerType = "BOOLEAN", SortOrder = 1
-    });
+    var checklist = await AcceptanceChecklistService.GetAsync(db, actor, clientId);
+    Assert.True(checklist.Succeeded, checklist.Message);
+    Assert.Equal(62, checklist.Value!.Items.Count);
     if (withResponse)
-      db.EvaluationResponses.Add(new EvaluationResponse
+    {
+      foreach (var item in checklist.Value.Items)
       {
-        Id = Guid.NewGuid(), FirmId = firmId, PracticeClientId = clientId, Bank = "CE",
-        QuestionId = "CE-01", Answer = "Yes", Revision = 1, AnsweredByUserId = user.Id,
-        AnsweredAt = DateTimeOffset.UtcNow
-      });
-    await db.SaveChangesAsync();
-    return new(firmId, clientId, new(user.Id, firmId, user.SessionEpoch, [role]));
+        var answer = item.Question.AdverseAnswer == "YES" ? "No" : "Yes";
+        var recorded = await AcceptanceChecklistService.RecordAnswerAsync(db, actor, clientId,
+          item.Question.Code, answer,
+          item.Question.RequiresEvidence ? $"synthetic-evidence:{item.Question.Code}" : null,
+          expectedGeneration: checklist.Value.Generation, expectedRevision: item.Answer?.Revision ?? 0);
+        Assert.True(recorded.Succeeded, $"{item.Question.Code}: {recorded.ErrorCode} {recorded.Message}");
+      }
+    }
+    var current = await AcceptanceChecklistService.GetAsync(db, actor, clientId);
+    Assert.True(current.Succeeded, current.Message);
+    Assert.Equal(withResponse, current.Value!.Ready);
+    return new(firmId, clientId, actor, current.Value.Generation);
   }
 
-  private sealed record Scope(Guid FirmId, Guid ClientId, ActorContext Actor);
+  private sealed record Scope(Guid FirmId, Guid ClientId, ActorContext Actor, long Generation);
 }

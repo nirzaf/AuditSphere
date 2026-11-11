@@ -1,3 +1,4 @@
+using System.Data;
 using System.Data.Common;
 using System.Text;
 using AuditSphereOps.Application.Abstractions;
@@ -785,37 +786,146 @@ public sealed partial class FirmOperationsTests
   public async Task FirmTrialBalance_FailsClosedWhenPostedHistoryMixesCurrencies()
   {
     await using var pg = await PgTestSchema.CreateAsync();
-    var w = await SeedAsync(pg);
-    var finance = w.A("finance", "FinanceManager");
-    var reviewer = w.A("reviewer", "FinanceReviewer");
+    var admin = await SupportedAuditCompletionWorldBuilder.BootstrapAdminAsync(pg);
+    var maker = await SupportedAuditCompletionWorldBuilder.ProvisionFirmRoleAsync(pg, admin, "FinanceManager");
+    var checker = await SupportedAuditCompletionWorldBuilder.ProvisionFirmRoleAsync(pg, admin, "FinanceReviewer");
+    var partner = await SupportedAuditCompletionWorldBuilder.ProvisionFirmRoleAsync(pg, admin, "Partner");
+    var finance = maker.Actor;
+    var reviewer = checker.Actor;
     await using var db = new AuditSphereDbContext(pg.Options);
+    var profile = await FirmFinanceProfileService.CreateDraftAsync(db, finance, new("QAR", BillingStates.TestProfile));
+    Assert.True(profile.Succeeded, profile.Message);
+    var approvedProfile = await FirmFinanceProfileService.ApproveDraftAsync(db, reviewer,
+      new(profile.Value!.Id, profile.Value.Revision, profile.Value.DraftBasisSha256));
+    Assert.True(approvedProfile.Succeeded, approvedProfile.Message);
     var cash = (await LedgerService.CreateFirmAccountAsync(db, finance,
       new CreateFirmAccountRequest("1000", "Bank", LedgerStates.AccountAsset, LedgerStates.Debit))).Value;
     var capital = (await LedgerService.CreateFirmAccountAsync(db, finance,
       new CreateFirmAccountRequest("3000", "Partners' capital", LedgerStates.AccountEquity, LedgerStates.Credit))).Value;
     var period = (await LedgerService.CreateFirmPeriodAsync(db, finance,
       new CreateFirmPeriodRequest("2026-03"))).Value;
-    foreach (var (currency, number) in new[] { ("QAR", "J-QAR"), ("USD", "J-USD") })
+    var journals = new List<Guid>();
+    foreach (var number in new[] { "J-QAR-1", "J-QAR-2" })
     {
-      if (currency == "USD")
-      {
-        var profile = await db.FirmFinanceProfiles.SingleAsync(x => x.FirmId == w.FirmId && x.Approved);
-        profile.FunctionalCurrency = currency;
-        await db.SaveChangesAsync();
-      }
       var draft = await LedgerService.CreateFirmJournalDraftAsync(db, finance,
-        new CreateFirmJournalDraftRequest(period, number, "MANUAL", $"CURRENCY-{currency}", 1, "CAPITAL", currency,
+        new CreateFirmJournalDraftRequest(period, number, "MANUAL", number, 1, "CAPITAL", "QAR",
           [new FirmJournalLineRequest(cash, "Opening capital", 100m, 0m),
            new FirmJournalLineRequest(capital, "Opening capital", 0m, 100m)]));
       Assert.True(draft.Succeeded, draft.Message);
       var journal = draft.Value;
+      journals.Add(journal);
       Assert.True((await LedgerService.SubmitFirmJournalAsync(db, finance, journal)).Succeeded);
       Assert.True((await LedgerService.ApproveFirmJournalAsync(db, reviewer, journal)).Succeeded);
       Assert.True((await LedgerService.PostFirmJournalAsync(db, finance, journal)).Succeeded);
     }
+    var postings = await db.FirmPostings.AsNoTracking().Where(x => journals.Contains(x.JournalId)).OrderBy(x => x.Id).ToListAsync();
+    Assert.Equal(2, postings.Count);
+    Assert.All(postings, x => Assert.Equal("QAR", x.Currency));
+    var ordinary = await FirmExpenseService.TrialBalanceAsync(db, partner.Actor, "2026-03", "2026-03");
+    Assert.True(ordinary.Succeeded, ordinary.Message);
 
-    var report = await FirmExpenseService.TrialBalanceAsync(db, w.A("partner", "Partner"), "2026-03", "2026-03");
-    Assert.Equal("ledger.currency-mixed", report.ErrorCode);
+    // Defensive inconsistent-provider-read test: supported posting never permits a second currency.
+    var fault = new MixedCurrencyPostingRead(postings.Select(x => x.Id).ToArray(), postings[1].Id);
+    var faultOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(fault).Options;
+    await using (var inconsistent = new AuditSphereDbContext(faultOptions))
+    {
+      var report = await FirmExpenseService.TrialBalanceAsync(inconsistent, partner.Actor, "2026-03", "2026-03");
+      Assert.Equal("ledger.currency-mixed", report.ErrorCode);
+    }
+    Assert.Equal(1, fault.MatchedQueries);
+    Assert.Equal(2, fault.AlteredRows);
+    await using var persisted = new AuditSphereDbContext(pg.Options);
+    Assert.All(await persisted.FirmPostings.AsNoTracking().Where(x => journals.Contains(x.JournalId)).ToListAsync(),
+      x => Assert.Equal("QAR", x.Currency));
+    Assert.Equal("QAR", (await persisted.FirmFinanceProfiles.AsNoTracking().SingleAsync(x => x.FirmId == admin.FirmId && x.Approved)).FunctionalCurrency);
+    var unchanged = await FirmExpenseService.TrialBalanceAsync(persisted, partner.Actor, "2026-03", "2026-03");
+    Assert.True(unchanged.Succeeded, unchanged.Message);
+  }
+
+  private sealed class MixedCurrencyPostingRead(Guid[] expectedPostings, Guid alteredPosting) : DbCommandInterceptor
+  {
+    public int MatchedQueries { get; private set; }
+    public int AlteredRows { get; private set; }
+
+    public override ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (!command.CommandText.Contains("firm_posting_lines", StringComparison.OrdinalIgnoreCase) ||
+          !command.CommandText.Contains("JOIN firm_postings", StringComparison.OrdinalIgnoreCase) ||
+          !command.CommandText.Contains("JOIN firm_journals", StringComparison.OrdinalIgnoreCase)) return ValueTask.FromResult(result);
+      Assert.Equal(1, ++MatchedQueries);
+      string[] expected = ["LineId", "FirmAccountId", "Debit", "Credit", "PostingId", "ReversalOfPostingId",
+        "PeriodId", "Currency", "JournalId", "PostedAt", "JournalNumber", "PostingPurpose"];
+      Assert.Equal(expected, Enumerable.Range(0, result.FieldCount).Select(result.GetName));
+      return ValueTask.FromResult<DbDataReader>(new CurrencyReadFault(result, expectedPostings, alteredPosting, count => AlteredRows = count));
+    }
+  }
+
+  // Forward every provider conversion unchanged; only the selected currency string is inconsistent.
+  private sealed class CurrencyReadFault(DbDataReader source, Guid[] expectedPostings, Guid alteredPosting,
+    Action<int> reportAlteredRows) : DbDataReader
+  {
+    private readonly Dictionary<Guid, int> observed = [];
+    private int alteredRows;
+    private bool AlterCurrency => source.GetGuid(4) == alteredPosting;
+    private bool Observe(bool hasRow)
+    {
+      if (!hasRow)
+      {
+        Assert.Equal(expectedPostings.Order(), observed.Keys.Order());
+        Assert.All(observed.Values, count => Assert.Equal(2, count));
+        reportAlteredRows(alteredRows);
+        return false;
+      }
+      var posting = source.GetGuid(4);
+      Assert.Contains(posting, expectedPostings);
+      Assert.Equal("QAR", source.GetString(7));
+      observed[posting] = observed.GetValueOrDefault(posting) + 1;
+      if (posting == alteredPosting) alteredRows++;
+      return true;
+    }
+    public override bool Read() => Observe(source.Read());
+    public override async Task<bool> ReadAsync(CancellationToken ct) => Observe(await source.ReadAsync(ct));
+    public override string GetString(int i) => i == 7 && AlterCurrency ? "USD" : source.GetString(i);
+    public override object GetValue(int i) => i == 7 && AlterCurrency ? "USD" : source.GetValue(i);
+    public override T GetFieldValue<T>(int i) => i == 7 && AlterCurrency ? (T)(object)"USD" : source.GetFieldValue<T>(i);
+    public override Task<T> GetFieldValueAsync<T>(int i, CancellationToken ct) => i == 7 && AlterCurrency
+      ? Task.FromResult((T)(object)"USD") : source.GetFieldValueAsync<T>(i, ct);
+    public override int GetValues(object[] values)
+    { var count = source.GetValues(values); if (count > 7 && AlterCurrency) values[7] = "USD"; return count; }
+    public override object this[int i] => GetValue(i);
+    public override object this[string name] => GetValue(GetOrdinal(name));
+    public override int Depth => source.Depth;
+    public override int FieldCount => source.FieldCount;
+    public override bool HasRows => source.HasRows;
+    public override bool IsClosed => source.IsClosed;
+    public override int RecordsAffected => source.RecordsAffected;
+    public override string GetName(int i) => source.GetName(i);
+    public override int GetOrdinal(string name) => source.GetOrdinal(name);
+    public override Type GetFieldType(int i) => source.GetFieldType(i);
+    public override string GetDataTypeName(int i) => source.GetDataTypeName(i);
+    public override bool GetBoolean(int i) => source.GetBoolean(i);
+    public override byte GetByte(int i) => source.GetByte(i);
+    public override long GetBytes(int i, long offset, byte[]? buffer, int bufferOffset, int length) => source.GetBytes(i, offset, buffer, bufferOffset, length);
+    public override char GetChar(int i) => source.GetChar(i);
+    public override long GetChars(int i, long offset, char[]? buffer, int bufferOffset, int length) => source.GetChars(i, offset, buffer, bufferOffset, length);
+    public override DateTime GetDateTime(int i) => source.GetDateTime(i);
+    public override decimal GetDecimal(int i) => source.GetDecimal(i);
+    public override double GetDouble(int i) => source.GetDouble(i);
+    public override float GetFloat(int i) => source.GetFloat(i);
+    public override Guid GetGuid(int i) => source.GetGuid(i);
+    public override short GetInt16(int i) => source.GetInt16(i);
+    public override int GetInt32(int i) => source.GetInt32(i);
+    public override long GetInt64(int i) => source.GetInt64(i);
+    public override bool IsDBNull(int i) => source.IsDBNull(i);
+    public override Task<bool> IsDBNullAsync(int i, CancellationToken ct) => source.IsDBNullAsync(i, ct);
+    public override bool NextResult() => source.NextResult();
+    public override Task<bool> NextResultAsync(CancellationToken ct) => source.NextResultAsync(ct);
+    public override System.Collections.IEnumerator GetEnumerator() => new DbEnumerator(this, false);
+    public override DataTable? GetSchemaTable() => source.GetSchemaTable();
+    public override void Close() => source.Close();
+    protected override void Dispose(bool disposing) { if (disposing) source.Dispose(); base.Dispose(disposing); }
+    public override ValueTask DisposeAsync() => source.DisposeAsync();
   }
 
   [Fact]

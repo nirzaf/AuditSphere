@@ -16,6 +16,9 @@ public static partial class UiEndpoints
   public sealed record UiTemplateApproval(Guid TemplateId, string? ExpectedDigest, bool Reviewed);
   public sealed record UiResourceVerification(Guid DraftId, string? ExpectedRevision, bool Reviewed);
   public sealed record UiResourceActivation(Guid DraftId, string? ExpectedRevision, Guid TemplateId, bool Reviewed);
+  public sealed record UiArchiveResourceActivation(Guid DraftId, string? ExpectedRevision, Guid ConnectionRevisionId,
+    Guid CapabilityVerificationId, string? TenantId, string? SiteId, string? DriveId,
+    string? RootFolderId, string? DisplayUrl, string? AccessProfile, bool Reviewed);
 
   private static void MapSelectedResourceEndpoints(RouteGroupBuilder group)
   {
@@ -77,6 +80,16 @@ public static partial class UiEndpoints
       if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<Guid>();
       if (!i.Reviewed || !Revision(i.ExpectedRevision, out var revision)) return CommandResult<Guid>.Fail("review.required", "Review the verified resource and approved client template before activation.");
       return await Microsoft365ConfigurationService.ActivateSelectedResourceAsync(db, actor, i.DraftId, revision, i.TemplateId, DateTimeOffset.UtcNow, ct);
+    })).WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
+    group.MapPost("/administration/microsoft365/resources/activate-archive", (UiArchiveResourceActivation i, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
+    {
+      if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<Guid>();
+      if (!i.Reviewed || !Revision(i.ExpectedRevision, out var revision) || i.TenantId is null ||
+          i.SiteId is null || i.DriveId is null || i.RootFolderId is null || i.DisplayUrl is null || i.AccessProfile is null)
+        return CommandResult<Guid>.Fail("review.required", "Review the exact separate archive library, connection, revision and boundary proof before activation.");
+      return await Microsoft365ConfigurationService.ActivateArchiveResourceAsync(db, actor,
+        new(i.DraftId, revision, i.ConnectionRevisionId, i.CapabilityVerificationId, i.TenantId,
+          i.SiteId, i.DriveId, i.RootFolderId, i.DisplayUrl, i.AccessProfile), DateTimeOffset.UtcNow, ct);
     })).WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
   }
 

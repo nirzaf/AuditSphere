@@ -1,4 +1,6 @@
 using AuditSphereOps.Application.Completion;
+using AuditSphereOps.Application.Documents;
+using AuditSphereOps.Application.Records;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Shared;
@@ -23,8 +25,10 @@ public sealed partial class AuditDeliverablesTests
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
     var partner = w.A("partner", "Partner");
-    await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U));
-    await CompletionBundleFixture.SeedPostedFeeAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U), automateBalance: true);
+    await CompletionBundleFixture.ReleasedSupportedFinancialPackageAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U));
+    await CompletionBundleFixture.PostSupportedBalanceFeeAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U), automateBalance: true);
+    await RefreshSupportedPortalRiskAsync(pg, w);
+    await ReviewSupportedBundleApplicabilityAsync(pg, w);
     await SignedReportAsync(pg, w);
     await using (var db = new AuditSphereDbContext(pg.Options))
       Assert.True((await AuditDeliverableService.GenerateReportAsync(db, w.A("manager", "Manager"), w.EngagementId, DeliverableKinds.ManagementLetter)).Succeeded);
@@ -41,6 +45,27 @@ public sealed partial class AuditDeliverablesTests
     var accepted = await AuditDeliverableService.AssembleBundleAsync(intact, partner, w.EngagementId, true);
     Assert.True(accepted.Succeeded, accepted.Message);
     Assert.Single(await intact.CommercialDeliverableBundles.ToListAsync());
+    if (component == "report")
+    {
+      var client = w.A("client", "ClientUser");
+      var beforeFreeze = await AuditDeliverableService.GetBundleAsync(intact, client, accepted.Value);
+      Assert.True(beforeFreeze.Succeeded, beforeFreeze.Message);
+      var now = DateTimeOffset.UtcNow;
+      var readiness = await FileFreezeService.GetArchiveReadinessAsync(intact, partner, w.EngagementId, now);
+      Assert.True(readiness.Succeeded, readiness.Message);
+      Assert.Empty(readiness.Value!.Blockers);
+      var frozen = await FileFreezeService.RequestEarlyComplianceLockAsync(intact, partner,
+        new(w.EngagementId, readiness.Value.Revision, true, "Reviewed complete retained file.",
+          readiness.Value.ArchiveReadinessDigest!), now);
+      Assert.True(frozen.Succeeded, frozen.Message);
+      Assert.True(await intact.Engagements.AsNoTracking().Where(x => x.Id == w.EngagementId)
+        .Select(x => x.ProfessionalWorkBlocked).SingleAsync());
+      var download = await AuditDeliverableService.GetBundleAsync(intact, client, accepted.Value);
+      Assert.True(download.Succeeded, download.Message);
+      Assert.Equal(beforeFreeze.Value!.Content, download.Value!.Content);
+      Assert.Equal(ErrorCodes.ProtectedState,
+        (await ClientPortalService.RequireUploadWindowAsync(intact, client, w.EngagementId)).ErrorCode);
+    }
   }
 
   private sealed class CorruptBundleSourceRead(string component) : IMaterializationInterceptor

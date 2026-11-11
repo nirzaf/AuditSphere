@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Security;
@@ -23,9 +24,13 @@ internal sealed record SupportedAuditCompletionWorld(
 /// </summary>
 internal static class SupportedAuditCompletionWorldBuilder
 {
-  private sealed record RoleActor(AppUser User, ActorContext Actor);
+  internal sealed record RoleActor(AppUser User, ActorContext Actor);
 
-  public static async Task<SupportedAuditCompletionWorld> CreateAsync(PgTestSchema pg)
+  public static Task<SupportedAuditCompletionWorld> CreateAsync(PgTestSchema pg, decimal primaryFee = 20000m, bool includeSibling = true, bool requireCommercialReview = false)
+    => CreateAsync((ITestPostgresDatabase)pg, primaryFee, includeSibling, requireCommercialReview);
+
+  public static async Task<SupportedAuditCompletionWorld> CreateAsync(ITestPostgresDatabase pg, decimal primaryFee = 20000m, bool includeSibling = true, bool requireCommercialReview = false,
+    string clientLegalName = "Synthetic R02 Audit Client")
   {
     var admin = await BootstrapAdminAsync(pg);
     var relationship = await ProvisionFirmRoleAsync(pg, admin, "RelationshipManager");
@@ -51,6 +56,13 @@ internal static class SupportedAuditCompletionWorldBuilder
       Assert.True(approved.Succeeded, approved.Message);
     }
 
+    if (requireCommercialReview)
+    {
+      await using var ruleDb = new AuditSphereDbContext(pg.Options);
+      var rule = await QuotationService.SaveRuleAsync(ruleDb, partner.Actor,
+        CommercialRuleKinds.NonStandardTerms, null, "Partner");
+      Assert.True(rule.Succeeded, rule.Message);
+    }
     var commercialProfileSaved = false;
     var primaryProposal = await CreateAcceptedProposalAsync(pg, relationship.Actor, partner.Actor, manager.Actor,
       "Primary", "2026-01-01", "2026-12-31", async db =>
@@ -60,17 +72,20 @@ internal static class SupportedAuditCompletionWorldBuilder
           new("Synthetic Audit Firm", "Test address", "firm@example.test", "", "#0F766E", "Synthetic test terms"));
         Assert.True(saved.Succeeded, saved.Message);
         commercialProfileSaved = true;
-      });
+      }, primaryFee, requireCommercialReview);
     Guid clientId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var converted = await PracticeCrmService.ConvertToClientDraftAsync(db, relationship.Actor,
-        new(primaryProposal, "Synthetic R02 Audit Client", "R02 Client"));
+        new(primaryProposal, clientLegalName, "R02 Client"));
       Assert.True(converted.Succeeded, converted.Message);
       clientId = converted.Value;
     }
 
-    var siblingProposal = await CreateAcceptedProposalAsync(pg, relationship.Actor, partner.Actor, manager.Actor,
+    Guid siblingProposal = Guid.Empty;
+    if (includeSibling)
+    {
+      siblingProposal = await CreateAcceptedProposalAsync(pg, relationship.Actor, partner.Actor, manager.Actor,
       "Sibling", "2025-01-01", "2025-12-31", async db =>
       {
         if (commercialProfileSaved) return;
@@ -79,27 +94,43 @@ internal static class SupportedAuditCompletionWorldBuilder
         Assert.True(saved.Succeeded, saved.Message);
         commercialProfileSaved = true;
       });
-    await using (var db = new AuditSphereDbContext(pg.Options))
-    {
-      var converted = await PracticeCrmService.ConvertToClientDraftAsync(db, relationship.Actor,
-        new(siblingProposal, "Synthetic R02 Audit Client", "R02 Client"));
-      Assert.True(converted.Succeeded, converted.Message);
-      Assert.Equal(clientId, converted.Value);
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        var converted = await PracticeCrmService.ConvertToClientDraftAsync(db, relationship.Actor,
+          new(siblingProposal, clientLegalName, "R02 Client"));
+        Assert.True(converted.Succeeded, converted.Message);
+        Assert.Equal(clientId, converted.Value);
+      }
+
     }
 
     await RecordUnconditionalAcceptanceAsync(pg, clientId, "FinancialStatementAudit", staff.Actor, partner.Actor);
 
+    if (!includeSibling)
+    {
+      // Deliverables exercise portal access, unlike the default completion-only R02 scopes.
+      await using var letterDb = new AuditSphereDbContext(pg.Options);
+      Assert.True((await AuditDeliverableService.RegisterSignatureAsync(letterDb, partner.Actor,
+        CompletionTestFixtures.Png(120, 40))).Succeeded);
+      Assert.True((await AuditDeliverableService.RegisterFirmSealAsync(letterDb, partner.Actor,
+        CompletionTestFixtures.Png(100, 100))).Succeeded);
+      var letter = await CommercialDocumentService.GenerateEngagementLetterAsync(letterDb, partner.Actor, primaryProposal);
+      Assert.True(letter.Succeeded, letter.Message);
+    }
+
     var primaryEngagement = await CreateActivatedEngagementAsync(pg, clientId, primaryProposal,
       relationship.Actor, partner.Actor, manager.Actor, financeMaker.Actor, financeReviewer.Actor,
       "2026-01-01", "2026-12-31", "Synthetic R02 primary audit");
-    var siblingEngagement = await CreateActivatedEngagementAsync(pg, clientId, siblingProposal,
+    var siblingEngagement = includeSibling ? await CreateActivatedEngagementAsync(pg, clientId, siblingProposal,
       relationship.Actor, partner.Actor, manager.Actor, financeMaker.Actor, financeReviewer.Actor,
-      "2025-01-01", "2025-12-31", "Synthetic R02 sibling audit");
+      "2025-01-01", "2025-12-31", "Synthetic R02 sibling audit") : primaryEngagement;
 
     // This primary preparer is also independently eligible to review by role and exact grant;
     // the self-review assertion must reach the separation-of-duties rule, not fail authorization first.
     var preparerA = await ProvisionEngagementRoleAsync(pg, admin, "Manager", clientId, primaryEngagement, "primary-preparer");
-    var preparerB = await ProvisionEngagementRoleAsync(pg, admin, "Staff", clientId, siblingEngagement, "sibling-preparer");
+    var preparerB = includeSibling
+      ? await ProvisionEngagementRoleAsync(pg, admin, "Staff", clientId, siblingEngagement, "sibling-preparer")
+      : preparerA; // Single-scope callers consume Primary only; the default retains distinct scopes.
     var reviewer = await ProvisionEngagementRoleAsync(pg, admin, "Manager", clientId, primaryEngagement, "primary-reviewer");
     return new(
       new(admin.FirmId, clientId, primaryEngagement, preparerA.Actor),
@@ -107,9 +138,37 @@ internal static class SupportedAuditCompletionWorldBuilder
       reviewer.Actor, admin.Actor);
   }
 
-  private static async Task<Guid> CreateAcceptedProposalAsync(PgTestSchema pg, ActorContext relationship,
+  internal static Task<(Guid FirmId, Guid ClientId, ActorContext Actor)> CreateClientBeforeAcceptanceAsync(PgTestSchema pg, string role)
+    => CreateClientBeforeAcceptanceAsync((ITestPostgresDatabase)pg, role);
+
+  internal static async Task<(Guid FirmId, Guid ClientId, ActorContext Actor)> CreateClientBeforeAcceptanceAsync(
+    ITestPostgresDatabase pg, string role)
+  {
+    var admin = await BootstrapAdminAsync(pg);
+    var relationship = await ProvisionFirmRoleAsync(pg, admin, "RelationshipManager");
+    var partner = await ProvisionFirmRoleAsync(pg, admin, "Partner");
+    var manager = await ProvisionFirmRoleAsync(pg, admin, "Manager");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var rate = await PracticeTimeService.ReviseRateCardAsync(db, partner.Actor,
+      new RateCardDraftRequest("Partner", "Audit", "QAR", 1000m));
+    Assert.True(rate.Succeeded, rate.Message);
+    Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, manager.Actor, rate.Value)).Succeeded);
+    var proposal = await CreateAcceptedProposalAsync(pg, relationship.Actor, partner.Actor, manager.Actor,
+      "Acceptance", "2026-01-01", "2026-12-31", async profileDb =>
+      {
+        var saved = await CommercialDocumentService.SaveProfileAsync(profileDb, partner.Actor,
+          new("Synthetic Audit Firm", "Test address", "firm@example.test", "", "#0F766E", "Synthetic test terms"));
+        Assert.True(saved.Succeeded, saved.Message);
+      });
+    var client = await PracticeCrmService.ConvertToClientDraftAsync(db, relationship.Actor,
+      new(proposal, "Synthetic acceptance client", "Acceptance client"));
+    Assert.True(client.Succeeded, client.Message);
+    return (admin.FirmId, client.Value, role == "Partner" ? partner.Actor : manager.Actor);
+  }
+
+  internal static async Task<Guid> CreateAcceptedProposalAsync(ITestPostgresDatabase pg, ActorContext relationship,
     ActorContext partner, ActorContext manager, string suffix, string periodStart, string periodEnd,
-    Func<AuditSphereDbContext, Task> ensureCommercialProfile)
+    Func<AuditSphereDbContext, Task> ensureCommercialProfile, decimal fee = 20000m, bool nonStandardTerms = false)
   {
     Guid proposalId;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -120,22 +179,23 @@ internal static class SupportedAuditCompletionWorldBuilder
       var qualified = await PracticeCrmService.QualifyLeadAsync(db, relationship, lead.Value);
       Assert.True(qualified.Succeeded, qualified.Message);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, relationship,
-        new(lead.Value, "FinancialStatementAudit", "SYNTHETIC-ENTITY", periodStart, periodEnd, 20000m, "QAR", 60m));
+        new(lead.Value, "FinancialStatementAudit", "SYNTHETIC-ENTITY", periodStart, periodEnd, fee, "QAR", 60m));
       Assert.True(opportunity.Succeeded, opportunity.Message);
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, relationship,
         new(opportunity.Value, $"Synthetic R02 {suffix} audit", "Statutory audit", "Tax advisory",
-          "Independent auditor report", "Client supplies source records", 20000m, "QAR", periodStart, periodEnd,
+          "Independent auditor report", "Client supplies source records", fee, "QAR", periodStart, periodEnd,
           Timeline: "Synthetic test fieldwork and reporting timeline."));
       Assert.True(proposal.Succeeded, proposal.Message);
       proposalId = proposal.Value;
 
       var quotation = await QuotationService.SaveAsync(db, relationship,
-        new(proposalId, [new("Partner", "Audit", 20m)], 1m, 0m, 0m, false, null,
+        new(proposalId, [new("Partner", "Audit", fee / 1000m)], 1m, 0m, 0m, nonStandardTerms,
+          nonStandardTerms ? "Synthetic independently reviewed non-standard terms." : null,
           ExpectedRevision: 0, ExpectedProposalRevision: 1));
       Assert.True(quotation.Succeeded, quotation.Message);
       Assert.True((await QuotationService.SubmitAsync(db, relationship, quotation.Value)).Succeeded);
       var quoteState = await db.QuotationVersions.AsNoTracking().SingleAsync(x => x.Id == quotation.Value);
-      foreach (var requirement in System.Text.Json.JsonSerializer.Deserialize<List<RequiredApproval>>(quoteState.RequiredApprovalsJson) ?? [])
+      foreach (var requirement in System.Text.Json.JsonSerializer.Deserialize<List<RequiredApproval>>(quoteState.RequiredApprovalsJson, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) ?? [])
       {
         var approver = requirement.Role == "Manager" ? manager : partner;
         var approved = await QuotationService.ApproveAsync(db, approver, quotation.Value,
@@ -158,8 +218,8 @@ internal static class SupportedAuditCompletionWorldBuilder
     return proposalId;
   }
 
-  private static async Task RecordUnconditionalAcceptanceAsync(PgTestSchema pg, Guid clientId,
-    string route, ActorContext preparer, ActorContext partner)
+  internal static async Task RecordUnconditionalAcceptanceAsync(ITestPostgresDatabase pg, Guid clientId,
+    string route, ActorContext preparer, ActorContext partner, Guid? engagementId = null)
   {
     await using var db = new AuditSphereDbContext(pg.Options);
     var checklist = await AcceptanceChecklistService.GetAsync(db, preparer, clientId);
@@ -182,11 +242,11 @@ internal static class SupportedAuditCompletionWorldBuilder
     Assert.True(current.Succeeded, current.Message);
     Assert.True(current.Value!.Ready, string.Join("; ", current.Value.Blockers.Select(x => x.Message)));
     var decision = await AcceptanceDecisionService.RecordAsync(db, partner,
-      new(clientId, null, route, "ACCEPTED", "Synthetic test acceptance review.", null, current.Value.Generation));
+      new(clientId, engagementId, route, "ACCEPTED", "Synthetic test acceptance review.", null, current.Value.Generation));
     Assert.True(decision.Succeeded, decision.Message);
   }
 
-  private static async Task<Guid> CreateActivatedEngagementAsync(PgTestSchema pg, Guid clientId, Guid proposalId,
+  private static async Task<Guid> CreateActivatedEngagementAsync(ITestPostgresDatabase pg, Guid clientId, Guid proposalId,
     ActorContext relationship, ActorContext partner, ActorContext manager, ActorContext financeManager,
     ActorContext financeReviewer, string periodStart, string periodEnd, string profile)
   {
@@ -230,7 +290,7 @@ internal static class SupportedAuditCompletionWorldBuilder
     return engagementId;
   }
 
-  private static async Task<(Guid FirmId, ActorContext Actor)> BootstrapAdminAsync(PgTestSchema pg)
+  internal static async Task<(Guid FirmId, ActorContext Actor)> BootstrapAdminAsync(ITestPostgresDatabase pg)
   {
     var firmId = Guid.NewGuid();
     var tenant = Guid.NewGuid().ToString("D");
@@ -251,7 +311,7 @@ internal static class SupportedAuditCompletionWorldBuilder
     return (firmId, new(user.Id, firmId, user.SessionEpoch, ["Administrator"]));
   }
 
-  private static async Task<RoleActor> ProvisionFirmRoleAsync(PgTestSchema pg,
+  internal static async Task<RoleActor> ProvisionFirmRoleAsync(ITestPostgresDatabase pg,
     (Guid FirmId, ActorContext Actor) admin, string role)
   {
     await using var db = new AuditSphereDbContext(pg.Options);
@@ -267,7 +327,7 @@ internal static class SupportedAuditCompletionWorldBuilder
     return new(user, new(user.Id, user.FirmId, user.SessionEpoch, [role]));
   }
 
-  private static async Task<RoleActor> ProvisionEngagementRoleAsync(PgTestSchema pg,
+  private static async Task<RoleActor> ProvisionEngagementRoleAsync(ITestPostgresDatabase pg,
     (Guid FirmId, ActorContext Actor) admin, string role, Guid clientId, Guid engagementId, string suffix)
   {
     await using var db = new AuditSphereDbContext(pg.Options);

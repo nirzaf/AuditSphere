@@ -38,6 +38,26 @@ and covered by `HttpBoundarySecurityTests`.
 
 ### Reviewed command boundaries
 
+Secondary archive resources have an explicit Administrator-only command:
+`POST /api/ui/administration/microsoft365/resources/activate-archive`.
+Its reviewed body includes `draftId`, decimal-string `expectedRevision`,
+`connectionRevisionId`, `capabilityVerificationId`, `tenantId`, `siteId`, `driveId`,
+`rootFolderId`, `displayUrl`, `accessProfile` and `reviewed: true`. The existing resources
+projection includes `verification.verificationId` for this exact proof selection. The
+returned GUID identifies the activated connection, not a working workspace. The ordinary
+`resources/activate` route continues to require an approved working-folder template and
+selects the default for future clients; archive activation does neither.
+
+Use a separately prepared draft and connection with completed consent and an exact-resource
+boundary check for the separate archive library. Archive admission refuses any known working
+drive, and working admission refuses a drive reserved by an active archive-purpose activation.
+An exact archive replay uses the original pre-activation revision and proof, and succeeds only
+while the same actor remains authorized and that proof remains current. Selected-site proof
+supersession remains tenant-wide: a newer pending, failed or different-connection observation
+can block an older archive activation or copy. This command configures no tenant permission,
+makes no provider call and establishes no live read-only or retention claim. Client-bound
+target revision creation and copy-time evidence, staff scope and safety gates remain separate.
+
 Several capabilities expose one shared transport pattern: `state` returns the current server-projected capabilities, `preview` returns the exact canonical request hash, `actions` requires fresh assent plus that hash, and `receipts/{requestId}` returns the retained original outcome so a lost response is recovered rather than blindly retried.
 
 | Prefix under `/api/ui` | Owner | Notes |

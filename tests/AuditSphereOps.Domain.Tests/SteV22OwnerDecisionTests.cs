@@ -1,3 +1,7 @@
+using System.Text.Json;
+using AuditSphereOps.Domain.Acceptance;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Practice;
@@ -22,26 +26,64 @@ public sealed class SteV22OwnerDecisionTests
   [Trait("Profile", "Database")]
   public async Task ContinuanceMigration_AddsTheTrackBQuestionsToADatabaseThatAlreadyHoldsTheBank()
   {
-    await using var pg = await PgTestSchema.CreateAsync(MigrationBeforeDecisions);
-    await using var db = new AuditSphereDbContext(pg.Options);
+    await using var pg = await PgTestSchema.CreateAsync(MigrationBeforeSundayWeek);
     var templateId = QuestionnaireSeed.RvTemplateId;
-    // A database from before the decisions: the continuance template at 1.0 with its concluding question in position 30.
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
-      INSERT INTO questionnaire_templates (id, bank, version, name, is_active, created_at)
-      VALUES ({templateId}, 'RV', '1.0', 'Continuance bank', true, statement_timestamp())
-      """);
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
-      INSERT INTO question_definitions
-        (id, template_id, question_code, section, prompt_text, category, answer_type, requires_evidence, sort_order, adverse_answer, escalates_on_change)
-      VALUES ({Guid.NewGuid()}, {templateId}, 'RV-030', 'B.1', 'Should the relationship continue?', 'Continuance', 'BOOLEAN', true, 30, 'NO', false)
-      """);
+    List<QuestionDefinition> canonical;
+    List<QuestionnaireTemplate> canonicalTemplates;
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      await QuestionnaireSeed.SeedTemplatesAndDefinitionsAsync(seed);
+      await seed.SaveChangesAsync();
+      canonical = await seed.QuestionDefinitions.AsNoTracking().OrderBy(x => x.QuestionCode).ToListAsync();
+      canonicalTemplates = await seed.QuestionnaireTemplates.AsNoTracking().OrderBy(x => x.Bank).ToListAsync();
+      Assert.Equal(62, canonical.Count(x => x.TemplateId == QuestionnaireSeed.CeTemplateId));
+      Assert.Equal(32, canonical.Count(x => x.TemplateId == templateId));
+      Assert.Equal("1.1", canonicalTemplates.Single(x => x.Id == templateId).Version);
+      Assert.Equal(40, canonical.Single(x => x.QuestionCode == "RV-030").SortOrder);
+    }
+    await using (var down = new AuditSphereDbContext(pg.Options))
+      await down.GetService<IMigrator>().MigrateAsync(MigrationBeforeDecisions);
 
-    await db.Database.MigrateAsync();
+    await using var baseline = new AuditSphereDbContext(pg.Options);
+    var legacyTemplate = await baseline.QuestionnaireTemplates.AsNoTracking().SingleAsync(x => x.Id == templateId);
+    Assert.Equal("1.0", legacyTemplate.Version);
+    var ceTemplate = await baseline.QuestionnaireTemplates.AsNoTracking().SingleAsync(x => x.Id == QuestionnaireSeed.CeTemplateId);
+    var prior = await baseline.QuestionDefinitions.AsNoTracking().OrderBy(x => x.QuestionCode).ToListAsync();
+    Assert.Equal(62, prior.Count(x => x.TemplateId == QuestionnaireSeed.CeTemplateId));
+    Assert.Equal(30, prior.Count(x => x.TemplateId == templateId));
+    Assert.DoesNotContain(prior, x => x.QuestionCode is "RV-031" or "RV-032");
+    Assert.Equal(30, prior.Single(x => x.QuestionCode == "RV-030").SortOrder);
+    foreach (var original in canonical.Where(x => x.QuestionCode is not ("RV-031" or "RV-032")))
+    {
+      if (original.QuestionCode == "RV-030") original.SortOrder = 30;
+      Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(prior.Single(x => x.Id == original.Id)));
+    }
+    foreach (var original in canonicalTemplates)
+    {
+      if (original.Id == templateId) original.Version = "1.0";
+      Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(
+        await baseline.QuestionnaireTemplates.AsNoTracking().SingleAsync(x => x.Id == original.Id)));
+    }
+    await using (var up = new AuditSphereDbContext(pg.Options))
+      await up.GetService<IMigrator>().MigrateAsync(MigrationBeforeSundayWeek);
 
-    Assert.Equal("1.1", (await db.QuestionnaireTemplates.AsNoTracking().SingleAsync(x => x.Id == templateId)).Version);
-    var questions = await db.QuestionDefinitions.AsNoTracking().Where(x => x.TemplateId == templateId)
-      .OrderBy(x => x.SortOrder).ToListAsync();
-    Assert.Equal(["RV-031", "RV-032", "RV-030"], questions.Select(x => x.QuestionCode));
+    await using var db = new AuditSphereDbContext(pg.Options);
+    legacyTemplate.Version = "1.1"; // Expected migration projection only; detached, never saved.
+    Assert.Equal(JsonSerializer.Serialize(legacyTemplate), JsonSerializer.Serialize(
+      await db.QuestionnaireTemplates.AsNoTracking().SingleAsync(x => x.Id == templateId)));
+    Assert.Equal(JsonSerializer.Serialize(ceTemplate), JsonSerializer.Serialize(
+      await db.QuestionnaireTemplates.AsNoTracking().SingleAsync(x => x.Id == QuestionnaireSeed.CeTemplateId)));
+    var all = await db.QuestionDefinitions.AsNoTracking().OrderBy(x => x.QuestionCode).ToListAsync();
+    Assert.Equal(62, all.Count(x => x.TemplateId == QuestionnaireSeed.CeTemplateId));
+    foreach (var original in prior)
+    {
+      if (original.QuestionCode == "RV-030") original.SortOrder = 40;
+      Assert.Equal(JsonSerializer.Serialize(original), JsonSerializer.Serialize(all.Single(x => x.Id == original.Id)));
+    }
+    var questions = all.Where(x => x.TemplateId == templateId).OrderBy(x => x.SortOrder).ToList();
+    Assert.Equal(32, questions.Count);
+    Assert.Equal(["RV-031", "RV-032", "RV-030"], questions
+      .Where(x => x.QuestionCode is "RV-031" or "RV-032" or "RV-030").Select(x => x.QuestionCode));
     var legalNotice = questions.Single(x => x.QuestionCode == "RV-031");
     Assert.Equal((true, "YES", true), (legalNotice.RequiresEvidence, legalNotice.AdverseAnswer, legalNotice.EscalatesOnChange));
     var feesSettled = questions.Single(x => x.QuestionCode == "RV-032");
@@ -58,7 +100,7 @@ public sealed class SteV22OwnerDecisionTests
     await using var pg = await PgTestSchema.CreateAsync(MigrationBeforeDecisions);
     await using var db = new AuditSphereDbContext(pg.Options);
 
-    await db.Database.MigrateAsync();
+    await db.GetService<IMigrator>().MigrateAsync(MigrationBeforeSundayWeek);
 
     // The migration never invents a template: questions appear only where the continuance bank already exists.
     Assert.Empty(await db.QuestionnaireTemplates.AsNoTracking().ToListAsync());

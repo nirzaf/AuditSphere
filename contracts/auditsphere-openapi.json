@@ -54984,6 +54984,137 @@
         ]
       }
     },
+    "/api/ui/administration/microsoft365/resources/activate-archive": {
+      "post": {
+        "tags": [
+          "AuditSphereOps.Api"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UiArchiveResourceActivation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiValueResponseOfGuid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiFailureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "required": [
+                        "code"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The boundary rate limit rejected the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The JSON command body exceeded the accepted size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "sessionCookie": [ ]
+          }
+        ]
+      }
+    },
     "/api/ui/administration/microsoft365/client-sites/{id}/review": {
       "get": {
         "tags": [
@@ -156713,7 +156844,8 @@
         "required": [
           "state",
           "diagnosticCode",
-          "observedAt"
+          "observedAt",
+          "verificationId"
         ],
         "type": "object",
         "properties": {
@@ -156726,6 +156858,10 @@
           "observedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "verificationId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -161574,6 +161710,81 @@
           },
           "reason": {
             "type": "string"
+          },
+          "reviewed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UiArchiveResourceActivation": {
+        "required": [
+          "draftId",
+          "expectedRevision",
+          "connectionRevisionId",
+          "capabilityVerificationId",
+          "tenantId",
+          "siteId",
+          "driveId",
+          "rootFolderId",
+          "displayUrl",
+          "accessProfile",
+          "reviewed"
+        ],
+        "type": "object",
+        "properties": {
+          "draftId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedRevision": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "connectionRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "capabilityVerificationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenantId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "siteId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "driveId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rootFolderId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "accessProfile": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "reviewed": {
             "type": "boolean"

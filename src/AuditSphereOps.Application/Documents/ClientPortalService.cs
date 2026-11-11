@@ -1,5 +1,8 @@
 using System.Data.Common;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Documents;
@@ -31,11 +34,39 @@ public static class ClientPortalService
     var intent = await db.ClientPortalIntents.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.PracticeClientId == clientId, ct);
     if (intent is null) return true;
     var target = engagementId ?? intent.ActivatedEngagementId;
-    if (target is null || !await db.EngagementActivations.AnyAsync(x => x.FirmId == firmId && x.PracticeClientId == clientId && x.EngagementId == target, ct)) return false;
-    var agreement = await db.EngagementFeeAgreements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.ProposalId == intent.SourceProposalId && x.PracticeClientId == clientId, ct);
-    return agreement is not null && await AuditSphereOps.Application.Practice.AutomaticFeeInvoiceHandler.HasCurrentLetterAsync(db, agreement, ct) &&
-      await db.Proposals.AnyAsync(x => x.FirmId == firmId && x.Id == intent.SourceProposalId && x.Status == "ACCEPTED" && x.ResponseAt != null, ct) &&
-      await AuditSphereOps.Application.Practice.FeeAgreementService.AdvanceCurrentlyPaidAsync(db, firmId, agreement.Id, ct);
+    if (target is null || intent.ActivatedEngagementId != target) return false;
+    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == firmId && x.PracticeClientId == clientId && x.Id == target, ct);
+    if (engagement is null ||
+        !await db.EngagementActivations.AsNoTracking().AnyAsync(x => x.FirmId == firmId &&
+          x.PracticeClientId == clientId && x.EngagementId == target, ct)) return false;
+
+    var commercial = await DualKeyEvidence.CurrentCommercialKeyAsync(db, firmId, engagement, ct);
+    if (commercial is null || commercial.ProposalId != intent.SourceProposalId) return false;
+    var risk = await EngagementRiskEvidence.LatestAsync(db, firmId, engagement, ct);
+    if (risk is not { Decision: "Accepted", DecidedByUserId: not null, DecidedAt: not null } ||
+        !string.IsNullOrWhiteSpace(risk.Conditions) ||
+        risk.Generation != await DualKeyEvidence.InputGenerationAsync(db, firmId, clientId, ct)) return false;
+
+    // The issued letter remains immutable historical evidence of this exact accepted offer.
+    // Current professional risk is reviewed separately above after accounting inputs change.
+    var letters = await db.CommercialDocuments.AsNoTracking().Where(x => x.FirmId == firmId &&
+      x.ProposalId == commercial.ProposalId && x.QuotationVersionId == commercial.QuotationVersionId &&
+      x.Kind == CommercialDocumentKinds.EngagementLetter).Take(2).ToListAsync(ct);
+    if (letters is not [var letter] || letter.AcceptanceDecisionId is null || letter.Bytes.Length == 0 ||
+        Hashing.Sha256Hex(letter.Bytes) != letter.Sha256Hex) return false;
+    if (letter.SignatureSpecimenId is null || letter.FirmSealSpecimenId is null || letter.CommercialAcceptedAt is null ||
+        !await db.SignatureSpecimens.AsNoTracking().AnyAsync(x => x.Id == letter.SignatureSpecimenId &&
+          x.FirmId == firmId && x.UserId == letter.CreatedByUserId, ct) ||
+        !await db.FirmSealSpecimens.AsNoTracking().AnyAsync(x => x.Id == letter.FirmSealSpecimenId && x.FirmId == firmId, ct) ||
+        !await db.Proposals.AsNoTracking().AnyAsync(x => x.Id == commercial.ProposalId && x.FirmId == firmId &&
+          x.ResponseAt == letter.CommercialAcceptedAt, ct)) return false;
+    var originalRisk = await db.AcceptanceDecisions.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.Id == letter.AcceptanceDecisionId && x.FirmId == firmId && x.PracticeClientId == clientId &&
+      x.ServiceRoute == engagement.ServiceRoute && (x.EngagementId == null || x.EngagementId == target), ct);
+    if (originalRisk is not { Decision: "Accepted", DecidedByUserId: not null, DecidedAt: not null } ||
+        originalRisk.DecidedAt > letter.CreatedAt || !string.IsNullOrWhiteSpace(originalRisk.Conditions)) return false;
+    return await FeeAgreementService.AdvanceCurrentlyPaidAsync(db, firmId, commercial.FeeAgreementId, ct);
   }
 
   internal static async Task RefreshCommercialIntentAsync(IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct)

@@ -10,6 +10,7 @@ using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Records;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
@@ -358,8 +359,10 @@ public sealed partial class AuditDeliverablesTests
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
     var partner = w.A("partner", "Partner"); var manager = w.A("manager", "Manager");
-    await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U));
-    await CompletionBundleFixture.SeedPostedFeeAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U), automateBalance: true);
+    await CompletionBundleFixture.ReleasedSupportedFinancialPackageAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U));
+    await CompletionBundleFixture.PostSupportedBalanceFeeAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U), automateBalance: true);
+    await RefreshSupportedPortalRiskAsync(pg, w);
+    await ReviewSupportedBundleApplicabilityAsync(pg, w);
     var iar = await ReportReadyForSigningAsync(pg, w);
     using var firmCertificate = ReportCertificateSigningTests.TestCertificate();
     var pfx = firmCertificate.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pkcs12);
@@ -424,8 +427,10 @@ public sealed partial class AuditDeliverablesTests
       Assert.Contains("balance invoice", blocked.Message);
       Assert.Empty(await db.CommercialDeliverableBundles.ToListAsync());
     }
-    var (packageId, releaseId) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U));
-    await CompletionBundleFixture.SeedPostedFeeAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U), automateBalance: true);
+    var (packageId, releaseId) = await CompletionBundleFixture.ReleasedSupportedFinancialPackageAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U));
+    await CompletionBundleFixture.PostSupportedBalanceFeeAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U), automateBalance: true);
+    await RefreshSupportedPortalRiskAsync(pg, w);
+    await ReviewSupportedBundleApplicabilityAsync(pg, w);
     var signedId = await SignedReportAsync(pg, w);
     await using (var db = new AuditSphereDbContext(pg.Options))
       Assert.True((await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.ManagementLetter)).Succeeded);
@@ -615,32 +620,42 @@ public sealed partial class AuditDeliverablesTests
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
         $"DELETE FROM client_bundle_acknowledgements WHERE id = {receipt.Id}"));
       Assert.Equal(ErrorCodes.ProtectedState, (await AuditSphereOps.Application.Documents.ClientPortalService.RequireUploadWindowAsync(db, client, w.EngagementId)).ErrorCode);
-      var outsider = NewUser(w.FirmId, "outside", "Client");
-      db.Users.Add(outsider); db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = outsider.Id, Role = "ClientUser", ClientId = w.ClientId, EngagementId = null,
-        GrantedAt = DateTimeOffset.UtcNow, RevokedAt = DateTimeOffset.UtcNow, GrantedByUserId = w.U["partner"].Id }); await db.SaveChangesAsync();
+      var admin = w.A("administrator", "Administrator");
+      var ensured = await RoleAdministrationService.EnsureUserAsync(db, admin,
+        new(w.U["administrator"].TenantId, Guid.NewGuid().ToString("D"), $"outside-{Guid.NewGuid():N}@example.test",
+          "outside", "Client", "APPROVED_ROSTER"));
+      Assert.True(ensured.Succeeded, ensured.Message);
+      var granted = await RoleAdministrationService.ApplyRoleGrantAndInvitationAsync(db, admin,
+        new(ensured.Value, "ClientUser", "CLIENT", w.ClientId));
+      Assert.True(granted.Succeeded, granted.Message);
+      Assert.Equal("NOT_SENT", granted.Value!.DeliveryState);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db, admin,
+        new(granted.Value.RoleGrantId, Reason: "Synthetic outsider has no current client authority."));
+      Assert.True(revoked.Succeeded, revoked.Message);
+      var outsider = await db.Users.AsNoTracking().SingleAsync(x => x.Id == ensured.Value);
       Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.GetBundleAsync(db, new(outsider.Id, w.FirmId, outsider.SessionEpoch, ["ClientUser"]), row.Id)).ErrorCode);
       Assert.Equal(ErrorCodes.ScopeDenied, (await ClientBundleAcknowledgementCommands.AcknowledgeAsync(db,
         new(outsider.Id, w.FirmId, outsider.SessionEpoch, ["ClientUser"]), row.Id, row.ContentSha256, row.ManifestSha256, true)).ErrorCode);
       Assert.False((await AuditDeliverableService.GetBundleAsync(db, client with { FirmId = Guid.NewGuid() }, row.Id)).Succeeded);
       await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM commercial_deliverable_bundles WHERE id = {row.Id}"));
 
-      // Projection-boundary fixture only: add 90 bounded view rows reusing the real bundle's exact proof foreign keys.
-      // These compact rows exercise the aggregate 101st-item gate; they do not claim to be independently assembled bundles.
-      var projectionManifest = "{}";
-      var projectionContent = new byte[] { 0x50 };
-      db.CommercialDeliverableBundles.AddRange(Enumerable.Range(1, 90).Select(revision => new CommercialDeliverableBundle
+      // Retain 101 genuinely assembled, distinct database-backed bundles. Each new resolved
+      // comment changes the correspondence snapshot; no manufactured projection rows are used.
+      for (var revision = 11; revision <= 100; revision++)
       {
-        Id = Guid.NewGuid(), FirmId = row.FirmId, ClientId = row.ClientId, EngagementId = row.EngagementId,
-        SignedReportId = row.SignedReportId, FinancialPackageReleaseId = row.FinancialPackageReleaseId,
-        FinancialPackageArtifactId = row.FinancialPackageArtifactId, FinancialStatementCompositionId = row.FinancialStatementCompositionId,
-        CompositionManifestDigest = row.CompositionManifestDigest, ManagementLetterId = row.ManagementLetterId,
-        SignedRepresentationLetterId = row.SignedRepresentationLetterId, BalanceInvoiceId = row.BalanceInvoiceId,
-        SourceDigest = Hashing.Sha256Hex($"client-bundle-projection-boundary-{revision}"), ManifestJson = projectionManifest,
-        ManifestSha256 = Hashing.Sha256Hex(projectionManifest), Content = projectionContent,
-        ContentSha256 = Hashing.Sha256Hex(projectionContent), AssembledByUserId = row.AssembledByUserId,
-        AssembledAt = row.AssembledAt.AddTicks(revision)
-      }));
-      await db.SaveChangesAsync();
+        var comment = await AuditDeliverableService.CommentAsync(db, manager, review.Value, Guid.NewGuid(),
+          $"Synthetic staff comment {revision}");
+        Assert.True(comment.Succeeded, comment.Message);
+        var resolved = await AuditDeliverableService.ResolveCommentAsync(db, partner, comment.Value,
+          $"Reviewed and resolved for snapshot {revision}.");
+        Assert.True(resolved.Succeeded, resolved.Message);
+        var nextBundle = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true);
+        Assert.True(nextBundle.Succeeded, nextBundle.Message);
+        Assert.NotEqual(previousBundleId, nextBundle.Value);
+        previousBundleId = nextBundle.Value;
+      }
+      Assert.Equal(101, await db.CommercialDeliverableBundles.CountAsync());
+      Assert.Equal(101, await db.CommercialDeliverableBundles.Select(x => x.SourceDigest).Distinct().CountAsync());
       var overflow = await ClientPortalReviewQuery.GetAsync(db, client);
       Assert.Equal(ErrorCodes.GateBlocked, overflow.ErrorCode);
       Assert.Null(overflow.Value);
@@ -666,9 +681,7 @@ public sealed partial class AuditDeliverablesTests
   [Fact]
   public async Task ArchiveCopyReceipts_RejectForeignOperationsAndPreserveExactEvidence()
   {
-    const string baseline = "20261029104522_SamplingRunSelectionScope";
-    const string current = "20261105173658_ArchiveProfileIdentity";
-    await using var pg = await PgTestSchema.CreateAsync(current);
+    await using var pg = await PgTestSchema.CreateAsync();
     var checkpointRoot = Path.Combine(Path.GetTempPath(), "auditsphere-archive-operation-scope", Guid.NewGuid().ToString("N"));
     try
     {
@@ -676,11 +689,17 @@ public sealed partial class AuditDeliverablesTests
       {
         var w = await SeedAsync(pg);
         var partner = w.A("partner", "Partner");
+        var snapshotBytes = System.Text.Encoding.UTF8.GetBytes("synthetic source bytes bound to version 7");
+        var source = await PrepareSupportedArchiveSourceAsync(pg, w, snapshotBytes);
+        var snapshotId = source.SnapshotId;
+        var clientSiteId = source.ClientSiteId;
         var firmCheckpointRoot = Path.Combine(checkpointRoot, label);
         var bundleScope = new CompletionBundleScope(w.FirmId, w.ClientId, w.EngagementId, w.U);
-        var (packageId, releaseId) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(
+        var (packageId, releaseId) = await CompletionBundleFixture.ReleasedSupportedFinancialPackageAsync(
           pg.Options, bundleScope, firmCheckpointRoot);
-        await CompletionBundleFixture.SeedPostedFeeAsync(pg.Options, bundleScope, automateBalance: false);
+        await CompletionBundleFixture.PostSupportedBalanceFeeAsync(pg.Options, bundleScope, automateBalance: false);
+        await RefreshSupportedPortalRiskAsync(pg, w);
+        await ReviewSupportedBundleApplicabilityAsync(pg, w);
         _ = await SignedReportAsync(pg, w);
         await using (var db = new AuditSphereDbContext(pg.Options))
           Assert.True((await AuditDeliverableService.GenerateReportAsync(db, w.A("manager", "Manager"),
@@ -694,7 +713,6 @@ public sealed partial class AuditDeliverablesTests
         }
 
         var archiveId = Guid.CreateVersion7();
-        const string tenantId = "7e90d7b4-8aec-4ef7-9f8d-2f57f733f023";
         var profile = new RecordsProfile
         {
           Id = Guid.CreateVersion7(), FirmId = w.FirmId, ProfileCode = "SYNTHETIC-ARCHIVE-COPY-TEST",
@@ -705,8 +723,6 @@ public sealed partial class AuditDeliverablesTests
           CreatedByUserId = partner.UserId, Approved = true, ApprovedByUserId = partner.UserId,
           ApprovedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
         };
-        var snapshotBytes = System.Text.Encoding.UTF8.GetBytes("synthetic source bytes bound to version 7");
-        var snapshotId = Guid.CreateVersion7();
         await using (var db = new AuditSphereDbContext(pg.Options))
         {
           db.RecordsProfiles.Add(profile);
@@ -715,28 +731,6 @@ public sealed partial class AuditDeliverablesTests
             Id = archiveId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
             ProfileId = profile.ProfileCode, ProfileVersion = profile.Version,
             Status = ArchiveStates.Issued, CreatedAt = DateTimeOffset.UtcNow
-          });
-          var bindingId = Guid.CreateVersion7();
-          var referenceId = Guid.CreateVersion7();
-          db.RepositoryBindings.Add(new RepositoryBinding
-          {
-            Id = bindingId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
-            TenantId = tenantId, SiteId = "source-site", DriveId = "source-drive", RootFolderId = "source-root",
-            Classification = "CLIENT_CONFIDENTIAL", DesiredAccess = "READ_ONLY", ObservedAccess = "READ_ONLY",
-            CapabilityProfile = "SELECTED_SITE", CreatedAt = DateTimeOffset.UtcNow
-          });
-          db.DocumentReferences.Add(new DocumentReference
-          {
-            Id = referenceId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
-            RepositoryBindingId = bindingId, Provider = "SharePoint", DriveId = "source-drive", ItemId = "source-item",
-            Path = "evidence/source.pdf", Purpose = "Evidence", CreatedAt = DateTimeOffset.UtcNow
-          });
-          db.DocumentSnapshots.Add(new DocumentSnapshot
-          {
-            Id = snapshotId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
-            DocumentReferenceId = referenceId, DriveId = "source-drive", ItemId = "source-item",
-            VersionId = "source-version-7", Sha256Hex = Hashing.Sha256Hex(snapshotBytes),
-            ByteCount = snapshotBytes.LongLength, CapturedBy = "synthetic-review-fixture", CapturedAt = DateTimeOffset.UtcNow
           });
           await db.SaveChangesAsync();
           var included = await RecordsArchiveService.BuildManifestWithCommercialBundleAsync(db, partner, archiveId, bundleId);
@@ -750,45 +744,6 @@ public sealed partial class AuditDeliverablesTests
         }
 
 
-        var clientSiteId = Guid.CreateVersion7();
-        var connectionId = Guid.CreateVersion7();
-        await using (var db = new AuditSphereDbContext(pg.Options))
-        {
-          var assignedUserIds = await db.EngagementStaffAssignments.AsNoTracking()
-            .Where(x => x.FirmId == w.FirmId && x.ClientId == w.ClientId && x.EngagementId == w.EngagementId && x.RevokedAt == null)
-            .Select(x => x.UserId).Distinct().ToListAsync();
-          var users = await db.Users.Where(x => x.FirmId == w.FirmId && assignedUserIds.Contains(x.Id)).ToListAsync();
-          foreach (var user in users)
-          {
-            user.Subject = Guid.CreateVersion7().ToString("D");
-            user.TenantId = tenantId;
-          }
-          await db.SaveChangesAsync();
-          var staff = await ClientSharePointSites.DesiredStaffAsync(db, w.FirmId, w.ClientId, tenantId);
-          Assert.NotEmpty(staff);
-          var now = DateTimeOffset.UtcNow;
-          // Persisted synthetic resource proof only; this fixture never constructs a real provider client.
-          db.Microsoft365ConnectionRevisions.Add(new Microsoft365ConnectionRevision
-          {
-            Id = connectionId, FirmId = w.FirmId, Revision = 1, TenantId = tenantId,
-            LoginClientIdReference = "test-only", RuntimeCredentialReference = "test-only",
-            State = Microsoft365RevisionStates.Active, ConsentState = "VERIFIED",
-            CreatedByUserId = partner.UserId, ApprovedByUserId = partner.UserId,
-            CreatedAt = now, VerifiedAt = now, ActivatedAt = now
-          });
-          db.ClientSharePointSites.Add(new ClientSharePointSite
-          {
-            Id = clientSiteId, FirmId = w.FirmId, ClientId = w.ClientId, ConnectionRevisionId = connectionId,
-            RequestedByUserId = partner.UserId, TenantId = tenantId,
-            RequestedUrl = "https://example.sharepoint.com/sites/operation-scope-" + label, Title = "Synthetic archive scope site",
-            OwnershipMarker = $"AuditSphere test client {w.ClientId:D}", State = "READY",
-            SiteId = "target-site-" + label, DriveId = "working-drive", RootItemId = "working-root", StaffGroupId = "42",
-            MembershipState = "VERIFIED", MemberObjectIdsJson = JsonSerializer.Serialize(staff),
-            DesiredDigest = ClientSharePointSites.Digest(staff), Reason = "Synthetic scoped receipt fixture",
-            CreatedAt = now, VerifiedAt = now, LastMembershipSyncAt = now
-          });
-          await db.SaveChangesAsync();
-        }
         var factory = new ArchiveCopyTestDbContextFactory(pg.Options);
         var store = new PostgresOperationStore(factory);
         var provider = new FakeArchiveCopyProvider(snapshotBytes);
@@ -927,18 +882,22 @@ public sealed partial class AuditDeliverablesTests
       }
       // Generic durable-parent scope controls use the native store and canonical request encoding.
       // They stay PENDING and are never represented as completed archive copies or provider effects.
-      var secondClient = Guid.CreateVersion7();
-      var secondClientEngagement = Guid.CreateVersion7();
-      var siblingEngagement = Guid.CreateVersion7();
+      var (secondClient, secondClientEngagement) = await CreateSupportedArchiveSiblingAsync(pg, own.World,
+        own.World.A("partner", "Partner"));
+      Guid siblingEngagement;
       await using (var db = new AuditSphereDbContext(pg.Options))
       {
-        db.PracticeClients.Add(new PracticeClient { Id = secondClient, FirmId = own.World.FirmId,
-          LegalName = "Synthetic second operation client", CreatedAt = DateTimeOffset.UtcNow });
-        db.ClientSafetyStates.Add(new ClientSafetyState { Id = secondClient, FirmId = own.World.FirmId });
-        db.Engagements.AddRange(
-          new Engagement { Id = secondClientEngagement, FirmId = own.World.FirmId, PracticeClientId = secondClient, CreatedAt = DateTimeOffset.UtcNow },
-          new Engagement { Id = siblingEngagement, FirmId = own.World.FirmId, PracticeClientId = own.World.ClientId, CreatedAt = DateTimeOffset.UtcNow });
-        await db.SaveChangesAsync();
+        var partner = own.World.A("partner", "Partner");
+        var state = await EngagementCreationWorkspace.StateAsync(db, partner, own.World.ClientId);
+        Assert.True(state.Succeeded, state.Message);
+        var request = new EngagementCreationRequest(Guid.NewGuid(), state.Value!.ReviewBasis,
+          new("Audit", "Audit", "2028-01-01", "2028-12-31"));
+        var preview = await EngagementCreationWorkspace.PreviewAsync(db, partner, own.World.ClientId, request);
+        Assert.True(preview.Succeeded, preview.Message);
+        var created = await EngagementCreationWorkspace.ExecuteAsync(db, partner, own.World.ClientId,
+          request with { Reviewed = true, ExpectedRequestHash = preview.Value!.RequestHash });
+        Assert.True(created.Succeeded, created.Message);
+        siblingEngagement = created.Value!.EngagementId;
       }
       var parentIds = new Dictionary<string, Guid>();
       var parentHandler = new ArchiveOperationScopeParentHandler();
@@ -989,141 +948,12 @@ public sealed partial class AuditDeliverablesTests
         return snapshots.ToArray();
       }
       var before = await SnapshotAsync();
-      var accepted = new List<string>();
-      await using (var connection = new NpgsqlConnection(pg.ConnectionString))
-      {
-        await connection.OpenAsync();
-        await using var tx = await connection.BeginTransactionAsync();
-        foreach (var table in new[] { "archive_copy_file_receipts", "archive_copy_permission_observations" })
-        {
-          async Task<int> InsertAsync(Guid firm, Guid client, Guid engagement, Guid operation)
-          {
-            await using var command = new NpgsqlCommand($"""
-              INSERT INTO {table}
-              SELECT (jsonb_populate_record(NULL::{table}, to_jsonb(r) || jsonb_build_object(
-                'id', @id, 'firm_id', @firm, 'client_id', @client, 'engagement_id', @engagement,
-                'operation_id', @operation, 'attempt_token', r.attempt_token + 1))).*
-              FROM {table} r WHERE r.id = (SELECT id FROM {table} WHERE operation_id = @source ORDER BY id LIMIT 1)
-              """, connection, tx);
-            command.Parameters.AddWithValue("id", Guid.CreateVersion7());
-            command.Parameters.AddWithValue("firm", firm);
-            command.Parameters.AddWithValue("client", client);
-            command.Parameters.AddWithValue("engagement", engagement);
-            command.Parameters.AddWithValue("operation", operation);
-            command.Parameters.AddWithValue("source", own.OperationId);
-            return await command.ExecuteNonQueryAsync();
-          }
-          await new NpgsqlCommand("SAVEPOINT archive_operation_probe", connection, tx).ExecuteNonQueryAsync();
-          // Rollback-only structural clone: attempt+1 avoids the existing unique attempt/source indexes.
-          // It is not a real second attempt or a new native receipt; native attempt1 was checked above.
-          Assert.Equal(1, await InsertAsync(own.World.FirmId, own.World.ClientId, own.World.EngagementId, own.OperationId));
-          await new NpgsqlCommand("ROLLBACK TO SAVEPOINT archive_operation_probe", connection, tx).ExecuteNonQueryAsync();
-          // A same-scope PENDING LOCAL parent isolates scope from the other generic parents' kind/state.
-          Assert.Equal(1, await InsertAsync(own.World.FirmId, own.World.ClientId, own.World.EngagementId, parentIds["same-scope operation"]));
-          await new NpgsqlCommand("ROLLBACK TO SAVEPOINT archive_operation_probe", connection, tx).ExecuteNonQueryAsync();
-          foreach (var (label, firm, client, engagement, operation) in new[]
-          {
-            ("foreign operation", own.World.FirmId, own.World.ClientId, own.World.EngagementId, foreign.OperationId),
-            ("same-firm different-client operation", own.World.FirmId, own.World.ClientId, own.World.EngagementId, parentIds["same-firm different-client operation"]),
-            ("same-client sibling-engagement operation", own.World.FirmId, own.World.ClientId, own.World.EngagementId, parentIds["same-client sibling-engagement operation"]),
-            ("client-only operation", own.World.FirmId, own.World.ClientId, own.World.EngagementId, parentIds["client-only operation"]),
-            ("firm-wide operation", own.World.FirmId, own.World.ClientId, own.World.EngagementId, parentIds["firm-wide operation"]),
-            ("wrong child firm", foreign.World.FirmId, own.World.ClientId, own.World.EngagementId, own.OperationId),
-            ("wrong child client", own.World.FirmId, foreign.World.ClientId, own.World.EngagementId, own.OperationId),
-            ("wrong child engagement", own.World.FirmId, own.World.ClientId, foreign.World.EngagementId, own.OperationId)
-          })
-          {
-            try
-            {
-              Assert.Equal(1, await InsertAsync(firm, client, engagement, operation));
-              accepted.Add(table + ":" + label);
-            }
-            catch (PostgresException error)
-            {
-              Assert.Equal("23503", error.SqlState);
-              if (label.Contains("operation", StringComparison.Ordinal))
-                Assert.Equal(table == "archive_copy_file_receipts"
-                  ? "fk_archive_copy_file_operation_scope" : "fk_archive_copy_permission_operation_scope", error.ConstraintName);
-            }
-            await new NpgsqlCommand("ROLLBACK TO SAVEPOINT archive_operation_probe", connection, tx).ExecuteNonQueryAsync();
-          }
-        }
-        await tx.RollbackAsync();
-      }
+      await AssertArchiveReceiptParentScopeAsync(pg,
+        new(own.World.FirmId, own.World.ClientId, own.World.EngagementId, own.OperationId),
+        new(foreign.World.FirmId, foreign.World.ClientId, foreign.World.EngagementId, foreign.OperationId), parentIds);
       Assert.Equal(before, await SnapshotAsync());
-      Assert.True(accepted.Count == 0, "Cross-scope archive-copy operation references accepted: " + string.Join(", ", accepted));
 
-      await using var migrationDb = new AuditSphereDbContext(pg.Options);
-      var migrator = migrationDb.GetService<IMigrator>();
-      var applied = (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray();
-      Assert.Equal(current, applied[^1]);
-      var baselineIndex = Array.IndexOf(applied, baseline);
-      Assert.InRange(baselineIndex, 0, applied.Length - 2);
-      Assert.Equal("20261029124914_ArchiveCopyOperationScope", applied[baselineIndex + 1]);
-      var baselineHistory = applied[..(baselineIndex + 1)];
-      Assert.True(migrationDb.Model.FindEntityType(typeof(DurableOperation))!.FindProperty(nameof(DurableOperation.ClientId))!.IsNullable);
-      Assert.True(migrationDb.Model.FindEntityType(typeof(DurableOperation))!.FindProperty(nameof(DurableOperation.EngagementId))!.IsNullable);
-      async Task<string> CatalogAsync(bool newObjects)
-      {
-        await using var connection = new NpgsqlConnection(pg.ConnectionString);
-        await connection.OpenAsync();
-        await using var command = new NpgsqlCommand("""
-          SELECT jsonb_build_object(
-            'indexes', (SELECT jsonb_agg(jsonb_build_array(indexname,indexdef) ORDER BY indexname)
-              FROM pg_indexes WHERE schemaname=current_schema()
-                AND tablename IN ('durable_operations','archive_copy_file_receipts','archive_copy_permission_observations')
-                AND (indexname='ux_durable_operation_scope_id')=@new),
-            'constraints', (SELECT jsonb_agg(jsonb_build_array(conname,pg_get_constraintdef(oid),convalidated,condeferrable) ORDER BY conname)
-              FROM pg_constraint WHERE connamespace=current_schema()::regnamespace
-                AND conrelid IN ('durable_operations'::regclass,'archive_copy_file_receipts'::regclass,'archive_copy_permission_observations'::regclass)
-                AND (conname IN ('fk_archive_copy_file_operation_scope','fk_archive_copy_permission_operation_scope'))=@new))::text
-          """, connection);
-        command.Parameters.AddWithValue("new", newObjects);
-        return (string)(await command.ExecuteScalarAsync())!;
-      }
-      async Task AssertNewScopeAsync(bool present)
-      {
-        using var catalog = JsonDocument.Parse(await CatalogAsync(true));
-        var constraints = catalog.RootElement.GetProperty("constraints");
-        if (!present)
-        {
-          Assert.Equal(JsonValueKind.Null, constraints.ValueKind);
-          Assert.Equal(JsonValueKind.Null, catalog.RootElement.GetProperty("indexes").ValueKind);
-          return;
-        }
-        Assert.Equal(2, constraints.GetArrayLength());
-        foreach (var row in constraints.EnumerateArray())
-        {
-          Assert.True(row[2].GetBoolean());
-          Assert.False(row[3].GetBoolean());
-          Assert.Contains("FOREIGN KEY (firm_id, client_id, engagement_id, operation_id)", row[1].GetString());
-          Assert.Contains("REFERENCES durable_operations(firm_id, client_id, engagement_id, id) ON DELETE RESTRICT", row[1].GetString());
-        }
-        var index = Assert.Single(catalog.RootElement.GetProperty("indexes").EnumerateArray());
-        Assert.Equal("ux_durable_operation_scope_id", index[0].GetString());
-        Assert.Contains("CREATE UNIQUE INDEX", index[1].GetString());
-        Assert.Contains("(firm_id, client_id, engagement_id, id)", index[1].GetString());
-        Assert.DoesNotContain(" WHERE ", index[1].GetString());
-        await using var connection = new NpgsqlConnection(pg.ConnectionString);
-        await connection.OpenAsync();
-        await using var nullable = new NpgsqlCommand("""
-          SELECT count(*) FROM information_schema.columns
-          WHERE table_schema=current_schema() AND table_name='durable_operations'
-            AND column_name IN ('client_id','engagement_id') AND is_nullable='YES'
-          """, connection);
-        Assert.Equal(2L, (long)(await nullable.ExecuteScalarAsync())!);
-      }
-      await AssertNewScopeAsync(true);
-
-      // Later additive migrations can be reverted, but the retained payload prevents removing its guard migration.
-      const string retainedPayloadGuard = "20261105163636_ArchiveAudienceAndReviewedManifestIntegrity";
-      var guardIndex = Array.IndexOf(applied, retainedPayloadGuard);
-      Assert.InRange(guardIndex, baselineIndex + 1, applied.Length - 1);
-      var expectedAppliedAfterRefusal = applied[..(guardIndex + 1)];
-      var refusedDowngrade = await Assert.ThrowsAnyAsync<Exception>(() => migrator.MigrateAsync(baseline));
-      Assert.Equal("55000", Assert.IsType<PostgresException>(refusedDowngrade.GetBaseException()).SqlState);
-      Assert.Equal(expectedAppliedAfterRefusal, (await migrationDb.Database.GetAppliedMigrationsAsync()).ToArray());
-      await AssertNewScopeAsync(true);
+      await AssertHistoricalArchiveReceiptStructureAsync();
 
     }
     finally { if (Directory.Exists(checkpointRoot)) Directory.Delete(checkpointRoot, recursive: true); }
@@ -1158,13 +988,20 @@ public sealed partial class AuditDeliverablesTests
 
     var w = await SeedAsync(pg);
     var partner = w.A("partner", "Partner");
+    var snapshotBytes = System.Text.Encoding.UTF8.GetBytes("synthetic source bytes bound to version 7");
+    var source = await PrepareSupportedArchiveSourceAsync(pg, w, snapshotBytes);
+    var snapshotId = source.SnapshotId;
+    var clientSiteId = source.ClientSiteId;
+    var tenantId = source.TenantId;
     var checkpointRoot = Path.Combine(Path.GetTempPath(), "auditsphere-archive-copy-checkpoint", Guid.NewGuid().ToString("N"));
     try
     {
       var bundleScope = new CompletionBundleScope(w.FirmId, w.ClientId, w.EngagementId, w.U);
-      var (packageId, releaseId) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(
+      var (packageId, releaseId) = await CompletionBundleFixture.ReleasedSupportedFinancialPackageAsync(
         pg.Options, bundleScope, checkpointRoot);
-      await CompletionBundleFixture.SeedPostedFeeAsync(pg.Options, bundleScope, automateBalance: true);
+      await CompletionBundleFixture.PostSupportedBalanceFeeAsync(pg.Options, bundleScope, automateBalance: true);
+      await RefreshSupportedPortalRiskAsync(pg, w);
+    await ReviewSupportedBundleApplicabilityAsync(pg, w);
       _ = await SignedReportAsync(pg, w);
       await using (var db = new AuditSphereDbContext(pg.Options))
         Assert.True((await AuditDeliverableService.GenerateReportAsync(db, w.A("manager", "Manager"),
@@ -1178,7 +1015,6 @@ public sealed partial class AuditDeliverablesTests
       }
 
       var archiveId = Guid.CreateVersion7();
-      const string tenantId = "7e90d7b4-8aec-4ef7-9f8d-2f57f733f023";
       var profile = new RecordsProfile
       {
         Id = Guid.CreateVersion7(), FirmId = w.FirmId, ProfileCode = "SYNTHETIC-ARCHIVE-COPY-TEST",
@@ -1189,8 +1025,6 @@ public sealed partial class AuditDeliverablesTests
         CreatedByUserId = partner.UserId, Approved = true, ApprovedByUserId = partner.UserId,
         ApprovedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
       };
-      var snapshotBytes = System.Text.Encoding.UTF8.GetBytes("synthetic source bytes bound to version 7");
-      var snapshotId = Guid.CreateVersion7();
       ArchiveManifestResult includedManifest;
       await using (var db = new AuditSphereDbContext(pg.Options))
       {
@@ -1200,28 +1034,6 @@ public sealed partial class AuditDeliverablesTests
           Id = archiveId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
           ProfileId = profile.ProfileCode, ProfileVersion = profile.Version,
           Status = ArchiveStates.Issued, CreatedAt = DateTimeOffset.UtcNow
-        });
-        var bindingId = Guid.CreateVersion7();
-        var referenceId = Guid.CreateVersion7();
-        db.RepositoryBindings.Add(new RepositoryBinding
-        {
-          Id = bindingId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
-          TenantId = tenantId, SiteId = "source-site", DriveId = "source-drive", RootFolderId = "source-root",
-          Classification = "CLIENT_CONFIDENTIAL", DesiredAccess = "READ_ONLY", ObservedAccess = "READ_ONLY",
-          CapabilityProfile = "SELECTED_SITE", CreatedAt = DateTimeOffset.UtcNow
-        });
-        db.DocumentReferences.Add(new DocumentReference
-        {
-          Id = referenceId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
-          RepositoryBindingId = bindingId, Provider = "SharePoint", DriveId = "source-drive", ItemId = "source-item",
-          Path = "evidence/source.pdf", Purpose = "Evidence", CreatedAt = DateTimeOffset.UtcNow
-        });
-        db.DocumentSnapshots.Add(new DocumentSnapshot
-        {
-          Id = snapshotId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
-          DocumentReferenceId = referenceId, DriveId = "source-drive", ItemId = "source-item",
-          VersionId = "source-version-7", Sha256Hex = Hashing.Sha256Hex(snapshotBytes),
-          ByteCount = snapshotBytes.LongLength, CapturedBy = "synthetic-review-fixture", CapturedAt = DateTimeOffset.UtcNow
         });
         await db.SaveChangesAsync();
         var included = await RecordsArchiveService.BuildManifestWithCommercialBundleAsync(db, partner, archiveId, bundleId);
@@ -1235,105 +1047,6 @@ public sealed partial class AuditDeliverablesTests
           new ArchiveManifestReviewRequest(includedManifest.ManifestId, includedManifest.ManifestVersion,
             includedManifest.Digest, Guid.NewGuid().ToString("N")));
         Assert.True(reviewed.Succeeded, reviewed.Message);
-      }
-
-      const string staffGroupId = "42";
-      var clientSiteId = Guid.CreateVersion7();
-      var connectionId = Guid.CreateVersion7();
-      var selectedDraftId = Guid.CreateVersion7();
-      var selectedVerificationId = Guid.CreateVersion7();
-      var consentAttemptId = Guid.CreateVersion7();
-      var selectedSiteUrl = "https://example.sharepoint.com/sites/shared-archive-copy-test";
-      var selectedSiteId = $"example.sharepoint.com,{Guid.CreateVersion7():D},{Guid.CreateVersion7():D}";
-      const string selectedArchiveDriveId = "shared-archive-drive";
-      const string selectedArchiveRootId = "shared-library-root";
-      var selectedProofObservedAt = DateTimeOffset.UtcNow.AddMinutes(-1);
-      await using (var db = new AuditSphereDbContext(pg.Options))
-      {
-        var assignedUserIds = await db.EngagementStaffAssignments.AsNoTracking()
-          .Where(x => x.FirmId == w.FirmId && x.ClientId == w.ClientId && x.EngagementId == w.EngagementId && x.RevokedAt == null)
-          .Select(x => x.UserId).Distinct().ToListAsync();
-        var assignedUsers = await db.Users.Where(x => x.FirmId == w.FirmId && assignedUserIds.Contains(x.Id)).ToListAsync();
-        foreach (var user in assignedUsers)
-        {
-          user.Subject = Guid.CreateVersion7().ToString("D");
-          user.TenantId = tenantId;
-        }
-        await db.SaveChangesAsync();
-        var staff = await ClientSharePointSites.DesiredStaffAsync(db, w.FirmId, w.ClientId, tenantId);
-        Assert.NotEmpty(staff);
-        var staffDigest = ClientSharePointSites.Digest(staff);
-        var now = DateTimeOffset.UtcNow;
-        db.Microsoft365ConnectionRevisions.Add(new Microsoft365ConnectionRevision
-        {
-          Id = connectionId, FirmId = w.FirmId, Revision = 1, TenantId = tenantId,
-          LoginClientIdReference = "test-only", RuntimeCredentialReference = "test-only",
-          State = Microsoft365RevisionStates.Active, ConsentState = "VERIFIED",
-          CreatedByUserId = partner.UserId, ApprovedByUserId = partner.UserId,
-          CreatedAt = now, VerifiedAt = now, ActivatedAt = now
-        });
-        db.ClientSharePointSites.Add(new ClientSharePointSite
-        {
-          Id = clientSiteId, FirmId = w.FirmId, ClientId = w.ClientId, ConnectionRevisionId = connectionId,
-          RequestedByUserId = partner.UserId, TenantId = tenantId,
-          RequestedUrl = "https://example.sharepoint.com/sites/archive-copy-test", Title = "Synthetic client site",
-          OwnershipMarker = $"AuditSphere test client {w.ClientId:D}", State = "READY",
-          SiteId = "target-site", DriveId = "working-drive", RootItemId = "working-root", StaffGroupId = staffGroupId,
-          MembershipState = "VERIFIED", MemberObjectIdsJson = JsonSerializer.Serialize(staff), DesiredDigest = staffDigest,
-          Reason = "Synthetic test fixture", CreatedAt = now, VerifiedAt = now, LastMembershipSyncAt = now
-        });
-
-        var partnerUser = await db.Users.AsNoTracking().SingleAsync(x => x.FirmId == w.FirmId && x.Id == partner.UserId);
-        var setupSessionId = Guid.CreateVersion7();
-        db.Microsoft365SetupSessions.Add(new Microsoft365SetupSession
-        {
-          Id = setupSessionId, FirmId = w.FirmId, InstallationId = "archive-copy-" + Guid.CreateVersion7().ToString("N"),
-          BootstrapProofHash = new string('a', 64), CapabilityHash = new string('b', 64),
-          State = Microsoft365SetupStates.Active, Revision = 1, ClaimedByUserId = partner.UserId,
-          ClaimedAt = selectedProofObservedAt.AddMinutes(-10), ExpiresAt = selectedProofObservedAt.AddDays(1)
-        });
-        db.Microsoft365SetupDrafts.Add(new Microsoft365SetupDraft
-        {
-          Id = selectedDraftId, FirmId = w.FirmId, SetupSessionId = setupSessionId, Revision = 1,
-          State = Microsoft365RevisionStates.Active, ExpectedTenantId = tenantId,
-          SiteUrl = selectedSiteUrl, SiteId = selectedSiteId, DriveId = selectedArchiveDriveId,
-          RootFolderId = selectedArchiveRootId, ConnectionRevisionId = connectionId,
-          CreatedAt = selectedProofObservedAt.AddMinutes(-10), UpdatedAt = selectedProofObservedAt
-        });
-        db.TenantConsentAttempts.Add(new TenantConsentAttempt
-        {
-          Id = consentAttemptId, FirmId = w.FirmId, SetupDraftId = selectedDraftId,
-          InitiatedByUserId = partner.UserId, InitiatingSessionEpoch = partnerUser.SessionEpoch,
-          InitiatorObjectId = Guid.CreateVersion7().ToString("D"), ExpectedTenantId = tenantId,
-          ApplicationClientId = "archive-copy-test-application",
-          StateHash = Hashing.Sha256Hex("archive-copy-consent-state"),
-          State = TenantConsentAttemptStates.ConsentVerified,
-          CreatedAt = selectedProofObservedAt.AddMinutes(-5), ExpiresAt = selectedProofObservedAt.AddHours(1),
-          ReturnedAt = selectedProofObservedAt, ReturnedTenantId = tenantId,
-          ConsentingTenantId = tenantId, ConsentingObjectId = Guid.CreateVersion7().ToString("D"),
-          ConsentVerifiedAt = selectedProofObservedAt
-        });
-        db.TenantCapabilityVerifications.Add(new TenantCapabilityVerification
-        {
-          Id = selectedVerificationId, FirmId = w.FirmId, ConnectionRevisionId = connectionId,
-          ConsentAttemptId = consentAttemptId, TenantId = tenantId, Capability = Microsoft365Capabilities.SelectedSite,
-          Permission = "Sites.Selected", State = CapabilityVerificationStates.Verified,
-          DiagnosticCode = "exact-resource-and-control-denial", ObservedByUserId = partner.UserId,
-          ObservedAt = selectedProofObservedAt
-        });
-        foreach (var (kind, resourceId) in new[]
-        {
-          ("SITE", selectedSiteId), ("DRIVE", selectedArchiveDriveId), ("ROOT", selectedArchiveRootId)
-        })
-          db.IntegrationVerificationEvidences.Add(new IntegrationVerificationEvidence
-          {
-            Id = Guid.CreateVersion7(), FirmId = w.FirmId, SetupDraftId = selectedDraftId,
-            ConnectionRevisionId = connectionId, ResourceKind = kind, ResourceId = resourceId,
-            Operation = "GRAPH_BOUNDARY_READ", IdentityReference = "test-only", Result = "PASS",
-            EvidenceReference = "archive-copy-selected-resource-test:" + kind,
-            ObservedAt = selectedProofObservedAt
-          });
-        await db.SaveChangesAsync();
       }
 
       var factory = new ArchiveCopyTestDbContextFactory(pg.Options);
@@ -1620,18 +1333,40 @@ public sealed partial class AuditDeliverablesTests
         Assert.NotEmpty(legacyHashes);
 
         var migrator = db.GetService<IMigrator>();
-        // The structured-export guard refuses first, before any migration is removed.
+        // Supported finance approval evidence is the first applicable retained-evidence guard.
+        // The older Audience and structured-export guards remain pending in the historical slice.
+        Assert.False(await db.AuditCompletionVarianceCommandReceipts.AnyAsync());
+        var financeEvidence = await db.FirmFinanceProfiles.AsNoTracking()
+          .SingleAsync(x => x.FirmId == w.FirmId && x.Approved);
+        Assert.NotNull(financeEvidence.CreatedByUserId);
+        Assert.NotNull(financeEvidence.CreatedByEpoch);
+        Assert.NotNull(financeEvidence.DraftRevision);
+        Assert.False(string.IsNullOrWhiteSpace(financeEvidence.DraftBasisSha256));
+        Assert.Equal(financeEvidence.DraftRevision, financeEvidence.ApprovedDraftRevision);
+        Assert.Equal(financeEvidence.DraftBasisSha256, financeEvidence.ApprovedDraftBasisSha256);
+        var retainedFinanceJson = JsonSerializer.Serialize(financeEvidence);
+        const string financeGuard = "20261110102702_FirmFinanceProfileMakerChecker";
+        var financeGuardIndex = Array.IndexOf(migrations, financeGuard);
+        Assert.Equal(migrations.Length - 2, financeGuardIndex);
+        Assert.Equal("20261110123614_AuditCompletionVarianceCommandReceipts", migrations[^1]);
+        // EF Core 10.0.12 commits each completed migration command list. The empty receipt
+        // migration is removed, while the failed finance Down transaction is rolled back.
+        var expectedAppliedAfterRefusal = migrations[..(financeGuardIndex + 1)];
         var refusedV2Downgrade = await Assert.ThrowsAnyAsync<Exception>(() =>
           migrator.MigrateAsync(migrations[foundationIndex]));
         var v2DowngradeFailure = Assert.IsType<PostgresException>(refusedV2Downgrade.GetBaseException());
-        Assert.Equal("55000", v2DowngradeFailure.SqlState);
-        Assert.Contains("retained structured exports exist", v2DowngradeFailure.MessageText, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(migrations, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
+        Assert.Equal("P0001", v2DowngradeFailure.SqlState);
+        Assert.Equal("Finance profile maker/checker downgrade would discard profile approval evidence.",
+          v2DowngradeFailure.MessageText);
+        Assert.Equal(expectedAppliedAfterRefusal, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
         await using (var restoreDb = new AuditSphereDbContext(pg.Options))
         {
           await restoreDb.GetService<IMigrator>().MigrateAsync();
           Assert.Equal(migrations, (await restoreDb.Database.GetAppliedMigrationsAsync()).ToArray());
         }
+        Assert.False(await db.AuditCompletionVarianceCommandReceipts.AnyAsync());
+        Assert.Equal(retainedFinanceJson, JsonSerializer.Serialize(await db.FirmFinanceProfiles.AsNoTracking()
+          .SingleAsync(x => x.Id == financeEvidence.Id)));
         var restoredLegacyHashes = await db.ArchiveCopyTargetRevisions.AsNoTracking()
           .Where(x => x.FirmId == w.FirmId && x.ClientId == w.ClientId)
           .Select(x => new { x.Id, x.Revision, x.ConfigurationSha256, x.ExpectedPermissionsSha256 })
@@ -1662,6 +1397,13 @@ public sealed partial class AuditDeliverablesTests
         Assert.Equal(migrations, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
       }
 
+      var secondaryArchive = await PrepareSupportedSecondaryArchiveAsync(pg, w);
+      var selectedDraftId = secondaryArchive.DraftId;
+      var selectedVerificationId = secondaryArchive.VerificationId;
+      var selectedSiteUrl = secondaryArchive.SiteUrl;
+      var selectedSiteId = secondaryArchive.SiteId;
+      var selectedArchiveDriveId = secondaryArchive.DriveId;
+      var selectedArchiveRootId = secondaryArchive.RootId;
       ArchiveCopyTargetRevisionView sharedTargetA;
       await using (var db = new AuditSphereDbContext(pg.Options))
       {
@@ -1680,33 +1422,14 @@ public sealed partial class AuditDeliverablesTests
         Assert.True(persisted.HasValidDigests());
       }
 
-      var clientBId = Guid.CreateVersion7();
-      var clientBEngagementId = Guid.CreateVersion7();
+      var (clientBId, clientBEngagementId) = await CreateSupportedArchiveSiblingAsync(pg, w, partner);
       await using (var db = new AuditSphereDbContext(pg.Options))
       {
-        var targetA = await db.ArchiveCopyTargetRevisions.AsNoTracking()
-          .SingleAsync(x => x.FirmId == w.FirmId && x.Id == sharedTargetA.TargetRevisionId);
-        var staffPermissions = ArchiveCopyPermissionEncoding.Encode(ArchiveCopyPermissionEncoding.ClientStaffRead("78"));
-        var clientB = new PracticeClient
-        {
-          Id = clientBId, FirmId = w.FirmId, LegalName = "Synthetic second archive-copy client",
-          Status = "ACTIVE", CreatedAt = DateTimeOffset.UtcNow
-        };
-        db.PracticeClients.Add(clientB);
-        db.Engagements.Add(new Engagement
-        {
-          Id = clientBEngagementId, FirmId = w.FirmId, PracticeClientId = clientBId,
-          Status = "Active", ProfessionalWorkBlocked = false, CreatedAt = DateTimeOffset.UtcNow
-        });
-        var sharedTargetB = ArchiveCopyTargetRevision.CreateSharedSelectedResource(
-          Guid.CreateVersion7(), w.FirmId, clientBId, "78", 1, connectionId, tenantId, selectedSiteId,
-          "shared-archive-drive-b", "shared-library-root-b", selectedDraftId, 1, selectedVerificationId,
-          selectedSiteUrl, "shared-library-root-b", targetA.SelectedResourceEvidenceSha256!,
-          staffPermissions.Json, staffPermissions.Sha256, targetA.AuthorizedStaffSha256,
-          partner.UserId, DateTimeOffset.UtcNow);
+        var created = await ArchiveCopyService.CreateTargetRevisionAsync(db, partner,
+          new(clientBId, null, selectedArchiveDriveId, selectedArchiveRootId, selectedDraftId, "78"));
+        Assert.True(created.Succeeded, created.Message);
+        var sharedTargetB = await db.ArchiveCopyTargetRevisions.AsNoTracking().SingleAsync(x => x.Id == created.Value!.TargetRevisionId);
         Assert.True(sharedTargetB.HasValidDigests());
-        db.ArchiveCopyTargetRevisions.Add(sharedTargetB);
-        await db.SaveChangesAsync();
         Assert.Equal(1, await db.ArchiveCopyTargetRevisions.AsNoTracking()
           .Where(x => x.FirmId == w.FirmId && x.ClientId == clientBId && x.TargetCode == "SECONDARY_ARCHIVE")
           .Select(x => x.Revision).SingleAsync());
@@ -1715,9 +1438,9 @@ public sealed partial class AuditDeliverablesTests
       await using (var db = new AuditSphereDbContext(pg.Options))
       {
         var mixed = ArchiveCopyTargetRevision.CreateSharedSelectedResource(
-          Guid.CreateVersion7(), w.FirmId, w.ClientId, "77", sharedTargetA.Revision + 1, connectionId,
+          Guid.CreateVersion7(), w.FirmId, w.ClientId, "77", sharedTargetA.Revision + 1, secondaryArchive.ConnectionId,
           tenantId, selectedSiteId, selectedArchiveDriveId, selectedArchiveRootId, selectedDraftId,
-          1, selectedVerificationId, selectedSiteUrl, selectedArchiveRootId,
+          secondaryArchive.DraftRevision, selectedVerificationId, selectedSiteUrl, selectedArchiveRootId,
           Hashing.Sha256Hex("synthetic selected-resource proof for xor test"),
           ArchiveCopyPermissionEncoding.Encode(ArchiveCopyPermissionEncoding.ClientStaffRead("77")).Json,
           ArchiveCopyPermissionEncoding.Encode(ArchiveCopyPermissionEncoding.ClientStaffRead("77")).Sha256,
@@ -1755,9 +1478,28 @@ public sealed partial class AuditDeliverablesTests
           }).ToArrayAsync();
         Assert.Equal(2, retainedSharedProofs.Length);
         Assert.Contains(sharedArchiveMigrationId, await db.Database.GetAppliedMigrationsAsync());
+        Assert.Equal(migrations, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
+        Assert.False(await db.AuditCompletionVarianceCommandReceipts.AnyAsync());
+        var financeEvidence = await db.FirmFinanceProfiles.AsNoTracking()
+          .SingleAsync(x => x.FirmId == w.FirmId && x.Approved);
+        Assert.NotNull(financeEvidence.CreatedByUserId);
+        Assert.NotNull(financeEvidence.CreatedByEpoch);
+        Assert.NotNull(financeEvidence.DraftRevision);
+        Assert.False(string.IsNullOrWhiteSpace(financeEvidence.DraftBasisSha256));
+        Assert.Equal(financeEvidence.DraftRevision, financeEvidence.ApprovedDraftRevision);
+        Assert.Equal(financeEvidence.DraftBasisSha256, financeEvidence.ApprovedDraftBasisSha256);
+        var retainedFinanceJson = JsonSerializer.Serialize(financeEvidence);
+        var financeGuardIndex = Array.IndexOf(migrations, "20261110102702_FirmFinanceProfileMakerChecker");
+        Assert.Equal(migrations.Length - 2, financeGuardIndex);
+        Assert.Equal("20261110123614_AuditCompletionVarianceCommandReceipts", migrations[^1]);
+        var expectedAppliedAfterRefusal = migrations[..(financeGuardIndex + 1)];
         var refused = await Assert.ThrowsAnyAsync<Exception>(() =>
           db.GetService<IMigrator>().MigrateAsync(migrations[foundationIndex]));
-        Assert.Equal("55000", Assert.IsType<PostgresException>(refused.GetBaseException()).SqlState);
+        var financeFailure = Assert.IsType<PostgresException>(refused.GetBaseException());
+        Assert.Equal("P0001", financeFailure.SqlState);
+        Assert.Equal("Finance profile maker/checker downgrade would discard profile approval evidence.",
+          financeFailure.MessageText);
+        Assert.Equal(expectedAppliedAfterRefusal, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
 
         await using var verifyDb = new AuditSphereDbContext(pg.Options);
         Assert.Contains(sharedArchiveMigrationId, await verifyDb.Database.GetAppliedMigrationsAsync());
@@ -1778,6 +1520,10 @@ public sealed partial class AuditDeliverablesTests
           }).ToArrayAsync();
         Assert.Equal(retainedSharedProofs, retainedSharedProofsAfterRefusal);
         await verifyDb.GetService<IMigrator>().MigrateAsync();
+        Assert.Equal(migrations, (await verifyDb.Database.GetAppliedMigrationsAsync()).ToArray());
+        Assert.False(await verifyDb.AuditCompletionVarianceCommandReceipts.AnyAsync());
+        Assert.Equal(retainedFinanceJson, JsonSerializer.Serialize(await verifyDb.FirmFinanceProfiles.AsNoTracking()
+          .SingleAsync(x => x.Id == financeEvidence.Id)));
       }
 
       await using (var db = new AuditSphereDbContext(pg.Options))

@@ -31,12 +31,22 @@ public sealed class SelectedSiteBoundaryVerificationService(
     await using (var db = await factory.CreateAsync(ct))
     {
       await AuthorizeAsync(db, actor, ct);
-      var draft = await db.Microsoft365SetupDrafts.AsNoTracking()
-        .SingleOrDefaultAsync(x => x.Id == draftId && x.FirmId == actor.FirmId, ct);
+      await using var pendingTransaction = await db.Database.BeginTransactionAsync(ct);
+      // The latest selected-site observation is tenant-wide. Even a probe for another
+      // connection must serialize pending publication with either activation purpose.
+      if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE")
+          .AsNoTracking().SingleOrDefaultAsync(ct) is null)
+        throw new OperationBlockedException("selected-resource-firm-unavailable", authorization: true);
+      await AuthorizeAsync(db, actor, ct);
+      var draft = await db.Microsoft365SetupDrafts.FromSqlInterpolated($"""
+        SELECT * FROM m365_setup_drafts WHERE firm_id={actor.FirmId} AND id={draftId} FOR UPDATE
+        """).AsNoTracking().SingleOrDefaultAsync(ct);
       var connection = draft?.ConnectionRevisionId is { } connectionId
-        ? await db.Microsoft365ConnectionRevisions.AsNoTracking()
-          .SingleOrDefaultAsync(x => x.Id == connectionId && x.FirmId == actor.FirmId, ct)
+        ? await db.Microsoft365ConnectionRevisions.FromSqlInterpolated($"""
+          SELECT * FROM m365_connection_revisions WHERE firm_id={actor.FirmId} AND id={connectionId} FOR UPDATE
+          """).AsNoTracking().SingleOrDefaultAsync(ct)
         : null;
+      await AuthorizeAsync(db, actor, ct);
       if (draft is null || connection is null || connection.ConsentState != "VERIFIED" ||
           connection.State == Microsoft365RevisionStates.Active ||
           !string.Equals(draft.ExpectedTenantId, connection.TenantId, StringComparison.Ordinal))
@@ -53,11 +63,15 @@ public sealed class SelectedSiteBoundaryVerificationService(
         ObservedAt = DateTimeOffset.UtcNow
       });
       await db.SaveChangesAsync(ct);
+      await pendingTransaction.CommitAsync(ct);
     }
 
     var observed = await probe.ProbeAsync(actor.FirmId, draftId, negativeControlSiteUrl, ct);
     await using var write = await factory.CreateAsync(ct);
     await using var tx = await write.Database.BeginTransactionAsync(ct);
+    if (await write.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE")
+        .AsNoTracking().SingleOrDefaultAsync(ct) is null)
+      throw new OperationBlockedException("selected-resource-firm-unavailable", authorization: true);
     await AuthorizeAsync(write, actor, ct);
     var current = await write.Microsoft365SetupDrafts.FromSqlInterpolated($"""
       SELECT * FROM m365_setup_drafts WHERE firm_id = {actor.FirmId} AND id = {draftId} FOR UPDATE

@@ -1,3 +1,5 @@
+using System.Globalization;
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
@@ -17,23 +19,61 @@ public sealed class AcceptanceJourneyTests
   [Trait("CaseId", "AS-ACCEPTANCE-PATH-01")]
   public async Task PartnerCompletesEvidenceAndSpecialistReviewBeforeAcceptingClient()
   {
-    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "AS-ACCEPTANCE-PATH-01");
-    var partner = PbcSeed.User(host.Fixture.FirmId, "Staff");
-    var clientId = host.Fixture.ClientId;
-    await using (var db = host.CreateDbContext())
+    (Guid FirmId, Guid ClientId, AuditSphereOps.Application.Abstractions.ActorContext Actor) setup = default;
+    await using var host = await OwnedHost.StartSupportedAsync("AS-ACCEPTANCE-PATH-01", async database =>
     {
-      db.Users.Add(partner);
-      db.RoleGrants.Add(PbcSeed.Grant(host.Fixture.FirmId, partner, "Partner"));
-      var templateId = Guid.NewGuid();
-      var continuanceTemplateId = Guid.NewGuid();
-      db.QuestionnaireTemplates.Add(new QuestionnaireTemplate { Id = templateId, Bank = "CE", Version = "JOURNEY-1", Name = "Journey bank", IsActive = true, CreatedAt = DateTimeOffset.UtcNow });
-      db.QuestionnaireTemplates.Add(new QuestionnaireTemplate { Id = continuanceTemplateId, Bank = "RV", Version = "JOURNEY-1", Name = "Continuance delta bank", IsActive = true, CreatedAt = DateTimeOffset.UtcNow });
-      db.QuestionDefinitions.AddRange(
-        new QuestionDefinition { Id = Guid.NewGuid(), TemplateId = templateId, QuestionCode = "CE-T1", Section = "A.1", Category = "Identity", PromptText = "Has the client's legal existence been verified?", RequiresEvidence = true, AdverseAnswer = "NO", SortOrder = 1 },
-        new QuestionDefinition { Id = Guid.NewGuid(), TemplateId = templateId, QuestionCode = "CE-T2", Section = "A.4", Category = "AML", PromptText = "Are there sanctions matches requiring action?", AdverseAnswer = "YES", SortOrder = 2 },
-        new QuestionDefinition { Id = Guid.NewGuid(), TemplateId = continuanceTemplateId, QuestionCode = "RV-T1", Section = "R.1", Category = "Continuance", PromptText = "Have there been material changes since the prior evaluation?", EscalatesOnChange = true, SortOrder = 1 });
-      await db.SaveChangesAsync();
+      setup = await SupportedAuditCompletionWorldBuilder.CreateClientBeforeAcceptanceAsync(database, "Partner");
+      return setup.FirmId;
+    });
+    var clientId = setup.ClientId;
+    var actor = setup.Actor ?? throw new InvalidOperationException("Supported acceptance setup did not return its actor.");
+    AuditSphereOps.Domain.Security.AppUser partner;
+    await using (var db = host.CreateDbContext())
+      partner = await db.Users.AsNoTracking().SingleAsync(x => x.FirmId == setup.FirmId && x.Id == actor.UserId);
+    async Task<AcceptanceChecklist> AnswerPrerequisitesAsync(string bank, params string[] excluded)
+    {
+      await using var db = host.CreateDbContext();
+      var generation = await db.ClientSafetyStates.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.Id == clientId)
+        .Select(x => x.InputGeneration).SingleAsync();
+      var checklist = await AcceptanceChecklistService.LoadAsync(db, actor.FirmId, clientId, null, generation, default);
+      Assert.Equal(bank == "CE" ? AcceptancePaths.NewClient : AcceptancePaths.Continuance, checklist.Path);
+      Assert.Equal(bank == "CE" ? 62 : 32, checklist.Items.Count);
+      Assert.All(checklist.Items, item => Assert.Equal(bank, item.Question.Bank));
+      foreach (var item in checklist.Items.Where(item => !excluded.Contains(item.Question.Code)))
+      {
+        var question = item.Question;
+        Assert.Equal("BOOLEAN", question.AnswerType);
+        var answer = string.Equals(question.AdverseAnswer, "NO", StringComparison.OrdinalIgnoreCase) ? "Yes" : "No";
+        var evidence = question.Code == "RV-001" ? "SYNTHETIC-PRIOR-CYCLE-EVIDENCE" : $"SYNTHETIC-ACCEPTANCE-{question.Code}";
+        var saved = await AcceptanceChecklistService.RecordAnswerAsync(db, actor, clientId, question.Code, answer,
+          evidence, expectedGeneration: generation, expectedRevision: item.Answer?.Revision ?? 0);
+        Assert.True(saved.Succeeded, saved.Message);
+      }
+      return await AcceptanceChecklistService.LoadAsync(db, actor.FirmId, clientId, null, generation, default);
     }
+
+    async Task AcceptPreparedContinuanceAsync()
+    {
+      await using var db = host.CreateDbContext();
+      var generation = await db.ClientSafetyStates.AsNoTracking()
+        .Where(x => x.FirmId == actor.FirmId && x.Id == clientId)
+        .Select(x => x.InputGeneration).SingleAsync();
+      Assert.Equal(2L, generation);
+      var request = new AssessmentCommandRequest(Guid.NewGuid(),
+        new AssessmentCommandFields("DECISION", generation.ToString(CultureInfo.InvariantCulture),
+          ServiceRoute: "AccountingOnly", Decision: "Accepted", Rationale: "Synthetic completed first continuance for retained prior-cycle evidence."));
+      var preview = await AssessmentCommandWorkspace.PreviewAsync(db, actor, clientId, request);
+      Assert.True(preview.Succeeded, preview.Message);
+      var executed = await AssessmentCommandWorkspace.ExecuteAsync(db, actor, clientId,
+        request with { Reviewed = true, ReviewBasis = preview.Value!.ReviewBasis, RequestHash = preview.Value.RequestHash });
+      Assert.True(executed.Succeeded, executed.Message);
+    }
+
+    // Retain the complete official bank; exercise two answers in the browser and prepare the
+    // remaining synthetic evidence through the same application owner used by the HTTP boundary.
+    var prepared = await AnswerPrerequisitesAsync("CE", "CE-001", "CE-032");
+    Assert.Equal(60, prepared.Items.Count(x => x.Answer is not null));
 
     var origin = await host.StartApiForIdentityAsync(partner, new Dictionary<string, string>
     {
@@ -69,24 +109,25 @@ public sealed class AcceptanceJourneyTests
     await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString($"/app/clients/{clientId:D}/assessment")}");
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Client acceptance checklist", Exact = true })).ToBeVisibleAsync();
     var profile = page.GetByRole(AriaRole.Region, new() { Name = "Client assessment profile", Exact = true });
-    await Assertions.Expect(profile).ToContainTextAsync("PBC TEST CLIENT");
+    await Assertions.Expect(profile).ToContainTextAsync("Synthetic acceptance client");
     var progress = page.GetByRole(AriaRole.Region, new() { Name = "Evaluation progress", Exact = true });
-    await Assertions.Expect(progress).ToContainTextAsync("0 of 2 questions answered");
+    await Assertions.Expect(progress).ToContainTextAsync("60 of 62 questions answered");
 
     // An evidence-bearing answer cannot be reviewed until the required reference is entered.
-    var identity = page.GetByRole(AriaRole.Region, new() { Name = "CE-T1 assessment question", Exact = true });
-    await identity.GetByLabel("Answer for CE-T1", new() { Exact = true }).SelectOptionAsync("Yes");
-    await identity.GetByRole(AriaRole.Button, new() { Name = "Review answer for CE-T1", Exact = true }).ClickAsync();
+    var identity = page.GetByRole(AriaRole.Region, new() { Name = "CE-001 assessment question", Exact = true });
+    await identity.GetByLabel("Answer for CE-001", new() { Exact = true }).SelectOptionAsync("Yes");
+    await identity.GetByRole(AriaRole.Button, new() { Name = "Review answer for CE-001", Exact = true }).ClickAsync();
     await Assertions.Expect(identity.Locator("[role='alert']").First).ToContainTextAsync("evidence reference");
     await identity.GetByLabel("Evidence reference (required)", new() { Exact = true }).FillAsync("REG-CERT-2026-11");
-    await ConfirmReviewedActionAsync(identity.GetByRole(AriaRole.Button, new() { Name = "Review answer for CE-T1", Exact = true }));
-    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "CE-T1 assessment question", Exact = true }))
+    await ConfirmReviewedActionAsync(identity.GetByRole(AriaRole.Button, new() { Name = "Review answer for CE-001", Exact = true }));
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "CE-001 assessment question", Exact = true }))
       .ToContainTextAsync("Recorded: Yes");
 
     // An adverse answer stays a blocker until a requested specialist review is cleared with evidence.
-    var sanctions = page.GetByRole(AriaRole.Region, new() { Name = "CE-T2 assessment question", Exact = true });
-    await sanctions.GetByLabel("Answer for CE-T2", new() { Exact = true }).SelectOptionAsync("Yes");
-    await ConfirmReviewedActionAsync(sanctions.GetByRole(AriaRole.Button, new() { Name = "Review answer for CE-T2", Exact = true }));
+    var sanctions = page.GetByRole(AriaRole.Region, new() { Name = "CE-032 assessment question", Exact = true });
+    await sanctions.GetByLabel("Answer for CE-032", new() { Exact = true }).SelectOptionAsync("Yes");
+    await sanctions.GetByLabel("Evidence reference (required)", new() { Exact = true }).FillAsync("SYNTHETIC-SANCTIONS-SCREEN-2026");
+    await ConfirmReviewedActionAsync(sanctions.GetByRole(AriaRole.Button, new() { Name = "Review answer for CE-032", Exact = true }));
     await Assertions.Expect(sanctions).ToContainTextAsync("Adverse answer: specialist clearance is required.");
     await Assertions.Expect(page.GetByText("Checklist blocked", new() { Exact = true })).ToBeVisibleAsync();
 
@@ -110,36 +151,41 @@ public sealed class AcceptanceJourneyTests
     await ConfirmReviewedActionAsync(page.GetByRole(AriaRole.Button, new() { Name = "Review Partner decision", Exact = true }));
 
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Review continuance", Exact = true })).ToBeVisibleAsync();
-    await using (var db = host.CreateDbContext())
-    {
-      db.EvaluationResponses.Add(new EvaluationResponse
-      {
-        Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, PracticeClientId = clientId,
-        Bank = "RV", QuestionId = "RV-T1", Answer = "No", EvidenceReference = "SYNTHETIC-PRIOR-CYCLE-EVIDENCE",
-        Generation = 1, Revision = 1, AnsweredByUserId = partner.Id, AnsweredAt = DateTimeOffset.UtcNow
-      });
-      await db.SaveChangesAsync();
-    }
     await ConfirmReviewedActionAsync(page.GetByRole(AriaRole.Button, new() { Name = "Review continuance", Exact = true }));
     await Assertions.Expect(page.GetByText("CONTINUANCE · Evaluation 2", new() { Exact = true })).ToBeVisibleAsync();
-    var continuanceQuestion = page.GetByRole(AriaRole.Region, new() { Name = "RV-T1 assessment question", Exact = true });
+    await Assertions.Expect(progress).ToContainTextAsync("0 of 32 questions answered");
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "CE-001 assessment question", Exact = true })).ToHaveCountAsync(0);
+    // RV is not an eligible bank during NEW_CLIENT. Complete a genuine first continuance before
+    // checking retained RV evidence in the next cycle, rather than inserting a historical answer.
+    var priorCycle = await AnswerPrerequisitesAsync("RV");
+    Assert.True(priorCycle.Ready);
+    await AcceptPreparedContinuanceAsync();
+    await page.ReloadAsync();
+    await ConfirmReviewedActionAsync(page.GetByRole(AriaRole.Button, new() { Name = "Review continuance", Exact = true }));
+    await Assertions.Expect(page.GetByText("CONTINUANCE · Evaluation 3", new() { Exact = true })).ToBeVisibleAsync();
+    var continuanceQuestion = page.GetByRole(AriaRole.Region, new() { Name = "RV-001 assessment question", Exact = true });
     await Assertions.Expect(continuanceQuestion).ToContainTextAsync("Prior-cycle answer: No");
     await Assertions.Expect(continuanceQuestion).ToContainTextAsync("Evidence reference: SYNTHETIC-PRIOR-CYCLE-EVIDENCE");
-    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "CE-T1 assessment question", Exact = true })).ToHaveCountAsync(0);
-    await Assertions.Expect(progress).ToContainTextAsync("0 of 1 questions answered");
+    await Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "CE-001 assessment question", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(progress).ToContainTextAsync("0 of 32 questions answered");
 
     await using (var db = host.CreateDbContext())
     {
       var decision = await db.AcceptanceDecisions.AsNoTracking()
-        .SingleAsync(x => x.PracticeClientId == clientId && x.Decision == "Accepted");
+        .SingleAsync(x => x.PracticeClientId == clientId && x.Decision == "Accepted" && x.Generation == 1);
       Assert.Equal("Accepted", decision.Decision);
       Assert.Equal(AcceptancePaths.NewClient, decision.Path);
       Assert.Equal("AccountingOnly", decision.ServiceRoute);
       Assert.Equal("Cleared after the sanctions review.", decision.Rationale);
       var receipts = await db.AssessmentCommandReceipts.Where(x => x.ClientId == clientId).ToListAsync();
-      Assert.Equal(7, receipts.Count);
-      var continuance = Assert.Single(receipts, x => x.Kind == "CONTINUANCE");
-      Assert.Equal((1L, 2L), (continuance.Generation, continuance.ResultGeneration));
+      Assert.Equal(9, receipts.Count);
+      var continuances = receipts.Where(x => x.Kind == "CONTINUANCE").OrderBy(x => x.Generation).ToArray();
+      Assert.Equal(2, continuances.Length);
+      Assert.Equal((1L, 2L), (continuances[0].Generation, continuances[0].ResultGeneration));
+      Assert.Equal((2L, 3L), (continuances[1].Generation, continuances[1].ResultGeneration));
+      var priorDecision = await db.AcceptanceDecisions.AsNoTracking()
+        .SingleAsync(x => x.PracticeClientId == clientId && x.Decision == "Accepted" && x.Generation == 2);
+      Assert.Equal(AcceptancePaths.Continuance, priorDecision.Path);
     }
 
     Assert.Empty(diagnostics);

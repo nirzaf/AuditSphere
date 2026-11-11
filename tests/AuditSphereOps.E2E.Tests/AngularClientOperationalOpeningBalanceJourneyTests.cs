@@ -201,36 +201,28 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
   [Trait("CaseId", "ANGULAR-NATIVE-SUCCESSOR-OPENING-01")]
   public async Task NativeSuccessorOpeningUsesExactReviewedClosedSourceAndRecoversOriginalUiRequest(bool withOriginalItem)
   {
-    await using var host = await OwnedHost.StartAsync(startWorker: false, caseId: "ANGULAR-NATIVE-SUCCESSOR-OPENING-01");
-    var f = host.Fixture;
-    var maker = PbcSeed.Actor(f.Admin, "Administrator");
-    var reviewer = PbcSeed.Actor(f.Reviewer, "AccountingReviewer");
-    var periodId = Guid.CreateVersion7();
-    Guid openingId, journalId;
+    SupportedNativeOpeningScope? prepared = null;
+    await using var host = await OwnedHost.StartSupportedAsync("ANGULAR-NATIVE-SUCCESSOR-OPENING-01", async database =>
+    {
+      prepared = await SupportedNativeOpeningScope.CreateAsync(database);
+      return prepared.FirmId;
+    });
+    var f = prepared ?? throw new InvalidOperationException("Supported native opening scope was not prepared.");
+    var maker = f.MakerActor;
+    var reviewer = f.ReviewerActor;
+    Guid periodId, openingId, journalId;
     string openingManifestHash;
-    // An explicitly synthetic, pre-existing ACTIVE context. This case does not exercise
-    // public period creation/activation, cutover approval or any real client acceptance.
     await using (var db = host.CreateDbContext())
     {
-      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Reviewer, "AccountingReviewer"));
-      db.AcceptanceDecisions.Add(new AcceptanceDecision
-      {
-        Id = Guid.CreateVersion7(), FirmId = f.FirmId, PracticeClientId = f.ClientId, ServiceRoute = "BOOKKEEPING",
-        Decision = "Accepted", Generation = 1, Rationale = "Synthetic existing native GL context, not live mandate approval",
-        EvaluationTemplateVersion = "TEST-NATIVE-GL", EvaluationSnapshotDigest = new string('a', 64),
-        DecidedByUserId = f.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow
-      });
-      await db.SaveChangesAsync();
       var profile = await ClientAccountingService.CreateProfileAsync(db, maker,
         new(f.ClientId, "QA", "QAR", 1, 1, "AUDITSPHERE", "NATIVE-GL-ACTIVE-TEST", ClientAccountingSourceModes.NativeBookkeeping));
       Assert.True(profile.Succeeded, profile.Message);
-      db.ClientReportingPeriods.Add(new ClientReportingPeriod
-      {
-        Id = periodId, FirmId = f.FirmId, ClientId = f.ClientId, PeriodCode = "SYNTHETIC-ACTIVE-2026",
-        StartDate = new(2026, 1, 1), EndDate = new(2026, 12, 31), Basis = "STATUTORY", Currency = "QAR",
-        Status = AccountingWorkflowStates.Active, Revision = 1, CreatedByUserId = f.Admin.Id, CreatedAt = DateTimeOffset.UtcNow
-      });
-      await db.SaveChangesAsync();
+      var period = await ClientAccountingService.CreatePeriodAsync(db, maker,
+        new(f.ClientId, "SYNTHETIC-SOURCE-2026", new(2026, 1, 1), new(2026, 12, 31), "STATUTORY", "QAR"));
+      Assert.True(period.Succeeded, period.Message);
+      periodId = period.Value;
+      Assert.Equal(AccountingWorkflowStates.Draft,
+        (await db.ClientReportingPeriods.AsNoTracking().SingleAsync(x => x.Id == periodId)).Status);
       var chart = await ClientAccountingService.CreateChartVersionAsync(db, maker, f.ClientId, "NATIVE-GL-ACTIVE-TEST", new(2026, 1, 1));
       Assert.True(chart.Succeeded, chart.Message);
       var accounts = await ClientAccountingService.AddAccountsAsync(db, maker, chart.Value,
@@ -293,7 +285,7 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     await using (var db = host.CreateDbContext())
     {
       var request = new NativeTrialBalanceSourceRequest(Guid.CreateVersion7(), f.ClientId, f.EngagementId, periodId,
-        1, new(2026, 12, 31), "SYNTHETIC-NATIVE-GL-ENTITY", true, "Synthetic current native TB for existing ACTIVE-context UI handoff");
+        1, new(2026, 12, 31), "SYNTHETIC-NATIVE-GL-ENTITY", true, "Synthetic current native TB for supported Draft-period UI handoff");
       var preview = await NativeTrialBalanceSourceWorkspace.PreviewAsync(db, maker, request);
       Assert.True(preview.Succeeded, preview.Message);
       Assert.False(preview.Value!.ActivityOnly);
@@ -305,7 +297,7 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
       Assert.True(sealedTb.Succeeded, sealedTb.Message); tb = sealedTb.Value!;
       Assert.Equal("Pending", tb.ValidationStatus);
     }
-    var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(host.DbOptions));
+    var factory = new OperationContextFactory(new SupportedNativeOpeningScope.ContextFactory(host.DbOptions));
     var store = new PostgresOperationStore(factory);
     var options = new WorkerOptions(f.FirmId, "Test");
     var handler = new TrialBalanceValidationHandler();
@@ -326,20 +318,18 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
       Assert.True(accepted.Succeeded, accepted.Message);
     }
 
-    var targetId = Guid.CreateVersion7();
+    Guid targetId;
     await using (var db = host.CreateDbContext())
     {
       var close = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "Synthetic accepted source closed by official command");
       Assert.True(close.Succeeded, close.Message);
-      // Existing ACTIVE target is fixture context, not a claim of public activation/cutover approval.
-      db.ClientReportingPeriods.Add(new ClientReportingPeriod
-      {
-        Id = targetId, FirmId = f.FirmId, ClientId = f.ClientId, PeriodCode = "SYNTHETIC-SUCCESSOR-2027",
-        StartDate = new(2027, 1, 1), EndDate = new(2027, 12, 31), Basis = "STATUTORY", Currency = "QAR",
-        Status = AccountingWorkflowStates.Active, PriorPeriodId = periodId, Revision = 1,
-        CreatedByUserId = f.Admin.Id, CreatedAt = DateTimeOffset.UtcNow
-      });
-      await db.SaveChangesAsync();
+      var target = await ClientAccountingService.CreatePeriodAsync(db, maker,
+        new(f.ClientId, "SYNTHETIC-SUCCESSOR-2027", new(2027, 1, 1), new(2027, 12, 31),
+          "STATUTORY", "QAR", PriorPeriodId: periodId));
+      Assert.True(target.Succeeded, target.Message);
+      targetId = target.Value;
+      Assert.Equal(AccountingWorkflowStates.Draft,
+        (await db.ClientReportingPeriods.AsNoTracking().SingleAsync(x => x.Id == targetId)).Status);
     }
     var angular = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
     if (Environment.GetEnvironmentVariable("AUDITSPHERE_TEST_UI_BUILD_PATH") is { Length: > 0 } buildPath)
@@ -351,6 +341,8 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
     await using var makerContext = await browser.NewContextAsync();
     await using var reviewerContext = await browser.NewContextAsync();
     var page = await makerContext.NewPageAsync(); var reviewPage = await reviewerContext.NewPageAsync();
+    await using var makerEvidence = new SyntheticBrowserEvidence(page, host, "successor-maker", f.Admin.Id);
+    await using var reviewerEvidence = new SyntheticBrowserEvidence(reviewPage, host, "successor-reviewer", f.Reviewer.Id);
     var errors = new List<string>();
     page.PageError += (_, error) => errors.Add("maker: " + error);
     reviewPage.PageError += (_, error) => errors.Add("reviewer: " + error);
@@ -377,13 +369,12 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
             });
           await browserPage.GetByLabel("Opening period", new() { Exact = true }).SelectOptionAsync(targetId.ToString());
         });
-      Assert.True(catalogue.Status == 200, $"Catalogue HTTP {catalogue.Status}: {catalogue.Body}");
+      Assert.Equal(200, catalogue.Status);
       await browserPage.GetByRole(AriaRole.Button, new() { Name = "Native predecessor opening", Exact = true }).ClickAsync();
       await Assertions.Expect(browserPage.GetByRole(AriaRole.Heading, new() { Name = "Exact native successor opening", Exact = true })).ToBeVisibleAsync();
       if (browserPage == page)
       {
-        try { await Assertions.Expect(browserPage.GetByLabel("Accepted native trial balance source", new() { Exact = false })).ToBeVisibleAsync(new() { Timeout = 5000 }); }
-        catch (Exception ex) { throw new InvalidOperationException($"Catalogue: {catalogue.Body} UI: {await browserPage.Locator("body").InnerTextAsync()}", ex); }
+        await Assertions.Expect(browserPage.GetByLabel("Accepted native trial balance source", new() { Exact = false })).ToBeVisibleAsync(new() { Timeout = 5000 });
       }
     }
     await OpenAsync(page, makerOrigin);
@@ -439,7 +430,7 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
       {
         var response = await route.FetchAsync();
         var body = await response.TextAsync();
-        if (response.Status != 200) throw new InvalidOperationException($"Actual create HTTP {response.Status}: {body}");
+        if (response.Status != 200) throw new InvalidOperationException($"Actual create HTTP {response.Status}");
         await route.AbortAsync();
         committedResponse.TrySetResult(body);
       }
@@ -501,7 +492,7 @@ public sealed class AngularClientOperationalOpeningBalanceJourneyTests
       var proof = await db.ClientOperationalOpeningSuccessorProofs.AsNoTracking().SingleAsync(x => x.OpeningId == successorId);
       Assert.Equal(proofHash, proof.ProofHash); Assert.Equal(tb.SourceIdentityHash, proof.SourceIdentityHash);
       Assert.Equal(1, await db.ClientOperationalOpeningSuccessorProofs.CountAsync(x => x.OpeningId == successorId));
-      Assert.Equal(AccountingWorkflowStates.Active, (await db.ClientReportingPeriods.SingleAsync(x => x.Id == targetId)).Status);
+      Assert.Equal(AccountingWorkflowStates.Draft, (await db.ClientReportingPeriods.SingleAsync(x => x.Id == targetId)).Status);
     }
     Assert.Empty(errors);
     if (withOriginalItem)

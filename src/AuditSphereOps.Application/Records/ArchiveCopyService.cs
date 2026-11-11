@@ -216,7 +216,7 @@ public static partial class ArchiveCopyService
     string.Equals(uri.AbsoluteUri.TrimEnd('/'), value.TrimEnd('/'), StringComparison.Ordinal);
 
   internal static async Task<bool> UsesKnownWorkingDriveAsync(
-    IRecordsArchiveCopyDbContext db, Guid firmId, string driveId, CancellationToken ct) =>
+    IAuditSphereDbContext db, Guid firmId, string driveId, CancellationToken ct) =>
     await db.ClientSharePointSites.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.DriveId == driveId, ct) ||
     await db.ClientWorkspaces.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.DriveId == driveId, ct) ||
     await db.FirmWorkspaceConfigurations.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.DriveId == driveId, ct) ||
@@ -409,13 +409,31 @@ internal static class ArchiveCopySourceGuard
 {
   private static readonly string[] CustodianRoles = ["Administrator", "Partner", "RecordsCustodian"];
 
-  public static async Task<SelectedResourceProof> ResolveSelectedResourceProofAsync(
+  public static Task<SelectedResourceProof> ResolveSelectedResourceProofAsync(
     IRecordsArchiveCopyDbContext db, Guid firmId, Microsoft365SetupDraft draft, Guid connectionRevisionId,
-    DateTimeOffset now, bool lockRows, CancellationToken ct)
+    DateTimeOffset now, bool lockRows, CancellationToken ct) =>
+    ResolveSelectedResourceProofCoreAsync(db, firmId, draft, connectionRevisionId, now, lockRows,
+      Microsoft365RevisionStates.Active, ct);
+
+  internal static Task<SelectedResourceProof> ResolveArchiveActivationProofAsync(
+    IAuditSphereDbContext db, Guid firmId, Microsoft365SetupDraft draft, Guid connectionRevisionId,
+    DateTimeOffset now, CancellationToken ct) =>
+    ResolveSelectedResourceProofCoreAsync(db, firmId, draft, connectionRevisionId, now, true,
+      Microsoft365RevisionStates.Verified, ct);
+
+  internal static Task<SelectedResourceProof> ResolveArchiveActivationReplayProofAsync(
+    IAuditSphereDbContext db, Guid firmId, Microsoft365SetupDraft draft, Guid connectionRevisionId,
+    DateTimeOffset now, CancellationToken ct) =>
+    ResolveSelectedResourceProofCoreAsync(db, firmId, draft, connectionRevisionId, now, true,
+      Microsoft365RevisionStates.Active, ct);
+
+  private static async Task<SelectedResourceProof> ResolveSelectedResourceProofCoreAsync(
+    IAuditSphereDbContext db, Guid firmId, Microsoft365SetupDraft draft, Guid connectionRevisionId,
+    DateTimeOffset now, bool lockRows, string requiredState, CancellationToken ct)
   {
     if (lockRows && db.Database.CurrentTransaction is null)
       throw new InvalidOperationException("Selected-resource proof locks require an operation transaction.");
-    if (draft.FirmId != firmId || draft.State != Microsoft365RevisionStates.Active ||
+    if (draft.FirmId != firmId || draft.State != requiredState ||
         draft.ConnectionRevisionId != connectionRevisionId || draft.Revision < 1 ||
         string.IsNullOrWhiteSpace(draft.ExpectedTenantId) || string.IsNullOrWhiteSpace(draft.SiteId) ||
         string.IsNullOrWhiteSpace(draft.DriveId) || string.IsNullOrWhiteSpace(draft.RootFolderId) ||
@@ -424,7 +442,7 @@ internal static class ArchiveCopySourceGuard
 
     var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == firmId && x.Id == connectionRevisionId, ct);
-    if (connection is null || connection.State != Microsoft365RevisionStates.Active || connection.ConsentState != "VERIFIED" ||
+    if (connection is null || connection.State != requiredState || connection.ConsentState != "VERIFIED" ||
         !string.Equals(connection.TenantId, draft.ExpectedTenantId, StringComparison.Ordinal))
       throw new OperationBlockedException("archive-copy-selected-resource-connection-stale", authorization: true);
 

@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
@@ -17,21 +18,30 @@ internal sealed class OwnedHost : IAsyncDisposable
   private readonly string runRoot;
   private readonly OwnedPostgresDatabase pg;
 
-  public PbcSeed.Fixture Fixture { get; }
+  private readonly PbcSeed.Fixture? fixture;
+  public PbcSeed.Fixture Fixture => fixture ?? throw new InvalidOperationException("This host uses supported scenario setup, not the legacy PBC fixture.");
+  public Guid FirmId { get; }
   public Guid RequestId { get; }
   public string ClientUrl { get; private set; } = string.Empty;
   public string StaffUrl { get; private set; } = string.Empty;
   public string RunRoot => runRoot;
+  public string EvidenceRoot { get; }
   public string ConnectionString => pg.ConnectionString;
   public DbContextOptions<AuditSphereDbContext> DbOptions => pg.Options;
   public string StagingRoot => Path.Combine(runRoot, "staging");
 
-  private OwnedHost(OwnedPostgresDatabase pg, PbcSeed.Fixture fixture, Guid requestId, string runRoot)
+  private OwnedHost(OwnedPostgresDatabase pg, PbcSeed.Fixture? fixture, Guid requestId, string runRoot, Guid? firmId = null)
   {
     this.pg = pg;
-    Fixture = fixture;
+    this.fixture = fixture;
+    FirmId = firmId ?? fixture!.FirmId;
     RequestId = requestId;
     this.runRoot = runRoot;
+    // Only the explicitly allowlisted synthetic browser/lifecycle metadata goes to uploaded evidence.
+    // Existing host stdout and private fixture storage stay in the original local run root.
+    EvidenceRoot = Environment.GetEnvironmentVariable("VERIFICATION_LOG_DIR") is { Length: > 0 } logs
+      ? Path.Combine(Path.GetFullPath(logs), "owned-hosts", Path.GetFileName(runRoot)) : runRoot;
+    Directory.CreateDirectory(EvidenceRoot);
   }
 
   public static async Task<OwnedHost> StartAsync(
@@ -62,6 +72,25 @@ internal sealed class OwnedHost : IAsyncDisposable
       if (runRoot is not null) DeleteOwnedDirectory(runRoot, Path.Combine(runRoot, "staging"));
       if (runRoot is not null) DeleteOwnedDirectory(runRoot, Path.Combine(runRoot, "provider"));
       if (runRoot is not null) DeleteOwnedDirectory(runRoot, Path.Combine(runRoot, "checkpoints"));
+      throw;
+    }
+  }
+
+  /// <summary>Starts no implicit identities, PBC requests or hosts. The scenario builds its entire
+  /// ordinary prerequisite chain through supported owners in its isolated database.</summary>
+  public static async Task<OwnedHost> StartSupportedAsync(string caseId,
+    Func<ITestPostgresDatabase, Task<Guid>> initialize)
+  {
+    var pg = await OwnedPostgresDatabase.CreateAsync(caseId);
+    try
+    {
+      var firmId = await initialize(pg);
+      if (firmId == Guid.Empty) throw new InvalidOperationException("Supported setup must return its owned firm.");
+      return new OwnedHost(pg, null, Guid.Empty, pg.RunRoot, firmId);
+    }
+    catch
+    {
+      await pg.DisposeAsync();
       throw;
     }
   }
@@ -128,6 +157,8 @@ internal sealed class OwnedHost : IAsyncDisposable
     {
       try
       {
+        RecordLifecycle(
+          $"pid={process.Id}; exitedBeforeCleanup={process.HasExited}; exitCode={(process.HasExited ? process.ExitCode.ToString() : "running")}; utc={DateTimeOffset.UtcNow:O}\n");
         if (!process.HasExited)
         {
           process.Kill(entireProcessTree: true);
@@ -136,12 +167,24 @@ internal sealed class OwnedHost : IAsyncDisposable
       }
       catch (InvalidOperationException) { }
       catch (System.ComponentModel.Win32Exception) { }
-      finally { process.Dispose(); }
+      finally
+      {
+        if (process.HasExited) RecordLifecycle($"stopped pid={process.Id}; exitCode={process.ExitCode}; utc={DateTimeOffset.UtcNow:O}\n");
+        process.Dispose();
+      }
     }
     await pg.DisposeAsync();
     DeleteOwnedDirectory(runRoot, Path.Combine(runRoot, "staging"));
     DeleteOwnedDirectory(runRoot, Path.Combine(runRoot, "provider"));
     DeleteOwnedDirectory(runRoot, Path.Combine(runRoot, "checkpoints"));
+  }
+
+  private void RecordLifecycle(string value)
+  {
+    // Evidence failure must never prevent terminating the processes this test owns.
+    try { File.AppendAllText(Path.Combine(EvidenceRoot, "host-lifecycle.log"), value); }
+    catch (IOException) { }
+    catch (UnauthorizedAccessException) { }
   }
 
   private async Task<string> StartApiAsync(string repo, AuditSphereOps.Domain.Security.AppUser identity, bool enableSetup,
@@ -155,14 +198,14 @@ internal sealed class OwnedHost : IAsyncDisposable
     for (var attempt = 1; attempt <= attempts; attempt++)
     {
       var url = $"http://127.0.0.1:{loopbackPort ?? ReserveLoopbackPort()}";
-      var logPath = Path.Combine(runRoot, $"api-{identity.UserKind}-{identity.Id:N}-attempt-{attempt}.log");
+      var logPath = Path.Combine(runRoot, $"api-{identity.UserKind}-{identity.Id:N}-attempt-{attempt}-{Guid.NewGuid():N}.log");
       var settings = new List<string>
       {
         "DOTNET_ENVIRONMENT", "Test",
         "ASPNETCORE_ENVIRONMENT", "Test",
         "ASPNETCORE_URLS", url,
         "ConnectionStrings__AuditSphere", pg.ConnectionString,
-        "Application__FirmId", Fixture.FirmId.ToString("D"),
+        "Application__FirmId", FirmId.ToString("D"),
         "Application__AllowSimulationAdapters", "true",
         "ExternalEffects__Enabled", "false",
         "DevelopmentIdentity__Enabled", "true",
@@ -188,14 +231,17 @@ internal sealed class OwnedHost : IAsyncDisposable
       var process = StartDotnet(repo, "src/AuditSphereOps.Api/AuditSphereOps.Api.csproj", logPath,
         [.. settings]);
       processes.Add(process);
+      RecordLifecycle(
+        $"started pid={process.Id}; actor={identity.Id:D}; startUtc={process.StartTime.ToUniversalTime():O}; utc={DateTimeOffset.UtcNow:O}\n");
       await pg.RecordProcessAsync($"api-{identity.UserKind}", process);
       try
       {
         await WaitForReadyAsync(process, url, logPath);
+        RecordLifecycle(
+          $"ready pid={process.Id}; actor={identity.Id:D}; ownedListeningConfirmed=true; utc={DateTimeOffset.UtcNow:O}\n");
         return url;
       }
-      catch (InvalidOperationException ex) when (loopbackPort is null && attempt < attempts &&
-        ex.Message.Contains("address already in use", StringComparison.OrdinalIgnoreCase))
+      catch (OwnedHostStartupException ex) when (loopbackPort is null && attempt < attempts && ex.BindCollision)
       {
         processes.Remove(process);
         process.Dispose();
@@ -311,6 +357,8 @@ internal sealed class OwnedHost : IAsyncDisposable
     info.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
     info.Environment["DOTNET_NOLOGO"] = "1";
     info.Environment["Logging__LogLevel__Default"] = "Warning";
+    // The exact listening announcement must come from this child, not an arbitrary health listener.
+    info.Environment["Logging__LogLevel__Microsoft.Hosting.Lifetime"] = "Information";
     Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
     var output = new object();
     void Capture(string? line)
@@ -321,6 +369,9 @@ internal sealed class OwnedHost : IAsyncDisposable
     var process = Process.Start(info) ?? throw new InvalidOperationException("Could not start the owned .NET host.");
     process.OutputDataReceived += (_, e) => Capture(e.Data);
     process.ErrorDataReceived += (_, e) => Capture(e.Data);
+    Capture($"Owned process started: pid={process.Id}; utc={DateTimeOffset.UtcNow:O}");
+    process.EnableRaisingEvents = true;
+    process.Exited += (_, _) => Capture($"Owned process exited: pid={process.Id}; code={process.ExitCode}; utc={DateTimeOffset.UtcNow:O}");
     process.BeginOutputReadLine();
     process.BeginErrorReadLine();
     return process;
@@ -333,17 +384,33 @@ internal sealed class OwnedHost : IAsyncDisposable
     while (!timeout.IsCancellationRequested)
     {
       if (process.HasExited)
-        throw new InvalidOperationException($"The owned Web host exited with {process.ExitCode}; log follows:\n{ReadLog(logPath)}");
+        throw new OwnedHostStartupException(process.ExitCode,
+          ReadLog(logPath).Contains("address already in use", StringComparison.OrdinalIgnoreCase));
       try
       {
-        using var response = await client.GetAsync(url + "/health/live", timeout.Token);
-        if (response.StatusCode == HttpStatusCode.OK) return;
+        // Kestrel emits this only after binding. Checking a health response alone can accept another
+        // test's listener during the ephemeral-port reservation gap. Never accept that as our host.
+        var listening = ReadLog(logPath).Split('\n').Any(line =>
+          Regex.IsMatch(line.Trim(), @"^(?:\[\d{2}:\d{2}:\d{2} INF\] )?Now listening on: " + Regex.Escape(url) + "$",
+            RegexOptions.CultureInvariant));
+        if (listening)
+        {
+          using var response = await client.GetAsync(url + "/health/live", timeout.Token);
+          if (response.StatusCode == HttpStatusCode.OK && !process.HasExited) return;
+        }
       }
       catch (HttpRequestException) { }
       catch (TaskCanceledException) when (!timeout.IsCancellationRequested) { }
       await Task.Delay(200, timeout.Token);
     }
-    throw new TimeoutException($"The owned Web host did not become live; log follows:\n{ReadLog(logPath)}");
+    throw new TimeoutException("The owned Web host did not become live; classification=readiness-timeout.");
+  }
+
+  // Console/TRX output is uploaded in CI. Keep raw stdout private and export only this allowlist.
+  private sealed class OwnedHostStartupException(int exitCode, bool bindCollision)
+    : InvalidOperationException($"The owned Web host exited with {exitCode}; classification={(bindCollision ? "bind-collision" : "process-exit")}.")
+  {
+    public bool BindCollision { get; } = bindCollision;
   }
 
   private static string ReadLog(string path) => File.Exists(path) ? File.ReadAllText(path) : "<log file not created>";

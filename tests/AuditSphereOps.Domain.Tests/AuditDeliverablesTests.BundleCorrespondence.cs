@@ -2,6 +2,8 @@ using System.Data.Common;
 using System.IO.Compression;
 using System.Text.Json;
 using AuditSphereOps.Application.Completion;
+using AuditSphereOps.Application.Audit;
+using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Shared;
@@ -21,41 +23,52 @@ public sealed partial class AuditDeliverablesTests
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
     var partner = w.A("partner", "Partner"); var manager = w.A("manager", "Manager");
-    var requestId = Guid.NewGuid(); var now = DateTimeOffset.UtcNow;
-    await using (var db = new AuditSphereDbContext(pg.Options))
-    {
-      db.PbcRequests.Add(new PbcRequest { Id = requestId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
-        Objective = "Synthetic correspondence boundary", EntityScope = "TEST", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
-        Area = "Cash", RequestedFormat = "PDF", DueDate = "2027-01-31", Confidentiality = "Internal", AcceptanceCriteria = "Reviewed synthetic source",
-        ClientOwnerUserId = w.U["client"].Id, FirmOwnerUserId = manager.UserId, ReviewerUserId = manager.UserId,
-        State = PbcStates.Accepted, AcceptedByUserId = manager.UserId, AcceptedAt = now, CreatedByUserId = manager.UserId, CreatedAt = now, UpdatedAt = now });
-      await db.SaveChangesAsync();
-    }
-    await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U));
-    await CompletionBundleFixture.SeedPostedFeeAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U), automateBalance: true);
+    await CompletionBundleFixture.ReleasedSupportedFinancialPackageAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U));
+    await CompletionBundleFixture.PostSupportedBalanceFeeAsync(pg.Options, new(w.FirmId, w.ClientId, w.EngagementId, w.U), automateBalance: true);
+    await RefreshSupportedPortalRiskAsync(pg, w);
+    await ReviewSupportedBundleApplicabilityAsync(pg, w);
     await SignedReportAsync(pg, w);
     await using var scope = new AuditSphereDbContext(pg.Options);
     var missing = await AuditDeliverableService.AssembleBundleAsync(scope, partner, w.EngagementId, true);
     Assert.Equal(ErrorCodes.GateBlocked, missing.ErrorCode); Assert.Contains("management letter", missing.Message);
     Assert.Empty(await scope.CommercialDeliverableBundles.ToListAsync());
-    Assert.True((await AuditDeliverableService.GenerateReportAsync(scope, manager, w.EngagementId, DeliverableKinds.ManagementLetter)).Succeeded);
+    var management = await AuditDeliverableService.GenerateReportAsync(scope, manager, w.EngagementId, DeliverableKinds.ManagementLetter);
+    Assert.True(management.Succeeded, management.Message);
+    var review = await AuditDeliverableService.ShareWithClientAsync(scope, manager, management.Value!.DeliverableId!.Value);
+    Assert.True(review.Succeeded, review.Message);
+    Assert.Null(await scope.ClientDeliverableReviews.Where(x => x.Id == review.Value).Select(x => x.AcknowledgedAt).SingleAsync());
     var first = await AuditDeliverableService.AssembleBundleAsync(scope, partner, w.EngagementId, true);
     Assert.True(first.Succeeded, first.Message);
     var original = await scope.CommercialDeliverableBundles.AsNoTracking().SingleAsync(x => x.Id == first.Value);
-    PbcCommunication Message(int number) => new() { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId,
-      PbcRequestId = requestId, AuthorUserId = manager.UserId, Kind = PbcCommunicationKinds.StaffMessage,
-      Body = $"Synthetic reviewed correspondence {number}", CreatedAt = now.AddTicks(number) };
-    var reviewId = await scope.ClientDeliverableReviews.Where(x => x.EngagementId == w.EngagementId).Select(x => x.Id).SingleAsync();
-    void AddRows(AuditSphereDbContext db, int start, int count)
+    Guid? firstDraftRequestId = null;
+    async Task AddRowsAsync(AuditSphereDbContext db, int start, int count)
     {
-      if (!resolvedComments) db.PbcCommunications.AddRange(Enumerable.Range(start, count).Select(Message));
-      else db.ClientDeliverableComments.AddRange(Enumerable.Range(start, count).Select(number => new ClientDeliverableComment {
-        Id = Guid.NewGuid(), FirmId = w.FirmId, ReviewId = reviewId, AuthorUserId = w.U["client"].Id, FromClient = true,
-        Body = $"Synthetic reviewed comment {number}", CreatedAt = now.AddTicks(number), ResolvedAt = now.AddMinutes(1),
-        ResolvedByUserId = manager.UserId, Resolution = "Reviewed and resolved in synthetic fixture"
-      }));
+      for (var number = start; number < start + count; number++)
+      {
+        if (!resolvedComments)
+        {
+          // A draft request contributes exactly one retained REQUEST communication. No delivery runs.
+          var created = await PbcService.CreateRequestAsync(db, manager,
+            new(w.EngagementId, $"Synthetic reviewed correspondence {number}", "TEST", "2026-01-01", "2026-12-31",
+              "Cash", "PDF", "", w.U["client"].Id, manager.UserId, partner.UserId,
+              "2027-01-31", "Internal", "Reviewed synthetic source"));
+          Assert.True(created.Succeeded, created.Message);
+          firstDraftRequestId ??= created.Value;
+        }
+        else
+        {
+          // Preserve the original client-authored query and independent staff resolution.
+          var comment = await AuditDeliverableService.CommentAsync(db, w.A("client", "ClientUser"), review.Value, Guid.NewGuid(),
+            $"Synthetic reviewed comment {number}");
+          Assert.True(comment.Succeeded, comment.Message);
+          var resolved = await AuditDeliverableService.ResolveCommentAsync(db, manager, comment.Value,
+            "Reviewed and resolved in synthetic fixture");
+          Assert.True(resolved.Succeeded, resolved.Message);
+        }
+        db.ChangeTracker.Clear();
+      }
     }
-    AddRows(scope, 1, 1); await scope.SaveChangesAsync();
+    await AddRowsAsync(scope, 1, 1);
     var changed = await AuditDeliverableService.AssembleBundleAsync(scope, partner, w.EngagementId, true);
     Assert.True(changed.Succeeded, changed.Message); Assert.NotEqual(first.Value, changed.Value);
     var current = await scope.CommercialDeliverableBundles.AsNoTracking().SingleAsync(x => x.Id == changed.Value);
@@ -76,7 +89,7 @@ public sealed partial class AuditDeliverablesTests
     }));
     Assert.All(retries, x => { Assert.True(x.Succeeded, x.Message); Assert.Equal(changed.Value, x.Value); });
     // The inclusive boundary is accepted, while the first row beyond it never creates a bundle.
-    AddRows(scope, 2, 9999); await scope.SaveChangesAsync();
+    await AddRowsAsync(scope, 2, 9999);
     var atLimit = await AuditDeliverableService.AssembleBundleAsync(scope, partner, w.EngagementId, true);
     Assert.True(atLimit.Succeeded, atLimit.Message);
     var bounded = await scope.CommercialDeliverableBundles.AsNoTracking().SingleAsync(x => x.Id == atLimit.Value);
@@ -85,7 +98,21 @@ public sealed partial class AuditDeliverablesTests
     // The materialized read must still refuse overflow; no sleeps or timing assumptions.
     var hook = new AppendAfterCorrespondenceCount(resolvedComments ? "client_deliverable_comments" : "pbc_communications", async () => {
       await using var concurrent = new AuditSphereDbContext(pg.Options);
-      AddRows(concurrent, 10001, 1); await concurrent.SaveChangesAsync();
+      if (resolvedComments) await AddRowsAsync(concurrent, 10001, 1);
+      else
+      {
+        // The supported send command commits one queued EMAIL locally. No mail worker/provider is run.
+        var sent = await PbcService.SendRequestAsync(concurrent, manager, firstDraftRequestId!.Value, 1,
+          "https://portal.example.test", createWorkflowTask: false);
+        Assert.True(sent.Succeeded, sent.Message);
+        var email = await concurrent.PbcCommunications.AsNoTracking().SingleAsync(x =>
+          x.PbcRequestId == firstDraftRequestId.Value && x.Kind == PbcCommunicationKinds.Email);
+        Assert.Equal("QUEUED", email.DeliveryState);
+        Assert.Null(email.DeliveredAt);
+        Assert.Null(email.ProviderCorrelationId);
+        var request = await concurrent.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == firstDraftRequestId.Value);
+        Assert.Equal((PbcStates.Sent, 2L), (request.State, request.Revision));
+      }
     });
     await using (var raceDb = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(hook).Options))
     {
@@ -93,15 +120,17 @@ public sealed partial class AuditDeliverablesTests
       Assert.True(hook.Fired); Assert.Equal(ErrorCodes.GateBlocked, raced.ErrorCode);
       Assert.Contains("bounded assembly limit", raced.Message);
     }
+    Assert.Equal(10001, resolvedComments
+      ? await scope.ClientDeliverableComments.CountAsync(x => x.ReviewId == review.Value)
+      : await scope.PbcCommunications.CountAsync(x => x.EngagementId == w.EngagementId));
     var overflow = await AuditDeliverableService.AssembleBundleAsync(scope, partner, w.EngagementId, true);
     Assert.Equal(ErrorCodes.GateBlocked, overflow.ErrorCode); Assert.Contains("bounded assembly limit", overflow.Message);
     Assert.Equal(3, await scope.CommercialDeliverableBundles.CountAsync());
     var preserved = await scope.CommercialDeliverableBundles.AsNoTracking().SingleAsync(x => x.Id == original.Id);
     Assert.Equal(original.ContentSha256, preserved.ContentSha256); Assert.Equal(original.Content, preserved.Content);
-    scope.Findings.Add(new AuditSphereOps.Domain.Audit.Finding { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId,
-      EngagementId = w.EngagementId, ActorId = manager.UserId, FindingType = "Additional evidence",
-      ImpactDescription = "New evidence requires renewed completion review", CreatedAt = DateTimeOffset.UtcNow });
-    await scope.SaveChangesAsync();
+    var finding = await AuditPlanningService.CreateFindingAsync(scope, manager,
+      new(w.EngagementId, "Additional evidence", "New evidence requires renewed completion review", false, null, null));
+    Assert.True(finding.Succeeded, finding.Message);
     var stale = await AuditDeliverableService.AssembleBundleAsync(scope, partner, w.EngagementId, true);
     Assert.Equal(ErrorCodes.GateBlocked, stale.ErrorCode); Assert.Contains("current auditor's report", stale.Message);
     Assert.DoesNotContain("bounded assembly limit", stale.Message);

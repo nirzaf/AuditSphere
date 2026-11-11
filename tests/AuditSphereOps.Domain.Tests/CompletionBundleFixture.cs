@@ -20,7 +20,7 @@ public sealed record CompletionBundleScope(Guid FirmId, Guid ClientId, Guid Enga
 }
 
 // Synthetic fixtures use the actual review, approval, release and billing commands. No live provider acceptance is claimed.
-public static class CompletionBundleFixture
+public static partial class CompletionBundleFixture
 {
   public static async Task<(Guid PackageId, Guid ReleaseId)> ReleasedFinancialPackageAsync(
     DbContextOptions<AuditSphereDbContext> options, CompletionBundleScope w, string? checkpointRoot = null)
@@ -95,16 +95,28 @@ public static class CompletionBundleFixture
     var source = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(options, w.FirmId, w.ClientId, w.EngagementId,
       periodId, bookId, w.U["associate"].Id, reviewer, "completion-bundle", netIncome,
       optional: CashFlowSourceSeed.OptionalCashEvents.Equipment | CashFlowSourceSeed.OptionalCashEvents.Borrowing);
+    return await BuildReleasedFinancialPackageAsync(options, w, targetDataset, source, preparer, reviewer, partner, checkpointRoot);
+  }
+
+  private static async Task<(Guid PackageId, Guid ReleaseId)> BuildReleasedFinancialPackageAsync(
+    DbContextOptions<AuditSphereDbContext> options, CompletionBundleScope w, Guid targetDataset,
+    CashFlowSourceSeed.Source source, ActorContext preparer, ActorContext reviewer, ActorContext partner, string? checkpointRoot, Guid? chartVersionId = null)
+  {
+    const decimal cashAmount = 120m;
+    const decimal netIncome = 100m;
     Guid packageId;
     await using (var db = new AuditSphereDbContext(options))
     {
       var mapping = await FinancialStatementService.CreateMappingVersionAsync(db, preparer, new(targetDataset, "TEST-IFRS", "2026-01-01", "2026-12-31",
         [new("1000", "CASH", "ASSETS", 1m, "Cash mapping"), new("1500", "PPE", "ASSETS", 1m, "Equipment mapping"),
           new("2500", "BORROWINGS", "LIABILITIES", 1m, "Borrowings mapping"), new("3000", "SHARE_CAPITAL", "EQUITY", 1m, "Share capital mapping"),
-          new("4000", "REVENUE", "INCOME", 1m, "Revenue mapping"), new("4900", "REVALUATION", "OCI", 1m, "Revaluation surplus mapping")]));
+          new("4000", "REVENUE", "INCOME", 1m, "Revenue mapping"), new("4900", "REVALUATION", "OCI", 1m, "Revaluation surplus mapping")], chartVersionId));
       Assert.True(mapping.Succeeded, $"CreateMappingVersion failed: {mapping.ErrorCode} - {mapping.Message}");
       var mappingRow = await db.MappingVersions.AsNoTracking().SingleAsync(x => x.Id == mapping.Value);
-      var approved = await FinancialStatementService.ApproveMappingAsync(db, reviewer, mapping.Value, mappingRow.Version);
+      var mappingReview = await MappingApprovalWorkspace.GetAsync(db, reviewer, mapping.Value);
+      Assert.True(mappingReview.Succeeded, mappingReview.Message);
+      var approved = await FinancialStatementService.ApproveMappingAsync(db, reviewer, mapping.Value, mappingRow.Version,
+        reviewRevision: mappingReview.Value!.Revision, reviewed: true);
       Assert.True(approved.Succeeded, $"ApproveMapping failed: {approved.ErrorCode} - {approved.Message}");
       var plan = await AdjustmentPlanService.CreatePlanAsync(db, preparer, targetDataset, []);
       Assert.True(plan.Succeeded, plan.Message);

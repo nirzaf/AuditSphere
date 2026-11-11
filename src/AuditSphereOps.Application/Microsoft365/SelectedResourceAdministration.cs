@@ -15,7 +15,8 @@ public sealed record FolderTemplateSummary(Guid Id, string Purpose, string Versi
 public sealed record SelectedResourceWorkspace(SelectedResourceDraft? Draft,
   IReadOnlyList<FolderTemplateSummary> Templates, string ClientDefaultManifest, string EngagementDefaultManifest,
   string ClientSteManifest, string EngagementSteManifest, SelectedResourceVerification? Verification);
-public sealed record SelectedResourceVerification(string State, string DiagnosticCode, DateTimeOffset ObservedAt);
+public sealed record SelectedResourceVerification(string State, string DiagnosticCode, DateTimeOffset ObservedAt,
+  Guid VerificationId);
 public sealed record SaveSelectedResourceRequest(Guid DraftId, long ExpectedRevision, string SiteUrl,
   string SiteId, string DriveId, string RootFolderId, string AccessProfile);
 
@@ -46,7 +47,7 @@ public static class SelectedResourceAdministrationQuery
       latestVerification.State == CapabilityVerificationStates.Verified && (draft?.ConnectionRevisionId is null || latestVerification.ConnectionRevisionId != draft.ConnectionRevisionId)
         ? CapabilityVerificationStates.BlockedExternal : latestVerification.State,
       latestVerification.State == CapabilityVerificationStates.Verified && (draft?.ConnectionRevisionId is null || latestVerification.ConnectionRevisionId != draft.ConnectionRevisionId)
-        ? "selected-resource-connection-mismatch" : latestVerification.DiagnosticCode, latestVerification.ObservedAt);
+        ? "selected-resource-connection-mismatch" : latestVerification.DiagnosticCode, latestVerification.ObservedAt, latestVerification.Id);
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<SelectedResourceWorkspace>();
     return CommandResult<SelectedResourceWorkspace>.Ok(new(draft is null ? null : new(draft.Id,
       draft.Revision.ToString(CultureInfo.InvariantCulture), draft.State, draft.ExpectedTenantId, draft.SiteUrl,
@@ -85,6 +86,8 @@ public static partial class Microsoft365ConfigurationService
         request.AccessProfile is not (Microsoft365AccessProfiles.AppMediated or Microsoft365AccessProfiles.DirectStaffCollaboration))
       return CommandResult<Guid>.Fail("m365.setup.invalid", "Provide the exact HTTPS SharePoint site, library, root and supported access profile.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    var authorization = await LockSelectedResourceAdministratorAsync(db, actor, ct);
+    if (!authorization.Succeeded) return CommandResult<Guid>.Fail(authorization.ErrorCode!, authorization.Message!);
     var draft = await db.Microsoft365SetupDrafts.FromSqlInterpolated($"""
       SELECT * FROM m365_setup_drafts WHERE id = {request.DraftId} AND firm_id = {actor.FirmId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);

@@ -105,7 +105,7 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal(1, await db.AuditProcedureReviews.CountAsync(x => x.AuditProcedureResultId == w.ResultId));
 
     var resubmission = await AuditProgramService.SubmitResultAsync(db, w.A("associate", "Staff"),
-      new SubmitProcedureResultRequest(w.ProcedureId, 1, "Reworked the sample against source evidence.",
+      new SubmitProcedureResultRequest(w.ProcedureId, w.InputGeneration, "Reworked the sample against source evidence.",
         "{\"result\":\"PASS\"}", ["source:updated-sample"], "Updated evidence addresses the review comment."));
     Assert.True(resubmission.Succeeded, resubmission.Message);
     var clearedQueue = await WorkflowTaskQueueQuery.GetAsync(db, w.A("associate", "Staff"),
@@ -142,7 +142,7 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal("Resolve the remaining source discrepancy.", repeatedChange.ReviewComment);
     Assert.Equal("1", Assert.Single(repeatedChanges.Value.Summary!.Counts, x => x.View == "CHANGES_REQUIRED").Count);
     var secondResubmission = await AuditProgramService.SubmitResultAsync(db, w.A("associate", "Staff"),
-      new SubmitProcedureResultRequest(w.ProcedureId, 1, "Both source discrepancies reconciled.",
+      new SubmitProcedureResultRequest(w.ProcedureId, w.InputGeneration, "Both source discrepancies reconciled.",
         "{\"result\":\"PASS\"}", ["source:second-corrected-sample"], "Second correction is ready for independent review."));
     Assert.True(secondResubmission.Succeeded, secondResubmission.Message);
     var laterInbox = await ProcedureReviewInboxQuery.GetAsync(db, reviewer, new ProcedureReviewInboxRequest());
@@ -173,7 +173,7 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal(w.ResultId, (await db.WorkflowTaskBindings.SingleAsync(x => x.Id == binding.Id)).ReviewProcedureResultId);
     Assert.Equal(2, await db.WorkTasks.CountAsync(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId));
     var finalResubmission = await AuditProgramService.SubmitResultAsync(db, w.A("associate", "Staff"),
-      new SubmitProcedureResultRequest(w.ProcedureId, 1, "Final source cross-reference confirmed.",
+      new SubmitProcedureResultRequest(w.ProcedureId, w.InputGeneration, "Final source cross-reference confirmed.",
         "{\"result\":\"PASS\"}", ["source:final-cross-reference"], "Final correction is ready for independent review."));
     Assert.True(finalResubmission.Succeeded, finalResubmission.Message);
     var finalQueue = await WorkflowTaskQueueQuery.GetAsync(db, reviewer,

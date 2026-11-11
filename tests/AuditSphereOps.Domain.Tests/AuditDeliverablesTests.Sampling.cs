@@ -127,7 +127,7 @@ public sealed partial class AuditDeliverablesTests
   public async Task SamplingLegacyTimestampTie_IsConservative_AndNewDecisionsAreSerializedAfterIt()
   {
     await using var pg = await PgTestSchema.CreateAsync("20261027232538_WorkflowTaskApplicabilityEvidence");
-    var w = await SeedAsync(pg);
+    var w = await SeedHistoricalScopeSpecimenAsync(pg);
     await using var db = new AuditSphereDbContext(pg.Options);
     var sample = await SamplingAsync(db, w);
     var test = await SamplingTestAsync(db, w, sample.Items[0]);

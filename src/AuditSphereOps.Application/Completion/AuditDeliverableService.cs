@@ -990,23 +990,32 @@ public static partial class AuditDeliverableService
     return CommandResult.Ok();
   }
 
-  public static async Task<CommandResult<IReadOnlyList<ConfirmationDashboardRow>>> ConfirmationDashboardAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  public static Task<CommandResult<IReadOnlyList<ConfirmationDashboardRow>>> ConfirmationDashboardAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default) =>
+    ConfirmationDashboardCoreAsync(db, actor, engagementId, null, ct);
+
+  // Deterministic observation seam only; public commands still record real dispatch time.
+  internal static Task<CommandResult<IReadOnlyList<ConfirmationDashboardRow>>> ConfirmationDashboardAtAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, DateTimeOffset asOf, CancellationToken ct = default) =>
+    ConfirmationDashboardCoreAsync(db, actor, engagementId, asOf, ct);
+
+  private static async Task<CommandResult<IReadOnlyList<ConfirmationDashboardRow>>> ConfirmationDashboardCoreAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, DateTimeOffset? asOf, CancellationToken ct)
   {
     var auth = await AuthorizeAsync(db, actor, engagementId, ReaderRoles, ct);
     return auth.Succeeded
-      ? CommandResult<IReadOnlyList<ConfirmationDashboardRow>>.Ok(await ConfirmationRowsAsync(db, actor.FirmId, engagementId, ct))
+      ? CommandResult<IReadOnlyList<ConfirmationDashboardRow>>.Ok(await ConfirmationRowsAsync(db, actor.FirmId, engagementId, ct, asOf))
       : CommandResult<IReadOnlyList<ConfirmationDashboardRow>>.Fail(auth.ErrorCode!, auth.Message!);
   }
 
   /// <summary>Monitoring is derived from recorded status and dispatch time; external response capture stays with the approved channel.</summary>
-  private static async Task<List<ConfirmationDashboardRow>> ConfirmationRowsAsync(IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
+  private static async Task<List<ConfirmationDashboardRow>> ConfirmationRowsAsync(IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct, DateTimeOffset? asOf = null)
   {
     var cases = await db.AuditConfirmationCases.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId).OrderBy(x => x.AreaCode).ThenBy(x => x.Respondent).ToListAsync(ct);
     var ids = cases.Select(x => x.Id).ToArray();
     var criticality = (await db.ConfirmationCriticalities.AsNoTracking().Where(x => ids.Contains(x.ConfirmationCaseId)).ToListAsync(ct))
       .GroupBy(x => x.ConfirmationCaseId).ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.SetAt).First());
     var responses = await db.AuditConfirmationResponses.AsNoTracking().Where(x => ids.Contains(x.ConfirmationCaseId)).ToListAsync(ct);
-    var now = DateTimeOffset.UtcNow;
+    var now = asOf ?? DateTimeOffset.UtcNow;
     return cases.Select(c =>
     {
       int? days = c.DispatchedAt is { } sent ? (int)(now - sent).TotalDays : null;

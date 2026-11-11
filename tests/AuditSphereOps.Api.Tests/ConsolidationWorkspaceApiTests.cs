@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Api.Tests;
 
-public sealed class ConsolidationWorkspaceApiTests
+public sealed partial class ConsolidationWorkspaceApiTests
 {
   [Fact]
   public async Task IntercompanyMatches_RequireIndependentCurrentGroupReviewAndHistory()
@@ -217,32 +217,15 @@ public sealed class ConsolidationWorkspaceApiTests
   public async Task OwnershipWorkspace_PinsExactPercentagePointsAndRefusesCycleStalenessAndUngrantableWrites()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-OWNERSHIP");
-    var fixture = await SeedOwnershipAsync(pg);
-    var boundedClientId = Guid.CreateVersion7();
-    await using (var seed = new AuditSphereDbContext(pg.Options))
-    {
-      seed.PracticeClients.Add(new PracticeClient
-      {
-        Id = boundedClientId, FirmId = fixture.Seed.FirmId, LegalName = "Synthetic bounded member",
-        CreatedAt = DateTimeOffset.UtcNow
-      });
-      seed.ClientGroupMemberships.Add(new ClientGroupMembership
-      {
-        Id = Guid.CreateVersion7(), FirmId = fixture.Seed.FirmId, GroupId = fixture.GroupId,
-        ClientId = boundedClientId, EffectiveFrom = new DateOnly(2026, 7, 1), EffectiveTo = new DateOnly(2026, 12, 31),
-        Status = AccountingWorkflowStates.Approved, OwnershipPercent = 100m, EconomicInterestPercent = 100m,
-        ControlMethod = "CONTROLLED", EvidenceReference = "BOUNDED-MEMBER-EVIDENCE",
-        CreatedByUserId = fixture.Seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
-      });
-      await seed.SaveChangesAsync();
-    }
+    var fixture = await CreateSupportedOwnershipAsync(pg);
+    var boundedClientId = fixture.BoundedClientId;
     using var factory = Factory(pg, fixture.Seed.Staff);
     using var client = factory.CreateClient();
     var csrf = await SignIn(client);
     var url = $"/api/ui/consolidation/scopes/{fixture.ScopeId}/ownership-interests";
     var initial = await Read(client, url + "?page=0&pageSize=1");
     Assert.True(initial.GetProperty("canAddOwnership").GetBoolean());
-    Assert.Equal(1, initial.GetProperty("groupRevision").GetInt64());
+    Assert.Equal(5, initial.GetProperty("groupRevision").GetInt64());
     Assert.Equal(3, initial.GetProperty("eligibleMembers").GetArrayLength());
     Assert.DoesNotContain(initial.GetProperty("eligibleMembers").EnumerateArray(),
       x => x.GetProperty("clientId").GetGuid() == fixture.OutsideClientId);
@@ -253,7 +236,7 @@ public sealed class ConsolidationWorkspaceApiTests
     var boundedWindow = Assert.Single(boundedMember.GetProperty("membershipWindows").EnumerateArray());
     Assert.Equal("2026-07-01", boundedWindow.GetProperty("effectiveFrom").GetString());
     Assert.Equal("2026-12-31", boundedWindow.GetProperty("effectiveTo").GetString());
-    object Intent(Guid parent, Guid child, long revision = 1, string effectiveFrom = "2026-01-01", string? effectiveTo = null) => new
+    object Intent(Guid parent, Guid child, long revision = 5, string effectiveFrom = "2026-01-01", string? effectiveTo = null) => new
     {
       parentClientId = parent, childClientId = child, effectiveFrom, effectiveTo,
       ownershipPercent = "73.123456", economicInterestPercent = "66.500000", controlAssessment = "CONTROLLED",
@@ -277,7 +260,7 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Contains("circular", await cycle.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
     using var duplicate = await Post(client, csrf, url, Intent(fixture.Seed.ClientId, fixture.ChildClientId));
     Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
-    using var stale = await Post(client, csrf, url, Intent(fixture.Seed.ClientId, fixture.ChildClientId, 2));
+    using var stale = await Post(client, csrf, url, Intent(fixture.Seed.ClientId, fixture.ChildClientId, 6));
     Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
     using var outside = await Post(client, csrf, url, Intent(fixture.Seed.ClientId, fixture.OutsideClientId));
     Assert.Equal(HttpStatusCode.BadRequest, outside.StatusCode);
@@ -307,16 +290,7 @@ public sealed class ConsolidationWorkspaceApiTests
     Assert.Equal(fixture.ScopeId, oversightRead.GetProperty("scopeId").GetGuid());
     using var deniedOversightWrite = await Post(oversight, oversightCsrf, url, Intent(fixture.ChildClientId, fixture.Seed.ClientId));
     Assert.Equal(HttpStatusCode.Forbidden, deniedOversightWrite.StatusCode);
-    var ungrantedUser = new AppUser
-    {
-      Id = Guid.CreateVersion7(), FirmId = fixture.Seed.FirmId, Email = "ownership-ungranted@auditsphere.test",
-      DisplayName = "Synthetic ungranted staff", TenantId = "tenant-001", Subject = "ownership-ungranted-staff"
-    };
-    await using (var setup = new AuditSphereDbContext(pg.Options))
-    {
-      setup.Users.Add(ungrantedUser);
-      await setup.SaveChangesAsync();
-    }
+    var ungrantedUser = fixture.Ungranted;
     using var ungrantedFactory = Factory(pg, ungrantedUser);
     using var ungranted = ungrantedFactory.CreateClient();
     var ungrantedCsrf = await SignIn(ungranted);

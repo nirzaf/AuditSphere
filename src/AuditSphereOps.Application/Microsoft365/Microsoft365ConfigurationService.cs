@@ -209,6 +209,8 @@ public static partial class Microsoft365ConfigurationService
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
+    auth = await LockSelectedResourceAdministratorAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     var draft = await db.Microsoft365SetupDrafts.FromSqlInterpolated($"""
       SELECT * FROM m365_setup_drafts WHERE id = {request.SetupDraftId} AND firm_id = {actor.FirmId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
@@ -218,6 +220,8 @@ public static partial class Microsoft365ConfigurationService
     var template = await db.FolderTemplateVersions.SingleOrDefaultAsync(x =>
       x.Id == request.FolderTemplateVersionId && x.FirmId == actor.FirmId &&
       x.Purpose == FolderTemplatePurposes.ClientWorkspace, ct);
+    auth = await FirmAdministratorAsync(db, actor, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (draft is null || connection is null || template is null || draft.ConnectionRevisionId != connection.Id)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The activation records are unavailable.");
     if (draft.Revision != request.ExpectedDraftRevision)
@@ -232,6 +236,9 @@ public static partial class Microsoft365ConfigurationService
         !string.Equals(draft.SiteUrl, request.DisplayUrl.Trim(), StringComparison.Ordinal) ||
         !string.Equals(draft.AccessProfile, request.AccessProfile, StringComparison.Ordinal))
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "The activation binding does not match the verified draft.");
+
+    if (await IsActivatedArchiveDriveAsync(db, actor.FirmId, request.DriveId.Trim(), ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An activated secondary archive library cannot become a working library.");
 
     var requiredIds = new Dictionary<string, string>(StringComparer.Ordinal)
     {

@@ -221,17 +221,43 @@ public sealed partial class AuditDeliverablesTests
     Assert.True(current.Succeeded, current.Message);
     Assert.Equal("CONCURRED", current.Value!.EqrStatus);
     Assert.Equal("ok", Assert.Single(current.Value.Gates, x => x.Name == "EQR completed").Tone);
-    var leader = NewUser(w.FirmId, "eqr-completion-leader");
-    db.Users.Add(leader);
-    db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = w.FirmId, UserId = leader.Id,
-      Role = "EngagementLeader", ClientId = w.ClientId, EngagementId = w.EngagementId, GrantedAt = DateTimeOffset.UtcNow,
-      GrantedByUserId = reviewer.UserId });
-    await db.SaveChangesAsync();
-    var leaderView = await EngagementCompletionWorkspaceQuery.GetAsync(db,
-      new ActorContext(leader.Id, w.FirmId, leader.SessionEpoch, ["EngagementLeader"]), w.EngagementId, DateTimeOffset.UtcNow);
-    Assert.True(leaderView.Succeeded, leaderView.Message);
-    Assert.Equal("CONCURRED", leaderView.Value!.EqrStatus);
-    Assert.Equal("ok", Assert.Single(leaderView.Value.Gates, x => x.Name == "EQR completed").Tone);
+    var admin = w.A("administrator", "Administrator");
+    var ensured = await RoleAdministrationService.EnsureUserAsync(db, admin,
+      new(w.U["administrator"].TenantId, Guid.NewGuid().ToString("D"), $"eqr-completion-leader-{Guid.NewGuid():N}@example.test",
+        "eqr-completion-leader", "Staff", "APPROVED_ROSTER"));
+    Assert.True(ensured.Succeeded, ensured.Message);
+    var granted = await RoleAdministrationService.ApplyRoleGrantAsync(db, admin,
+      new(ensured.Value, "Staff", "ENGAGEMENT", w.ClientId, w.EngagementId));
+    Assert.True(granted.Succeeded, granted.Message);
+    var leader = await db.Users.AsNoTracking().SingleAsync(x => x.Id == ensured.Value);
+    var persistedGrant = await db.RoleGrants.AsNoTracking().SingleAsync(x => x.UserId == leader.Id && x.RevokedAt == null);
+    Assert.Equal(("Staff", w.ClientId, w.EngagementId), (persistedGrant.Role, persistedGrant.ClientId, persistedGrant.EngagementId));
+    var identityBefore = JsonSerializer.Serialize(leader);
+    var grantBefore = JsonSerializer.Serialize(persistedGrant);
+    var historyBefore = JsonSerializer.Serialize(await db.EqrDecisions.AsNoTracking().Where(x => x.EngagementId == w.EngagementId).OrderBy(x => x.Id).ToListAsync());
+    var ordinary = await EngagementCompletionWorkspaceQuery.GetAsync(db,
+      new ActorContext(leader.Id, w.FirmId, leader.SessionEpoch, ["Staff"]), w.EngagementId, DateTimeOffset.UtcNow);
+    Assert.True(ordinary.Succeeded, ordinary.Message);
+    Assert.Equal("CONCURRED", ordinary.Value!.EqrStatus);
+    Assert.Equal("ok", Assert.Single(ordinary.Value.Gates, x => x.Name == "EQR completed").Tone);
+
+    // Historical read compatibility only: the supported stored grant remains Staff throughout.
+    var legacyRead = new LegacyEngagementLeaderGrantRead(leader.Id, w.FirmId, w.ClientId, w.EngagementId, persistedGrant.ExpiresAt);
+    await using (var legacyDb = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(legacyRead).Options))
+    {
+      var leaderView = await EngagementCompletionWorkspaceQuery.GetAsync(legacyDb,
+        new ActorContext(leader.Id, w.FirmId, leader.SessionEpoch, ["EngagementLeader"]), w.EngagementId, DateTimeOffset.UtcNow);
+      Assert.True(leaderView.Succeeded, leaderView.Message);
+      Assert.Equal("CONCURRED", leaderView.Value!.EqrStatus);
+      Assert.Equal("ok", Assert.Single(leaderView.Value.Gates, x => x.Name == "EQR completed").Tone);
+      Assert.Empty(leaderView.Value.OpinionTypes);
+      Assert.False(leaderView.Value.CanPrepareRelease);
+    }
+    Assert.True(legacyRead.MatchedQueries > 0);
+    Assert.Equal(legacyRead.MatchedQueries, legacyRead.AlteredRows);
+    Assert.Equal(identityBefore, JsonSerializer.Serialize(await db.Users.AsNoTracking().SingleAsync(x => x.Id == leader.Id)));
+    Assert.Equal(grantBefore, JsonSerializer.Serialize(await db.RoleGrants.AsNoTracking().SingleAsync(x => x.Id == persistedGrant.Id)));
+    Assert.Equal(historyBefore, JsonSerializer.Serialize(await db.EqrDecisions.AsNoTracking().Where(x => x.EngagementId == w.EngagementId).OrderBy(x => x.Id).ToListAsync()));
 
     var nextReport = await AuditDeliverableService.GenerateReportAsync(db, w.A("manager", "Manager"), w.EngagementId,
       DeliverableKinds.IndependentAuditorsReport);
@@ -293,7 +319,7 @@ public sealed partial class AuditDeliverablesTests
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
     var partner = w.A("partner", "Partner");
-    var (packageId, _) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options,
+    var (packageId, _) = await CompletionBundleFixture.ReleasedSupportedFinancialPackageAsync(pg.Options,
       new CompletionBundleScope(w.FirmId, w.ClientId, w.EngagementId, w.U));
     await using var db = new AuditSphereDbContext(pg.Options);
     // The released fixture uses its own manifest; prepare the workspace's exact calculation-hash candidate.
@@ -317,7 +343,7 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.GenerationStale, staleSession.ErrorCode);
     Assert.Equal(Guid.Empty, staleSession.Value);
 
-    var returned = await CashFlowSourceReviewCall.RecordAsync(db, w.A("senior", "AccountingReviewer"),
+    var returned = await CashFlowSourceReviewCall.RecordAsync(db, w.A("accounting-reviewer", "AccountingReviewer"),
       packageId, "RETURNED", "Synthetic correction requires independent source re-review.");
     Assert.True(returned.Succeeded, returned.Message);
     var staleWorkspace = await EngagementCompletionWorkspaceQuery.GetAsync(db, partner, w.EngagementId, DateTimeOffset.UtcNow);
@@ -338,7 +364,7 @@ public sealed partial class AuditDeliverablesTests
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
     var partner = w.A("partner", "Partner");
-    var (packageId, releaseId) = await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options,
+    var (packageId, releaseId) = await CompletionBundleFixture.ReleasedSupportedFinancialPackageAsync(pg.Options,
       new CompletionBundleScope(w.FirmId, w.ClientId, w.EngagementId, w.U));
 
     await using var db = new AuditSphereDbContext(pg.Options);
@@ -370,7 +396,7 @@ public sealed partial class AuditDeliverablesTests
       x.ArtifactSha256Hex, x.PresentationRevisionId, x.PresentationCompositionId, x.CompositionManifestDigest,
       x.Stage, x.Decision, x.EvidenceMode, x.EvidenceReference, x.DecidedByUserId, x.DecidedAt, x.Sequence)).ToList();
     Assert.Equal(expectedReviewEvidence, workspace.Value.PackageReviews);
-    var returned = await CashFlowSourceReviewCall.RecordAsync(db, w.A("senior", "AccountingReviewer"),
+    var returned = await CashFlowSourceReviewCall.RecordAsync(db, w.A("accounting-reviewer", "AccountingReviewer"),
       packageId, "RETURNED", "Synthetic correction requires independent source re-review.");
     Assert.True(returned.Succeeded, returned.Message);
 
@@ -401,7 +427,7 @@ public sealed partial class AuditDeliverablesTests
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
-    await CompletionBundleFixture.ReleasedFinancialPackageAsync(pg.Options,
+    await CompletionBundleFixture.ReleasedSupportedFinancialPackageAsync(pg.Options,
       new CompletionBundleScope(w.FirmId, w.ClientId, w.EngagementId, w.U));
 
     await using var db = new AuditSphereDbContext(pg.Options);
