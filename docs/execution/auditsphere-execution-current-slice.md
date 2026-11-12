@@ -182,3 +182,5 @@ Locked restore and Release compilation passed with zero warnings or errors. Focu
 The initial .NET 11 push at `25dd4633` failed fast Release and migration image locked restore with NU1004. The local macOS bundle check had added `osx-arm64` sections to four project lockfiles. The correction removes those sections and retains the exact portable dependency graphs. Locked restore passed for all ten projects in the official Linux amd64 SDK 11.0.100 image.
 
 The release evidence collector validates the complete API shard set against the SDK and target framework from the resolved source. It checks canonical paths, result counts, binary and helper hashes, and process cleanup before counting results. The reviewed integration passed eight collector and five shard protocol checks in this checkout. Historical run 43178211045 remains an aggregate failure. Exact successor verification is pending.
+
+The API and worker image restore layers copy their committed NuGet lockfiles before locked restore. Both Linux amd64 restore stages preserved all input lock hashes, and the API stage rejected the historical osx-arm64 lock with NU1004.

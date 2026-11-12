@@ -28,10 +28,10 @@ ARG DOTNET_ROLL_FORWARD=disable
 ENV DOTNET_ROLL_FORWARD=$DOTNET_ROLL_FORWARD
 WORKDIR /repo
 COPY global.json Directory.Build.props Directory.Packages.props AuditSphereOps.slnx ./
-COPY src/AuditSphereOps.Domain/AuditSphereOps.Domain.csproj src/AuditSphereOps.Domain/
-COPY src/AuditSphereOps.Application/AuditSphereOps.Application.csproj src/AuditSphereOps.Application/
-COPY src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj src/AuditSphereOps.Infrastructure/
-COPY src/AuditSphereOps.Api/AuditSphereOps.Api.csproj src/AuditSphereOps.Api/
+COPY src/AuditSphereOps.Domain/AuditSphereOps.Domain.csproj src/AuditSphereOps.Domain/packages.lock.json src/AuditSphereOps.Domain/
+COPY src/AuditSphereOps.Application/AuditSphereOps.Application.csproj src/AuditSphereOps.Application/packages.lock.json src/AuditSphereOps.Application/
+COPY src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj src/AuditSphereOps.Infrastructure/packages.lock.json src/AuditSphereOps.Infrastructure/
+COPY src/AuditSphereOps.Api/AuditSphereOps.Api.csproj src/AuditSphereOps.Api/packages.lock.json src/AuditSphereOps.Api/
 RUN dotnet restore src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --locked-mode
 COPY docs/task_breakdown/tracking/pack_manifest.json docs/task_breakdown/tracking/pack_manifest.json
 COPY docs/task_breakdown/tasks/ docs/task_breakdown/tasks/
