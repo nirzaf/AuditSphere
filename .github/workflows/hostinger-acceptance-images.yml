@@ -37,7 +37,9 @@ jobs:
   build-and-push:
     name: Build and publish private linux/amd64 image (${{ matrix.name }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    # The migration image builds the startup host and then publishes an EF bundle.
+    # Allow two 75-minute compiler passes plus 15 minutes for setup and image publication.
+    timeout-minutes: ${{ matrix.timeout_minutes }}
     permissions:
       contents: read
       actions: read
@@ -48,12 +50,15 @@ jobs:
       matrix:
         include:
           - name: API
+            timeout_minutes: 75
             image: auditsphere-acceptance-api
             dockerfile: src/AuditSphereOps.Api/Dockerfile
           - name: worker
+            timeout_minutes: 75
             image: auditsphere-acceptance-worker
             dockerfile: src/AuditSphereOps.Worker/Dockerfile
           - name: migrations
+            timeout_minutes: 165
             image: auditsphere-acceptance-migrations
             dockerfile: infra/docker/migrations.Dockerfile
     steps:

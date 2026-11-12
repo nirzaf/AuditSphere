@@ -179,7 +179,8 @@ jobs:
     if: ${{ always() && (needs.change-scope.result != 'success' || (needs.change-scope.outputs.full_build != 'false' && needs.ui-build.result == 'success' && (needs.dotnet-release-compile.result == 'success' || needs.dotnet-release-compile.result == 'skipped'))) }}
     name: Build · .NET Release
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # A runner image version mismatch requires a clean build before the Release guards.
+    timeout-minutes: 90
     # Roslyn defaults to server GC; keep the migration-heavy compile within the runner memory limit.
     env:
       DOTNET_gcServer: '0'
