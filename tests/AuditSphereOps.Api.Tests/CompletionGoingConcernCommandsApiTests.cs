@@ -9,6 +9,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
@@ -287,6 +288,46 @@ public sealed partial class CompletionVarianceCommandsApiTests
     }
     using (var refused = await Post(reviewClient, reviewCsrf, root + $"/{id}/review", changedEvidenceReview))
       Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+
+    var beforeHold = await ReviewIntent(id, date);
+    var hold = new EngagementHold
+    {
+      Id = Guid.CreateVersion7(), FirmId = world.Primary.FirmId, EngagementId = world.Primary.EngagementId,
+      HoldKind = "Independence", Reason = "Synthetic retained hold for review refusal", CreatedAt = DateTimeOffset.UtcNow
+    };
+    GoingConcernAssessment preparedBeforeHold;
+    int beforeHoldReceipts;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      preparedBeforeHold = await db.GoingConcernAssessments.AsNoTracking().SingleAsync(x => x.Id == id);
+      beforeHoldReceipts = await db.AuditCompletionGoingConcernCommandReceipts.CountAsync();
+      // This fixture establishes an existing hold without modeling how a qualified owner places it.
+      db.EngagementHolds.Add(hold);
+      await db.SaveChangesAsync();
+    }
+    var heldState = await State(reviewClient, date);
+    Assert.False(heldState.CanReview);
+    Assert.Contains("Professional work is held on this engagement.", heldState.Blockers);
+    Assert.NotEqual(beforeHold.ReviewBasis, heldState.ReviewBasis);
+    Assert.Equal(beforeHold.ExpectedRevision, heldState.ExpectedRevision);
+    using (var refused = await Post(reviewClient, reviewCsrf, root + $"/{id}/review", beforeHold))
+    {
+      Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+      using var failure = JsonDocument.Parse(await refused.Content.ReadAsStringAsync());
+      Assert.Equal(ErrorCodes.GenerationStale, failure.RootElement.GetProperty("code").GetString());
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var refused = await AuditCompletionService.ReviewCompletionRecordAsync(db, reviewer, "GOING_CONCERN", id,
+        preparedBeforeHold.Revision);
+      Assert.Equal(ErrorCodes.GateBlocked, refused.ErrorCode);
+      Assert.Equivalent(preparedBeforeHold, await db.GoingConcernAssessments.AsNoTracking().SingleAsync(x => x.Id == id),
+        strict: true);
+      Assert.Equal(beforeHoldReceipts, await db.AuditCompletionGoingConcernCommandReceipts.CountAsync());
+      // Remove the synthetic fixture so the existing grant-revocation scenario can run independently.
+      Assert.Equal(1, await db.EngagementHolds.Where(x => x.Id == hold.Id).ExecuteDeleteAsync());
+    }
+
     var revokedReview = await ReviewIntent(id, date);
     int beforeRevocationReceipts;
     await using (var db = new AuditSphereDbContext(pg.Options))
