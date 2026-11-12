@@ -1,6 +1,9 @@
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Records;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Records;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -69,6 +72,35 @@ public sealed class AngularCompletionFileRecordsJourneyTests
       await db.SaveChangesAsync();
     }
 
+    var preparer = PbcSeed.Actor(f.Staff, "Staff");
+    GoingConcernAssessmentValue concern;
+    SubsequentEventReviewValue subsequentEvent;
+    OpeningBalanceVerificationValue openingBalance;
+    await using (var db = host.CreateDbContext())
+    {
+      var preparedConcern = await AuditCompletionService.RecordGoingConcernAssessmentAsync(db, preparer,
+        new(f.EngagementId, null, new(2027, 1, 20), new(2028, 1, 20), "Synthetic forecast observations",
+          false, true, "QAR", "Synthetic forecast rationale", ["synthetic-forecast-evidence"]));
+      Assert.True(preparedConcern.Succeeded, preparedConcern.Message);
+      concern = preparedConcern.Value!;
+
+      var preparedEvent = await AuditCompletionService.RecordSubsequentEventAsync(db, preparer,
+        new(f.EngagementId, null, new(2026, 12, 31), new(2027, 1, 20), "Synthetic post-period event",
+          SubsequentEventClassifications.NonAdjusting, false, true, "Note 27",
+          "Synthetic conditions arose after the reporting date.", "QAR", 125.123456m, []));
+      Assert.True(preparedEvent.Succeeded, preparedEvent.Message);
+      subsequentEvent = preparedEvent.Value!;
+    }
+    await using (var db = host.CreateDbContext())
+    {
+      var preparedOpening = await AuditPlanningCompletionService.RecordOpeningBalanceVerificationAsync(db, preparer,
+        new(f.EngagementId, null, null, "Synthetic prior statement", new(2026, 1, 1), "QAR",
+          1000.123456m, 1000.123456m, true, "Synthetic opening balance comparison",
+          ["synthetic-prior-source"], 0));
+      Assert.True(preparedOpening.Succeeded, preparedOpening.Message);
+      openingBalance = preparedOpening.Value!;
+    }
+
     var origin = await host.StartApiForIdentityAsync(partner, Angular);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
@@ -113,6 +145,37 @@ public sealed class AngularCompletionFileRecordsJourneyTests
       var evidence = await db.FileFreezeEarlyLocks.AsNoTracking().SingleAsync(x => x.FreezeId == freeze.Id);
       Assert.Equal(partner.Id, evidence.LockedByUserId);
       Assert.Contains("reviewed final release", evidence.Rationale, StringComparison.Ordinal);
+    }
+
+    var reviewer = PbcSeed.Actor(partner, "Partner");
+    int priorProfessionalWorkRefusals;
+    await using (var db = host.CreateDbContext())
+    {
+      priorProfessionalWorkRefusals = await db.FrozenAccessAttempts.CountAsync(x => x.FirmId == f.FirmId &&
+        x.EngagementId == f.EngagementId && x.ActorUserId == partner.Id &&
+        x.Action == "professional work on a frozen engagement file");
+      var concernReview = await AuditCompletionService.ReviewCompletionRecordAsync(db, reviewer,
+        "GOING_CONCERN", concern.AssessmentId, concern.Revision);
+      Assert.Equal(ErrorCodes.ProtectedState, concernReview.ErrorCode);
+      var eventReview = await AuditCompletionService.ReviewCompletionRecordAsync(db, reviewer,
+        "SUBSEQUENT_EVENT", subsequentEvent.ReviewId, subsequentEvent.Revision);
+      Assert.Equal(ErrorCodes.ProtectedState, eventReview.ErrorCode);
+      var openingReview = await AuditPlanningCompletionService.ReviewOpeningBalanceVerificationAsync(db, reviewer,
+        new(f.EngagementId, openingBalance.VerificationId, openingBalance.Revision, null));
+      Assert.Equal(ErrorCodes.ProtectedState, openingReview.ErrorCode);
+    }
+    await using (var db = host.CreateDbContext())
+    {
+      var retainedConcern = await db.GoingConcernAssessments.AsNoTracking().SingleAsync(x => x.Id == concern.AssessmentId);
+      Assert.Equal((concern.Revision, (Guid?)null), (retainedConcern.Revision, retainedConcern.ReviewedByUserId));
+      var retainedEvent = await db.SubsequentEventReviews.AsNoTracking().SingleAsync(x => x.Id == subsequentEvent.ReviewId);
+      Assert.Equal((subsequentEvent.Revision, (Guid?)null), (retainedEvent.Revision, retainedEvent.ReviewedByUserId));
+      var retainedOpening = await db.OpeningBalanceVerifications.AsNoTracking()
+        .SingleAsync(x => x.Id == openingBalance.VerificationId);
+      Assert.Equal((openingBalance.Revision, (Guid?)null), (retainedOpening.Revision, retainedOpening.ReviewedByUserId));
+      Assert.Equal(priorProfessionalWorkRefusals + 3, await db.FrozenAccessAttempts.CountAsync(x => x.FirmId == f.FirmId &&
+        x.EngagementId == f.EngagementId && x.ActorUserId == partner.Id &&
+        x.Action == "professional work on a frozen engagement file"));
     }
 
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(engagementRoute));
