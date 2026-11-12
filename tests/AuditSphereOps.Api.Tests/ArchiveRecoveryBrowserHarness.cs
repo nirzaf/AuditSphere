@@ -67,24 +67,7 @@ public static class ArchiveRecoveryBrowserHarness
       Assert.True(completion.Succeeded, completion.Message);
       originalBlockers = completion.Value!.Blockers.Order(StringComparer.Ordinal).ToArray();
       Assert.NotEmpty(originalBlockers);
-      // Owner-approved exception: exactly one synthetic approved TEST profile and issued archive.
-      // No completion, identity, role, consent, hold or professional approval state is seeded.
-      var now = DateTimeOffset.UtcNow;
-      db.RecordsProfiles.Add(new RecordsProfile
-      {
-        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ProfileCode = "TEST-RECOVERY", Version = 1,
-        RecordClass = "Synthetic archive recovery", Jurisdiction = "TEST", ServiceRoute = "STATUTORY_AUDIT",
-        RetentionTrigger = "REPORT_DATE", ProtectionMode = "LOCAL_ONLY", LabelId = "test-only",
-        LegalHoldBehavior = "SUSPEND_DISPOSITION", AmendmentRoute = "CONTROLLED_AMENDMENT",
-        DispositionOwner = "Synthetic custodian", BackupRequirements = "Synthetic fixture only",
-        CreatedByUserId = user.Id, CreatedAt = now, Approved = true, ApprovedByUserId = user.Id, ApprovedAt = now
-      });
-      db.Archives.Add(new Archive
-      {
-        Id = archiveId, FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = scope.EngagementId,
-        ProfileId = "TEST-RECOVERY", ProfileVersion = 1, Status = ArchiveStates.Issued, CreatedAt = now
-      });
-      await db.SaveChangesAsync(ct);
+      await AddSyntheticArchiveAsync(db, scope, user, archiveId, ct);
       Assert.NotEqual(scope.EngagementId, archiveId);
       var denied = await EngagementArchiveHandoffQuery.GetAsync(db, actor, world.Sibling.EngagementId, ct);
       Assert.False(denied.Succeeded); Assert.Null(denied.Value);
@@ -141,6 +124,29 @@ public static class ArchiveRecoveryBrowserHarness
       { manifest, entries, export.ContentHash, export.ByteCount, originalStatus, originalBlockers, replay = replay.Value,
         newWriteRefusal = refused.ErrorCode, source = "Actual isolated PostgreSQL; not live or professional evidence" }, Json), ct);
     }
+  }
+
+  internal static async Task AddSyntheticArchiveAsync(AuditSphereDbContext db, SupportedAuditScope scope,
+    AppUser user, Guid archiveId, CancellationToken ct = default)
+  {
+    // Owner-approved exception: exactly one synthetic approved TEST profile and issued archive.
+    // No completion, identity, role, consent, hold or professional approval state is seeded.
+    var now = DateTimeOffset.UtcNow;
+    db.RecordsProfiles.Add(new RecordsProfile
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ProfileCode = "TEST-RECOVERY", Version = 1,
+      RecordClass = "Synthetic archive recovery", Jurisdiction = "TEST", ServiceRoute = "STATUTORY_AUDIT",
+      RetentionTrigger = "REPORT_DATE", ProtectionMode = "LOCAL_ONLY", LabelId = "test-only",
+      LegalHoldBehavior = "SUSPEND_DISPOSITION", AmendmentRoute = "CONTROLLED_AMENDMENT",
+      DispositionOwner = "Synthetic custodian", BackupRequirements = "Synthetic fixture only",
+      CreatedByUserId = user.Id, CreatedAt = now, Approved = true, ApprovedByUserId = user.Id, ApprovedAt = now
+    });
+    db.Archives.Add(new Archive
+    {
+      Id = archiveId, FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = scope.EngagementId,
+      ProfileId = "TEST-RECOVERY", ProfileVersion = 1, Status = ArchiveStates.Issued, CreatedAt = now
+    });
+    await db.SaveChangesAsync(ct);
   }
 
   private sealed record Transmission(string RequestKey, string RequestBody, ArchiveManifestResult Result);
