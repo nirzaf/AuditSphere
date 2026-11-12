@@ -149,6 +149,8 @@ incrementally; the OpenAPI document registers `ApiError` as the shared schema.
 
 ## 7. Canonical OpenAPI 3.1 Contract
 
+The API explicitly selects OpenAPI 3.1 so the ASP.NET Core 11 default of 3.2 does not change the published specification version.
+
 `src/AuditSphereOps.Api/Contracts/ApiContract.cs` configures native ASP.NET Core OpenAPI
 (`Microsoft.AspNetCore.OpenApi`) to generate the `auditsphere` document from the actual
 endpoints, exposed at `/api/contract/auditsphere.json` outside production (production exposure

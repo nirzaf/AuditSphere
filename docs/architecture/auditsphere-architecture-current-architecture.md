@@ -24,6 +24,8 @@ this document wins and the source text remains a historical requirement record.
 
 ## The architecture
 
+The API, worker, migration bundle, test projects and backend tools target .NET 11. The target framework selects C# 15. EF Core, its CLI and the Npgsql provider stay on the compatible 10.x line.
+
 ```text
            Angular UI
                │
@@ -55,7 +57,7 @@ flowchart TB
         UX["Seven-phase engagement tracker and task queues — v2.2"]
     end
 
-    subgraph API["AuditSphereOps.Api — ASP.NET Core 10"]
+    subgraph API["AuditSphereOps.Api — ASP.NET Core 11"]
         HTTP["Same-origin /api/ui + /api/setup; SPA /ui"]
         SESSION["OIDC sign-in, secure cookie, anti-CSRF, session freshness"]
         CONTRACTS["OpenAPI 3.1, exact decimal-string contracts, bounded uploads"]

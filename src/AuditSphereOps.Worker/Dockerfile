@@ -4,7 +4,7 @@
 # startup, and privileged Microsoft 365 credentials are only ever mounted to their isolated
 # external-effect workers. Build context is the repository root.
 #   docker build -f src/AuditSphereOps.Worker/Dockerfile -t auditsphere-worker:<git-sha> .
-FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS build
 ARG DOTNET_ROLL_FORWARD=disable
 ENV DOTNET_ROLL_FORWARD=$DOTNET_ROLL_FORWARD
 WORKDIR /repo
@@ -21,7 +21,7 @@ RUN DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet publish src/AuditSphereOp
   -p:RunAnalyzers=false -p:DebugType=None -p:DebugSymbols=false \
   && test -f /out/AuditSphereOps.Worker.dll
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS runtime
 WORKDIR /app
 COPY --from=build /out/ .
 RUN apt-get update \

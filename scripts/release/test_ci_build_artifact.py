@@ -27,8 +27,8 @@ class CiBuildArtifactTests(unittest.TestCase):
         self.project = self.root / "src" / "Example"
         self.project.mkdir(parents=True)
         (self.project / "Example.csproj").write_text("<Project />", encoding="utf-8")
-        self.bin_output = self.project / "bin" / "Release" / "net10.0"
-        self.obj_output = self.project / "obj" / "Release" / "net10.0"
+        self.bin_output = self.project / "bin" / "Release" / "net11.0"
+        self.obj_output = self.project / "obj" / "Release" / "net11.0"
         self.bin_output.mkdir(parents=True)
         self.obj_output.mkdir(parents=True)
         (self.bin_output / "Example.dll").write_bytes(b"compiled assembly")
@@ -40,7 +40,7 @@ class CiBuildArtifactTests(unittest.TestCase):
             "run_id": 101,
             "run_attempt": 2,
             "source_sha": SOURCE_SHA,
-            "dotnet_sdk": "10.0.300",
+            "dotnet_sdk": "11.0.100",
             "runner_image": "ubuntu-24.04",
             "runner_version": "20261101.1",
         }

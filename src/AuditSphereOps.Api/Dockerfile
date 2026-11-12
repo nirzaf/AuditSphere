@@ -23,7 +23,7 @@ RUN if [ "$USE_PREBUILT_ANGULAR" = "true" ]; then \
       npm run build; \
     fi
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS api
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS api
 ARG DOTNET_ROLL_FORWARD=disable
 ENV DOTNET_ROLL_FORWARD=$DOTNET_ROLL_FORWARD
 WORKDIR /repo
@@ -47,7 +47,7 @@ RUN DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet publish src/AuditSphereOp
   -p:RunAnalyzers=false -p:DebugType=None -p:DebugSymbols=false \
   && test -f /out/AuditSphereOps.Api.dll
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS runtime
 WORKDIR /app
 COPY --from=api /out/ .
 COPY --from=api /ui-assets/ ./ui/

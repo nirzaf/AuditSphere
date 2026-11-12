@@ -3,7 +3,7 @@
 # runtime artifacts, then executed as a Container Apps Job before any new API/worker revision
 # receives traffic. Application containers never apply schema migrations at startup.
 #   docker build -f infra/docker/migrations.Dockerfile -t auditsphere-migrations:<git-sha> .
-FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS bundle
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS bundle
 ARG DOTNET_ROLL_FORWARD=Major
 ENV DOTNET_ROLL_FORWARD=$DOTNET_ROLL_FORWARD
 WORKDIR /repo
@@ -30,10 +30,9 @@ RUN dotnet tool install --global dotnet-ef --version 10.0.12 \
     -o /out/efbundle
 
 # Framework-dependent bundle: the self-contained publish of the full design-time host exceeded
-# the image job budget. The aspnet runtime supplies Microsoft.AspNetCore.App and the exact .NET 10
+# the image job budget. The aspnet runtime supplies Microsoft.AspNetCore.App and the .NET 11
 # runtime; the bundle still carries the same migration IL and applies the same SQL.
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
-ENV DOTNET_ROLL_FORWARD=Major
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS runtime
 WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends libgssapi-krb5-2 \

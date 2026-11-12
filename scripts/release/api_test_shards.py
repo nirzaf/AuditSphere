@@ -263,8 +263,9 @@ def run(args):
         def command(cmd, name, timeout=240):
             bounded(cmd, output / (name + ".log"), timeout, env)
         # SDK targeting pack chosen by its bundled framework version, not newest installed.
-        framework = json.loads((sdk / "dotnet.runtimeconfig.json").read_text())["runtimeOptions"]["framework"]["version"]
-        ref = dotnet.parent / "packs/Microsoft.NETCore.App.Ref" / framework / "ref/net10.0"
+        runtime = json.loads((sdk / "dotnet.runtimeconfig.json").read_text())["runtimeOptions"]
+        require(source["targetFramework"] == runtime["tfm"], "Artifact target differs from the pinned SDK runtime")
+        ref = dotnet.parent / "packs/Microsoft.NETCore.App.Ref" / runtime["framework"]["version"] / "ref" / runtime["tfm"]
         require(ref.is_dir(), "Matching SDK targeting pack missing")
         common = [str(dotnet), str(sdk / "Roslyn/bincore/csc.dll"), "-nologo", "-target:exe", "-nullable:enable", "-nowarn:1701"] + ["-r:" + str(p) for p in sorted(ref.glob("*.dll"))]
         helpers = Path(__file__).parent / "api-test-shards"

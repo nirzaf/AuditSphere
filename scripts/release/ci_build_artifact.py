@@ -68,7 +68,7 @@ def _is_release_output(path_text: str) -> bool:
     return (
         len(parts) >= 5
         and parts[0] in OUTPUT_ROOTS
-        and parts[-3:] in (("bin", "Release", "net10.0"), ("obj", "Release", "net10.0"))
+        and parts[-3:] in (("bin", "Release", "net11.0"), ("obj", "Release", "net11.0"))
     )
 
 
@@ -87,7 +87,7 @@ def _output_directories(root: Path) -> list[Path]:
         base = root / root_name
         if not base.is_dir() or base.is_symlink():
             continue
-        for candidate in base.rglob("net10.0"):
+        for candidate in base.rglob("net11.0"):
             if (
                 candidate.is_dir()
                 and candidate.parent.name == "Release"
@@ -123,7 +123,7 @@ def create_build_artifact(
     runner_image: str,
     runner_version: str,
 ) -> dict[str, Any]:
-    """Package all Release/net10.0 bin/obj trees and bind them to their exact build identity."""
+    """Package all Release/net11.0 bin/obj trees and bind them to their exact build identity."""
 
     root = root.resolve()
     output_dir = output_dir.resolve()
@@ -138,7 +138,7 @@ def create_build_artifact(
 
     directories = _output_directories(root)
     if not directories:
-        raise ValueError("no .NET Release/net10.0 bin/obj outputs were found")
+        raise ValueError("no .NET Release/net11.0 bin/obj outputs were found")
 
     archive = output_dir / ARCHIVE_NAME
     with tarfile.open(archive, mode="w:gz", compresslevel=1, format=tarfile.PAX_FORMAT) as bundle:
@@ -159,7 +159,7 @@ def create_build_artifact(
         "workflowRunAttempt": run_attempt,
         "sourceSha": source_sha,
         "configuration": "Release",
-        "targetFramework": "net10.0",
+        "targetFramework": "net11.0",
         "dotnetSdk": dotnet_sdk,
         "buildProperties": dict(BUILD_PROPERTIES),
         **_runner_identity(runner_image, runner_version),
@@ -227,7 +227,7 @@ def verify_and_extract_build_artifact(
         "workflowRunAttempt": run_attempt,
         "sourceSha": source_sha,
         "configuration": "Release",
-        "targetFramework": "net10.0",
+        "targetFramework": "net11.0",
         "dotnetSdk": dotnet_sdk,
         "buildProperties": dict(BUILD_PROPERTIES),
         **_runner_identity(runner_image, runner_version),
@@ -311,7 +311,7 @@ def verify_and_extract_build_artifact(
             if directory not in seen:
                 raise ValueError(f"declared build output is absent from archive: {directory}")
 
-        # Stage all entries first. Only after a complete extraction are existing Release/net10.0
+        # Stage all entries first. Only after a complete extraction are existing Release/net11.0
         # outputs replaced; any replacement error restores the prior directories before fallback.
         with tempfile.TemporaryDirectory(prefix=".auditsphere-build-restore-", dir=root) as temp_name:
             staging = Path(temp_name)

@@ -38,6 +38,7 @@ public static class ApiContract
   public static void Configure(WebApplicationBuilder builder) =>
     builder.Services.AddOpenApi(DocumentName, options =>
     {
+      options.OpenApiVersion = OpenApiSpecVersion.OpenApi3_1;
       options.AddDocumentTransformer(async (document, context, ct) =>
       {
         document.Info.Title = "AuditSphereOps API";
@@ -110,7 +111,7 @@ public static class ApiContract
           operation.Responses.Add("401", new OpenApiResponse
           {
             Description = "No current AuditSphere session. Cookie challenges may have an empty body; handler refusals return the UI error JSON.",
-            Content = new Dictionary<string, OpenApiMediaType>
+            Content = new Dictionary<string, IOpenApiMediaType>
             {
               ["application/json"] = new OpenApiMediaType
               {
@@ -126,8 +127,9 @@ public static class ApiContract
           operation.Responses.TryAdd("413", BoundaryError("The JSON command body exceeded the accepted size."));
         if (context.Description.ActionDescriptor.EndpointMetadata.OfType<NullableJsonSuccessBodyMetadata>().Any() &&
             operation.Responses.TryGetValue("200", out var success) && success.Content is not null &&
-            success.Content.TryGetValue("application/json", out var json) && json.Schema is not null)
-          json.Schema = new OpenApiSchema { AnyOf = [json.Schema, new OpenApiSchema { Type = JsonSchemaType.Null }] };
+            success.Content.TryGetValue("application/json", out var json) &&
+            json is OpenApiMediaType { Schema: { } schema } mediaType)
+          mediaType.Schema = new OpenApiSchema { AnyOf = [schema, new OpenApiSchema { Type = JsonSchemaType.Null }] };
       });
       options.AddSchemaTransformer((schema, context, _) =>
       {
@@ -151,7 +153,7 @@ public static class ApiContract
   private static OpenApiResponse BoundaryError(string description) => new()
   {
     Description = description,
-    Content = new Dictionary<string, OpenApiMediaType>
+    Content = new Dictionary<string, IOpenApiMediaType>
     {
       ["application/json"] = new OpenApiMediaType { Schema = new OpenApiSchemaReference(ApiErrorSchemaId) }
     }

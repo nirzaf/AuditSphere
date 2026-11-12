@@ -1,6 +1,6 @@
 # AuditSphereOps
 
-[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![.NET 11](https://img.shields.io/badge/.NET-11-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![Angular 22](https://img.shields.io/badge/Angular-22-DD0031?logo=angular&logoColor=white)](src/AuditSphereOps.Ui/auditsphere-angular-development.md)
 [![PostgreSQL 18.6](https://img.shields.io/badge/PostgreSQL-18.6-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![EF Core 10](https://img.shields.io/badge/EF%20Core-10-0078D4)](https://learn.microsoft.com/ef/core/)
@@ -213,7 +213,7 @@ flowchart TB
 | `src/AuditSphereOps.Domain/` | Domain entities, state rules, immutable financial and audit invariants, pure calculations |
 | `src/AuditSphereOps.Application/` | Static capability services, commands, queries, scope authorization, workflow rules and operation contracts |
 | `src/AuditSphereOps.Infrastructure/` | EF Core 10, Npgsql, the capability-split `AuditSphereDbContext`, migrations and provider implementations |
-| `src/AuditSphereOps.Api/` | ASP.NET Core 10 API, secure session boundary, OpenAPI, Angular asset hosting, protected upload/download transports |
+| `src/AuditSphereOps.Api/` | ASP.NET Core 11 API, secure session boundary, OpenAPI, Angular asset hosting, protected upload/download transports |
 | `src/AuditSphereOps.Ui/` | Angular 22, TypeScript, Material/CDK, standalone staff and client experiences |
 | `src/AuditSphereOps.Worker/` | Durable background processing, idempotent retries, reconciliation, isolated external-effect workers |
 
@@ -235,9 +235,9 @@ Use the **exact versions pinned by this checkout**, not whichever SDK is newest.
 
 | Tool | Repository pin or requirement |
 | --- | --- |
-| .NET SDK | **10.0.300**, exact match; `global.json` disables roll-forward |
-| C# | 14; `Directory.Build.props` enables nullable references and warnings-as-errors |
-| EF Core / Npgsql | EF Core **10.0.12**, Npgsql EF provider **10.0.0** (central NuGet versions) |
+| .NET SDK | **11.0.100** (STS), exact match via `global.json` |
+| C# | **15** by default for `net11.0`. Nullable references and warnings as errors are enabled centrally. |
+| EF Core / Npgsql | EF Core and `dotnet-ef` **10.0.12**, Npgsql EF provider **10.0.0**. Upgrade the EF packages, provider and tool together once the stable provider supports the next major. |
 | Node.js | **26.13.0 (LTS)** from `src/AuditSphereOps.Ui/.nvmrc` |
 | npm | **11.20.0** declared in Angular `package.json` |
 | Angular / Material/CDK | **22.2.1** dependency pins; Angular CLI **22.2.3** |

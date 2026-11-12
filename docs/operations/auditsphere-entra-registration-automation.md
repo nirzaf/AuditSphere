@@ -519,7 +519,7 @@ dotnet build tools/AuditSphereOps.MailEvidenceIssuer/AuditSphereOps.MailEvidence
 # This preparation tool uses a conservative one-hour window. It never refreshes
 # an old observation's timestamp. Recollect old readback through the approved flow.
 $expiry = (Get-Date).ToUniversalTime().AddMinutes(20).ToString('o')
-dotnet tools/AuditSphereOps.MailEvidenceIssuer/bin/Release/net10.0/AuditSphereOps.MailEvidenceIssuer.dll prepare `
+dotnet tools/AuditSphereOps.MailEvidenceIssuer/bin/Release/net11.0/AuditSphereOps.MailEvidenceIssuer.dll prepare `
   --readback /approved/operator/mail-readback.json `
   --binding /approved/operator/reviewed-mail-binding.json `
   --repository /approved/source/AuditSphere `

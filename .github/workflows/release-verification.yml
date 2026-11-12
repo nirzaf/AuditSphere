@@ -369,8 +369,8 @@ jobs:
           bash scripts/release/run-verification-step.sh "Verify source-bound test build artifact ($TEST_PROJECT_KEY)" bash -c '
             set -euo pipefail
             manifest="$RUNNER_TEMP/release-verification-test-build/source.json"
-            binary_root="$RUNNER_TEMP/release-verification-test-build/bin/Release/net10.0"
-            output_root="${TEST_PROJECT%/*}/bin/Release/net10.0"
+            binary_root="$RUNNER_TEMP/release-verification-test-build/bin/Release/net11.0"
+            output_root="${TEST_PROJECT%/*}/bin/Release/net11.0"
             expected_sdk="$(jq -r .sdk.version global.json)"
             actual_sdk="$(dotnet --version)"
             expected_hosts="[]"
@@ -390,7 +390,7 @@ jobs:
               --arg machine "$(uname -m)" \
               --arg operatingSystem "$(uname -s)" \
               --argjson expectedHosts "$expected_hosts" \
-              ".schemaVersion == 1 and .artifactName == \$artifact and .repository == \$repository and .resolvedCommit == \$commit and .project == \$project and .assembly == \$assembly and .configuration == \"Release\" and .targetFramework == \"net10.0\" and .dotnetSdk == \$sdk and .runId == (\$runId | tonumber) and .runAttempt >= 1 and .runAttempt <= (\$runAttempt | tonumber) and .machine == \$machine and .operatingSystem == \$operatingSystem and .hostArtifacts == \$expectedHosts" \
+              ".schemaVersion == 1 and .artifactName == \$artifact and .repository == \$repository and .resolvedCommit == \$commit and .project == \$project and .assembly == \$assembly and .configuration == \"Release\" and .targetFramework == \"net11.0\" and .dotnetSdk == \$sdk and .runId == (\$runId | tonumber) and .runAttempt >= 1 and .runAttempt <= (\$runAttempt | tonumber) and .machine == \$machine and .operatingSystem == \$operatingSystem and .hostArtifacts == \$expectedHosts" \
               "$manifest" >/dev/null
             test -s "$binary_root/$TEST_ASSEMBLY.dll"
             test -s "$binary_root/$TEST_ASSEMBLY.deps.json"
@@ -452,10 +452,10 @@ jobs:
           # Reuse the verified exact-SHA host binaries without rebuilding.
           # The artifact round trip drops the executable bit from Playwright's packaged Node binary.
           bash scripts/release/run-verification-step.sh "Restore Playwright Node executable bit" \
-            chmod u+x tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/.playwright/node/linux-x64/node
-          test -x tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/.playwright/node/linux-x64/node
+            chmod u+x tests/AuditSphereOps.E2E.Tests/bin/Release/net11.0/.playwright/node/linux-x64/node
+          test -x tests/AuditSphereOps.E2E.Tests/bin/Release/net11.0/.playwright/node/linux-x64/node
           bash scripts/release/run-verification-step.sh "Playwright Chromium install" \
-            pwsh tests/AuditSphereOps.E2E.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+            pwsh tests/AuditSphereOps.E2E.Tests/bin/Release/net11.0/playwright.ps1 install --with-deps chromium
 
       - name: Save Playwright cache before the long E2E suite
         if: ${{ always() && matrix.key == 'e2e' && steps.playwright-install.outcome == 'success' && steps.playwright-cache.outputs.cache-hit != 'true' }}
@@ -483,7 +483,7 @@ jobs:
           set -euo pipefail
           bash scripts/release/run-verification-step.sh "Complete API suite via verified process-isolated shards" \
             python3 scripts/release/api_test_shards.py \
-            --assembly tests/AuditSphereOps.Api.Tests/bin/Release/net10.0/AuditSphereOps.Api.Tests.dll \
+            --assembly tests/AuditSphereOps.Api.Tests/bin/Release/net11.0/AuditSphereOps.Api.Tests.dll \
             --provenance "$RUNNER_TEMP/release-verification-test-build/source.json" \
             --source "$SOURCE_COMMIT" --output "$VERIFICATION_TRX_DIR/api-shards"
 
@@ -685,7 +685,7 @@ jobs:
               *) echo "Unexpected test project key: $key" >&2; exit 2 ;;
             esac
             assembly="$(basename "$project" .csproj)"
-            source_output="${project%/*}/bin/Release/net10.0"
+            source_output="${project%/*}/bin/Release/net11.0"
             staging="$artifact_root/$key"
             test -s "$source_output/$assembly.dll"
             test -s "$source_output/$assembly.deps.json"
@@ -722,9 +722,9 @@ jobs:
                     host_assembly=AuditSphereOps.OpenApiEmitter
                     ;;
                 esac
-                host_source="${host_project%/*}/bin/Release/net10.0"
+                host_source="${host_project%/*}/bin/Release/net11.0"
                 host_staging="$staging/hosts/bin/$host_assembly/release"
-                host_obj_source="${host_project%/*}/obj/Release/net10.0"
+                host_obj_source="${host_project%/*}/obj/Release/net11.0"
                 host_obj_staging="$staging/hosts/obj/$host_assembly/release"
                 test -s "$host_source/$host_assembly.dll"
                 test -s "$host_source/$host_assembly.deps.json"
@@ -735,14 +735,14 @@ jobs:
                 if [ "$host" = openapi-emitter ]; then
                   test -s "$host_source/$host_assembly"
                 fi
-                test -d "${host_project%/*}/obj/Release/net10.0"
+                test -d "${host_project%/*}/obj/Release/net11.0"
                 mkdir -p "$host_staging" "$host_obj_staging"
                 cp -a "$host_source/." "$host_staging/"
                 cp -a "$host_obj_source/." "$host_obj_staging/"
               done
             fi
-            mkdir -p "$staging/bin/Release/net10.0"
-            cp -a "$source_output/." "$staging/bin/Release/net10.0/"
+            mkdir -p "$staging/bin/Release/net11.0"
+            cp -a "$source_output/." "$staging/bin/Release/net11.0/"
             ARTIFACT_NAME="release-verification-test-build-${SOURCE_COMMIT}-${GITHUB_RUN_ID}-${key}" \
               PROJECT="$project" ASSEMBLY="$assembly" PROJECT_KEY="$key" DOTNET_SDK="$actual_sdk" \
               python3 - "$staging/source.json" <<'PY'
@@ -767,7 +767,7 @@ jobs:
               "project": os.environ["PROJECT"],
               "assembly": os.environ["ASSEMBLY"],
               "configuration": "Release",
-              "targetFramework": "net10.0",
+              "targetFramework": "net11.0",
               "dotnetSdk": os.environ["DOTNET_SDK"],
               "operatingSystem": platform.system(),
               "machine": platform.machine(),
@@ -913,7 +913,7 @@ jobs:
             --arg machine "$(uname -m)" \
             --arg operatingSystem "$(uname -s)" \
             --argjson expectedHosts "$expected_hosts" \
-            '.schemaVersion == 1 and .artifactName == $artifact and .repository == $repository and .resolvedCommit == $commit and .project == "tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj" and .assembly == "AuditSphereOps.E2E.Tests" and .configuration == "Release" and .targetFramework == "net10.0" and .dotnetSdk == $sdk and .runId == ($runId | tonumber) and .runAttempt == ($runAttempt | tonumber) and .machine == $machine and .operatingSystem == $operatingSystem and .hostArtifacts == $expectedHosts' \
+            '.schemaVersion == 1 and .artifactName == $artifact and .repository == $repository and .resolvedCommit == $commit and .project == "tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj" and .assembly == "AuditSphereOps.E2E.Tests" and .configuration == "Release" and .targetFramework == "net11.0" and .dotnetSdk == $sdk and .runId == ($runId | tonumber) and .runAttempt == ($runAttempt | tonumber) and .machine == $machine and .operatingSystem == $operatingSystem and .hostArtifacts == $expectedHosts' \
             "$manifest" >/dev/null
           for host in api worker infrastructure application domain openapi-emitter; do
             case "$host" in
@@ -925,7 +925,7 @@ jobs:
               openapi-emitter) project=tools/AuditSphereOps.OpenApiEmitter/AuditSphereOps.OpenApiEmitter.csproj; assembly=AuditSphereOps.OpenApiEmitter ;;
             esac
             source="$artifact/hosts/bin/$assembly/release"
-            output="${project%/*}/bin/Release/net10.0"
+            output="${project%/*}/bin/Release/net11.0"
             test -s "$source/$assembly.dll"
             test -s "$source/$assembly.deps.json"
             case "$host" in
@@ -938,7 +938,7 @@ jobs:
             test -d "$artifact/hosts/obj/$assembly/release"
             mkdir -p "$output"
             cp -a "$source/." "$output/"
-            obj_output="${project%/*}/obj/Release/net10.0"
+            obj_output="${project%/*}/obj/Release/net11.0"
             mkdir -p "$obj_output"
             cp -a "$artifact/hosts/obj/$assembly/release/." "$obj_output/"
             if [ "$host" = openapi-emitter ]; then

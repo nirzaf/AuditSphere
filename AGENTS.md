@@ -14,7 +14,7 @@ Apply an approved ADR within its explicit scope without asking for the same deci
 
 ## 2. Technical boundaries
 
-**Stack:** pinned .NET 10 / C# 14, ASP.NET Core API, Angular 22 / Material-CDK, EF Core 10 / Npgsql / PostgreSQL 18.6, .NET Worker and existing durable operations. Honor `global.json`, `.config/dotnet-tools.json`, `Directory.Packages.props`, NuGet locks and `src/AuditSphereOps.Ui/.nvmrc`.
+**Stack:** pinned .NET 11 / C# 15, ASP.NET Core API, Angular 22 / Material-CDK, EF Core 10 / Npgsql / PostgreSQL 18.6, .NET Worker and existing durable operations. Honor `global.json`, `.config/dotnet-tools.json`, `Directory.Packages.props`, NuGet locks and `src/AuditSphereOps.Ui/.nvmrc`.
 
 | Directory under `src/` | Owns |
 | --- | --- |
