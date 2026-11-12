@@ -24,11 +24,13 @@ namespace AuditSphereOps.Api.Tests;
 /// <summary>Opt-in local synthetic browser verification; never discovered as an xUnit test.</summary>
 public static class ArchiveRecoveryBrowserHarness
 {
-  public sealed record BrowserScope(string Origin, Guid EngagementId, Guid ArchiveId, string StorageKey);
+  public sealed record BrowserScope(string Origin, Guid EngagementId, Guid ArchiveId, string StorageKey,
+    Guid ActorId, string? ReplacementOrigin, Guid? ReplacementActorId);
   private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
   public static async Task RunAsync(string evidenceDirectory,
-    Func<BrowserScope, CancellationToken, Task> browserJourney, CancellationToken cancellationToken)
+    Func<BrowserScope, CancellationToken, Task> browserJourney, CancellationToken cancellationToken,
+    bool exerciseActorReplacement = false)
   {
     if (Environment.GetEnvironmentVariable("AUDITSPHERE_ARCHIVE_BROWSER_OPT_IN") != "local-synthetic-only")
       throw new InvalidOperationException("Explicit local synthetic browser opt-in is required.");
@@ -45,6 +47,7 @@ public static class ArchiveRecoveryBrowserHarness
     var world = await SupportedAuditCompletionWorldBuilder.CreateAsync(pg);
     var scope = world.Primary;
     AppUser user;
+    AppUser? replacement = null;
     ActorContext actor;
     var archiveId = Guid.CreateVersion7();
     string originalStatus;
@@ -60,6 +63,17 @@ public static class ArchiveRecoveryBrowserHarness
         new(created.Value, "Partner", "ENGAGEMENT", scope.ClientId, scope.EngagementId), ct);
       Assert.True(granted.Succeeded, granted.Message);
       user = await db.Users.AsNoTracking().SingleAsync(x => x.Id == created.Value, ct);
+      if (exerciseActorReplacement)
+      {
+        var alternate = await RoleAdministrationService.EnsureUserAsync(db, world.Administrator,
+          new(administrator.TenantId, Guid.NewGuid().ToString("D"), "archive-alternate@example.test",
+            "Synthetic alternate custodian", "Staff", "APPROVED_ROSTER"), ct);
+        Assert.True(alternate.Succeeded, alternate.Message);
+        var alternateGrant = await RoleAdministrationService.ApplyRoleGrantAsync(db, world.Administrator,
+          new(alternate.Value, "Partner", "ENGAGEMENT", scope.ClientId, scope.EngagementId), ct);
+        Assert.True(alternateGrant.Succeeded, alternateGrant.Message);
+        replacement = await db.Users.AsNoTracking().SingleAsync(x => x.Id == alternate.Value, ct);
+      }
       actor = new(user.Id, user.FirmId, user.SessionEpoch, ["Partner"]);
       originalStatus = await db.Engagements.Where(x => x.Id == scope.EngagementId).Select(x => x.Status).SingleAsync(ct);
       Assert.NotEqual("Completed", originalStatus); Assert.NotEqual("Closed", originalStatus);
@@ -72,8 +86,8 @@ public static class ArchiveRecoveryBrowserHarness
       var denied = await EngagementArchiveHandoffQuery.GetAsync(db, actor, world.Sibling.EngagementId, ct);
       Assert.False(denied.Succeeded); Assert.Null(denied.Value);
     }
-    var fault = new LostResponseFilter(pg, archiveId, evidenceDirectory, ct);
-    await using var host = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
+    var fault = new LostResponseFilter(pg, archiveId, evidenceDirectory, ct, exerciseActorReplacement ? 3 : 2);
+    var configuration = new Dictionary<string, string?>
     {
       ["contentRoot"] = "/Users/qts/Repos/AuditSphere/src/AuditSphereOps.Api",
       ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
@@ -82,15 +96,27 @@ public static class ArchiveRecoveryBrowserHarness
       ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false",
       ["AngularUi:Enabled"] = "true", ["AngularUi:CanonicalRoutes"] = "true",
       ["AngularUi:BuildPath"] = "/Users/qts/Repos/AuditSphere/src/AuditSphereOps.Ui/dist/auditsphere-ui/browser"
-    }, services => services.AddSingleton<IStartupFilter>(fault));
+    };
+    await using var host = new StandaloneApiApplicationFactory(configuration, services => services.AddSingleton<IStartupFilter>(fault));
     host.UseKestrel(options => options.Listen(IPAddress.Loopback, 0));
     using var client = host.CreateClient(new() { AllowAutoRedirect = false });
     Assert.Equal("Test", host.Services.GetRequiredService<Microsoft.Extensions.Hosting.IHostEnvironment>().EnvironmentName);
     var origin = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
     var uri = new Uri(origin);
     Assert.Equal("127.0.0.1", uri.Host);
+    await using var replacementHost = replacement is null ? null : new StandaloneApiApplicationFactory(
+      new Dictionary<string, string?>(configuration)
+      {
+        ["DevelopmentIdentity:Subject"] = replacement.Subject,
+        ["DevelopmentIdentity:TenantId"] = replacement.TenantId
+      });
+    replacementHost?.UseKestrel(options => options.Listen(IPAddress.Loopback, 0));
+    using var replacementClient = replacementHost?.CreateClient(new() { AllowAutoRedirect = false });
+    var replacementOrigin = replacementHost?.Services.GetRequiredService<IServer>()
+      .Features.Get<IServerAddressesFeature>()!.Addresses.Single();
     var browserScope = new BrowserScope(uri.GetLeftPart(UriPartial.Authority), scope.EngagementId, archiveId,
-      $"auditsphere-archive-intent-v1:{scope.FirmId}:{user.Id}:{scope.EngagementId}:{archiveId}");
+      $"auditsphere-archive-intent-v1:{scope.FirmId}:{user.Id}:{scope.EngagementId}:{archiveId}",
+      user.Id, replacementOrigin, replacement?.Id);
     await File.WriteAllTextAsync(Path.Combine(evidenceDirectory, "scope.json"), JsonSerializer.Serialize(browserScope, Json), ct);
     await browserJourney(browserScope, ct);
     fault.AssertRecovered();
@@ -151,7 +177,8 @@ public static class ArchiveRecoveryBrowserHarness
 
   private sealed record Transmission(string RequestKey, string RequestBody, ArchiveManifestResult Result);
 
-  private sealed class LostResponseFilter(PgTestSchema pg, Guid archiveId, string evidenceDirectory, CancellationToken ct) : IStartupFilter
+  private sealed class LostResponseFilter(PgTestSchema pg, Guid archiveId, string evidenceDirectory,
+    CancellationToken ct, int expectedReviewPosts) : IStartupFilter
   {
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly Dictionary<string, int> counts = [];
@@ -210,7 +237,7 @@ public static class ArchiveRecoveryBrowserHarness
             }
             else Assert.Equal(previous.Result, receipt);
             counts[action] = counts.GetValueOrDefault(action) + 1;
-            Assert.InRange(counts[action], 1, 2);
+            Assert.InRange(counts[action], 1, action == "review" ? expectedReviewPosts : 2);
             await File.WriteAllTextAsync(Path.Combine(evidenceDirectory, $"{action}-{counts[action]}-committed.json"),
               JsonSerializer.Serialize(transmission, Json), ct);
             if (previous is null)
@@ -239,7 +266,7 @@ public static class ArchiveRecoveryBrowserHarness
     public void AssertRecovered()
     {
       Assert.Equal(2, counts.GetValueOrDefault("build"));
-      Assert.Equal(2, counts.GetValueOrDefault("review"));
+      Assert.Equal(expectedReviewPosts, counts.GetValueOrDefault("review"));
       Assert.NotNull(Build); Assert.NotNull(Review);
       Assert.Equal(Build.Result.ManifestId, Review.Result.ManifestId);
     }
