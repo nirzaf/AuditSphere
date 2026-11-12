@@ -237,6 +237,7 @@ jobs:
         run: |
           set -euo pipefail
           result_file="$RUNNER_TEMP/auditsphere-release-build-restore.json"
+          diagnostic_file="$RUNNER_TEMP/auditsphere-release-build-rejection.txt"
           if python3 scripts/release/ci_build_artifact.py verify-and-extract \
             --root "$GITHUB_WORKSPACE" \
             --artifact-dir "$RUNNER_TEMP/auditsphere-release-build" \
@@ -246,13 +247,25 @@ jobs:
             --source-sha "$GITHUB_SHA" \
             --dotnet-sdk "$(dotnet --version)" \
             --runner-image "ubuntu-24.04" \
-            --runner-version "${ImageVersion:-unknown}" > "$result_file"; then
+            --runner-version "${ImageVersion:-unknown}" > "$result_file" 2> "$diagnostic_file"; then
             cat "$result_file"
             printf 'reused=true\n' >> "$GITHUB_OUTPUT"
           else
+            cat "$diagnostic_file" >&2
             echo "Same-run Release build artifact was rejected; falling back to a clean build." >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
+
+      # Preserve the reason before the long fallback build can lose its runner and logs.
+      - name: Retain Release artifact rejection diagnostic
+        if: ${{ steps.verify-parallel-build.outcome == 'failure' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: auditsphere-release-build-rejection-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/auditsphere-release-build-rejection.txt
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Build Release when parallel outputs are unavailable or rejected
         if: ${{ steps.verify-parallel-build.outputs.reused != 'true' }}
