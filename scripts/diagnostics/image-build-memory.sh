@@ -78,13 +78,32 @@ sample_periodically() {
     exit 0
   }
   trap stop_sampler TERM INT
-  # At most 179 periodic samples, plus start/end, within the existing 45-minute job.
+  # Keep the existing sample bound and emit a compact snapshot before any timeout.
   while [[ $count -lt 179 ]]; do
     sleep 15 &
     sleeper=$!
     wait "$sleeper" 2>/dev/null || :
     sleeper=''
     sample periodic
+    if (( count % 4 == 0 )); then
+      awk '
+        /^IMAGE_MEMORY_SAMPLE / { header=$0; host=events=memory=""; rss=0; compiler=0 }
+        /^host_MemTotal:/ { host=$0 }
+        /^builder_memory=/ { memory=$0 }
+        /^builder_memory.events=/ { events=$0 }
+        /^builder_process kind=/ { compiler=($2 == "kind=csc") }
+        compiler && /^builder_process_VmRSS=[0-9]+$/ {
+          split($0, fields, "=")
+          if (fields[2]+0 > rss) rss=fields[2]+0
+        }
+        END {
+          if (header != "") {
+            sub(/^IMAGE_MEMORY_SAMPLE/, "IMAGE_MEMORY_LIVE", header)
+            print header, host, memory, events, "max_compiler_rss_kib=" (rss ? rss : "unobserved")
+          }
+        }
+      ' "$trace_file" || :
+    fi
     if [[ $preparation_attempted == false ]] &&
        command -v python3 >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 &&
        awk '/^IMAGE_MEMORY_SAMPLE / { ready=0 } /^builder_running=true / { ready=1 } END { exit !ready }' "$trace_file"; then

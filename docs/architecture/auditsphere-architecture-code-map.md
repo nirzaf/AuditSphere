@@ -18,6 +18,10 @@ and unresolved acceptance gates before making current-status claims.
 
 ## Build diagnostics ownership
 
+The root `.dockerignore` excludes Angular `src/**/*.spec.ts` files from the production image context. The Angular CI test job still runs them from its Git checkout. The production TypeScript configuration excludes the same files, so test-only edits leave the Docker source copy cache eligible for reuse.
+
+Image builds emit compact memory snapshots during compilation. The fast .NET Release build uses the existing fixed-field runner sampler for live host and cgroup observations. These samples remain available in the Actions log if final build diagnostics are interrupted.
+
 `scripts/diagnostics/image-build-memory.sh` preserves image build exits while collecting bounded host/cgroup/process samples. `image-build-counters.py` and `image-build-counter-target.sh` own optional pinned runtime-counter observation, exact target validation and owned observer cleanup. After a permission-message failure, `image-build-counter-access.sh` supplies fixed-call proc/root/socket and private-output creation metadata in a separate owned observer; admission is once-only and unknown creation state remains retained. Their focused adapter/protocol checks run through the existing fast docs job. They do not change compiler or product policy.
 
 ## Exact workflow-task handoffs

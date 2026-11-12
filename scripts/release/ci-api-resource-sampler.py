@@ -19,9 +19,9 @@ def counters(path, keys):
     return result
 
 
-def sample():
+def sample(kind='API_RUNNER_RESOURCES'):
     # Host totals, not a claim about just the test process. Never read /proc/*/cmdline.
-    result = {'kind': 'API_RUNNER_RESOURCES', 'sampler_pid': os.getpid(), 'unix_seconds': int(time.time()),
+    result = {'kind': kind, 'sampler_pid': os.getpid(), 'unix_seconds': int(time.time()),
               'memory_kib': counters('/proc/meminfo', ('MemTotal', 'MemAvailable', 'SwapFree')),
               'cgroup_memory_events': counters('/sys/fs/cgroup/memory.events', ('low', 'high', 'max', 'oom', 'oom_kill')),
               'cgroup_cpu': counters('/sys/fs/cgroup/cpu.stat', ('usage_usec', 'nr_throttled', 'throttled_usec'))}
@@ -52,9 +52,12 @@ def sample():
 
 
 def main():
+    kind = sys.argv[2] if len(sys.argv) > 2 else 'API_RUNNER_RESOURCES'
+    if kind not in ('API_RUNNER_RESOURCES', 'DOTNET_BUILD_RESOURCES'):
+        raise SystemExit('Unsupported resource sample kind')
     parent = os.getppid()
     while os.getppid() == parent:
-        line = json.dumps(sample(), separators=(',', ':'), allow_nan=False) + '\n'
+        line = json.dumps(sample(kind), separators=(',', ':'), allow_nan=False) + '\n'
         try:
             # Both the command artifact and live Actions log retain the same bounded record.
             with open(sys.argv[1], 'a', encoding='utf-8') as output:

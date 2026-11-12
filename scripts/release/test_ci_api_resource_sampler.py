@@ -24,6 +24,11 @@ class SamplerTests(unittest.TestCase):
             'host_process_rss_kib', 'host_process_count'})
         json.dumps(sample, allow_nan=False)
 
+    def test_build_label_preserves_resource_fields(self):
+        build = sampler.sample('DOTNET_BUILD_RESOURCES')
+        self.assertEqual(build['kind'], 'DOTNET_BUILD_RESOURCES')
+        self.assertEqual(set(build), set(sampler.sample()))
+
     def exercise(self, status, cancel=False, enabled=True):
         with tempfile.TemporaryDirectory() as directory:
             env = dict(os.environ, VERIFICATION_LOG_DIR=directory,

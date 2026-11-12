@@ -167,11 +167,17 @@ printf 'invoked\n' >> "$BUILD_CALLS"
 printf 'BUILD_STDOUT_PRESERVED\n'
 printf 'BUILD_STDERR_PRESERVED\n' >&2
 sleep 0.5
+printf 'BUILD_FINISH\n'
 exit "$1"
 SH
 chmod +x "$fixture/bin/python3" "$fixture/bin/sleep" "$fixture/timed-build"
 for status in 0 102 137; do
   assert_case "$status" "active-counter-owned-cleanup-$status" "$fixture/timed-build" "$status"
+  awk '
+    /^IMAGE_MEMORY_LIVE .*max_compiler_rss_kib=120$/ { if (!finished) live=1 }
+    /^BUILD_FINISH$/ { finished=1 }
+    END { exit !(live && finished) }
+  ' "$fixture/output"
   grep -q COUNTER_FIXTURE_CLEANED "$fixture/output" || { echo 'FAIL active counter cleanup not observed'; exit 1; }
   if kill -0 "$(cat "$COUNTER_CHILD_RECORD")" 2>/dev/null; then echo 'FAIL owned counter child remains'; exit 1; fi
 done
