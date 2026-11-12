@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
@@ -9,6 +10,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Records;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Practice;
@@ -103,7 +105,8 @@ public sealed partial class CompletionVarianceCommandsApiTests
   public async Task VariancePreparationAndIndependentReviewUseExactEngagementEvidenceAndRecoverExactOutcomes()
   {
     await using var pg = await PgTestSchema.CreateAsync();
-    var world = await SupportedAuditCompletionWorldBuilder.CreateAsync(pg);
+    var world = await SupportedAuditCompletionWorldBuilder.CreateAsync(pg,
+      recordAcceptance: (clientId, staff, partner) => RecordProvisionedAcceptanceViaHttpAsync(pg, clientId, staff, partner));
     var preparer = world.Primary.Preparer;
     var reviewer = world.Reviewer;
     var programReviewer = await ProvisionFirmPartnerAsync(pg, world.Administrator, "r03-program-reviewer");
@@ -730,6 +733,91 @@ public sealed partial class CompletionVarianceCommandsApiTests
     public AuditSphereDbContext CreateDbContext() => new(options);
     public Task<AuditSphereDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) =>
       Task.FromResult(new AuditSphereDbContext(options));
+  }
+
+  private static async Task RecordProvisionedAcceptanceViaHttpAsync(
+    PgTestSchema pg, Guid clientId, ActorContext staff, ActorContext partner)
+  {
+    Assert.NotEqual(staff.UserId, partner.UserId);
+    using var staffFactory = Factory(pg, await UserAsync(pg, staff.UserId));
+    using var partnerFactory = Factory(pg, await UserAsync(pg, partner.UserId));
+    using var staffClient = staffFactory.CreateClient(new() { AllowAutoRedirect = false });
+    using var partnerClient = partnerFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var staffCsrf = await SignIn(staffClient);
+    var partnerCsrf = await SignIn(partnerClient);
+    var route = $"/api/ui/clients/{clientId:D}/acceptance";
+
+    var initial = (await staffClient.GetFromJsonAsync<AcceptanceWorkspace>(route))!;
+    Assert.Equal(clientId, initial.ClientId);
+    Assert.Equal(AcceptancePaths.NewClient, initial.Path);
+    Assert.True(initial.CanEdit);
+    Assert.False(initial.CanDecide);
+    Assert.False(initial.Ready);
+    Assert.Null(initial.CurrentDecision);
+    var approvedBank = QuestionnaireSeed.CeQuestions.ToDictionary(x => x.QuestionCode, StringComparer.Ordinal);
+    Assert.Equal(approvedBank.Keys.Order(StringComparer.Ordinal), initial.Questions.Select(x => x.Code).Order(StringComparer.Ordinal));
+    Assert.All(initial.Questions, question =>
+    {
+      Assert.Equal(approvedBank[question.Code].PromptText, question.Prompt);
+      Assert.Null(question.Answer);
+      Assert.Equal("0", question.Revision);
+    });
+
+    var decision = new
+    {
+      serviceRoute = "FinancialStatementAudit",
+      decision = "ACCEPTED",
+      rationale = "Synthetic Partner decision after reviewing the provisioned checklist.",
+      initial.Generation
+    };
+    using (var premature = await Post(partnerClient, partnerCsrf, route + "/decision", decision))
+    {
+      Assert.Equal(HttpStatusCode.BadRequest, premature.StatusCode);
+      using var body = JsonDocument.Parse(await premature.Content.ReadAsStringAsync());
+      Assert.Equal(ErrorCodes.GateBlocked, body.RootElement.GetProperty("code").GetString());
+    }
+
+    foreach (var question in initial.Questions)
+    {
+      var answer = approvedBank[question.Code].AdverseAnswer == "YES" ? "No" : "Yes";
+      var evidence = question.RequiresEvidence ? $"synthetic-intake:{question.Code}" : null;
+      // The full bank exceeds one command window. The boundary refuses these requests
+      // before executing the command, so only a throttled request can be retried here.
+      for (var retry = 0; ; retry++)
+      {
+        using var response = await Post(staffClient, staffCsrf, route + $"/answers/{question.Code}",
+          new { answer, evidence, initial.Generation, question.Revision });
+        if (response.StatusCode == HttpStatusCode.NoContent)
+          break;
+        Assert.True(response.StatusCode == HttpStatusCode.TooManyRequests && retry < 4,
+          $"{question.Code}: {response.StatusCode} {await response.Content.ReadAsStringAsync()}");
+        var retryAfter = response.Headers.RetryAfter?.Delta;
+        Assert.InRange(retryAfter ?? TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(15));
+        await Task.Delay(retryAfter!.Value);
+      }
+    }
+
+    var prepared = (await partnerClient.GetFromJsonAsync<AcceptanceWorkspace>(route))!;
+    Assert.Equal(initial.Generation, prepared.Generation);
+    Assert.True(prepared.Ready, string.Join("; ", prepared.Blockers.Select(x => x.Message)));
+    Assert.True(prepared.CanDecide);
+    Assert.Null(prepared.CurrentDecision);
+    Assert.All(prepared.Questions, question =>
+    {
+      Assert.Equal(approvedBank[question.Code].AdverseAnswer == "YES" ? "No" : "Yes", question.Answer);
+      Assert.Equal("1", question.Revision);
+      if (question.RequiresEvidence)
+        Assert.Equal($"synthetic-intake:{question.Code}", question.Evidence);
+    });
+
+    using var accepted = await Post(partnerClient, partnerCsrf, route + "/decision", decision);
+    Assert.True(accepted.StatusCode == HttpStatusCode.NoContent, await accepted.Content.ReadAsStringAsync());
+    var decided = (await partnerClient.GetFromJsonAsync<AcceptanceWorkspace>(route))!;
+    Assert.Equal("Accepted", decided.CurrentDecision);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var retained = await db.AcceptanceDecisions.AsNoTracking().SingleAsync(x =>
+      x.FirmId == partner.FirmId && x.PracticeClientId == clientId && x.Decision == "Accepted");
+    Assert.Equal(partner.UserId, retained.DecidedByUserId);
   }
 
   private static async Task<AppUser> UserAsync(PgTestSchema pg, Guid userId)

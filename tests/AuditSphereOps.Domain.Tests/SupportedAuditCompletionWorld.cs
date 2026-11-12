@@ -30,7 +30,8 @@ internal static class SupportedAuditCompletionWorldBuilder
     => CreateAsync((ITestPostgresDatabase)pg, primaryFee, includeSibling, requireCommercialReview);
 
   public static async Task<SupportedAuditCompletionWorld> CreateAsync(ITestPostgresDatabase pg, decimal primaryFee = 20000m, bool includeSibling = true, bool requireCommercialReview = false,
-    string clientLegalName = "Synthetic R02 Audit Client")
+    string clientLegalName = "Synthetic R02 Audit Client",
+    Func<Guid, ActorContext, ActorContext, Task>? recordAcceptance = null)
   {
     var admin = await BootstrapAdminAsync(pg);
     var relationship = await ProvisionFirmRoleAsync(pg, admin, "RelationshipManager");
@@ -104,7 +105,10 @@ internal static class SupportedAuditCompletionWorldBuilder
 
     }
 
-    await RecordUnconditionalAcceptanceAsync(pg, clientId, "FinancialStatementAudit", staff.Actor, partner.Actor);
+    if (recordAcceptance is null)
+      await RecordUnconditionalAcceptanceAsync(pg, clientId, "FinancialStatementAudit", staff.Actor, partner.Actor);
+    else
+      await recordAcceptance(clientId, staff.Actor, partner.Actor);
 
     if (!includeSibling)
     {
