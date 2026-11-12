@@ -121,6 +121,58 @@ public sealed class AngularCompletionFileRecordsJourneyTests
     await Assertions.Expect(workflow).ToContainTextAsync("Current step: Archived (Read-Only) (stage 11 of 11)");
     await Assertions.Expect(workflow).ToContainTextAsync("Local archive state: FROZEN");
     await Assertions.Expect(workflow).ToContainTextAsync("External provider protection: BLOCKED_EXTERNAL");
+
+    var archiveHandoffRoute = engagementRoute + "/archive";
+    var lifecycleAction = workflow.GetByRole(AriaRole.Link, new() { Name = "Open: Archived (Read-Only)", Exact = true });
+    await Assertions.Expect(lifecycleAction).ToHaveAttributeAsync("href", archiveHandoffRoute);
+    await lifecycleAction.ClickAsync();
+    await Assertions.Expect(page.GetByText(
+      "The engagement must be issued and completed before an archive can be prepared.", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { NameRegex = new("^Prepare ") })).ToHaveCountAsync(0);
+
+    var archiveId = Guid.NewGuid();
+    Assert.NotEqual(f.EngagementId, archiveId);
+    const string profileCode = "SYNTH-LINKED-ARCHIVE";
+    await using (var db = host.CreateDbContext())
+    {
+      Assert.Equal("Active", await db.Engagements.Where(x => x.Id == f.EngagementId).Select(x => x.Status).SingleAsync());
+      Assert.False(await db.Archives.AnyAsync());
+      Assert.False(await db.RecordsProfiles.AnyAsync());
+      // An existing read fixture exercises the links without establishing archive creation eligibility.
+      db.Archives.Add(new Archive
+      {
+        Id = archiveId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ProfileId = profileCode, ProfileVersion = 1, Status = ArchiveStates.AssemblyInProgress, CreatedAt = now
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var archiveRoute = $"/app/records/archives/{archiveId:D}";
+    var requestedArchives = new List<string>();
+    page.Request += (_, request) =>
+    {
+      if (request.Method == "GET" && new Uri(request.Url).AbsolutePath.StartsWith("/api/ui/records/archives/", StringComparison.Ordinal))
+        requestedArchives.Add(new Uri(request.Url).AbsolutePath);
+    };
+    foreach (var action in new[] { "Open: Archived (Read-Only)", "Records and archive" })
+    {
+      var previousRequests = requestedArchives.Count;
+      await page.GotoAsync(origin + engagementRoute);
+      var link = workflow.GetByRole(AriaRole.Link, new() { Name = action, Exact = true });
+      await Assertions.Expect(link).ToHaveAttributeAsync("href", archiveHandoffRoute);
+      await link.ClickAsync();
+      var archive = page.GetByRole(AriaRole.Link, new() { Name = $"Open archive {profileCode} version 1", Exact = true });
+      await Assertions.Expect(archive).ToHaveAttributeAsync("href", archiveRoute);
+      await archive.ClickAsync();
+      await Assertions.Expect(page).ToHaveURLAsync(origin + archiveRoute);
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Archive manifest", Exact = true })).ToBeVisibleAsync();
+      Assert.True(requestedArchives.Count > previousRequests, $"{action} must read the archive.");
+    }
+    var requestsBeforeBookmark = requestedArchives.Count;
+    await page.GotoAsync(origin + archiveRoute);
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Archive manifest", Exact = true })).ToBeVisibleAsync();
+    Assert.True(requestedArchives.Count > requestsBeforeBookmark, "The bookmark must read the archive.");
+    Assert.All(requestedArchives, path => Assert.Equal($"/api/ui/records/archives/{archiveId:D}", path));
     Assert.Empty(errors);
   }
 

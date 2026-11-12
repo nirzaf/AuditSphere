@@ -18,6 +18,9 @@ public static class EngagementArchiveHandoffQuery
   private static readonly string[] ReadRoles =
     ["Administrator", "Partner", "Manager", "EngagementLeader", "Senior", "Staff", "Auditor", "RecordsCustodian"];
 
+  internal static AuthorizationRequest ReadRequest(ActorContext actor, Guid clientId, Guid engagementId) =>
+    new(actor.FirmId, clientId, engagementId, RequiredRoles: ReadRoles, InternalOnly: true);
+
   public static async Task<CommandResult<EngagementArchiveHandoff>> GetAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
   {
@@ -25,8 +28,7 @@ public static class EngagementArchiveHandoffQuery
       x.FirmId == actor.FirmId && x.Id == engagementId, ct);
     if (engagement is null)
       return CommandResult<EngagementArchiveHandoff>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var request = new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagementId,
-      RequiredRoles: ReadRoles, InternalOnly: true);
+    var request = ReadRequest(actor, engagement.PracticeClientId, engagementId);
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
     if (!auth.Succeeded)
       return CommandResult<EngagementArchiveHandoff>.Fail(auth.ErrorCode!, auth.Message!);

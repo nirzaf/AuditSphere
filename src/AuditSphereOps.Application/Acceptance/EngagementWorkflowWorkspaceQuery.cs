@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Records;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
@@ -88,12 +89,12 @@ public static class EngagementWorkflowWorkspaceQuery
 
     // Preliminary checks retain existing admission behavior; only the final shared snapshot selects output.
     if (hasBlockers) await EngagementLifecycleQuery.AuthorizeDetailedBlockersAsync(db, actor, engagementId, ct);
-    if (InternalRoute.IsMatch(summary.DeepLink))
-      await CanOpenNextActionAsync(db, actor, report.ClientId, report.EngagementId, summary.ResponsibleRole, ct);
+    var (actionRequest, staffingLevel) = ActionRequest(actor, report.ClientId, report.EngagementId, summary);
+    if (!InternalRoute.IsMatch(summary.DeepLink)) actionRequest = null;
+    if (actionRequest is not null)
+      await CanOpenNextActionAsync(db, actor, report.ClientId, report.EngagementId, actionRequest, staffingLevel, ct);
     var read = await EngagementLifecycleQuery.AuthorizeReadAsync(db, actor, engagementId, ct);
     if (!read.Succeeded) return CommandResult<EngagementWorkflowReport>.Fail(read.ErrorCode!, read.Message!);
-    var (actionRequest, staffingLevel) = ActionRequest(actor, report.ClientId, report.EngagementId, summary.ResponsibleRole);
-    if (!InternalRoute.IsMatch(summary.DeepLink)) actionRequest = null;
     AuthorizationDecision.EngagementSnapshot authority;
     IReadOnlyList<string> responsibleUsers;
     await using (var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct))
@@ -153,10 +154,9 @@ public static class EngagementWorkflowWorkspaceQuery
   /// determine whether this caller gets it. Downstream commands remain authoritative and reauthorize on every action.
   /// </summary>
   private static async Task<bool> CanOpenNextActionAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid clientId, Guid engagementId, string responsibleRole, CancellationToken ct)
+    IAuditSphereDbContext db, ActorContext actor, Guid clientId, Guid engagementId,
+    AuthorizationRequest request, string? staffingLevel, CancellationToken ct)
   {
-    var (request, staffingLevel) = ActionRequest(actor, clientId, engagementId, responsibleRole);
-    if (request is null) return false;
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct);
     if (!auth.Succeeded) return false;
     return staffingLevel is null || await db.EngagementStaffAssignments.AsNoTracking().AnyAsync(x =>
@@ -165,8 +165,12 @@ public static class EngagementWorkflowWorkspaceQuery
   }
 
   private static (AuthorizationRequest? Request, string? StaffingLevel) ActionRequest(
-    ActorContext actor, Guid clientId, Guid engagementId, string responsibleRole)
+    ActorContext actor, Guid clientId, Guid engagementId, EngagementLifecycleSummary summary)
   {
+    if (summary.CanonicalStage == CanonicalEngagementStages.ArchivedReadOnly)
+      return (EngagementArchiveHandoffQuery.ReadRequest(actor, clientId, engagementId), null);
+
+    var responsibleRole = summary.ResponsibleRole;
     var staffingLevel = responsibleRole switch
     {
       "EngagementPartner" => StaffingLevels.EngagementPartner,
