@@ -1,5 +1,17 @@
 # Current-slice handoff
 
+## Ordering action-boundary hardening (2026-11-12)
+
+- Owner: `repair_e2e_route_chain`; combined six-path candidate remains unpublished on `95c0c847ec227f25fa3b5ddf2170d7561477c2dd`. The original ordering journey with bounded diagnostics passed 1/1 and did not reproduce the historical timeout. Focus loss, authority change or resource pressure is not established as its cause.
+- Preventive harness correction moves current assent/enabled/focus checks inside the response-capture action and sends Enter once to the exact current confirmation control. The response matcher is exact-task and an additional assertion requires one POST. All original persistence, revision and independent professional-approval boundaries remain; no product guards, timeouts or expected business results changed. Safe diagnostics retain only bounded synthetic control/status metadata and request count; an original failure is not hidden by a diagnostic failure.
+- Final named case passed 1/1, zero failures/skips, in 19 seconds; original-pass proof and an earlier compile-only diagnostic declaration error are retained separately. Evidence: `.local/autonomous/evidence/e2e-ordering-95/`. Both owned hosts are CLEANED, their recorded processes absent and isolated PostgreSQL stopped. Accepted route-chain source and its original frozen package remain unchanged. Combined independent review and exact successor CI are pending; backup/deployment restrictions remain.
+
+## E2E route-chain repair (2026-11-12)
+
+- Owner: `repair_e2e_route_chain`; base `95c0c847ec227f25fa3b5ddf2170d7561477c2dd`, unpublished. Shared response capture now falls back through older routes rather than bypassing them for unmatched requests. Finding refresh is signaled at interception, while the authoritative fetch, fulfillment, receipt identity, loading and one-mutation assertions remain intact. No product changes or timeout increases.
+- Deterministic real-browser regression: the same two helper variants failed against the original helper because the older route was bypassed; both pass with route fallback. The three affected lost-committed finding actions also pass, with zero failures/skips. All three owned-host manifests are CLEANED, their recorded processes absent, and the isolated PostgreSQL cluster stopped. Evidence: `.local/autonomous/evidence/e2e-route-chain-95/`. Final independent evidence review is pending; no rerun is needed solely for documentation.
+- Exact base full run `43146248146` remains FAILURE: API 440/440 and Domain 2059/2059 passed, E2E 343/345 passed with two timeouts. Fast `43146194348` and images `43151512015` passed. This local repair does not prove the original CI interleaving or resolve the separate workflow-ordering timeout. The preventive ordering correction above has focused proof; exact successor CI remains required. Backup remains forbidden and deployment held.
+
 ## API process-isolation candidate (2026-11-12)
 
 - Owner: `isolate_api_test_processes`; base `aab71dfbe486430abf5ebdf9a475acb275704e9e`. CI-helper-only containment candidate, not a product rate-limiter fix or proof of the current CI failure's cause. Complete API inventory is partitioned into whole discovered collections and reconciled by exact runner identities; Domain/E2E gates remain unchanged.

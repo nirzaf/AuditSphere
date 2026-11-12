@@ -96,9 +96,9 @@ public sealed class AngularFindingCommandJourneyTests
       if (mode == "lost-committed")
         await page.RouteAsync(findingRefreshPattern, async route =>
         {
-          if (route.Request.Method != "GET") { await route.ContinueAsync(); return; }
-          var response = await route.FetchAsync();
+          if (route.Request.Method != "GET") { await route.FallbackAsync(); return; }
           findingRefreshStarted.TrySetResult();
+          var response = await route.FetchAsync();
           await releaseFindingRefresh.Task.WaitAsync(TimeSpan.FromSeconds(30));
           await route.FulfillAsync(new() { Response = response });
         });

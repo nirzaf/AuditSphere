@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Tests;
@@ -194,12 +195,77 @@ public sealed class AngularWorkflowOrderingJourneyTests
     await Assertions.Expect(reopeningAssent).ToBeCheckedAsync();
     var confirmReopening = reopening.GetByRole(AriaRole.Button,
       new() { Name = "Confirm task reopening", Exact = true });
-    await Assertions.Expect(confirmReopening).ToBeEnabledAsync();
-    await confirmReopening.FocusAsync();
-    await Assertions.Expect(confirmReopening).ToBeFocusedAsync();
-    var (reopeningStatus, reopeningBody) = await PlaywrightResponseCapture.RunAsync(page,
-      request => request.Method == "POST" && request.Url.EndsWith("/reopen", StringComparison.Ordinal),
-      async () => await page.Keyboard.PressAsync("Enter"));
+    var reopenPosts = 0;
+    void ObserveReopenRequest(object? sender, IRequest request)
+    {
+      if (request.Method == "POST" && request.Url.EndsWith($"/workflow/tasks/{first:D}/reopen", StringComparison.Ordinal))
+        Interlocked.Increment(ref reopenPosts);
+    }
+    async Task RecordReopeningBoundaryAsync(string stage)
+    {
+      // Synthetic UI metadata only: no session, storage, request body or broad page contents.
+      var state = await page.EvaluateAsync<JsonElement>("""
+        () => {
+          const panel = document.querySelector('audit-workflow-task-cancellation');
+          const confirm = [...(panel?.querySelectorAll('button') ?? [])]
+            .find(button => button.textContent.trim() === 'Confirm task reopening');
+          const assent = panel?.querySelector('input[type="checkbox"]');
+          return {
+            panelPresent: !!panel,
+            confirmPresent: !!confirm,
+            confirmConnected: confirm?.isConnected ?? false,
+            confirmDisabled: confirm?.disabled ?? null,
+            confirmFocused: document.activeElement === confirm,
+            activeElementTag: document.activeElement?.tagName ?? null,
+            headingFocused: document.activeElement === panel?.querySelector('h2'),
+            assentChecked: assent?.checked ?? null,
+            assentDisabled: assent?.disabled ?? null,
+            reviewedIntentPresent: !!panel?.querySelector('.reviewed-intent'),
+            alerts: [...(panel?.querySelectorAll('[role="alert"]') ?? [])]
+              .slice(0, 3).map(node => node.textContent.trim().slice(0, 240)),
+            statuses: [...(panel?.querySelectorAll('[role="status"]') ?? [])]
+              .slice(0, 3).map(node => node.textContent.trim().slice(0, 240))
+          };
+        }
+        """);
+      await File.AppendAllTextAsync(Path.Combine(host.EvidenceRoot, "workflow-reopening-action.jsonl"),
+        JsonSerializer.Serialize(new { stage, observedAtUtc = DateTimeOffset.UtcNow, reopenPosts, state }) + Environment.NewLine);
+    }
+    page.Request += ObserveReopenRequest;
+    int reopeningStatus;
+    string reopeningBody;
+    try
+    {
+      await RecordReopeningBoundaryAsync("before-capture-registration");
+      (reopeningStatus, reopeningBody) = await PlaywrightResponseCapture.RunAsync(page,
+        request => request.Method == "POST" && request.Url.EndsWith($"/workflow/tasks/{first:D}/reopen", StringComparison.Ordinal),
+        async () =>
+        {
+          // Bind the keyboard gesture after capture registration to the still-reviewed current control.
+          await Assertions.Expect(reopeningAssent).ToBeCheckedAsync();
+          await Assertions.Expect(confirmReopening).ToBeEnabledAsync();
+          await confirmReopening.FocusAsync();
+          await Assertions.Expect(confirmReopening).ToBeFocusedAsync();
+          await RecordReopeningBoundaryAsync("capture-registered-before-enter");
+          await confirmReopening.PressAsync("Enter");
+          await RecordReopeningBoundaryAsync("after-enter");
+        });
+      await RecordReopeningBoundaryAsync("response-captured");
+    }
+    catch (Exception captureFailure)
+    {
+      try { await RecordReopeningBoundaryAsync("capture-failed"); }
+      catch (Exception diagnosticFailure)
+      {
+        throw new AggregateException("Response capture and its bounded diagnostics both failed.", captureFailure, diagnosticFailure);
+      }
+      throw;
+    }
+    finally
+    {
+      page.Request -= ObserveReopenRequest;
+    }
+    Assert.Equal(1, reopenPosts);
     Assert.True(reopeningStatus is >= 200 and < 300, reopeningBody);
     await Assertions.Expect(cancelledRow).ToHaveCountAsync(0);
     var workQueueViews = page.GetByRole(AriaRole.Navigation,

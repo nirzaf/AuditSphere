@@ -35,7 +35,8 @@ internal static class PlaywrightResponseCapture
 
       if (matcherIndex < 0 || captured.ContainsKey(matcherIndex))
       {
-        await route.ContinueAsync();
+        // Preserve earlier handlers, including fault-injection and held-refresh routes.
+        await route.FallbackAsync();
         return;
       }
 
@@ -83,7 +84,8 @@ internal static class PlaywrightResponseCapture
       observed.Enqueue($"{route.Request.Method} {route.Request.Url}");
       if (!matches(route.Request) || captured.Task.IsCompleted)
       {
-        await route.ContinueAsync();
+        // Preserve earlier handlers, including fault-injection and held-refresh routes.
+        await route.FallbackAsync();
         return;
       }
       try
