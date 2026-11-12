@@ -43,6 +43,11 @@ only after exact complete coverage. The existing always-upload TRX artifact reta
 inventory, assignments, provenance, hashes, helper source, per-shard logs/TRX/events
 and aggregate manifest, including on failure. Existing non-API gates are unchanged.
 
+The full release collector validates those retained shard results against the SDK and
+target framework from the resolved source checkout. It counts the API cohort only
+after all canonical shards and their evidence reconcile. Domain and E2E still use
+their existing top-level TRX artifacts.
+
 Pure protocol tests: `python3 -m unittest discover -s scripts/release -p test_ci_api_test_shards.py`.
 Full API execution remains CI-only. Discovery/protocol checks are not a full-suite
 pass or deployment evidence.

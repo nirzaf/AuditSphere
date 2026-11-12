@@ -8,7 +8,7 @@ record  Runs in .github/workflows/release-verification.yml after the aggregate r
         confirmed that every required job succeeded. It writes one bounded JSON record naming the
         requested ref and the resolved source commit (distinct from the run's dispatch head_sha),
         the workflow definition ref/commit, the run id/attempt, the required job outcomes,
-        non-empty TRX counters for every unfiltered .NET test project and the identities of the
+        non-empty verified TRX counters for every complete .NET test cohort and the identities of the
         uploaded log/TRX evidence artifacts.
 
 verify  Runs in .github/workflows/release.yml before any protected environment. It consumes the
@@ -29,6 +29,7 @@ from pathlib import Path
 import re
 import sys
 import zipfile
+import xml.etree.ElementTree as ET
 
 WORKFLOW_PATH = '.github/workflows/release-verification.yml'
 SCHEMA = 'auditsphere.release-verification-evidence.v1'
@@ -187,8 +188,31 @@ def load_trx_parser():
     return module.parse_trx
 
 
+
+def source_toolchain(root, source_sha):
+    """Read the aggregate's resolved-source checkout, never artifact-selected defaults.
+
+    The current test project inherits one unconditional TargetFramework. Refuse
+    conflicting/conditional overrides or multi-targeting until explicitly supported.
+    """
+    sdk = json.loads((root / 'global.json').read_text())['sdk']
+    props = ET.parse(root / 'Directory.Build.props').getroot()
+    project = ET.parse(root / 'tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj').getroot()
+    project_targets = project.findall('.//TargetFramework')
+    project_groups = [g for g in project.findall('./PropertyGroup') if g.find('TargetFramework') is not None]
+    targets = props.findall('./PropertyGroup/TargetFramework')
+    groups = [g for g in props.findall('./PropertyGroup') if g.find('TargetFramework') is not None]
+    if (len(targets) != 1 or len(groups) != 1 or targets[0].attrib or groups[0].attrib or
+            props.findall('.//TargetFrameworks') or len(project_targets) > 1 or
+            (project_targets and (len(project_groups) != 1 or project_targets[0].attrib or project_groups[0].attrib or
+                                  project_targets[0].text != targets[0].text)) or project.findall('.//TargetFrameworks') or sdk.get('rollForward') != 'disable' or
+            sdk.get('allowPrerelease') is not False):
+        raise ValueError('Ambiguous source toolchain contract')
+    return dict(sourceSha=source_sha, dotnetSdk=sdk['version'], targetFramework=targets[0].text)
+
+
 def build_record(repository, workflow_ref, workflow_sha, run_id, run_attempt, event, head_sha,
-                 requested_ref, resolved_commit, jobs, trx_root, run_artifacts, now=None):
+                 requested_ref, resolved_commit, jobs, trx_root, run_artifacts, now=None, *, toolchain=None):
     """Return (record, errors). A record is only meaningful when errors is empty."""
     now = now or datetime.now(timezone.utc)
     errors = []
@@ -209,11 +233,31 @@ def build_record(repository, workflow_ref, workflow_sha, run_id, run_attempt, ev
     parse_trx = load_trx_parser()
     cohorts = {}
     for cohort in TEST_COHORTS:
-        evidence = parse_trx(Path(trx_root) / f'release-verification-trx-{cohort}')
-        if evidence['resultErrors']:
-            errors.append(f'{cohort} TRX evidence is missing or malformed')
-        cohorts[cohort] = dict(executed=evidence['executedTests'], passed=evidence['passedTests'],
-                               failed=evidence['failedTests'], skipped=evidence['skippedTests'])
+        directory = Path(trx_root) / f'release-verification-trx-{cohort}'
+        if cohort == 'api':
+            # API output is a complete verified shard set, never an arbitrary recursive TRX sum.
+            path = Path(__file__).with_name('api_test_shards.py')
+            spec = importlib.util.spec_from_file_location('api_test_shards', path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            try:
+                contract = source_toolchain(Path(__file__).resolve().parents[2], resolved_commit) if toolchain is None else toolchain
+                if (contract['sourceSha'] != resolved_commit or
+                        not isinstance(contract['dotnetSdk'], str) or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', contract['dotnetSdk']) or
+                        not isinstance(contract['targetFramework'], str) or not re.fullmatch(r'net[0-9]+\.[0-9]+', contract['targetFramework'])):
+                    raise ValueError('Invalid source-bound toolchain contract')
+                count = module.retained_count(directory, repository, resolved_commit, run_id, run_attempt,
+                    expected_sdk=contract['dotnetSdk'], expected_target_framework=contract['targetFramework'])
+                cohorts[cohort] = dict(executed=count, passed=count, failed=0, skipped=0)
+            except (OSError, ValueError, KeyError, TypeError, AttributeError, module.ET.ParseError):
+                errors.append('api shard evidence is missing, malformed, incomplete or unbound')
+                cohorts[cohort] = dict(executed=0, passed=0, failed=0, skipped=0)
+        else:
+            evidence = parse_trx(directory)
+            if evidence['resultErrors']:
+                errors.append(f'{cohort} TRX evidence is missing or malformed')
+            cohorts[cohort] = dict(executed=evidence['executedTests'], passed=evidence['passedTests'],
+                                   failed=evidence['failedTests'], skipped=evidence['skippedTests'])
 
     identities = []
     for name in REQUIRED_ARTIFACTS:

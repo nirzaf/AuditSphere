@@ -10,6 +10,7 @@ import argparse
 from collections import Counter, defaultdict
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -135,6 +136,92 @@ def reconcile(path, expected, rows):
             events["total"] == len(expected), "Runner aborted/error/incomplete")
     require(Counter(r["id"] for r in events["results"]) == Counter(expected), "Runner event IDs differ")
     require(all(r["outcome"] == "Passed" for r in events["results"]), "Runner event failed/skipped")
+
+
+
+def retained_count(directory, repository, source_sha, run_id, run_attempt, *, expected_sdk, expected_target_framework):
+    """Reconcile one downloaded API artifact using the same discovery/result owners.
+
+    Only the canonical manifest-assigned shard paths contribute. Extra TRXs, partial
+    coverage, stale source/build identity or inconsistent callbacks refuse aggregation.
+    This reads evidence only; it never discovers or executes tests.
+    """
+    require(directory.is_dir() and not directory.is_symlink(), "Linked/missing API artifact root")
+    output = directory / "api-shards"
+    def read(name):
+        path = output / name
+        require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 32 * 1024**2,
+                "Missing, linked or oversized shard evidence")
+        return json.loads(path.read_text())
+
+    require(output.is_dir() and not output.is_symlink(), "Missing canonical API shard evidence")
+    require(not any(p.is_symlink() for p in directory.rglob("*")), "Linked API artifact evidence")
+    coverage, source = read("coverage.json"), read("source.json")
+    require(coverage["status"] == "PASSED" and coverage["source"] == source_sha, "Incomplete/stale API coverage")
+    require(source["schemaVersion"] == 1 and source["repository"] == repository and
+            source["resolvedCommit"] == source_sha and type(source["runId"]) is int and source["runId"] == run_id and
+            type(source["runAttempt"]) is int and 1 <= source["runAttempt"] <= run_attempt and
+            source["artifactName"] == f"release-verification-test-build-{source_sha}-{run_id}-api" and
+            source["project"] == "tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj" and
+            source["assembly"] == "AuditSphereOps.Api.Tests" and source["configuration"] == "Release" and
+            source["targetFramework"] == expected_target_framework and source["operatingSystem"] == "Linux" and
+            source["dotnetSdk"] == coverage["sdk"] == expected_sdk, "Unbound API build evidence")
+    rows = inventory(read("xunit.json"), read("vstest.json"))
+    assignments = partition(rows)
+    require(rows == read("inventory.json") and assignments == read("assignments.json"), "Discovery/assignment evidence differs")
+    expected_counts = {"discovered": len(rows), "collections": len({r["collection"] for r in rows}),
+                       "concurrency": 1, "maxRowsPerShard": MAX_ROWS,
+                       "maxCollectionsPerShard": MAX_COLLECTIONS, "rssLimitBytes": RSS_LIMIT}
+    require(all(type(coverage[k]) is int and coverage[k] == v for k, v in expected_counts.items()),
+            "Invalid API coverage counters/limits")
+    require(isinstance(coverage["shards"], list) and len(coverage["shards"]) == len(assignments), "Incomplete shard list")
+    expected_paths = {output / f"shard-{i:03}" / "results.trx" for i in range(len(assignments))}
+    require(set(directory.rglob("*.trx")) == expected_paths, "Unexpected/missing API TRX paths")
+    require({p.name for p in output.glob("shard-*") if p.is_dir()} ==
+            {f"shard-{i:03}" for i in range(len(assignments))}, "Unexpected shard directories")
+    elapsed = 0.0
+    for index, ids in enumerate(assignments):
+        shard = output / f"shard-{index:03}"
+        require(not shard.is_symlink() and read(f"shard-{index:03}/ids.json") == ids, "Shard assignment differs")
+        item = coverage["shards"][index]
+        require(type(item["index"]) is int and item["index"] == index and
+                type(item["passed"]) is int and item["passed"] == len(ids), "Shard counters differ")
+        for name, key in (("results.trx", "trxSha256"), ("events.json", "eventsSha256")):
+            path = shard / name
+            require(path.is_file() and not path.is_symlink() and digest(path) == item[key], "Shard evidence digest differs")
+        reconcile(shard / "results.trx", ids, rows)
+        outcome = read(f"shard-{index:03}.exit.json")
+        require(type(outcome["exit"]) is int and outcome["exit"] == 0 and outcome["reason"] is None and
+                outcome["groupDrained"] is True and type(outcome["peakRssBytes"]) is int and
+                0 <= outcome["peakRssBytes"] <= RSS_LIMIT, "Shard execution/cleanup evidence failed")
+        seconds = outcome["seconds"]
+        require(type(seconds) in (int, float) and math.isfinite(seconds) and 0 <= seconds <= 21 * 60 + 30,
+                "Invalid shard elapsed time")
+        elapsed += seconds
+    # bounded() allows up to ten seconds to reap plus ten to drain; retain a
+    # thirty-second cleanup/sampling margin, not an unbounded deadline exemption.
+    require(elapsed <= 150 * 60 + 30, "Aggregate shard deadline exceeded")
+    binary_hashes = read("binary-hashes.json")
+    def sha256(value):
+        return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
+    required = {"AuditSphereOps.Api.Tests" + suffix for suffix in (".dll", ".pdb", ".deps.json", ".runtimeconfig.json")} | {"xunit.runner.json"}
+    require(isinstance(binary_hashes, dict) and required <= set(binary_hashes) and
+            all(isinstance(k, str) and k and not Path(k).is_absolute() and ".." not in Path(k).parts and
+                "\\" not in k and sha256(v) for k, v in binary_hashes.items()), "Invalid API binary manifest")
+    require(digest(output / "binary-hashes.json") == coverage["binaryManifestSha256"], "Binary manifest digest differs")
+    helpers = coverage["helpers"]
+    require(isinstance(helpers, dict) and set(helpers) == {"Discover.cs", "VsDiscover.cs"}, "Missing retained helper identities")
+    for name, expected in helpers.items():
+        path = output / "helper-source" / name
+        require(sha256(expected) and path.is_file() and digest(path) == expected, "Retained helper digest differs")
+    for name, reason in (("deadline", "Deadline"), ("cancel", "Synthetic cancellation"), ("leader-exit", None)):
+        outcome = read(f"supervisor-checks/{name}.exit.json")
+        seconds = outcome["seconds"]
+        require(type(seconds) in (int, float) and math.isfinite(seconds) and 0 <= seconds <= 35,
+                "Invalid Linux self-check elapsed time")
+        require(type(outcome["exit"]) is int and (outcome["exit"] == 0 if reason is None else outcome["exit"] != 0) and
+                outcome["reason"] == reason and outcome["groupDrained"] is True, "Linux ownership self-check failed")
+    return len(rows)
 
 
 def group_state(pgid):
