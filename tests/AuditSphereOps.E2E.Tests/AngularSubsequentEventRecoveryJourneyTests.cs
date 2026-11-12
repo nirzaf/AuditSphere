@@ -24,6 +24,7 @@ public sealed class AngularSubsequentEventRecoveryJourneyTests
     var scope = world.Primary;
     Guid eventId;
     AppUser reviewer;
+    AppUser replacement;
     await using (var db = host.CreateDbContext())
     {
       var prepared = await AuditCompletionService.RecordSubsequentEventAsync(db, scope.Preparer,
@@ -34,13 +35,16 @@ public sealed class AngularSubsequentEventRecoveryJourneyTests
       Assert.Equal(1, prepared.Value!.Revision);
       eventId = prepared.Value.ReviewId;
       reviewer = await db.Users.AsNoTracking().SingleAsync(x => x.Id == world.Reviewer.UserId);
+      replacement = await db.Users.AsNoTracking().SingleAsync(x => x.Id == scope.Preparer.UserId);
     }
 
-    var origin = await host.StartApiForIdentityAsync(reviewer, new Dictionary<string, string>
+    var angular = new Dictionary<string, string>
     {
       ["AngularUi__Enabled"] = "true",
       ["AngularUi__CanonicalRoutes"] = "true"
-    });
+    };
+    var origin = await host.StartApiForIdentityAsync(reviewer, angular);
+    var replacementOrigin = await host.StartApiForIdentityAsync(replacement, angular);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await browser.NewPageAsync();
@@ -84,9 +88,60 @@ public sealed class AngularSubsequentEventRecoveryJourneyTests
     await Assertions.Expect(pending).ToContainTextAsync(requestId.ToString("D"));
     await Assertions.Expect(panel.GetByRole(AriaRole.Button, new() { Name = "Create a different event", Exact = true })).ToBeDisabledAsync();
     await pending.GetByRole(AriaRole.Button, new() { Name = "Load saved request scope", Exact = true }).ClickAsync();
+
+    var lookupUrl = $"{origin}{apiPath}/receipts/{requestId:D}?requestHash={hash}";
+    var storageKey = $"auditsphere-subsequent-events-pending-v1:{scope.FirmId:D}:{reviewer.Id:D}:{scope.EngagementId:D}";
+    var saved = await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey);
+    Assert.NotNull(saved);
+    var fetchedLookup = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var releaseLookup = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    await page.RouteAsync(lookupUrl, async route =>
+    {
+      await using var response = await route.FetchAsync();
+      fetchedLookup.TrySetResult(await response.TextAsync());
+      await releaseLookup.Task.WaitAsync(TimeSpan.FromSeconds(30));
+      await route.FulfillAsync(new() { Response = response });
+    });
+    try
+    {
+      await pending.GetByRole(AriaRole.Button, new() { Name = "Look up exact request", Exact = true }).ClickAsync();
+      using var held = JsonDocument.Parse(await fetchedLookup.Task.WaitAsync(TimeSpan.FromSeconds(15)));
+      Assert.True(held.RootElement.GetProperty("found").GetBoolean());
+      Assert.Equal(receiptId, held.RootElement.GetProperty("receipt").GetProperty("id").GetGuid());
+
+      // Both owned loopback hosts use the same browser cookie scope. Use the real sign-in
+      // route while the original tab and its sessionStorage stay mounted.
+      await SignInAsAsync(replacementOrigin, replacement.Id);
+      await Assertions.Expect(pending).ToHaveCountAsync(0, new() { Timeout = 15000 });
+      await using var otherLookup = await page.Context.APIRequest.GetAsync(lookupUrl);
+      Assert.Equal(200, otherLookup.Status);
+      using var otherResult = JsonDocument.Parse(await otherLookup.TextAsync());
+      Assert.False(otherResult.RootElement.GetProperty("found").GetBoolean());
+      Assert.Equal(JsonValueKind.Null, otherResult.RootElement.GetProperty("receipt").ValueKind);
+
+      var delivered = await page.RunAndWaitForResponseAsync(() =>
+      {
+        releaseLookup.TrySetResult();
+        return Task.CompletedTask;
+      }, response => response.Url == lookupUrl);
+      Assert.Equal(200, delivered.Status);
+      await delivered.FinishedAsync();
+      await Assertions.Expect(panel.Locator("[data-se-history]")).ToHaveCountAsync(0);
+      await Assertions.Expect(panel).Not.ToContainTextAsync(requestId.ToString("D"));
+      Assert.Equal(saved, await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey));
+    }
+    finally
+    {
+      releaseLookup.TrySetResult();
+      await page.UnrouteAsync(lookupUrl);
+    }
+
+    await SignInAsAsync(origin, reviewer.Id);
+    await Assertions.Expect(pending).ToContainTextAsync(requestId.ToString("D"), new() { Timeout = 15000 });
+    await pending.GetByRole(AriaRole.Button, new() { Name = "Load saved request scope", Exact = true }).ClickAsync();
     var lookup = await page.RunAndWaitForResponseAsync(
       () => pending.GetByRole(AriaRole.Button, new() { Name = "Look up exact request", Exact = true }).ClickAsync(),
-      response => response.Url == $"{origin}{apiPath}/receipts/{requestId:D}?requestHash={hash}");
+      response => response.Url == lookupUrl);
     Assert.Equal(200, lookup.Status);
     using var recovered = JsonDocument.Parse(await lookup.TextAsync());
     Assert.True(recovered.RootElement.GetProperty("found").GetBoolean());
@@ -102,5 +157,16 @@ public sealed class AngularSubsequentEventRecoveryJourneyTests
       (retained.Id, retained.ReviewedByUserId!.Value, retained.Revision, retained.ReviewedRevision!.Value));
     var receipt = await verify.AuditCompletionSubsequentEventCommandReceipts.AsNoTracking().SingleAsync();
     Assert.Equal((receiptId, requestId, reviewer.Id), (receipt.Id, receipt.RequestId, receipt.ActorId));
+
+    async Task SignInAsAsync(string signInOrigin, Guid expectedActor)
+    {
+      await using var signIn = await page.Context.APIRequest.GetAsync(signInOrigin + "/auth/sign-in",
+        new() { MaxRedirects = 0 });
+      Assert.Equal(302, signIn.Status);
+      await using var session = await page.Context.APIRequest.GetAsync(origin + "/api/ui/session");
+      Assert.Equal(200, session.Status);
+      using var identity = JsonDocument.Parse(await session.TextAsync());
+      Assert.Equal(expectedActor, identity.RootElement.GetProperty("userId").GetGuid());
+    }
   }
 }
