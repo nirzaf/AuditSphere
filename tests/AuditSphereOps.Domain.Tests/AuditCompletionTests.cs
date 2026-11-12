@@ -314,6 +314,94 @@ public sealed class AuditCompletionTests
     Assert.Null(retained.ReviewedRevision);
   }
 
+  [Fact]
+  public async Task GoingConcernReview_WaitingWhenGrantExpires_RefusesWithoutAnEpochChange()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var world = await SupportedAuditCompletionWorldBuilder.CreateAsync(pg, includeSibling: false);
+    var scope = world.Primary;
+    await using var setup = new AuditSphereDbContext(pg.Options);
+    var prepared = await AuditCompletionService.RecordGoingConcernAssessmentAsync(setup, scope.Preparer,
+      new(scope.EngagementId, null, new(2027, 1, 20), new(2028, 1, 20), "Synthetic forecast observations",
+        false, true, "QAR", "Synthetic forecast rationale", ["synthetic-forecast-evidence"]));
+    Assert.True(prepared.Succeeded, prepared.Message);
+    var record = prepared.Value!;
+    var oldGrantId = await setup.RoleGrants.AsNoTracking().Where(x =>
+        x.FirmId == scope.FirmId && x.UserId == world.Reviewer.UserId && x.Role == "Manager" &&
+        x.ClientId == scope.ClientId && x.EngagementId == scope.EngagementId && x.RevokedAt == null)
+      .Select(x => x.Id).SingleAsync();
+
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+    var ct = deadline.Token;
+    await using var locker = new AuditSphereDbContext(pg.Options);
+    await using var publisher = new AuditSphereDbContext(pg.Options);
+    await locker.Database.OpenConnectionAsync(ct);
+    await publisher.Database.OpenConnectionAsync(ct);
+    var lockerPid = ((NpgsqlConnection)locker.Database.GetDbConnection()).ProcessID;
+    var publisherPid = ((NpgsqlConnection)publisher.Database.GetDbConnection()).ProcessID;
+    // Simulate a grant issued earlier through the role owner. Only the final seconds
+    // of its valid lifetime elapse on the wall clock during this test.
+    var expiry = DateTimeOffset.UtcNow.AddSeconds(15);
+    var issuedAt = expiry.AddMinutes(-10);
+    var assignment = new RoleAssignmentRequest(world.Reviewer.UserId, "Manager", "ENGAGEMENT",
+      scope.ClientId, scope.EngagementId, ExpiresAt: expiry, Reason: "Synthetic temporary review coverage",
+      ConfirmScopeExpansion: true, ReplacesGrantId: oldGrantId);
+    var preview = await RoleAssignmentService.PreviewAsync(setup, world.Administrator, assignment, issuedAt, ct);
+    Assert.True(preview.Succeeded, preview.Message);
+    Assert.Empty(preview.Value!.BlockingReasons);
+    var assigned = await RoleAssignmentService.AssignAsync(setup, world.Administrator, assignment, issuedAt, ct,
+      RoleAssignmentReviewDigest.Compute(preview.Value, assignment));
+    Assert.True(assigned.Succeeded, assigned.Message);
+    var grantId = assigned.Value!.GrantId;
+    var epoch = await setup.Users.AsNoTracking().Where(x => x.Id == world.Reviewer.UserId)
+      .Select(x => x.SessionEpoch).SingleAsync(ct);
+    var reviewer = world.Reviewer with { SessionEpoch = epoch };
+
+    await using var fence = await locker.Database.BeginTransactionAsync(ct);
+    await locker.FirmSafetyStates.FromSqlInterpolated($"""
+      SELECT * FROM firm_safety_states WHERE id = {scope.FirmId} FOR UPDATE
+      """).AsNoTracking().SingleAsync(ct);
+    var review = AuditCompletionService.ReviewCompletionRecordAsync(publisher, reviewer,
+      "GOING_CONCERN", record.AssessmentId, record.Revision, ct);
+    try
+    {
+      var waiting = false;
+      while (!review.IsCompleted && !waiting && DateTimeOffset.UtcNow < expiry)
+      {
+        waiting = await setup.Database.SqlQuery<bool>($"""
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity WHERE pid = {publisherPid} AND wait_event_type = 'Lock'
+              AND query LIKE '%firm_safety_states%' AND {lockerPid} = ANY(pg_blocking_pids(pid))
+          ) AS "Value"
+          """).SingleAsync(ct);
+        if (!waiting) await Task.Delay(20, ct);
+      }
+      var remaining = expiry - DateTimeOffset.UtcNow;
+      Assert.True(waiting && remaining > TimeSpan.Zero, "The authorized review must reach the real firm lock before expiry.");
+      await Task.Delay(remaining + TimeSpan.FromMilliseconds(50), ct);
+      Assert.False(review.IsCompleted);
+    }
+    finally
+    {
+      await fence.RollbackAsync();
+      await review;
+    }
+
+    var refused = await review;
+    Assert.False(refused.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, refused.ErrorCode);
+    Assert.Equal(epoch, await setup.Users.AsNoTracking().Where(x => x.Id == reviewer.UserId)
+      .Select(x => x.SessionEpoch).SingleAsync(ct));
+    var retainedGrant = await setup.RoleGrants.AsNoTracking().SingleAsync(x => x.Id == grantId, ct);
+    Assert.Null(retainedGrant.RevokedAt);
+    Assert.True(retainedGrant.ExpiresAt <= DateTimeOffset.UtcNow);
+    var retained = await setup.GoingConcernAssessments.AsNoTracking().SingleAsync(x => x.Id == record.AssessmentId, ct);
+    Assert.Equal(record.Revision, retained.Revision);
+    Assert.Null(retained.ReviewedByUserId);
+    Assert.Null(retained.ReviewedAt);
+    Assert.Null(retained.ReviewedRevision);
+  }
+
   private sealed class RevocationCommitBarrier : SaveChangesInterceptor
   {
     public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
