@@ -184,6 +184,59 @@ describe('Archive detail and exact paging safety', () => {
     await fixture.whenStable();
     expect(component.archive()?.status).toBe('ASSEMBLY_REVIEWED');
   });
+  it('requires a fresh read and click after a first-send refusal but retains the same refusal on recovery', async () => {
+    component.refresh();
+    TestBed.tick();
+    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true }));
+    await fixture.whenStable();
+    const original = component.archive()!;
+    const reviewUrl = url() + '/review';
+    const invalidRequest = { code: 'records-manifest.request.invalid', message: 'The review request identity is invalid.' };
+    const badRequest = { status: 400, statusText: 'Bad Request' };
+
+    const first = component.reviewManifest(original);
+    const firstRequest = http.expectOne(reviewUrl);
+    const firstKey = firstRequest.request.body.requestKey;
+    const storageKey = ownedRecoveryKeys[0]!;
+    expect(component.pendingIntent()?.intent.requestKey).toBe(firstKey);
+    firstRequest.flush(invalidRequest, badRequest);
+    await first;
+    expect(sessionStorage.getItem(storageKey)).toBeNull();
+    expect(component.pendingIntent()).toBeNull();
+    expect(component.archive()).toBeNull();
+    await component.reviewManifest(original);
+    http.expectNone(reviewUrl);
+
+    TestBed.tick();
+    const newDigest = 'f'.repeat(64);
+    http.expectOne(url()).flush(archive(1, copy(), {
+      status: 'MANIFEST_BUILT', canReview: true, manifestId: id(60), manifestVersion: 2, manifestDigest: newDigest,
+    }));
+    await fixture.whenStable();
+    http.expectNone(reviewUrl);
+    const reviewButton = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'))
+      .find(button => button.textContent?.trim() === 'Review exact manifest');
+    expect(reviewButton?.disabled).toBe(false);
+    reviewButton!.click();
+    const confirmed = http.expectOne(reviewUrl);
+    const confirmedBody = confirmed.request.body;
+    expect(confirmedBody).toMatchObject({ manifestId: id(60), manifestVersion: 2, manifestDigest: newDigest });
+    expect(confirmedBody.requestKey).not.toBe(firstKey);
+    confirmed.flush({}, { status: 502, statusText: 'Outcome unknown' });
+    await fixture.whenStable();
+    const pending = sessionStorage.getItem(storageKey);
+    expect(pending).not.toBeNull();
+
+    const recovery = component.recoverManifest(component.archive()!);
+    const replay = http.expectOne(reviewUrl);
+    expect(replay.request.body).toEqual(confirmedBody);
+    replay.flush(invalidRequest, badRequest);
+    await recovery;
+    expect(sessionStorage.getItem(storageKey)).toBe(pending);
+    expect(component.pendingIntent()?.intent.requestKey).toBe(confirmedBody.requestKey);
+    expect(component.recoveryBlocked()).toBe(true);
+    http.expectNone(reviewUrl);
+  });
   it('refreshes instead of accepting a receipt for another manifest identity', async () => {
     component.refresh(); TestBed.tick();
     http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true })); await fixture.whenStable();
