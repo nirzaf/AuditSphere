@@ -1,5 +1,12 @@
 # Current-slice handoff
 
+## API process-isolation candidate (2026-11-12)
+
+- Owner: `isolate_api_test_processes`; base `aab71dfbe486430abf5ebdf9a475acb275704e9e`. CI-helper-only containment candidate, not a product rate-limiter fix or proof of the current CI failure's cause. Complete API inventory is partitioned into whole discovered collections and reconciled by exact runner identities; Domain/E2E gates remain unchanged.
+- Existing-binary feasibility: xUnit/VSTest agree on 440 exact rows in 102 collections, deterministically assigned to 28 bounded sequential shards. Five pure protocol tests pass; 498 existing output hashes unchanged. This is not fresh API-source/PDB binding or a full-suite pass. Evidence: `.local/autonomous/evidence/api-process-isolation/`.
+- SDK synthetic runner proof: 3 passed, 0 failed/skipped; two theory rows shared one testhost and the Fact ran in a fresh second testhost. Real callbacks/TRX reconciled, all 498 original outputs unchanged and owned groups drained. The two earlier raw-csc fixture failures remain retained: runner inferred legacy .NETCoreApp v1.0 and forced unavailable X64; supported SDK packaging resolved the smoke. Evidence: `synthetic-sdk-run/result.json` under the directory above.
+- Workflow wiring is drafted; dependencies are independent final review, publication coordination and exact-source complete CI. Real Linux owned-process containment proof remains a mandatory CI-only self-check; local Mac protocol checks are mocked. No API/PG/full-suite execution, CI retry, publication, backup or deployment was performed by this work.
+
 ## Current combined candidate checkpoint (2026-11-11)
 
 - Canonical AC/dependencies: `status.json` → `pmsReassessment20261110.tasks`. Unpublished85-path combined candidate on `8266e5904ef692eb692b9f8d3e4b80a456caebe3`. Final SDK10.0.300 emitter0warnings/errors, exact OpenAPI and EF no pending changes passed; emitter API/Application/Infrastructure DLLs match Release.83 non-execution-doc paths unchanged,85 total,index empty,327 unique migrations. Evidence `.local/autonomous/evidence/combined-8266-final-contract-verification/result.json`; build lease released. Combined publication authorized after review, not executed. Successor SHA unknown; combined full CI NOT_RUN. Historical8266 full43082345923 FAILURE remains: Domain2039 passed, E2E339/345 with6 failures, API shutdown/memory pressure; OOM cause attribution unproven. Fast/images pass never substitutes for full CI.

@@ -3,10 +3,11 @@ run-name: AuditSphere release verification · ${{ inputs.ref || 'default branch'
 
 # Full release contract on one resolved commit. The fast gate in ci.yml keeps its own triggers and
 # focused jobs; this workflow is separate and never runs on push or pull_request. The complete
-# unfiltered .NET suite runs once per test project, with a separate ephemeral PostgreSQL service for
+# .NET suite runs with a separate ephemeral PostgreSQL service for
 # every matrix job. A single Release solution build supplies run- and SHA-bound test binaries to the
 # matrix, and the Angular production bundle is built once and shared with the API/E2E tests. No test
-# project is filtered or omitted, and the aggregate release gate requires every job below.
+# project is omitted: Domain/E2E run unfiltered; the complete API suite runs via verified
+# process-isolated shards with exact discovery/result reconciliation. The aggregate requires every job.
 #
 # Every verification command runs through scripts/release/run-verification-step.sh, which records
 # its command and exact exit status in the job summary and preserves the full log. Per-project logs
@@ -248,7 +249,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   dotnet-tests:
-    name: Test · .NET ${{ matrix.name }} (unfiltered)
+    name: Test · .NET ${{ matrix.name }} (complete suite)
     needs: [resolve-ref, angular, release-build-artifacts]
     runs-on: ubuntu-24.04
     timeout-minutes: 180
@@ -465,6 +466,7 @@ jobs:
           key: playwright-chromium-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'tests/AuditSphereOps.E2E.Tests/packages.lock.json') }}
 
       - name: Build and run the complete unfiltered test project
+        if: ${{ matrix.key != 'api' }}
         run: |
           set -euo pipefail
           bash scripts/release/run-verification-step.sh "Full $TEST_PROJECT_KEY test project (no --filter)" \
@@ -472,6 +474,18 @@ jobs:
             --logger "trx;LogFileName=$TEST_PROJECT_KEY.trx" --logger "console;verbosity=normal" \
             --blame-hang --blame-hang-timeout 15m --blame-hang-dump-type none \
             --results-directory "$VERIFICATION_TRX_DIR"
+
+      - name: Run complete API suite via verified process-isolated shards
+        if: ${{ matrix.key == 'api' }}
+        env:
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          set -euo pipefail
+          bash scripts/release/run-verification-step.sh "Complete API suite via verified process-isolated shards" \
+            python3 scripts/release/api_test_shards.py \
+            --assembly tests/AuditSphereOps.Api.Tests/bin/Release/net10.0/AuditSphereOps.Api.Tests.dll \
+            --provenance "$RUNNER_TEMP/release-verification-test-build/source.json" \
+            --source "$SOURCE_COMMIT" --output "$VERIFICATION_TRX_DIR/api-shards"
 
       - name: Capture PostgreSQL service diagnostics
         if: ${{ always() }}
@@ -635,7 +649,7 @@ jobs:
             cat "$result_file"
             printf 'reused=true\n' >> "$GITHUB_OUTPUT"
             {
-              echo "Fast-CI Release outputs matched the exact source, SDK, runner image, run attempt, and archive digest; the unfiltered .NET tests will now run against these compiled outputs."
+              echo "Fast-CI Release outputs matched the exact source, SDK, runner image, run attempt, and archive digest; the complete .NET suites will now run against these compiled outputs."
               echo
               echo "Restore proof: $(cat "$result_file")"
             } >> "$GITHUB_STEP_SUMMARY"
@@ -653,7 +667,7 @@ jobs:
               -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \
               -clp:PerformanceSummary
 
-      - name: Stage source-bound unfiltered test outputs
+      - name: Stage source-bound complete test outputs
         env:
           SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
         run: |
@@ -1105,7 +1119,7 @@ jobs:
             echo "| Resolve requested ref | $SOURCE_RESULT |"
             echo "| Angular build and full specs | $ANGULAR_RESULT |"
             echo "| Exact-source Release/test artifact preparation | $BUILD_ARTIFACTS_RESULT |"
-            echo "| All unfiltered .NET project suites | $DOTNET_RESULT |"
+            echo "| All complete .NET project suites | $DOTNET_RESULT |"
             echo "| Contracts and publication | $CONTRACT_RESULT |"
           } >> "$GITHUB_STEP_SUMMARY"
 

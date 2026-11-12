@@ -41,7 +41,7 @@ stop_sampler() {
     sampler_pid=
   fi
 }
-if [ "${TEST_PROJECT_KEY:-}" = api ] && [ "$label" = 'Full api test project (no --filter)' ]; then
+if [ "${TEST_PROJECT_KEY:-}" = api ] && { [ "$label" = 'Full api test project (no --filter)' ] || [ "$label" = 'Complete API suite via verified process-isolated shards' ]; }; then
   trap stop_sampler EXIT
   trap 'exit 143' TERM
   trap 'exit 130' INT

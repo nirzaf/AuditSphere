@@ -8,7 +8,7 @@
 
 1. **Focused local checks:** select the smallest existing named test, build, contract, or validator that covers the changed behavior. Add a minimal regression test when the invariant is not already covered. Do not run full .NET, Angular, or Playwright suites locally.
 2. **Browser checks:** for a user-visible change, use the built-in browser when available to exercise the affected workflow, inspect visible results, responsive layout, console and network errors, and persistence/authorization where observable. State exactly what was and was not exercised.
-3. **CI/CD:** `.github/workflows/ci.yml` is the fast gate. `.github/workflows/release-verification.yml` runs complete unfiltered Domain, API, Angular, and Playwright/PostgreSQL cohorts against a resolved immutable SHA. Every required job and the aggregate must pass on the same SHA for `FULL_CI_PASS`.
+3. **CI/CD:** `.github/workflows/ci.yml` is the fast gate. `.github/workflows/release-verification.yml` runs complete unfiltered Domain, Angular, and Playwright/PostgreSQL cohorts and the complete API suite via verified process-isolated shards against a resolved immutable SHA. Every required job and the aggregate must pass on the same SHA for `FULL_CI_PASS`.
 4. **External/professional acceptance:** tenant consent, provider behavior, human audit/accounting decisions, accessibility acceptance, and deployment are separate evidence leaves. Tests and green CI do not supply them.
 
 ## Risk-based coverage

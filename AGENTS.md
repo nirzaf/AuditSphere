@@ -90,7 +90,7 @@ Run additional checks only when impacted: EF model drift after model/migration c
 ### CI/CD responsibilities (existing workflows)
 
 - `.github/workflows/ci.yml`: fast push/PR gate with Angular build/specs, Release compilation, database-free guards, EF/OpenAPI drift, publication and docs. Passing this is not a full .NET regression pass.
-- `.github/workflows/release-verification.yml`: full nightly / manually dispatched gate on an immutable SHA: complete unfiltered Domain, API, Playwright/PostgreSQL and Angular suites. Run complete regressions here, not after each local edit. Require successful current-commit release verification for releases or owner-designated high-risk gates.
+- `.github/workflows/release-verification.yml`: full nightly / manually dispatched gate on an immutable SHA: complete unfiltered Domain, Playwright/PostgreSQL and Angular suites, and the complete API suite via verified process-isolated shards. Run complete regressions here, not after each local edit. Require successful current-commit release verification for releases or owner-designated high-risk gates.
 - The release workflow is not currently required for PR merges. Never claim `FULL_CI_PASS` from `ci.yml` alone or from an earlier commit. To address a CI failure, rerun only the failing cohort in CI/CD; do not run full suites locally.
 - Report tests executed with results, omitted/deferred CI suites and exact SHA. Distinguish `NOT_RUN`, `BLOCKED_TEST_ENV`, `FAST_CI_PASS`, `FULL_CI_PASS` and `BLOCKED_EXTERNAL`.
 

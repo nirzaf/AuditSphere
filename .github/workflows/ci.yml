@@ -173,7 +173,7 @@ jobs:
 
   # Fast push/PR gate: compile all projects, run database-free guards and OpenAPI semantics,
   # check model/contract drift and publication. PostgreSQL and full API/browser regressions are
-  # deferred to release-verification.yml (nightly + manual, complete unfiltered suites).
+  # deferred to release-verification.yml (nightly + manual, complete suites with verified API shards).
   dotnet-build:
     needs: [change-scope, ui-build, dotnet-release-compile]
     if: ${{ always() && (needs.change-scope.result != 'success' || (needs.change-scope.outputs.full_build != 'false' && needs.ui-build.result == 'success' && (needs.dotnet-release-compile.result == 'success' || needs.dotnet-release-compile.result == 'skipped'))) }}
