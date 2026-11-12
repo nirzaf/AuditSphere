@@ -110,7 +110,9 @@ jobs:
     if: ${{ always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master' && (needs.change-scope.result != 'success' || needs.change-scope.outputs.full_build != 'false') }}
     name: Build · .NET Release outputs
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # Leave time for checkout, restore and artifact upload after the cold .NET 11 build.
+    # The previous 60-minute job deadline interrupted compilation on 02b91d24.
+    timeout-minutes: 75
     env:
       DOTNET_gcServer: '0'
       DOTNET_GCConserveMemory: '9'
