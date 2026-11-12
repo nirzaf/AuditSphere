@@ -8,6 +8,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
@@ -238,6 +239,92 @@ public sealed class AuditCompletionTests
       Assert.Null(retainedAfterRevocation.ReviewedByUserId);
       Assert.Null(retainedAfterRevocation.ReviewedAt);
       Assert.Null(retainedAfterRevocation.ReviewedRevision);
+    }
+  }
+
+  [Fact]
+  public async Task VarianceReview_WaitingOnCommittedRevocation_WritesNoApproval()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var world = await SupportedAuditCompletionWorldBuilder.CreateAsync(pg, includeSibling: false);
+    var scope = world.Primary;
+    var reviewer = world.Reviewer;
+    await using var setup = new AuditSphereDbContext(pg.Options);
+    var created = await AuditCompletionService.RecordVarianceInvestigationAsync(setup, scope.Preparer,
+      new VarianceInvestigationRequest(scope.EngagementId, null, AuditAreaCodes.Revenue, "2026-Q1",
+        100m, 105m, 10m, "QAR", "Synthetic explained movement", ["source-a"]));
+    Assert.True(created.Succeeded, created.Message);
+    var record = created.Value!;
+    var grantId = await setup.RoleGrants.AsNoTracking().Where(x =>
+        x.FirmId == scope.FirmId && x.UserId == reviewer.UserId && x.Role == "Manager" &&
+        x.ClientId == scope.ClientId && x.EngagementId == scope.EngagementId && x.RevokedAt == null)
+      .Select(x => x.Id).SingleAsync();
+
+    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+    var ct = deadline.Token;
+    var barrier = new RevocationCommitBarrier();
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(barrier).Options;
+    await using var revoker = new AuditSphereDbContext(options);
+    await using var publisher = new AuditSphereDbContext(pg.Options);
+    await revoker.Database.OpenConnectionAsync(ct);
+    await publisher.Database.OpenConnectionAsync(ct);
+    var revokerPid = ((NpgsqlConnection)revoker.Database.GetDbConnection()).ProcessID;
+    var publisherPid = ((NpgsqlConnection)publisher.Database.GetDbConnection()).ProcessID;
+    var revocation = RoleAdministrationService.RevokeRoleGrantAsync(revoker, world.Administrator,
+      new RevokeRoleGrantRequest(grantId, Reason: "Synthetic review lock-wait regression."), ct);
+    Task<CommandResult>? review = null;
+    try
+    {
+      Assert.Same(barrier.Reached.Task, await Task.WhenAny(barrier.Reached.Task, revocation).WaitAsync(ct));
+      review = AuditCompletionService.ReviewCompletionRecordAsync(publisher, reviewer,
+        "VARIANCE", record.InvestigationId, record.Revision, ct);
+
+      var waiting = false;
+      while (!review.IsCompleted && !waiting)
+      {
+        waiting = await setup.Database.SqlQuery<bool>($"""
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity
+            WHERE pid = {publisherPid} AND wait_event_type = 'Lock'
+              AND query LIKE '%firm_safety_states%'
+              AND {revokerPid} = ANY(pg_blocking_pids(pid))
+          ) AS "Value"
+          """).SingleAsync(ct);
+        if (!waiting) await Task.Delay(20, ct);
+      }
+      Assert.True(waiting, "The review must wait on the revocation transaction's firm lock.");
+    }
+    finally
+    {
+      barrier.Release.TrySetResult();
+      if (review is null) await revocation;
+      else await Task.WhenAll(revocation, review);
+    }
+
+    var revoked = await revocation;
+    Assert.True(revoked.Succeeded, revoked.Message);
+    var refused = await review!;
+    Assert.False(refused.Succeeded);
+    Assert.Equal(ErrorCodes.GenerationStale, refused.ErrorCode);
+    var retained = await setup.AnalyticalReviewVarianceInvestigations.AsNoTracking()
+      .SingleAsync(x => x.Id == record.InvestigationId);
+    Assert.Equal(record.Revision, retained.Revision);
+    Assert.Null(retained.ReviewedByUserId);
+    Assert.Null(retained.ReviewedAt);
+    Assert.Null(retained.ReviewedRevision);
+  }
+
+  private sealed class RevocationCommitBarrier : SaveChangesInterceptor
+  {
+    public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override async ValueTask<int> SavedChangesAsync(
+      SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default)
+    {
+      Reached.TrySetResult();
+      await Release.Task.WaitAsync(cancellationToken);
+      return result;
     }
   }
 

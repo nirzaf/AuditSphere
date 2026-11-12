@@ -7,6 +7,7 @@ using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Practice;
+using AuditSphereOps.Application.Records;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
@@ -392,7 +393,7 @@ public sealed partial class CompletionVarianceCommandsApiTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<GoingConcernAssessmentCommandState>())!;
       }
-      async Task<T> ConcernValueAsync<T>(HttpResponseMessage response)
+      async Task<T> CommandValueAsync<T>(HttpResponseMessage response)
       {
         using (response)
         {
@@ -408,10 +409,10 @@ public sealed partial class CompletionVarianceCommandsApiTests
         new(procedureId, assessmentDate, assessmentDate.AddMonths(12),
           "Synthetic forecast inspected against current procedure evidence.", false, true, "QAR",
           "Synthetic practitioner assessment for this connected test only.", [evidenceReference]));
-      var concernPreview = await ConcernValueAsync<GoingConcernAssessmentCommandPreview>(
+      var concernPreview = await CommandValueAsync<GoingConcernAssessmentCommandPreview>(
         await Post(preparerClient, preparerCsrf, concernRoot + "/prepare/preview", concernRequest));
       Assert.True(concernPreview.CanProceed);
-      var concernReceipt = await ConcernValueAsync<GoingConcernAssessmentCommandReceiptView>(
+      var concernReceipt = await CommandValueAsync<GoingConcernAssessmentCommandReceiptView>(
         await Post(preparerClient, preparerCsrf, concernRoot + "/prepare",
           concernRequest with { Reviewed = true, ExpectedRequestHash = concernPreview.RequestHash }));
       Assert.Null(concernReceipt.Result.ReviewedByUserId);
@@ -423,10 +424,10 @@ public sealed partial class CompletionVarianceCommandsApiTests
       var concernReviewRequest = new GoingConcernAssessmentCommandRequest(Guid.CreateVersion7(),
         concernReviewState.ExpectedRevision, concernReviewState.ReviewBasis);
       var concernReviewRoot = concernRoot + $"/{concernReceipt.GoingConcernAssessmentId:D}/review";
-      var concernReviewPreview = await ConcernValueAsync<GoingConcernAssessmentCommandPreview>(
+      var concernReviewPreview = await CommandValueAsync<GoingConcernAssessmentCommandPreview>(
         await Post(reviewerClient, reviewerCsrf, concernReviewRoot + "/preview", concernReviewRequest));
       Assert.True(concernReviewPreview.CanProceed);
-      var concernReviewed = await ConcernValueAsync<GoingConcernAssessmentCommandReceiptView>(
+      var concernReviewed = await CommandValueAsync<GoingConcernAssessmentCommandReceiptView>(
         await Post(reviewerClient, reviewerCsrf, concernReviewRoot,
           concernReviewRequest with { Reviewed = true, ExpectedRequestHash = concernReviewPreview.RequestHash }));
       Assert.Equal(concernReceipt.GoingConcernAssessmentId, concernReviewed.GoingConcernAssessmentId);
@@ -438,6 +439,78 @@ public sealed partial class CompletionVarianceCommandsApiTests
         x.StartsWith("analytical-review:", StringComparison.Ordinal) || x.StartsWith("going-concern:", StringComparison.Ordinal));
       Assert.False(correspondingReady.Ready);
       Assert.Equal(unrelatedBlockers.OrderBy(x => x), correspondingReady.Blockers.OrderBy(x => x));
+
+      // Apply the other evidence producers to the same statutory-audit scope and independent reviewer.
+      var completionRoot = $"/api/ui/engagements/{world.Primary.EngagementId:D}/completion";
+      var eventRoot = completionRoot + "/subsequent-events";
+      var eventState = (await preparerClient.GetFromJsonAsync<SubsequentEventReviewCommandState>(eventRoot + "/state"))!;
+      var eventRequest = new SubsequentEventReviewCommandRequest(Guid.CreateVersion7(), eventState.ExpectedRevision, eventState.ReviewBasis,
+        new(procedureId, assessmentDate, assessmentDate.AddDays(20), "Synthetic post-period event",
+          SubsequentEventClassifications.NonAdjusting, false, true, "Note 27", "The synthetic condition arose after period end.",
+          "QAR", "125.123456", [evidenceReference]));
+      var eventPreview = await CommandValueAsync<SubsequentEventReviewCommandPreview>(
+        await Post(preparerClient, preparerCsrf, eventRoot + "/prepare/preview", eventRequest));
+      Assert.True(eventPreview.CanProceed);
+      var eventPrepared = await CommandValueAsync<SubsequentEventReviewCommandReceiptView>(
+        await Post(preparerClient, preparerCsrf, eventRoot + "/prepare",
+          eventRequest with { Reviewed = true, ExpectedRequestHash = eventPreview.RequestHash }));
+      Assert.Null(eventPrepared.Result.ReviewedByUserId);
+      var eventId = eventPrepared.SubsequentEventReviewId;
+      var eventReviewState = (await reviewerClient.GetFromJsonAsync<SubsequentEventReviewCommandState>(
+        eventRoot + $"/state?selectedRecordId={eventId:D}"))!;
+      var eventReview = new SubsequentEventReviewCommandRequest(Guid.CreateVersion7(), eventReviewState.ExpectedRevision,
+        eventReviewState.ReviewBasis, SelectedRecordId: eventId);
+      var eventReviewRoot = eventRoot + $"/{eventId:D}/review";
+      var eventReviewPreview = await CommandValueAsync<SubsequentEventReviewCommandPreview>(
+        await Post(reviewerClient, reviewerCsrf, eventReviewRoot + "/preview", eventReview));
+      Assert.True(eventReviewPreview.CanProceed);
+      var eventReviewed = await CommandValueAsync<SubsequentEventReviewCommandReceiptView>(
+        await Post(reviewerClient, reviewerCsrf, eventReviewRoot,
+          eventReview with { Reviewed = true, ExpectedRequestHash = eventReviewPreview.RequestHash }));
+      Assert.Equal((eventId, reviewer.UserId, "1"),
+        (eventReviewed.SubsequentEventReviewId, eventReviewed.Result.ReviewedByUserId!.Value, eventReviewed.Result.ReviewedRevision));
+
+      var openingRoot = completionRoot + "/opening-balances";
+      var openingDate = new DateOnly(2026, 1, 1);
+      var openingStatePath = openingRoot + $"/state?asOfDate={openingDate:yyyy-MM-dd}";
+      var openingState = (await preparerClient.GetFromJsonAsync<OpeningBalanceCommandState>(openingStatePath))!;
+      var openingRequest = new OpeningBalanceCommandRequest(Guid.CreateVersion7(), openingState.ExpectedRevision, openingState.ReviewBasis,
+        new(procedureId, null, "Synthetic prior signed statements", openingDate, "QAR", "1000.123456", "1000.123456",
+          true, "Synthetic opening balances agree to the prior statements.", [evidenceReference]));
+      var openingPreview = await CommandValueAsync<OpeningBalanceCommandPreview>(
+        await Post(preparerClient, preparerCsrf, openingRoot + "/prepare/preview", openingRequest));
+      Assert.True(openingPreview.CanProceed);
+      var openingPrepared = await CommandValueAsync<OpeningBalanceCommandReceiptView>(
+        await Post(preparerClient, preparerCsrf, openingRoot + "/prepare",
+          openingRequest with { Reviewed = true, ExpectedRequestHash = openingPreview.RequestHash }));
+      Assert.False(openingPrepared.Result.CurrentIndependentReview);
+      var openingId = openingPrepared.VerificationId;
+      var openingReviewState = (await reviewerClient.GetFromJsonAsync<OpeningBalanceCommandState>(openingStatePath))!;
+      var openingReview = new OpeningBalanceCommandRequest(Guid.CreateVersion7(), openingReviewState.ExpectedRevision,
+        openingReviewState.ReviewBasis, ExpectedVerificationId: openingId, Comment: "Synthetic independent review of the exact opening evidence.");
+      var openingReviewRoot = openingRoot + $"/{openingId:D}/review";
+      var openingReviewPreview = await CommandValueAsync<OpeningBalanceCommandPreview>(
+        await Post(reviewerClient, reviewerCsrf, openingReviewRoot + "/preview", openingReview));
+      Assert.True(openingReviewPreview.CanProceed);
+      var openingReviewed = await CommandValueAsync<OpeningBalanceCommandReceiptView>(
+        await Post(reviewerClient, reviewerCsrf, openingReviewRoot,
+          openingReview with { Reviewed = true, ExpectedRequestHash = openingReviewPreview.RequestHash }));
+      Assert.Equal((openingId, reviewer.UserId, "1"),
+        (openingReviewed.VerificationId, openingReviewed.Result.ReviewedByUserId!.Value, openingReviewed.Result.ReviewedBasisRevision));
+      Assert.True(openingReviewed.Result.CurrentIndependentReview);
+
+      var allEvidence = await CompletionAsync();
+      Assert.False(allEvidence.Ready);
+      Assert.Equal(correspondingReady.Blockers.Order(StringComparer.Ordinal), allEvidence.Blockers.Order(StringComparer.Ordinal));
+      using var archiveFactory = Factory(pg, await UserAsync(pg, programReviewer.UserId));
+      using var archiveClient = archiveFactory.CreateClient(new() { AllowAutoRedirect = false });
+      await SignIn(archiveClient);
+      var handoff = (await archiveClient.GetFromJsonAsync<EngagementArchiveHandoff>(
+        $"/api/ui/engagements/{world.Primary.EngagementId:D}/archive"))!;
+      Assert.Equal(world.Primary.EngagementId, handoff.EngagementId);
+      Assert.False(handoff.CanCreate);
+      Assert.Empty(handoff.Archives);
+      Assert.Equal("The engagement must be issued and completed before an archive can be prepared.", handoff.BlockedReason);
 
       var reviewReceiptId = reviewReceipt.GetProperty("id").GetGuid();
       var reviewReceiptCount = 0;

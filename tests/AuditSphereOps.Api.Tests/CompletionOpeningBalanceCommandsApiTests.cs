@@ -176,8 +176,23 @@ public sealed partial class CompletionVarianceCommandsApiTests
     var barredPreview = await Value<OpeningBalanceCommandPreview>(await Post(adminClient, adminCsrf, barredRoot + "/prepare/preview", barredIntent));
     Assert.False(barredPreview.CanProceed);
     await Refused(adminClient, adminCsrf, barredRoot + "/prepare", barredIntent with { ExpectedRequestHash = barredPreview.RequestHash, Reviewed = true }, HttpStatusCode.BadRequest);
+
+    var beforeDowngrade = await Stored();
     await using var verify = new AuditSphereDbContext(pg.Options);
     Assert.False(verify.Database.HasPendingModelChanges());
+    var appliedMigrations = (await verify.Database.GetAppliedMigrationsAsync()).ToArray();
+    Assert.Contains("20261111160000_OpeningBalanceCommandReceipts", appliedMigrations);
+    Assert.NotEmpty(await verify.OpeningBalanceCommandReceipts.AsNoTracking().ToListAsync());
+    await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(verify, "_OpeningBalanceCommandReceipts");
+    Assert.Equal(appliedMigrations, await verify.Database.GetAppliedMigrationsAsync());
+    Assert.Equal(beforeDowngrade, await Stored());
+    using (var response = await reviewClient.GetAsync(root + $"/receipts/{review.Request.RequestId}?requestHash={review.Request.ExpectedRequestHash}"))
+    {
+      Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+      var recovered = (await response.Content.ReadFromJsonAsync<OpeningBalanceCommandLookup>())!;
+      Assert.True(recovered.Found);
+      Assert.Equal(JsonSerializer.Serialize(approved), JsonSerializer.Serialize(recovered.Receipt));
+    }
     // Actual hold/freeze lifecycle is not fabricated here; its supported lifecycle verification remains separately reported.
   }
 }

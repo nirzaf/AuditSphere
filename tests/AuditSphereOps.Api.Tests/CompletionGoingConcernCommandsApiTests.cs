@@ -226,6 +226,48 @@ public sealed partial class CompletionVarianceCommandsApiTests
       inadequateRequest with { ExpectedRequestHash = inadequatePreview.RequestHash, Reviewed = true }))
       Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
 
+    // The current preparation command cannot create NOT_ASSESSED. Exercise an isolated
+    // retained legacy row with real current evidence and no professional approval.
+    var legacyDate = date.AddDays(-2);
+    var legacy = new GoingConcernAssessment
+    {
+      Id = Guid.CreateVersion7(), FirmId = world.Primary.FirmId, ClientId = world.Primary.ClientId,
+      EngagementId = world.Primary.EngagementId, ProcedureId = procedureId, AssessmentDate = legacyDate,
+      PeriodCoveredTo = date.AddMonths(12), ForecastReviewOutcome = "Synthetic retained observations",
+      Conclusion = GoingConcernConclusions.NotAssessed, Rationale = "Synthetic unresolved legacy assessment",
+      Currency = "QAR", EvidenceReferencesJson = JsonSerializer.Serialize(new[] { evidenceReference }),
+      RecordedByUserId = preparer.UserId, RecordedAt = DateTimeOffset.UtcNow
+    };
+    int beforeLegacyReview;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.GoingConcernAssessments.Add(legacy);
+      await db.SaveChangesAsync();
+      legacy = await db.GoingConcernAssessments.AsNoTracking().SingleAsync(x => x.Id == legacy.Id);
+      beforeLegacyReview = await db.AuditCompletionGoingConcernCommandReceipts.CountAsync();
+    }
+    var legacyState = await State(reviewClient, legacyDate);
+    Assert.Equal(GoingConcernConclusions.NotAssessed, legacyState.Record!.Conclusion);
+    Assert.False(legacyState.CanReview);
+    Assert.Contains("An assessed and adequately disclosed conclusion is required before independent review.", legacyState.Blockers);
+    Assert.DoesNotContain("Current exact-engagement evidence is required before independent review.", legacyState.Blockers);
+    var legacyRequest = new GoingConcernAssessmentCommandRequest(Guid.CreateVersion7(), legacyState.ExpectedRevision, legacyState.ReviewBasis);
+    var legacyRoute = root + $"/{legacy.Id:D}/review";
+    var legacyPreview = await Value<GoingConcernAssessmentCommandPreview>(await Post(reviewClient, reviewCsrf, legacyRoute + "/preview", legacyRequest));
+    Assert.False(legacyPreview.CanProceed);
+    using (var refused = await Post(reviewClient, reviewCsrf, legacyRoute,
+      legacyRequest with { ExpectedRequestHash = legacyPreview.RequestHash, Reviewed = true }))
+      Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var refused = await AuditCompletionService.ReviewCompletionRecordAsync(db, reviewer, "GOING_CONCERN", legacy.Id, legacy.Revision);
+      Assert.False(refused.Succeeded);
+      Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.GateBlocked, refused.ErrorCode);
+      var unchanged = await db.GoingConcernAssessments.AsNoTracking().SingleAsync(x => x.Id == legacy.Id);
+      Assert.Equivalent(legacy, unchanged, strict: true);
+      Assert.Equal(beforeLegacyReview, await db.AuditCompletionGoingConcernCommandReceipts.CountAsync());
+    }
+
     var finalPrepare = await PrepareIntent(fields);
     var finalPrepared = await Value<GoingConcernAssessmentCommandReceiptView>(await Post(client, csrf, root + "/prepare", finalPrepare));
     var changedEvidenceReview = await ReviewIntent(id, date);
