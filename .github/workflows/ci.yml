@@ -150,6 +150,7 @@ jobs:
           trap cleanup_sampler EXIT
           /usr/bin/time -v dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:3 \
             -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \
+            -p:CscEnvironment=DOTNET_PROCESSOR_COUNT=2 \
             -clp:PerformanceSummary
 
       # The same manifest, confined archive and digest checks protect this same-run handoff and
