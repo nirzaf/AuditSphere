@@ -124,9 +124,13 @@ public sealed class AngularAcceptanceChecklistWorkspaceJourneyTests
         await db.RoleGrants.Where(x => x.UserId == staff.Id && x.Role == "Staff" &&
           x.ClientId == f.ClientId && x.RevokedAt == null)
           .ExecuteUpdateAsync(x => x.SetProperty(g => g.RevokedAt, DateTimeOffset.UtcNow));
-      await page.GetByRole(AriaRole.Button,
-        new() { Name = "Refresh current evaluation", Exact = true }).ClickAsync();
+      // Session polling can remove the refresh control as soon as the last staff grant is revoked.
       await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync("Acceptance unavailable");
+      await Assertions.Expect(page.GetByRole(AriaRole.Button,
+        new() { Name = "Refresh current evaluation", Exact = true })).ToHaveCountAsync(0);
+      await using var denied = await context.APIRequest.GetAsync(
+        $"{staffOrigin}/api/ui/clients/{f.ClientId:D}/assessment");
+      Assert.Equal(403, denied.Status);
       await Assertions.Expect(page.GetByRole(AriaRole.Region,
         new() { Name = "Client assessment profile", Exact = true })).ToHaveCountAsync(0);
       await Assertions.Expect(page.GetByRole(AriaRole.Region,
