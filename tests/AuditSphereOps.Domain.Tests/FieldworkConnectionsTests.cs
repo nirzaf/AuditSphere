@@ -103,6 +103,34 @@ public sealed class FieldworkConnectionsTests
     Assert.Throws<InvalidOperationException>(() => MultiPeriodTrialBalanceService.ReadTable("tb.xls", [1, 2]));
   }
 
+  [Theory]
+  [InlineData("\"Cash\"junk")]
+  [InlineData("Cash\" account\"")]
+  [InlineData("\"Cash")]
+  public void ReadTable_RejectsMalformedQuotesBeforePeriodSplit(string name)
+  {
+    var csv = TwoPeriodCsv.Replace("1000,Cash,500", $"1000,{name},500");
+    Assert.Throws<InvalidOperationException>(() =>
+      MultiPeriodTrialBalanceService.ReadTable("tb.csv", Encoding.UTF8.GetBytes(csv)));
+  }
+
+  [Fact]
+  public void Split_PreservesQuotedCarriageReturnAndUnchangedPeriodBytes()
+  {
+    var (ordinaryHeader, ordinaryRows) =
+      MultiPeriodTrialBalanceService.ReadTable("tb.csv", Encoding.UTF8.GetBytes(TwoPeriodCsv));
+    var ordinary = MultiPeriodTrialBalanceService.Split(ordinaryHeader, ordinaryRows);
+    var csv = TwoPeriodCsv.Replace("1000,Cash,500", "1000,\"Cash\raccount\",500");
+    var (header, rows) = MultiPeriodTrialBalanceService.ReadTable("tb.csv", Encoding.UTF8.GetBytes(csv));
+    var split = MultiPeriodTrialBalanceService.Split(header, rows);
+
+    Assert.Equal(ordinary["FY2026"], split["FY2026"]);
+    Assert.Equal(ordinary["FY2025"].Replace("1000,Cash,500", "1000,\"Cash\raccount\",500"), split["FY2025"]);
+    var parsed = TrialBalanceCsvImporter.Parse(split["FY2025"]);
+    Assert.Equal(("Cash\raccount", 500m), (parsed.Rows[0].AccountName, parsed.Rows[0].Amount));
+    Assert.Equal(0m, parsed.Rows.Sum(row => row.Amount));
+  }
+
   [Fact]
   public async Task ProcedurePhysicalLinks_RejectForeignParentsAndPreserveRetainedLinks()
   {

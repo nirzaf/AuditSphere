@@ -165,7 +165,7 @@ public static class TrialBalanceCsvImporter
   }
 
   // Scan the bounded source once and retain only the current logical record.
-  private static IEnumerable<List<string>> ReadRecords(string text, char delimiter)
+  internal static IEnumerable<List<string>> ReadRecords(string text, char delimiter, bool enforceRowLimit = true)
   {
     var fields = new List<string>();
     var current = new StringBuilder();
@@ -178,7 +178,7 @@ public static class TrialBalanceCsvImporter
       var c = text[i];
       if (!recordStarted && c is not ('\r' or '\n'))
       {
-        if (recordCount > MaxRows)
+        if (enforceRowLimit && recordCount > MaxRows)
           throw new InvalidOperationException($"Trial-balance file exceeds the {MaxRows:N0}-row intake limit.");
         recordStarted = true;
       }

@@ -35,7 +35,7 @@ public static class MultiPeriodTrialBalanceService
       .GroupBy(r => (periodIndex < r.Count ? r[periodIndex] : string.Empty).Trim().ToUpperInvariant(), StringComparer.Ordinal).ToList();
     if (groups.Any(g => g.Key.Length == 0)) throw new InvalidOperationException("Every row needs a period code.");
     if (groups.Count > 24) throw new InvalidOperationException("A multi-period file is limited to 24 periods.");
-    static string Csv(IEnumerable<string> cells) => string.Join(',', cells.Select(c => c.Contains(',') || c.Contains('"') || c.Contains('\n') ? "\"" + c.Replace("\"", "\"\"") + "\"" : c));
+    static string Csv(IEnumerable<string> cells) => string.Join(',', cells.Select(c => c.Contains(',') || c.Contains('"') || c.Contains('\n') || c.Contains('\r') ? "\"" + c.Replace("\"", "\"\"") + "\"" : c));
     return groups.OrderBy(g => g.Key, StringComparer.Ordinal).ToDictionary(g => g.Key, g =>
     {
       var text = new StringBuilder(Csv(keep.Select(i => header[i].Trim()))).Append('\n');
@@ -50,7 +50,10 @@ public static class MultiPeriodTrialBalanceService
     if (fileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase)) return TrialBalanceXlsxImporter.ReadTable(content);
     if (!fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Upload an .xlsx or .csv file.");
     if (content.Length > 10_000_000) throw new InvalidOperationException("Trial-balance file exceeds the 10 MB intake limit.");
-    var lines = ParseCsv(Encoding.UTF8.GetString(content).TrimStart('﻿'));
+    // The byte limit applies to the upload. The importer enforces its row limit on each period.
+    var lines = TrialBalanceCsvImporter.ReadRecords(Encoding.UTF8.GetString(content).TrimStart('\uFEFF'), ',', enforceRowLimit: false)
+      .Where(record => record.Any(field => field.Length > 0))
+      .ToList<IReadOnlyList<string>>();
     if (lines.Count < 2) throw new InvalidOperationException("The file has no data rows.");
     return (lines[0], lines.Skip(1).ToList());
   }
@@ -125,34 +128,5 @@ public static class MultiPeriodTrialBalanceService
     var header = csv[..csv.IndexOf('\n')];
     return header.Split(',').Any(h => h.Trim().Equals("Debit", StringComparison.OrdinalIgnoreCase))
       ? TrialBalanceImportProfile.DebitCreditV1 : TrialBalanceImportProfile.SignedNetV1;
-  }
-
-  private static List<IReadOnlyList<string>> ParseCsv(string text)
-  {
-    var rows = new List<IReadOnlyList<string>>();
-    var row = new List<string>();
-    var cell = new StringBuilder();
-    var quoted = false;
-    for (var i = 0; i < text.Length; i++)
-    {
-      var c = text[i];
-      if (quoted)
-      {
-        if (c == '"' && i + 1 < text.Length && text[i + 1] == '"') { cell.Append('"'); i++; }
-        else if (c == '"') quoted = false;
-        else cell.Append(c);
-      }
-      else if (c == '"') quoted = true;
-      else if (c == ',') { row.Add(cell.ToString()); cell.Clear(); }
-      else if (c is '\n' or '\r')
-      {
-        if (c == '\r' && i + 1 < text.Length && text[i + 1] == '\n') i++;
-        row.Add(cell.ToString()); cell.Clear();
-        rows.Add(row); row = [];
-      }
-      else cell.Append(c);
-    }
-    if (cell.Length > 0 || row.Count > 0) { row.Add(cell.ToString()); rows.Add(row); }
-    return rows.Where(r => r.Any(x => x.Length > 0)).ToList();
   }
 }
