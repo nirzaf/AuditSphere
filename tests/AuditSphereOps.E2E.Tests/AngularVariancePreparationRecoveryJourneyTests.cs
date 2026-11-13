@@ -80,11 +80,19 @@ public sealed class AngularVariancePreparationRecoveryJourneyTests
     await Assertions.Expect(pending).ToContainTextAsync("REVENUE / 2026-Q1");
 
     await pending.GetByRole(AriaRole.Button, new() { Name = "Load pending request scope", Exact = true }).ClickAsync();
-    var lookup = await page.RunAndWaitForResponseAsync(
-      () => pending.GetByRole(AriaRole.Button, new() { Name = "Look up this exact request", Exact = true }).ClickAsync(),
-      response => response.Url == $"{origin}{apiPath}/receipts/{requestId:D}?requestHash={hash}");
+    var lookupUrl = $"{origin}{apiPath}/receipts/{requestId:D}?requestHash={hash}";
+    var observedLookup = new TaskCompletionSource<(int Status, string Body)>(TaskCreationOptions.RunContinuationsAsynchronously);
+    await page.RouteAsync(lookupUrl, async route =>
+    {
+      // Capture the real response before delivering it to the browser, which may invalidate the network body handle.
+      await using var response = await route.FetchAsync();
+      observedLookup.TrySetResult((response.Status, await response.TextAsync()));
+      await route.FulfillAsync(new() { Response = response });
+    });
+    await pending.GetByRole(AriaRole.Button, new() { Name = "Look up this exact request", Exact = true }).ClickAsync();
+    var lookup = await observedLookup.Task.WaitAsync(TimeSpan.FromSeconds(15));
     Assert.Equal(200, lookup.Status);
-    using var recovered = JsonDocument.Parse(await lookup.TextAsync());
+    using var recovered = JsonDocument.Parse(lookup.Body);
     Assert.True(recovered.RootElement.GetProperty("found").GetBoolean());
     Assert.Equal(receiptId, recovered.RootElement.GetProperty("receipt").GetProperty("id").GetGuid());
     await Assertions.Expect(pending).ToHaveCountAsync(0);

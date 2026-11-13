@@ -188,7 +188,9 @@ public sealed class AngularCompletionFileRecordsJourneyTests
     var archiveHandoffRoute = engagementRoute + "/archive";
     var lifecycleAction = workflow.GetByRole(AriaRole.Link, new() { Name = "Open: Archived (Read-Only)", Exact = true });
     await Assertions.Expect(lifecycleAction).ToHaveAttributeAsync("href", archiveHandoffRoute);
+    await WaitForPlanningAsync(page);
     await lifecycleAction.ClickAsync();
+    await Assertions.Expect(page).ToHaveURLAsync(origin + archiveHandoffRoute);
     await Assertions.Expect(page.GetByText(
       "The engagement must be issued and completed before an archive can be prepared.", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { NameRegex = new("^Prepare ") })).ToHaveCountAsync(0);
@@ -223,7 +225,9 @@ public sealed class AngularCompletionFileRecordsJourneyTests
       await page.GotoAsync(origin + engagementRoute);
       var link = workflow.GetByRole(AriaRole.Link, new() { Name = action, Exact = true });
       await Assertions.Expect(link).ToHaveAttributeAsync("href", archiveHandoffRoute);
+      await WaitForPlanningAsync(page);
       await link.ClickAsync();
+      await Assertions.Expect(page).ToHaveURLAsync(origin + archiveHandoffRoute);
       var archive = page.GetByRole(AriaRole.Link, new() { Name = $"Open archive {profileCode} version 1", Exact = true });
       await Assertions.Expect(archive).ToHaveAttributeAsync("href", archiveRoute);
       await archive.ClickAsync();
@@ -367,6 +371,11 @@ public sealed class AngularCompletionFileRecordsJourneyTests
     foreach (var page in new[] { requesterPage, partnerPage, contenderPage })
       await page.Context.CloseAsync();
   }
+
+  private static Task WaitForPlanningAsync(IPage page) =>
+    // The engagement navigation guard rejects attempts while the deferred planning read is loading.
+    Assertions.Expect(page.GetByRole(AriaRole.Region, new() { Name = "Engagement planning", Exact = true })
+      .GetByRole(AriaRole.Heading, new() { Name = "Engagement team", Exact = true })).ToBeVisibleAsync();
 
   private static async Task<Guid> ReadSingleAmendmentIdAsync(OwnedHost host, Guid engagementId)
   {

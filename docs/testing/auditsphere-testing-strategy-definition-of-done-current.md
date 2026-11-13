@@ -29,6 +29,8 @@ Use `./scripts/agent-check --list` to find an existing bounded capability packet
 
 E2E journeys should exercise observable user outcomes at a supported boundary with isolated PostgreSQL data, exact source identity, and cleanup. Assertions cover the workflow's original security, scope, persistence, and professional boundary checks. Do not replace a meaningful failure with a weaker selector or status assertion; correct the test only when evidence shows the observed UI contract or timing changed, and retain the unique invariants.
 
+The archive handoff journey waits for the deferred planning read to finish before following either engagement link, then verifies the exact handoff URL and archive ID. The variance recovery journey captures the exact receipt response before delivering it to the browser and still verifies the refreshed period, persisted receipt, and absence of a duplicate write.
+
 For offboarding and reconciliation, verify the UI decoder matches the server contract, unknown evidence stays unknown, fee authority is client-scoped, amounts and invoice identity remain exact, bounded previews disclose omitted findings and link to the source workspace, and the digest changes when any included source fact changes. Existing closeout receipts must remain replayable by their exact request identity while stale new requests fail closed.
 
 ## Result vocabulary
