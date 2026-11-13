@@ -815,6 +815,7 @@ def _gitleaks_report(report: Any) -> tuple[dict[str, tuple[str, str]], list[str]
     if type(report) is not list:
         return None
     findings: dict[str, tuple[str, str]] = {}
+    fingerprint_rows: dict[str, dict[str, Any]] = {}
     for item in report:
         if (
             type(item) is not dict
@@ -827,10 +828,12 @@ def _gitleaks_report(report: Any) -> tuple[dict[str, tuple[str, str]], list[str]
             or COMMIT_RE.fullmatch(item["Commit"]) is None
         ):
             return None
-        finding_id = _hashed_finding_id("GITLEAKS", item["Fingerprint"])
-        if finding_id in findings:
+        fingerprint = item["Fingerprint"]
+        # Gitleaks can report several column spans on the same fingerprinted line.
+        context = {key: value for key, value in item.items() if key not in {"StartColumn", "EndColumn"}}
+        if fingerprint_rows.setdefault(fingerprint, context) != context:
             return None
-        findings[finding_id] = ("SECRET", "UNKNOWN")
+        findings[_hashed_finding_id("GITLEAKS", fingerprint)] = ("SECRET", "UNKNOWN")
     return findings, []
 
 

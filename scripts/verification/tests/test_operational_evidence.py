@@ -713,6 +713,20 @@ class OperationalEvidenceTests(unittest.TestCase):
         self.assertTrue(all(finding == ("SECRET", "UNKNOWN") for finding in parsed[0].values()))
         self.assertEqual([], parsed[1])
 
+    def test_gitleaks_report_groups_multiple_columns_under_one_fingerprint(self) -> None:
+        first = {
+            "Fingerprint": "fixture-fingerprint",
+            "RuleID": "generic-api-key",
+            "Commit": "c" * 40,
+            "StartColumn": 3,
+            "EndColumn": 7,
+        }
+        second = {**first, "StartColumn": 11, "EndColumn": 15}
+        expected = {verify._hashed_finding_id("GITLEAKS", first["Fingerprint"]): ("SECRET", "UNKNOWN")}
+        self.assertEqual((expected, []), verify._gitleaks_report([first, second]))
+        self.assertIsNone(verify._gitleaks_report([first, {**second, "Commit": "d" * 40}]))
+        self.assertIsNone(verify._gitleaks_report([first, {**second, "RuleID": "other-rule"}]))
+
     def test_duplicate_keys_wrong_types_and_unrecognized_approval_claims_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "duplicate.json"

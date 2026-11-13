@@ -13,4 +13,6 @@
 
 The release verification npm scan retains both direct advisories and dependency-derived findings in the [operational evidence record](../spec/completion-operational-evidence.json). Dependency findings must link to a reported advisory through the dependency chain. The npm report does not authenticate its advisory feed, so capturing findings leaves that acceptance check open.
 
+The redacted Git history scan retains all scanner rows and records one finding per Gitleaks fingerprint when repeated rows differ only by column span. Conflicting context for a fingerprint leaves the report unverified.
+
 These procedures describe supported technical operations. They do not authorize production changes, broad tenant permissions, external effects, or customer acceptance. Follow `AGENTS.md` and the applicable approved permission boundary; record live evidence separately from local rehearsal evidence.
