@@ -170,18 +170,23 @@ public static class TrialBalanceImportService
           x.EngagementId == engagementId && x.RawFileSha256Hex == parsed.RawFileSha256Hex, ct))
       return CommandResult<IReadOnlyList<Guid>>.Fail(ErrorCodes.Accounting.ImportDuplicate,
         "Identical source bytes were already imported for this engagement; reuse that batch or dataset.");
-    if (await db.TrialBalanceImportBatches.AnyAsync(x => x.FirmId == engagement.FirmId &&
-        x.EngagementId == engagementId && x.NormalizedDatasetDigest == parsed.NormalizedDatasetDigest, ct) ||
-        await db.TrialBalanceDatasets.AnyAsync(x => x.FirmId == engagement.FirmId &&
-          x.EngagementId == engagementId && x.NormalizedDatasetDigest == parsed.NormalizedDatasetDigest, ct))
+    if (await HasCurrentNormalizedDuplicateAsync(db, engagement.FirmId, engagementId, parsed, ct))
       return CommandResult<IReadOnlyList<Guid>>.Fail(ErrorCodes.Accounting.ImportDuplicate,
         "Equivalent normalized trial-balance content was already imported for this engagement; review the existing source before reusing it.");
+    var legacyDuplicate = await FindLegacyNormalizedDuplicateAsync(db, engagement.FirmId, engagementId, parsed, ct);
+    if (legacyDuplicate == LegacyNormalizedDuplicateStatus.Equivalent)
+      return CommandResult<IReadOnlyList<Guid>>.Fail(ErrorCodes.Accounting.ImportDuplicate,
+        "Equivalent normalized trial-balance content was already imported for this engagement; review the existing source before reusing it.");
+    if (legacyDuplicate == LegacyNormalizedDuplicateStatus.Unverifiable)
+      return CommandResult<IReadOnlyList<Guid>>.Fail(ErrorCodes.Accounting.ImportDuplicate,
+        "A retained legacy trial-balance identity could not be reconciled to its immutable rows; review the existing source before importing again.");
 
     var batch = new TrialBalanceImportBatch
     {
       Id = Guid.CreateVersion7(), FirmId = engagement.FirmId, ClientId = clientId, EngagementId = engagementId,
       PeriodId = source.Value!.PeriodId, BookId = source.Value.BookId, Basis = source.Value.Basis,
       RawFileSha256Hex = parsed.RawFileSha256Hex, NormalizedDatasetDigest = parsed.NormalizedDatasetDigest,
+      NormalizedDatasetDigestVersion = parsed.NormalizedDatasetDigestVersion,
       ImportProfileVersion = parsed.ImportProfileVersion, SourceLayout = parsed.SourceLayout,
       EntityCount = entities.Length, Status = TrialBalanceImportStates.Loading,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
@@ -202,6 +207,7 @@ public static class TrialBalanceImportService
         ImportBatchId = batch.Id, SourceKind = "Raw", Revision = ++nextRevision, LegalEntityKey = entity,
         Currency = parsed.Currency, RawFileSha256Hex = parsed.RawFileSha256Hex,
         NormalizedDatasetDigest = parsed.NormalizedDatasetDigest, Sha256Hex = parsed.NormalizedDatasetDigest,
+        NormalizedDatasetDigestVersion = parsed.NormalizedDatasetDigestVersion,
         ImportProfileVersion = parsed.ImportProfileVersion, SourceLayout = parsed.SourceLayout,
         ImportState = TrialBalanceImportStates.Loading, ValidationStatus = "Pending",
         ImportedAt = batch.CreatedAt, ImportedByUserId = actor.UserId
@@ -290,12 +296,17 @@ public static class TrialBalanceImportService
     if (duplicate)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportDuplicate,
         "Identical source bytes were already imported for this engagement; reuse that dataset.");
-    var normalizedDuplicate = await db.TrialBalanceDatasets.AsNoTracking().AnyAsync(d =>
-      d.FirmId == lockedEngagement.FirmId && d.EngagementId == engagementId &&
-      d.NormalizedDatasetDigest == parsed.NormalizedDatasetDigest, ct);
+    var normalizedDuplicate = await HasCurrentNormalizedDuplicateAsync(db, lockedEngagement.FirmId, engagementId, parsed, ct);
     if (normalizedDuplicate)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportDuplicate,
         "Equivalent normalized trial-balance content was already imported for this engagement; review the existing source before reusing it.");
+    var legacyDuplicate = await FindLegacyNormalizedDuplicateAsync(db, lockedEngagement.FirmId, engagementId, parsed, ct);
+    if (legacyDuplicate == LegacyNormalizedDuplicateStatus.Equivalent)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportDuplicate,
+        "Equivalent normalized trial-balance content was already imported for this engagement; review the existing source before reusing it.");
+    if (legacyDuplicate == LegacyNormalizedDuplicateStatus.Unverifiable)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportDuplicate,
+        "A retained legacy trial-balance identity could not be reconciled to its immutable rows; review the existing source before importing again.");
 
     var revision = await db.TrialBalanceDatasets
       .Where(d => d.FirmId == lockedEngagement.FirmId && d.EngagementId == engagementId)
@@ -316,6 +327,7 @@ public static class TrialBalanceImportService
       RawFileSha256Hex = parsed.RawFileSha256Hex,
       NormalizedDatasetDigest = parsed.NormalizedDatasetDigest,
       Sha256Hex = parsed.NormalizedDatasetDigest,
+      NormalizedDatasetDigestVersion = parsed.NormalizedDatasetDigestVersion,
       ImportProfileVersion = parsed.ImportProfileVersion,
       SourceLayout = parsed.SourceLayout,
       ImportState = TrialBalanceImportStates.Loading,
@@ -356,6 +368,125 @@ public static class TrialBalanceImportService
         "Identical source bytes were already imported for this engagement; reuse that dataset.");
     }
     return CommandResult<Guid>.Ok(dataset.Id);
+  }
+
+  private static async Task<bool> HasCurrentNormalizedDuplicateAsync(
+    IClientAccountingDbContext db, Guid firmId, Guid engagementId, ParsedCsvFile parsed, CancellationToken ct)
+  {
+    if (await db.TrialBalanceImportBatches.AsNoTracking().AnyAsync(x => x.FirmId == firmId &&
+          x.EngagementId == engagementId && x.NormalizedDatasetDigestVersion == parsed.NormalizedDatasetDigestVersion &&
+          x.NormalizedDatasetDigest == parsed.NormalizedDatasetDigest, ct))
+      return true;
+    return await db.TrialBalanceDatasets.AsNoTracking().AnyAsync(x => x.FirmId == firmId &&
+      x.EngagementId == engagementId && x.SourceKind == "Raw" && x.ImportBatchId == null &&
+      x.NormalizedDatasetDigestVersion == parsed.NormalizedDatasetDigestVersion &&
+      x.NormalizedDatasetDigest == parsed.NormalizedDatasetDigest, ct);
+  }
+
+  private enum LegacyNormalizedDuplicateStatus
+  {
+    None,
+    Equivalent,
+    Unverifiable
+  }
+
+  private static async Task<LegacyNormalizedDuplicateStatus> FindLegacyNormalizedDuplicateAsync(
+    IClientAccountingDbContext db, Guid firmId, Guid engagementId, ParsedCsvFile parsed, CancellationToken ct)
+  {
+    var legacyVersion = TrialBalanceDigestVersions.LegacyDelimitedV2;
+    var legacyDigest = parsed.LegacyNormalizedDatasetDigest;
+    var datasetCandidates = await db.TrialBalanceDatasets.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.EngagementId == engagementId && x.SourceKind == "Raw" &&
+        (x.NormalizedDatasetDigestVersion == legacyVersion || x.NormalizedDatasetDigestVersion == null) &&
+        x.NormalizedDatasetDigest == legacyDigest)
+      .ToListAsync(ct);
+    var matchingBatches = await db.TrialBalanceImportBatches.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.EngagementId == engagementId &&
+        x.NormalizedDatasetDigestVersion == legacyVersion && x.NormalizedDatasetDigest == legacyDigest)
+      .ToListAsync(ct);
+    var batchIds = matchingBatches.Select(x => x.Id)
+      .Concat(datasetCandidates.Where(x => x.ImportBatchId.HasValue).Select(x => x.ImportBatchId!.Value))
+      .Distinct().ToArray();
+    var unverifiable = false;
+
+    foreach (var batchId in batchIds)
+    {
+      var batch = matchingBatches.SingleOrDefault(x => x.Id == batchId);
+      if (batch is null || batch.Status != TrialBalanceImportStates.Sealed)
+      {
+        unverifiable = true;
+        continue;
+      }
+
+      var children = await db.TrialBalanceDatasets.AsNoTracking()
+        .Where(x => x.FirmId == firmId && x.EngagementId == engagementId && x.ImportBatchId == batchId)
+        .ToListAsync(ct);
+      if (children.Count != batch.EntityCount || children.Count < 2 ||
+          children.Select(x => x.LegalEntityKey).Distinct(StringComparer.Ordinal).Count() != batch.EntityCount ||
+          children.Any(x => x.SourceKind != "Raw" || x.ImportState != TrialBalanceImportStates.Sealed ||
+            (x.NormalizedDatasetDigestVersion != legacyVersion && x.NormalizedDatasetDigestVersion != null) ||
+            x.NormalizedDatasetDigest != legacyDigest ||
+            x.ImportProfileVersion != batch.ImportProfileVersion || x.SourceLayout != batch.SourceLayout))
+      {
+        unverifiable = true;
+        continue;
+      }
+
+      var childIds = children.Select(x => x.Id).ToArray();
+      var storedRows = await db.TrialBalanceRows.AsNoTracking().Where(x => childIds.Contains(x.DatasetId)).ToListAsync(ct);
+      var rowsByDataset = storedRows.GroupBy(x => x.DatasetId).ToDictionary(x => x.Key, x => x.ToArray());
+      if (children.Any(child => !rowsByDataset.TryGetValue(child.Id, out var childRows) || childRows.Length == 0 ||
+          childRows.Any(row => !string.Equals(row.Entity, child.LegalEntityKey, StringComparison.Ordinal))))
+      {
+        unverifiable = true;
+        continue;
+      }
+      var reconstructed = ReconstructStoredIdentity(storedRows, batch.ImportProfileVersion, batch.SourceLayout);
+      if (reconstructed is null || reconstructed.LegacyNormalizedDatasetDigest != batch.NormalizedDatasetDigest)
+      {
+        unverifiable = true;
+        continue;
+      }
+      if (reconstructed.NormalizedDatasetDigest == parsed.NormalizedDatasetDigest)
+        return LegacyNormalizedDuplicateStatus.Equivalent;
+    }
+
+    foreach (var dataset in datasetCandidates.Where(x => x.ImportBatchId is null))
+    {
+      if (dataset.ImportState != TrialBalanceImportStates.Sealed)
+      {
+        unverifiable = true;
+        continue;
+      }
+
+      var storedRows = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == dataset.Id).ToListAsync(ct);
+      if (storedRows.Count == 0 || storedRows.Any(x => !string.Equals(x.Entity, dataset.LegalEntityKey, StringComparison.Ordinal)))
+      {
+        unverifiable = true;
+        continue;
+      }
+      var reconstructed = ReconstructStoredIdentity(storedRows, dataset.ImportProfileVersion, dataset.SourceLayout);
+      if (reconstructed is null || reconstructed.LegacyNormalizedDatasetDigest != dataset.NormalizedDatasetDigest)
+      {
+        unverifiable = true;
+        continue;
+      }
+      if (reconstructed.NormalizedDatasetDigest == parsed.NormalizedDatasetDigest)
+        return LegacyNormalizedDuplicateStatus.Equivalent;
+    }
+
+    return unverifiable ? LegacyNormalizedDuplicateStatus.Unverifiable : LegacyNormalizedDuplicateStatus.None;
+  }
+
+  private static ParsedCsvFile? ReconstructStoredIdentity(
+    IReadOnlyList<TrialBalanceRow> storedRows, string profileVersion, string sourceLayout)
+  {
+    if (storedRows.Count == 0 || string.IsNullOrWhiteSpace(profileVersion) || !TrialBalanceLayouts.IsSupported(sourceLayout))
+      return null;
+    var rows = storedRows.Select(x => new TbImportRow(x.AccountCode, x.AccountName, x.Amount, x.Currency,
+      x.Entity, x.MappingCode, x.SourceDebit, x.SourceCredit)).ToArray();
+    return TrialBalanceCsvImporter.BuildParsed(rows, rows[0].Currency, string.Empty,
+      new TrialBalanceImportProfile(profileVersion, sourceLayout));
   }
 
   private static bool IsUniqueViolation(DbUpdateException exception) =>

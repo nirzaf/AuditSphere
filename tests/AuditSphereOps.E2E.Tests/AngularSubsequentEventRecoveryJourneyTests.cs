@@ -139,17 +139,30 @@ public sealed class AngularSubsequentEventRecoveryJourneyTests
     await SignInAsAsync(origin, reviewer.Id);
     await Assertions.Expect(pending).ToContainTextAsync(requestId.ToString("D"), new() { Timeout = 15000 });
     await pending.GetByRole(AriaRole.Button, new() { Name = "Load saved request scope", Exact = true }).ClickAsync();
-    var lookup = await page.RunAndWaitForResponseAsync(
-      () => pending.GetByRole(AriaRole.Button, new() { Name = "Look up exact request", Exact = true }).ClickAsync(),
-      response => response.Url == lookupUrl);
-    Assert.Equal(200, lookup.Status);
-    using var recovered = JsonDocument.Parse(await lookup.TextAsync());
-    Assert.True(recovered.RootElement.GetProperty("found").GetBoolean());
-    Assert.Equal(receiptId, recovered.RootElement.GetProperty("receipt").GetProperty("id").GetGuid());
-    await Assertions.Expect(pending).ToHaveCountAsync(0);
-    await Assertions.Expect(panel.Locator("[data-se-history]")).ToContainTextAsync("Exact event state refreshed.");
-    await Assertions.Expect(panel.Locator("[data-se-record]")).ToContainTextAsync("reviewed revision 1");
-    Assert.Equal(1, Volatile.Read(ref sent));
+    var recoveredLookup = new TaskCompletionSource<(int Status, string Body)>(TaskCreationOptions.RunContinuationsAsynchronously);
+    await page.RouteAsync(lookupUrl, async route =>
+    {
+      await using var response = await route.FetchAsync();
+      recoveredLookup.TrySetResult((response.Status, await response.TextAsync()));
+      await route.FulfillAsync(new() { Response = response });
+    });
+    try
+    {
+      await pending.GetByRole(AriaRole.Button, new() { Name = "Look up exact request", Exact = true }).ClickAsync();
+      var (recoveredStatus, recoveredBody) = await recoveredLookup.Task.WaitAsync(TimeSpan.FromSeconds(15));
+      Assert.Equal(200, recoveredStatus);
+      using var recovered = JsonDocument.Parse(recoveredBody);
+      Assert.True(recovered.RootElement.GetProperty("found").GetBoolean());
+      Assert.Equal(receiptId, recovered.RootElement.GetProperty("receipt").GetProperty("id").GetGuid());
+      await Assertions.Expect(pending).ToHaveCountAsync(0);
+      await Assertions.Expect(panel.Locator("[data-se-history]")).ToContainTextAsync("Exact event state refreshed.");
+      await Assertions.Expect(panel.Locator("[data-se-record]")).ToContainTextAsync("reviewed revision 1");
+      Assert.Equal(1, Volatile.Read(ref sent));
+    }
+    finally
+    {
+      await page.UnrouteAsync(lookupUrl);
+    }
 
     await using var verify = host.CreateDbContext();
     var retained = await verify.SubsequentEventReviews.AsNoTracking().SingleAsync();

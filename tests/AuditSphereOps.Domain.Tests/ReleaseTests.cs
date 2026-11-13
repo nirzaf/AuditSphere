@@ -2,12 +2,14 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Reviews;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -485,11 +487,79 @@ public sealed class ReleaseTests
       Assert.Single(await db.Releases.AsNoTracking().Where(x => x.ReleaseCandidateId == candidateId).ToListAsync());
       Assert.Equal(1, checkpointStore.WriteCalls);
       Assert.Equal(1, checkpointStore.VerifyCalls);
+
+      var administrator = PbcSeed.User(fixture.FirmId, "Staff");
+      db.Users.Add(administrator);
+      db.RoleGrants.Add(PbcSeed.Grant(fixture.FirmId, administrator, "Administrator"));
+      await db.SaveChangesAsync();
+      var grantId = await db.RoleGrants.Where(x => x.UserId == fixture.Partner.UserId && x.Role == "Partner")
+        .Select(x => x.Id).SingleAsync();
+      using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+      var ct = deadline.Token;
+      var barrier = new ReleaseRevocationBarrier();
+      var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(barrier).Options;
+      await using var revoker = new AuditSphereDbContext(options);
+      await using var issuer = new AuditSphereDbContext(pg.Options);
+      await revoker.Database.OpenConnectionAsync(ct);
+      await issuer.Database.OpenConnectionAsync(ct);
+      var revokerPid = ((NpgsqlConnection)revoker.Database.GetDbConnection()).ProcessID;
+      var issuerPid = ((NpgsqlConnection)issuer.Database.GetDbConnection()).ProcessID;
+      var revocation = RoleAdministrationService.RevokeRoleGrantAsync(revoker, PbcSeed.Actor(administrator, "Administrator"),
+        new RevokeRoleGrantRequest(grantId, Reason: "Synthetic release replay revocation"), ct);
+      Task<CommandResult<Guid>>? retry = null;
+      try
+      {
+        Assert.Same(barrier.Reached.Task, await Task.WhenAny(barrier.Reached.Task, revocation).WaitAsync(ct));
+        retry = ReleaseService.IssueAsync(issuer, fixture.Partner, new IssueReleaseRequest(candidateId, 1, digest, key), ct: ct);
+        var waiting = false;
+        while (!retry.IsCompleted && !waiting)
+        {
+          waiting = await db.Database.SqlQuery<bool>($"""
+            SELECT EXISTS (
+              SELECT 1 FROM pg_stat_activity WHERE pid = {issuerPid}
+                AND wait_event_type = 'Lock' AND query LIKE '%firm_safety_states%'
+                AND {revokerPid} = ANY(pg_blocking_pids(pid))
+            ) AS "Value"
+            """).SingleAsync(ct);
+          if (!waiting) await Task.Delay(20, ct);
+        }
+        Assert.True(waiting, "The replay must wait on the revocation transaction's firm lock.");
+      }
+      finally
+      {
+        barrier.Release.TrySetResult();
+        if (retry is null) await revocation;
+        else await Task.WhenAll(revocation, retry);
+      }
+
+      Assert.True((await revocation).Succeeded);
+      var refused = await retry!;
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, refused.ErrorCode);
+      Assert.Equal(Guid.Empty, refused.Value);
+      Assert.Equal(issued.Value, (await db.Releases.AsNoTracking().SingleAsync(ct)).Id);
+      Assert.Equal(candidateId, (await db.ReleaseCandidates.AsNoTracking().SingleAsync(ct)).Id);
+      Assert.Equal(deliveryIntent.Id, (await db.DurableOperations.AsNoTracking()
+        .SingleAsync(x => x.OperationKind == "ReleaseDelivery.v1", ct)).Id);
     }
     finally
     {
       if (Directory.Exists(checkpointDir))
         Directory.Delete(checkpointDir, recursive: true);
+    }
+  }
+
+  private sealed class ReleaseRevocationBarrier : SaveChangesInterceptor
+  {
+    public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public override async ValueTask<int> SavedChangesAsync(
+      SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default)
+    {
+      Reached.TrySetResult();
+      await Release.Task.WaitAsync(cancellationToken);
+      return result;
     }
   }
 

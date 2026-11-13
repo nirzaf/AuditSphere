@@ -18,6 +18,8 @@ public sealed record ParsedCsvFile(
 {
   public string ImportProfileVersion { get; init; } = TrialBalanceImportProfile.SignedNetV1.Version;
   public string SourceLayout { get; init; } = TrialBalanceLayouts.SignedNet;
+  public string NormalizedDatasetDigestVersion { get; init; } = TrialBalanceDigestVersions.LengthPrefixedV3;
+  internal string LegacyNormalizedDatasetDigest { get; init; } = string.Empty;
 
   // Compatibility alias for callers that used the old reconstructed-source hash.
   public string SourceHash => NormalizedDatasetDigest;
@@ -42,7 +44,7 @@ public sealed record TrialBalanceImportProfile(string Version, string Layout, ch
 public static class TrialBalanceCsvImporter
 {
   public const int MaxRows = 20000;
-  public const string NormalizedDigestVersion = "tb-csv-normalized.v2";
+  public const string NormalizedDigestVersion = TrialBalanceDigestVersions.LengthPrefixedV3;
   private static readonly string[] CommonColumns =
     ["AccountCode", "AccountName", "NetClosingBalance", "Currency", "Entity", "MappingCode"];
   private static readonly string[] DebitCreditColumns =
@@ -130,7 +132,29 @@ public static class TrialBalanceCsvImporter
     TrialBalanceImportProfile? profile = null)
   {
     profile ??= TrialBalanceImportProfile.SignedNetV1;
-    var normalized = new StringBuilder(NormalizedDigestVersion).Append('|').Append(profile.Version).Append('|').Append(profile.Layout).Append('\n');
+    var ordered = rows.OrderBy(x => x.Entity, StringComparer.Ordinal)
+      .ThenBy(x => x.AccountCode, StringComparer.Ordinal)
+      .ThenBy(x => x.AccountName, StringComparer.Ordinal)
+      .ThenBy(x => x.MappingCode, StringComparer.Ordinal)
+      .ThenBy(x => x.Amount)
+      .ThenBy(x => x.SourceDebit)
+      .ThenBy(x => x.SourceCredit)
+      .ThenBy(x => x.Currency, StringComparer.Ordinal)
+      .ToArray();
+    return new ParsedCsvFile(rows, currency, rawFileSha256Hex,
+      Hashing.Sha256Hex(SerializeLengthPrefixedV3(ordered, profile)))
+    {
+      ImportProfileVersion = profile.Version,
+      SourceLayout = profile.Layout,
+      NormalizedDatasetDigestVersion = NormalizedDigestVersion,
+      LegacyNormalizedDatasetDigest = HashLegacyDelimitedV2(rows, profile)
+    };
+  }
+
+  internal static string HashLegacyDelimitedV2(IReadOnlyList<TbImportRow> rows, TrialBalanceImportProfile profile)
+  {
+    var normalized = new StringBuilder(TrialBalanceDigestVersions.LegacyDelimitedV2)
+      .Append('|').Append(profile.Version).Append('|').Append(profile.Layout).Append('\n');
     foreach (var row in rows.OrderBy(x => x.Entity, StringComparer.Ordinal)
       .ThenBy(x => x.AccountCode, StringComparer.Ordinal)
       .ThenBy(x => x.AccountName, StringComparer.Ordinal)
@@ -143,11 +167,41 @@ public static class TrialBalanceCsvImporter
         .Append(row.SourceCredit?.ToString("0.000000", CultureInfo.InvariantCulture) ?? string.Empty).Append('|')
         .Append(row.Currency).Append('|').Append(row.MappingCode ?? string.Empty).Append('\n');
     }
-    return new ParsedCsvFile(rows, currency, rawFileSha256Hex, Hashing.Sha256Hex(normalized.ToString()))
+    return Hashing.Sha256Hex(normalized.ToString());
+  }
+
+  private static byte[] SerializeLengthPrefixedV3(
+    IReadOnlyList<TbImportRow> rows, TrialBalanceImportProfile profile)
+  {
+    using var stream = new MemoryStream();
+    using (var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true))
     {
-      ImportProfileVersion = profile.Version,
-      SourceLayout = profile.Layout
-    };
+      // BinaryWriter strings are UTF-8 with a 7-bit byte-length prefix, so field
+      // contents cannot consume delimiters or boundaries from adjacent fields.
+      writer.Write(NormalizedDigestVersion);
+      writer.Write(profile.Version);
+      writer.Write(profile.Layout);
+      writer.Write(rows.Count);
+      foreach (var row in rows)
+      {
+        writer.Write(row.Entity);
+        writer.Write(row.AccountCode);
+        writer.Write(row.AccountName);
+        writer.Write(row.Amount.ToString("0.000000", CultureInfo.InvariantCulture));
+        WriteNullableAmount(writer, row.SourceDebit);
+        WriteNullableAmount(writer, row.SourceCredit);
+        writer.Write(row.Currency);
+        writer.Write(row.MappingCode ?? string.Empty);
+      }
+    }
+    return stream.ToArray();
+  }
+
+  private static void WriteNullableAmount(BinaryWriter writer, decimal? amount)
+  {
+    writer.Write(amount.HasValue);
+    if (amount.HasValue)
+      writer.Write(amount.Value.ToString("0.000000", CultureInfo.InvariantCulture));
   }
 
   internal static decimal ParseAmount(string text, int row)

@@ -193,6 +193,10 @@ public static class ReleaseService
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (existing is not null)
     {
+      auth = await AuthorizationAsync(db, actor, candidate.ClientId, candidate.EngagementId, ct);
+      if (!auth.Succeeded)
+        return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+
       if (existing.ReleaseCandidateId == candidate.Id && existing.ManifestDigest == request.ManifestDigest &&
           existing.PackageRevision == candidate.TargetRevision &&
           (candidate.TargetKind != ReleaseTargetKinds.FinancialPackage || existing.PinnedCompositionId is not null))

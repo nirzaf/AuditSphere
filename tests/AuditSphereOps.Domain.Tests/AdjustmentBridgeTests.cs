@@ -50,8 +50,32 @@ public sealed class TrialBalanceCsvParserTests
     var parsed = TrialBalanceCsvImporter.Parse(csv);
     Assert.Equal(new TbImportRow("001", "Cash", 100m, "QAR", "CLIENT-A", "CASH"), Assert.Single(parsed.Rows));
     Assert.Equal(Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes(csv)), parsed.RawFileSha256Hex);
+    Assert.Equal(TrialBalanceDigestVersions.LengthPrefixedV3, parsed.NormalizedDatasetDigestVersion);
     Assert.Equal(Hashing.Sha256Hex("tb-csv-normalized.v2|tb-signed-net.v1|SIGNED_NET\n" +
-      "CLIENT-A|001|Cash|100.000000|||QAR|CASH\n"), parsed.NormalizedDatasetDigest);
+      "CLIENT-A|001|Cash|100.000000|||QAR|CASH\n"), parsed.LegacyNormalizedDatasetDigest);
+    Assert.NotEqual(parsed.LegacyNormalizedDatasetDigest, parsed.NormalizedDatasetDigest);
+  }
+
+  [Fact]
+  [Trait("Profile", "Unit")]
+  public void NormalizedIdentity_DistinguishesPipesInsideAccountCodeAndName()
+  {
+    const string first = CsvHeader + "\n" +
+      "100|A,Cash,100,QAR,STE,CASH\n" +
+      "300,Equity,-100,QAR,STE,EQUITY\n";
+    const string second = CsvHeader + "\n" +
+      "100,A|Cash,100,QAR,STE,CASH\n" +
+      "300,Equity,-100,QAR,STE,EQUITY\n";
+
+    var firstParsed = TrialBalanceCsvImporter.Parse(first);
+    var secondParsed = TrialBalanceCsvImporter.Parse(second);
+
+    Assert.Equal(0m, TrialBalanceCalculator.Parse(firstParsed.Rows).SignedSum);
+    Assert.Equal(0m, TrialBalanceCalculator.Parse(secondParsed.Rows).SignedSum);
+    Assert.NotEqual(firstParsed.Rows[0], secondParsed.Rows[0]);
+    Assert.NotEqual(firstParsed.RawFileSha256Hex, secondParsed.RawFileSha256Hex);
+    Assert.Equal(firstParsed.LegacyNormalizedDatasetDigest, secondParsed.LegacyNormalizedDatasetDigest);
+    Assert.NotEqual(firstParsed.NormalizedDatasetDigest, secondParsed.NormalizedDatasetDigest);
   }
 
   [Theory]
@@ -139,9 +163,11 @@ public sealed class TrialBalanceCsvParserTests
       new TbImportRow("400100", "Revenue", -125.50m, "QAR", "DEMO", "PL_REVENUE", 0m, 125.50m)
     }, parsed.Rows);
     Assert.Equal(Hashing.Sha256Hex(System.Text.Encoding.UTF8.GetBytes(csv)), parsed.RawFileSha256Hex);
+    Assert.Equal(TrialBalanceDigestVersions.LengthPrefixedV3, parsed.NormalizedDatasetDigestVersion);
     Assert.Equal(Hashing.Sha256Hex("tb-csv-normalized.v2|tb-debit-credit.v1|DEBIT_CREDIT\n" +
       "DEMO|100101|Bank|125.500000|125.500000|0.000000|QAR|CA_CASH\n" +
-      "DEMO|400100|Revenue|-125.500000|0.000000|125.500000|QAR|PL_REVENUE\n"), parsed.NormalizedDatasetDigest);
+      "DEMO|400100|Revenue|-125.500000|0.000000|125.500000|QAR|PL_REVENUE\n"), parsed.LegacyNormalizedDatasetDigest);
+    Assert.NotEqual(parsed.LegacyNormalizedDatasetDigest, parsed.NormalizedDatasetDigest);
   }
 
   [Theory]
@@ -318,6 +344,88 @@ public sealed class AdjustmentBridgeTests
       new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"));
   }
 
+  private static async Task SeedLegacyV2DatasetAsync(
+    PgTestSchema pg, Scope scope, AppUser importer, string csv)
+  {
+    var parsed = TrialBalanceCsvImporter.Parse(csv);
+    var entity = Assert.Single(parsed.Rows.Select(x => x.Entity).Distinct(StringComparer.Ordinal));
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var dataset = new TrialBalanceDataset
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientId,
+      EngagementId = scope.EngagementId, PeriodId = scope.PeriodId, BookId = scope.BookId,
+      Basis = "STATUTORY", SourceKind = "Raw", Revision = 1, LegalEntityKey = entity,
+      Currency = parsed.Currency, RawFileSha256Hex = parsed.RawFileSha256Hex,
+      NormalizedDatasetDigest = parsed.LegacyNormalizedDatasetDigest,
+      NormalizedDatasetDigestVersion = null,
+      Sha256Hex = parsed.LegacyNormalizedDatasetDigest, ImportProfileVersion = parsed.ImportProfileVersion,
+      SourceLayout = parsed.SourceLayout, ImportState = TrialBalanceImportStates.Loading,
+      ValidationStatus = "Pending", ImportedAt = DateTimeOffset.UtcNow, ImportedByUserId = importer.Id
+    };
+    db.TrialBalanceDatasets.Add(dataset);
+    db.TrialBalanceRows.AddRange(parsed.Rows.Select(row => new TrialBalanceRow
+    {
+      Id = Guid.CreateVersion7(), DatasetId = dataset.Id, AccountCode = row.AccountCode,
+      AccountName = row.AccountName, Amount = row.Amount, SourceDebit = row.SourceDebit,
+      SourceCredit = row.SourceCredit, Currency = row.Currency, Entity = row.Entity, MappingCode = row.MappingCode
+    }));
+    await db.SaveChangesAsync();
+    dataset.ImportState = TrialBalanceImportStates.Sealed;
+    await db.SaveChangesAsync();
+  }
+
+  private static async Task SeedLegacyV2BatchAsync(
+    PgTestSchema pg, Scope scope, AppUser importer, string csv)
+  {
+    var profile = TrialBalanceImportProfile.SignedNetV1;
+    var parsed = TrialBalanceCsvImporter.Parse(csv, profile);
+    var entities = parsed.Rows.Select(x => x.Entity).Distinct(StringComparer.Ordinal)
+      .OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    Assert.True(entities.Length >= 2);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var batchId = Guid.CreateVersion7();
+    var batch = new TrialBalanceImportBatch
+    {
+      Id = batchId, FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = scope.EngagementId,
+      PeriodId = scope.PeriodId, BookId = scope.BookId, Basis = "STATUTORY",
+      RawFileSha256Hex = parsed.RawFileSha256Hex,
+      NormalizedDatasetDigest = parsed.LegacyNormalizedDatasetDigest,
+      NormalizedDatasetDigestVersion = TrialBalanceDigestVersions.LegacyDelimitedV2,
+      ImportProfileVersion = parsed.ImportProfileVersion, SourceLayout = parsed.SourceLayout,
+      EntityCount = entities.Length, Status = TrialBalanceImportStates.Loading,
+      CreatedByUserId = importer.Id, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.TrialBalanceImportBatches.Add(batch);
+    long revision = 0;
+    foreach (var entity in entities)
+    {
+      var datasetId = Guid.CreateVersion7();
+      db.TrialBalanceDatasets.Add(new TrialBalanceDataset
+      {
+        Id = datasetId, FirmId = scope.FirmId, ClientId = scope.ClientId, EngagementId = scope.EngagementId,
+        PeriodId = scope.PeriodId, BookId = scope.BookId, Basis = "STATUTORY", ImportBatchId = batchId,
+        SourceKind = "Raw", Revision = ++revision, LegalEntityKey = entity, Currency = parsed.Currency,
+        RawFileSha256Hex = parsed.RawFileSha256Hex,
+        NormalizedDatasetDigest = parsed.LegacyNormalizedDatasetDigest,
+        NormalizedDatasetDigestVersion = null,
+        Sha256Hex = parsed.LegacyNormalizedDatasetDigest, ImportProfileVersion = parsed.ImportProfileVersion,
+        SourceLayout = parsed.SourceLayout, ImportState = TrialBalanceImportStates.Loading,
+        ValidationStatus = "Pending", ImportedAt = DateTimeOffset.UtcNow, ImportedByUserId = importer.Id
+      });
+      db.TrialBalanceRows.AddRange(parsed.Rows.Where(row => row.Entity == entity).Select(row => new TrialBalanceRow
+      {
+        Id = Guid.CreateVersion7(), DatasetId = datasetId, AccountCode = row.AccountCode,
+        AccountName = row.AccountName, Amount = row.Amount, SourceDebit = row.SourceDebit,
+        SourceCredit = row.SourceCredit, Currency = row.Currency, Entity = row.Entity, MappingCode = row.MappingCode
+      }));
+    }
+    await db.SaveChangesAsync();
+    await db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE trial_balance_datasets SET import_state = 'SEALED' WHERE import_batch_id = {batchId}");
+    batch.Status = TrialBalanceImportStates.Sealed;
+    await db.SaveChangesAsync();
+  }
+
   [Fact]
   public async Task Import_AppendixD_CreatesPendingDataset_DuplicateIsReusedNeverAppended()
   {
@@ -356,11 +464,106 @@ public sealed class AdjustmentBridgeTests
     var variant = TrialBalanceCsvImporter.Parse(formattingVariant);
     Assert.NotEqual(original.RawFileSha256Hex, variant.RawFileSha256Hex);
     Assert.Equal(original.NormalizedDatasetDigest, variant.NormalizedDatasetDigest);
+    Assert.Equal(TrialBalanceDigestVersions.LengthPrefixedV3, original.NormalizedDatasetDigestVersion);
 
     var duplicate = await ImportAsync(pg, users, scope, formattingVariant);
     Assert.False(duplicate.Succeeded);
     Assert.Equal(ErrorCodes.Accounting.ImportDuplicate, duplicate.ErrorCode);
     Assert.Contains("normalized", duplicate.Message!, StringComparison.OrdinalIgnoreCase);
+  }
+
+  [Fact]
+  public async Task Import_LegacyV2DelimiterCollisionDoesNotBlockDistinctRows()
+  {
+    const string first = "AccountCode,AccountName,NetClosingBalance,Currency,Entity,MappingCode\n" +
+      "100|A,Cash,100,QAR,STE,CASH\n300,Equity,-100,QAR,STE,EQUITY\n";
+    const string second = "AccountCode,AccountName,NetClosingBalance,Currency,Entity,MappingCode\n" +
+      "100,A|Cash,100,QAR,STE,CASH\n300,Equity,-100,QAR,STE,EQUITY\n";
+    var firstParsed = TrialBalanceCsvImporter.Parse(first);
+    var secondParsed = TrialBalanceCsvImporter.Parse(second);
+    Assert.Equal(firstParsed.LegacyNormalizedDatasetDigest, secondParsed.LegacyNormalizedDatasetDigest);
+    Assert.NotEqual(firstParsed.NormalizedDatasetDigest, secondParsed.NormalizedDatasetDigest);
+
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+    await SeedLegacyV2DatasetAsync(pg, scope, users.Preparer, first);
+
+    var result = await ImportAsync(pg, users, scope, second);
+
+    Assert.True(result.Succeeded, result.Message);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(2, await verify.TrialBalanceDatasets.CountAsync());
+    Assert.Equal(4, await verify.TrialBalanceRows.CountAsync());
+    Assert.Equal(1, await verify.TrialBalanceDatasets.CountAsync(x =>
+      x.NormalizedDatasetDigestVersion == null));
+    Assert.Equal(1, await verify.TrialBalanceDatasets.CountAsync(x =>
+      x.NormalizedDatasetDigestVersion == TrialBalanceDigestVersions.LengthPrefixedV3));
+  }
+
+  [Fact]
+  public async Task Import_EquivalentRowsRetainLegacyV2DuplicateBehavior()
+  {
+    var formattingVariant = TrialBalanceV1Csv.Replace("Bank,150000", " Bank ,150000", StringComparison.Ordinal);
+    var original = TrialBalanceCsvImporter.Parse(TrialBalanceV1Csv);
+    var variant = TrialBalanceCsvImporter.Parse(formattingVariant);
+    Assert.Equal(original.LegacyNormalizedDatasetDigest, variant.LegacyNormalizedDatasetDigest);
+    Assert.Equal(original.NormalizedDatasetDigest, variant.NormalizedDatasetDigest);
+
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+    await SeedLegacyV2DatasetAsync(pg, scope, users.Preparer, TrialBalanceV1Csv);
+
+    var result = await ImportAsync(pg, users, scope, formattingVariant);
+
+    Assert.False(result.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.ImportDuplicate, result.ErrorCode);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var retained = await verify.TrialBalanceDatasets.SingleAsync();
+    Assert.Null(retained.NormalizedDatasetDigestVersion);
+    Assert.Equal(original.LegacyNormalizedDatasetDigest, retained.NormalizedDatasetDigest);
+    Assert.Equal(14, await verify.TrialBalanceRows.CountAsync());
+  }
+
+  [Fact]
+  public async Task ImportBatch_LegacyV2CollisionAllowsDistinctRowsAndV3FormattingStillDeduplicates()
+  {
+    const string first = "AccountCode,AccountName,NetClosingBalance,Currency,Entity,MappingCode\n" +
+      "100|A,Cash,100,QAR,ENTITY-A,CASH\n300,Equity,-100,QAR,ENTITY-A,EQUITY\n" +
+      "100|A,Cash,200,QAR,ENTITY-B,CASH\n300,Equity,-200,QAR,ENTITY-B,EQUITY\n";
+    const string second = "AccountCode,AccountName,NetClosingBalance,Currency,Entity,MappingCode\n" +
+      "100,A|Cash,100,QAR,ENTITY-A,CASH\n300,Equity,-100,QAR,ENTITY-A,EQUITY\n" +
+      "100,A|Cash,200,QAR,ENTITY-B,CASH\n300,Equity,-200,QAR,ENTITY-B,EQUITY\n";
+    const string equivalent = "AccountCode,AccountName,NetClosingBalance,Currency,Entity,MappingCode\n" +
+      "300,Equity,-200,QAR,ENTITY-B,EQUITY\n100, A|Cash ,200,QAR,ENTITY-B,CASH\n" +
+      "300,Equity,-100,QAR,ENTITY-A,EQUITY\n100, A|Cash ,100,QAR,ENTITY-A,CASH\n";
+    var firstParsed = TrialBalanceCsvImporter.Parse(first);
+    var secondParsed = TrialBalanceCsvImporter.Parse(second);
+    var equivalentParsed = TrialBalanceCsvImporter.Parse(equivalent);
+    Assert.Equal(firstParsed.LegacyNormalizedDatasetDigest, secondParsed.LegacyNormalizedDatasetDigest);
+    Assert.NotEqual(firstParsed.NormalizedDatasetDigest, secondParsed.NormalizedDatasetDigest);
+    Assert.Equal(secondParsed.NormalizedDatasetDigest, equivalentParsed.NormalizedDatasetDigest);
+    Assert.NotEqual(secondParsed.RawFileSha256Hex, equivalentParsed.RawFileSha256Hex);
+
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+    await SeedLegacyV2BatchAsync(pg, scope, users.Preparer, first);
+    var context = new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY");
+
+    await using var importer = new AuditSphereDbContext(pg.Options);
+    var result = await TrialBalanceImportService.ImportBatchAsync(importer,
+      Actor(users.Preparer, "AccountingPreparer"), scope.ClientId, scope.EngagementId,
+      second, TrialBalanceImportProfile.SignedNetV1, context);
+    Assert.True(result.Succeeded, result.Message);
+
+    await using var retryContext = new AuditSphereDbContext(pg.Options);
+    var retry = await TrialBalanceImportService.ImportBatchAsync(retryContext,
+      Actor(users.Preparer, "AccountingPreparer"), scope.ClientId, scope.EngagementId,
+      equivalent, TrialBalanceImportProfile.SignedNetV1, context);
+    Assert.False(retry.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.ImportDuplicate, retry.ErrorCode);
+    Assert.Equal(2, await retryContext.TrialBalanceImportBatches.CountAsync());
+    Assert.Equal(4, await retryContext.TrialBalanceDatasets.CountAsync());
+    Assert.Equal(8, await retryContext.TrialBalanceRows.CountAsync());
   }
 
   [Fact]

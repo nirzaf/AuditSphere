@@ -12941,6 +12941,11 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("normalized_dataset_digest");
 
+                    b.Property<string>("NormalizedDatasetDigestVersion")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("normalized_dataset_digest_version");
+
                     b.Property<Guid?>("PeriodId")
                         .HasColumnType("uuid")
                         .HasColumnName("period_id");
@@ -12997,6 +13002,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("trial_balance_datasets", null, t =>
                         {
+                            t.HasCheckConstraint("ck_tb_dataset_digest_version", "normalized_dataset_digest_version IS NULL OR normalized_dataset_digest_version IN ('tb-csv-normalized.v2','tb-csv-normalized.v3')");
+
                             t.HasCheckConstraint("ck_tb_import_state", "import_state IN ('LOADING', 'SEALED')");
 
                             t.HasCheckConstraint("ck_tb_native_origin", "source_kind <> 'Native' OR (period_id IS NOT NULL AND book_id IS NULL AND import_batch_id IS NULL AND raw_file_sha256_hex = '' AND import_profile_version = 'native-period-ledger.v1' AND source_layout = 'DEBIT_CREDIT' AND revision >= 1 AND currency ~ '^[A-Z]{3}$' AND length(trim(legal_entity_key)) > 0 AND normalized_dataset_digest ~ '^[0-9a-f]{64}$' AND sha256_hex ~ '^[0-9a-f]{64}$')");
@@ -13059,6 +13066,14 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("normalized_dataset_digest");
 
+                    b.Property<string>("NormalizedDatasetDigestVersion")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("tb-csv-normalized.v2")
+                        .HasColumnName("normalized_dataset_digest_version");
+
                     b.Property<Guid?>("PeriodId")
                         .HasColumnType("uuid")
                         .HasColumnName("period_id");
@@ -13098,6 +13113,8 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("trial_balance_import_batches", null, t =>
                         {
+                            t.HasCheckConstraint("ck_tb_import_batch_digest_version", "normalized_dataset_digest_version IN ('tb-csv-normalized.v2','tb-csv-normalized.v3')");
+
                             t.HasCheckConstraint("ck_tb_import_batch_values", "raw_file_sha256_hex ~ '^[0-9a-f]{64}$' AND normalized_dataset_digest ~ '^[0-9a-f]{64}$' AND source_layout IN ('SIGNED_NET','DEBIT_CREDIT') AND entity_count >= 2 AND status IN ('LOADING','SEALED') AND (basis IS NULL OR length(trim(basis)) > 0)");
                         });
                 });

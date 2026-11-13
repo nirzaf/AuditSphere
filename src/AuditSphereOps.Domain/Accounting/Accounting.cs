@@ -42,6 +42,12 @@ public sealed class TrialBalanceValidationIssue
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+public static class TrialBalanceDigestVersions
+{
+  public const string LegacyDelimitedV2 = "tb-csv-normalized.v2";
+  public const string LengthPrefixedV3 = "tb-csv-normalized.v3";
+}
+
 public sealed class TrialBalanceDataset
 {
   public Guid Id { get; set; }
@@ -61,6 +67,8 @@ public sealed class TrialBalanceDataset
   public string RawFileSha256Hex { get; set; } = string.Empty;
   /// <summary>Versioned digest of normalized accounting rows.</summary>
   public string NormalizedDatasetDigest { get; set; } = string.Empty;
+  /// <summary>CSV digest encoding version; null for native sources and retained pre-versioning rows.</summary>
+  public string? NormalizedDatasetDigestVersion { get; set; }
   /// <summary>Legacy normalized digest retained for existing records and callers.</summary>
   public string Sha256Hex { get; set; } = string.Empty;
   public string ImportProfileVersion { get; set; } = "tb-signed-net.v1";
@@ -97,6 +105,7 @@ public sealed class TrialBalanceImportBatch
   public string? Basis { get; set; }
   public string RawFileSha256Hex { get; set; } = string.Empty;
   public string NormalizedDatasetDigest { get; set; } = string.Empty;
+  public string NormalizedDatasetDigestVersion { get; set; } = TrialBalanceDigestVersions.LegacyDelimitedV2;
   public string ImportProfileVersion { get; set; } = string.Empty;
   public string SourceLayout { get; set; } = TrialBalanceLayouts.SignedNet;
   public int EntityCount { get; set; }
