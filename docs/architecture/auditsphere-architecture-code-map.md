@@ -20,6 +20,8 @@ and unresolved acceptance gates before making current-status claims.
 
 The fast Release outputs job and API image publish set Roslyn's reported processor count to two through `CscEnvironment`. This limits compiler concurrency independently of MSBuild scheduling. All migration sources remain in the compile, and the setting applies only to the build process.
 
+The full release workflow uses the artifact finder's GitHub step outputs to locate the exact-source fast Release build. It verifies provenance and contents before reusing the binaries and falls back to a clean build when reuse is unavailable.
+
 The root `.dockerignore` excludes Angular `src/**/*.spec.ts` files from the production image context. The Angular CI test job still runs them from its Git checkout. The production TypeScript configuration excludes the same files, so test-only edits leave the Docker source copy cache eligible for reuse.
 
 Image builds emit compact memory snapshots during compilation. The fast .NET Release build uses the existing fixed-field runner sampler for live host and cgroup observations. These samples remain available in the Actions log if final build diagnostics are interrupted.

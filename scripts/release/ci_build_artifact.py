@@ -680,17 +680,9 @@ def main() -> int:
                 runner_image=args.runner_image,
                 runner_version=args.runner_version,
             )
-        elif args.command == "find":
-            result = find_fast_build_artifact(
-                api_url=args.api_url,
-                token=os.environ.get("GH_TOKEN", ""),
-                repository=args.repository,
-                branch=args.branch,
-                source_sha=args.source_sha,
-                workflow_id=args.workflow_id,
-            )
-        elif args.command == "find-angular-bundle":
-            result = find_angular_bundle_artifact(
+        elif args.command in {"find", "find-angular-bundle"}:
+            finder = find_fast_build_artifact if args.command == "find" else find_angular_bundle_artifact
+            result = finder(
                 api_url=args.api_url,
                 token=os.environ.get("GH_TOKEN", ""),
                 repository=args.repository,

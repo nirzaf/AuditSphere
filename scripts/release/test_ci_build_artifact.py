@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 import tempfile
 import tarfile
 import unittest
@@ -177,6 +178,35 @@ class CiBuildArtifactTests(unittest.TestCase):
         self.assertTrue(result["available"])
         self.assertEqual(101, result["runId"])
         self.assertEqual(2, result["runAttempt"])
+
+    def test_find_cli_emits_workflow_outputs_for_available_and_missing_artifacts(self) -> None:
+        output = Path(self.temp.name) / "github-output"
+        available = {
+            "available": True,
+            "runId": 101,
+            "runAttempt": 2,
+            "artifactId": 7,
+            "artifactName": "auditsphere-release-build-101-2",
+            "reason": "exact-source artifact found",
+        }
+        for result in (available, {"available": False, "reason": "no matching artifact"}):
+            with self.subTest(available=result["available"]):
+                output.write_text("", encoding="utf-8")
+                argv = [
+                    "ci_build_artifact.py", "find", "--api-url", "https://api.github.com",
+                    "--repository", "nirzaf/AuditSphere", "--branch", "master",
+                    "--source-sha", SOURCE_SHA, "--github-output", str(output),
+                ]
+                with patch.object(sys, "argv", argv), patch.object(
+                    build_artifact, "find_fast_build_artifact", return_value=result
+                ), patch("builtins.print"):
+                    self.assertEqual(0, build_artifact.main())
+
+                fields = dict(line.split("=", 1) for line in output.read_text().splitlines())
+                self.assertEqual("true" if result["available"] else "false", fields["available"])
+                self.assertEqual(str(result.get("runId", "")), fields["run_id"])
+                self.assertEqual(str(result.get("runAttempt", "")), fields["run_attempt"])
+                self.assertEqual(result.get("artifactName", ""), fields["artifact_name"])
 
     def test_lookup_accepts_successful_manual_master_ci_artifact_for_exact_sha(self) -> None:
         runs_by_event = {
