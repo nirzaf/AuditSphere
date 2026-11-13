@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "recordId": "WU038-OPERATIONAL-EVIDENCE-V1",
   "findingIdentityRules": {
-    "npm": "NPM-SHA256(package-name-casefold + NUL + advisory-source)",
+    "npm": "NPM-SHA256(package-name-casefold + NUL + advisory-source); NPM-META-SHA256(package-name-casefold + NUL + dependency-name-casefold)",
     "nuget": "NUGET-SHA256(package-id-casefold + NUL + resolved-version + NUL + advisory-url)",
     "gitleaks": "GITLEAKS-SHA256(fingerprint)"
   },

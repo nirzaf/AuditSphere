@@ -33,6 +33,7 @@ import os
 import re
 import subprocess
 import sys
+from collections import defaultdict, deque
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -87,9 +88,13 @@ MAX_NUGET_REPORT_NODES = 200_000
 MAX_NUGET_REPORT_DEPTH = 128
 NUGET_DIAGNOSTIC_FIELDS = frozenset({"problems", "warnings", "diagnostics"})
 FINDING_IDENTITY_RULES = {
-    "npm": "NPM-SHA256(package-name-casefold + NUL + advisory-source)",
+    "npm": "NPM-SHA256(package-name-casefold + NUL + advisory-source); NPM-META-SHA256(package-name-casefold + NUL + dependency-name-casefold)",
     "nuget": "NUGET-SHA256(package-id-casefold + NUL + resolved-version + NUL + advisory-url)",
     "gitleaks": "GITLEAKS-SHA256(fingerprint)",
+}
+LEGACY_FINDING_IDENTITY_RULES = {
+    **FINDING_IDENTITY_RULES,
+    "npm": "NPM-SHA256(package-name-casefold + NUL + advisory-source)",
 }
 SCAN_FAILURES = {
     "SOURCE_UNAVAILABLE",
@@ -593,6 +598,8 @@ def _npm_report(report: Any) -> tuple[dict[str, tuple[str, str]], list[str] | No
     package_counts = {severity: 0 for severity in severity_map}
     findings: dict[str, tuple[str, str]] = {}
     names: set[str] = set()
+    advisory_packages: set[str] = set()
+    dependents: dict[str, set[str]] = defaultdict(set)
     for package_name, details in vulnerabilities.items():
         if (
             type(package_name) is not str
@@ -616,13 +623,18 @@ def _npm_report(report: Any) -> tuple[dict[str, tuple[str, str]], list[str] | No
             or not via
         ):
             return None
-        advisories = [item for item in via if type(item) is dict]
-        if not advisories:
-            return None
-        for item in via:
-            if type(item) not in {str, dict}:
+        for advisory in via:
+            if type(advisory) is str:
+                if not advisory or len(advisory) > 512:
+                    return None
+                dependency = advisory.casefold()
+                dependents[dependency].add(normalized_name)
+                finding_id = _hashed_finding_id("NPM-META", f"{normalized_name}\0{dependency}")
+                findings[finding_id] = ("VULNERABILITY", severity_map[severity])
+                continue
+            if type(advisory) is not dict:
                 return None
-        for advisory in advisories:
+            advisory_packages.add(normalized_name)
             advisory_severity = advisory.get("severity")
             advisory_source = advisory.get("source")
             if (
@@ -644,6 +656,18 @@ def _npm_report(report: Any) -> tuple[dict[str, tuple[str, str]], list[str] | No
 
     expected_counts = {severity: summary[severity] for severity in severity_map}
     if len(vulnerabilities) != summary["total"] or package_counts != expected_counts:
+        return None
+    if dependents.keys() - names:
+        return None
+    # Every affected package must trace to a retained advisory.
+    pending = deque(advisory_packages)
+    grounded = advisory_packages.copy()
+    while pending:
+        for dependent in dependents.get(pending.popleft(), ()):
+            if dependent not in grounded:
+                grounded.add(dependent)
+                pending.append(dependent)
+    if grounded != names:
         return None
     return findings, None
 
@@ -1481,7 +1505,7 @@ def evaluate(document: Any, repository_root: Path) -> dict[str, Any]:
         errors.add("unsupported-schema-version")
     if document["recordId"] != "WU038-OPERATIONAL-EVIDENCE-V1":
         errors.add("invalid-record-identity")
-    if document["findingIdentityRules"] != FINDING_IDENTITY_RULES:
+    if document["findingIdentityRules"] not in (FINDING_IDENTITY_RULES, LEGACY_FINDING_IDENTITY_RULES):
         errors.add("unsupported-finding-identity-rules")
     policy = {
         "sourceToolFeedFailure": "UNKNOWN",

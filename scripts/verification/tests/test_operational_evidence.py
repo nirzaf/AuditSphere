@@ -431,6 +431,33 @@ class OperationalEvidenceTests(unittest.TestCase):
         self.assertIn("SCAN_REPORT_MANIFEST_MISMATCH_NPM", result["blockerCodes"])
         self.assertNotEqual("NO_FINDINGS", result["securityScans"]["npm"])
 
+    def test_npm_report_retains_advisory_and_dependency_findings(self) -> None:
+        report = {
+            "auditReportVersion": 2,
+            "metadata": {"vulnerabilities": {
+                "total": 3, "critical": 0, "high": 0, "moderate": 3, "low": 0, "info": 0,
+            }},
+            "vulnerabilities": {
+                "tool": {"name": "tool", "severity": "moderate", "via": ["wrapper"]},
+                "wrapper": {"name": "wrapper", "severity": "moderate", "via": ["dependency"]},
+                "dependency": {"name": "dependency", "severity": "moderate",
+                               "via": [{"source": 1001, "severity": "moderate"}]},
+            },
+        }
+        parsed = verify._npm_report(report)
+        self.assertIsNotNone(parsed)
+        findings, feed = parsed
+        self.assertIsNone(feed)
+        self.assertEqual({
+            verify._hashed_finding_id("NPM", "dependency\0" + "1001"): ("VULNERABILITY", "MODERATE"),
+            verify._hashed_finding_id("NPM-META", "wrapper\0dependency"): ("VULNERABILITY", "MODERATE"),
+            verify._hashed_finding_id("NPM-META", "tool\0wrapper"): ("VULNERABILITY", "MODERATE"),
+        }, findings)
+        report["vulnerabilities"]["wrapper"]["via"] = ["missing"]
+        self.assertIsNone(verify._npm_report(report))
+        report["vulnerabilities"]["wrapper"]["via"] = ["tool"]
+        self.assertIsNone(verify._npm_report(report))
+
     def test_nuget_sparse_zero_report_requires_bound_completed_capture(self) -> None:
         commit = "c" * 40
         with tempfile.TemporaryDirectory() as directory:
