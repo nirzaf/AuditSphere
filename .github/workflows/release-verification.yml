@@ -662,9 +662,11 @@ jobs:
         if: ${{ steps.verify-fast-build.outputs.reused != 'true' }}
         run: |
           set -euo pipefail
+          # Match the fast Release outputs build when the scheduled run cannot reuse its artifact.
           bash scripts/release/run-verification-step.sh "dotnet build (Release, bounded MSBuild graph)" \
-            dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:2 \
+            dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:3 \
               -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \
+              -p:CscEnvironment=DOTNET_PROCESSOR_COUNT=2 \
               -clp:PerformanceSummary
 
       - name: Stage source-bound complete test outputs
