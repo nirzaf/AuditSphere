@@ -88,9 +88,18 @@ public sealed class AngularOpeningBalanceReviewRecoveryJourneyTests
     await Assertions.Expect(preview).ToBeDisabledAsync();
 
     await page.UnrouteAsync(lookupUrl);
-    var confirmed = await page.RunAndWaitForResponseAsync(() => lookup.ClickAsync(), response => response.Url == lookupUrl);
+    var observedLookup = new TaskCompletionSource<(int Status, string Body)>(TaskCreationOptions.RunContinuationsAsynchronously);
+    await page.RouteAsync(lookupUrl, async route =>
+    {
+      // Capture the real response before delivery can invalidate its browser body handle.
+      await using var response = await route.FetchAsync();
+      observedLookup.TrySetResult((response.Status, await response.TextAsync()));
+      await route.FulfillAsync(new() { Response = response });
+    });
+    await lookup.ClickAsync();
+    var confirmed = await observedLookup.Task.WaitAsync(TimeSpan.FromSeconds(15));
     Assert.Equal(200, confirmed.Status);
-    using var recovered = JsonDocument.Parse(await confirmed.TextAsync());
+    using var recovered = JsonDocument.Parse(confirmed.Body);
     Assert.True(recovered.RootElement.GetProperty("found").GetBoolean());
     Assert.Equal(receiptId, recovered.RootElement.GetProperty("receipt").GetProperty("id").GetGuid());
     await Assertions.Expect(pending).ToHaveCountAsync(0);
