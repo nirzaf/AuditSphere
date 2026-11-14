@@ -1200,4 +1200,77 @@ public sealed class AdjustmentBridgeTests
       Assert.Equal(5000m, lines.Sum(x => x.Credit));
     }
   }
+
+  [Fact]
+  public async Task TrialBalanceDigestVersionMigrationAllowsEmptyRollbackButRefusesRetainedEvidence()
+  {
+    static async Task<PostgresException> RefuseDowngradeAsync(AuditSphereDbContext db, string previous)
+    {
+      var failure = await Record.ExceptionAsync(() => db.Database.MigrateAsync(previous));
+      Assert.NotNull(failure);
+      while (failure is not PostgresException && failure.InnerException is not null)
+        failure = failure.InnerException;
+      return Assert.IsType<PostgresException>(failure);
+    }
+
+    static (string Migration, string Previous) MigrationPair(AuditSphereDbContext db)
+    {
+      var migrations = db.Database.GetMigrations().ToArray();
+      var index = Array.FindIndex(migrations, x => x.EndsWith("_TrialBalanceDigestVersioning", StringComparison.Ordinal));
+      Assert.True(index > 0, "Trial-balance digest version migration was not found.");
+      Assert.Equal(migrations[^1], migrations[index]);
+      return (migrations[index], migrations[index - 1]);
+    }
+
+    await using (var emptyPg = await PgTestSchema.CreateAsync())
+    await using (var emptyDb = new AuditSphereDbContext(emptyPg.Options))
+    {
+      var (migration, previous) = MigrationPair(emptyDb);
+      await emptyDb.Database.MigrateAsync(previous);
+      Assert.DoesNotContain(migration, await emptyDb.Database.GetAppliedMigrationsAsync());
+      await emptyDb.Database.MigrateAsync(migration);
+      Assert.Contains(migration, await emptyDb.Database.GetAppliedMigrationsAsync());
+    }
+
+    await using (var datasetPg = await PgTestSchema.CreateAsync())
+    {
+      var (scope, users) = await SeedFirmWithStaffAsync(datasetPg);
+      var imported = await ImportAsync(datasetPg, users, scope, TrialBalanceV1Csv);
+      Assert.True(imported.Succeeded, imported.Message);
+
+      await using var db = new AuditSphereDbContext(datasetPg.Options);
+      var (migration, previous) = MigrationPair(db);
+      var refused = await RefuseDowngradeAsync(db, previous);
+      Assert.Equal("55000", refused.SqlState);
+      Assert.Contains("retained", refused.MessageText, StringComparison.OrdinalIgnoreCase);
+      Assert.Contains(migration, await db.Database.GetAppliedMigrationsAsync());
+      var retained = await db.TrialBalanceDatasets.SingleAsync();
+      Assert.Equal(TrialBalanceDigestVersions.LengthPrefixedV3, retained.NormalizedDatasetDigestVersion);
+      Assert.Equal(14, await db.TrialBalanceRows.CountAsync());
+    }
+
+    await using (var batchPg = await PgTestSchema.CreateAsync())
+    {
+      const string batchCsv = """
+        AccountCode,AccountName,NetClosingBalance,Currency,Entity,MappingCode
+        100101,Bank,100,QAR,ENTITY-A,CASH
+        300100,Equity,-100,QAR,ENTITY-A,EQUITY
+        100101,Bank,200,QAR,ENTITY-B,CASH
+        300100,Equity,-200,QAR,ENTITY-B,EQUITY
+        """;
+      var (scope, users) = await SeedFirmWithStaffAsync(batchPg);
+      await SeedLegacyV2BatchAsync(batchPg, scope, users.Preparer, batchCsv);
+
+      await using var db = new AuditSphereDbContext(batchPg.Options);
+      var (migration, previous) = MigrationPair(db);
+      var refused = await RefuseDowngradeAsync(db, previous);
+      Assert.Equal("55000", refused.SqlState);
+      Assert.Contains("retained", refused.MessageText, StringComparison.OrdinalIgnoreCase);
+      Assert.Contains(migration, await db.Database.GetAppliedMigrationsAsync());
+      Assert.Equal(1, await db.TrialBalanceImportBatches.CountAsync());
+      Assert.All(await db.TrialBalanceDatasets.ToListAsync(),
+        dataset => Assert.Null(dataset.NormalizedDatasetDigestVersion));
+      Assert.Equal(4, await db.TrialBalanceRows.CountAsync());
+    }
+  }
 }

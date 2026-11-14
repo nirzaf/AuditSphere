@@ -39,8 +39,41 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            throw new NotSupportedException(
-                "Digest version evidence is retained with imported accounting sources and cannot be downgraded away.");
+            migrationBuilder.Sql("""
+                LOCK TABLE trial_balance_import_batches, trial_balance_datasets IN ACCESS EXCLUSIVE MODE;
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1
+                        FROM trial_balance_import_batches
+                        WHERE normalized_dataset_digest_version IS NOT NULL
+                    ) OR EXISTS (
+                        SELECT 1
+                        FROM trial_balance_datasets
+                        WHERE normalized_dataset_digest_version IS NOT NULL
+                    ) THEN
+                        RAISE EXCEPTION 'Retained trial-balance digest version evidence prevents downgrade.'
+                            USING ERRCODE = '55000';
+                    END IF;
+                END
+                $$;
+                """);
+
+            migrationBuilder.DropCheckConstraint(
+                name: "ck_tb_import_batch_digest_version",
+                table: "trial_balance_import_batches");
+
+            migrationBuilder.DropCheckConstraint(
+                name: "ck_tb_dataset_digest_version",
+                table: "trial_balance_datasets");
+
+            migrationBuilder.DropColumn(
+                name: "normalized_dataset_digest_version",
+                table: "trial_balance_import_batches");
+
+            migrationBuilder.DropColumn(
+                name: "normalized_dataset_digest_version",
+                table: "trial_balance_datasets");
         }
     }
 }

@@ -335,6 +335,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
       {
         string Path(Guid id) => string.Format(System.Globalization.CultureInfo.InvariantCulture, template, id.ToString("D"));
         await page.GotoAsync($"{origin}/auth/sign-in?returnUrl={Uri.EscapeDataString(Path(own))}");
+        await WaitForAuthorizedAssessmentAsync(page, ownPrivate);
         var initial = await SettleAsync(page);
         var token = Guid.NewGuid().ToString("N");
         await page.EvaluateAsync("token => window.__testDocumentToken = token", token);
@@ -342,7 +343,7 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
         var toSibling = Normalize(await SnapshotInPlaceAsync(page, Path(siblingId)), siblingId);
         var random = Guid.NewGuid();
         var toRandom = Normalize(await SnapshotInPlaceAsync(page, Path(random)), random);
-        var back = await SnapshotInPlaceAsync(page, Path(own));
+        var back = await SnapshotInPlaceAsync(page, Path(own), ownPrivate);
 
         if (toSibling.Contains(Marker, StringComparison.OrdinalIgnoreCase)) leaks.Add($"{template}: sibling marker rendered");
         if (toSibling.Contains(ownPrivate, StringComparison.Ordinal)) leaks.Add($"{template}: prior client content survived in-place navigation");
@@ -422,11 +423,20 @@ public sealed partial class SiblingClientIsolationJourneyTests(ITestOutputHelper
   }
 
   /// <summary>Same-document (in-circuit) navigation, then the settled main text.</summary>
-  private static async Task<string> SnapshotInPlaceAsync(IPage page, string path)
+  private static async Task<string> SnapshotInPlaceAsync(IPage page, string path, string? expectedVisibleText = null)
   {
     await page.EvaluateAsync("path => { history.pushState({}, '', path); dispatchEvent(new PopStateEvent('popstate')); }", path);
     await page.WaitForTimeoutAsync(300);
+    if (expectedVisibleText is not null)
+      await WaitForAuthorizedAssessmentAsync(page, expectedVisibleText);
     return await SettleAsync(page);
+  }
+
+  private static async Task WaitForAuthorizedAssessmentAsync(IPage page, string registrationNumber)
+  {
+    await page.GetByRole(AriaRole.Region, new() { Name = "Client assessment profile", Exact = true })
+      .GetByText(registrationNumber, new() { Exact = false })
+      .WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 15000 });
   }
 
   private static async Task<string> SettleAsync(IPage page)
