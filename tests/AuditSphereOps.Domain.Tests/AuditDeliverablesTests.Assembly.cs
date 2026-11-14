@@ -1351,27 +1351,18 @@ public sealed partial class AuditDeliverablesTests
         var retainedFinanceJson = JsonSerializer.Serialize(financeEvidence);
         const string financeGuard = "20261110102702_FirmFinanceProfileMakerChecker";
         var financeGuardIndex = Array.IndexOf(migrations, financeGuard);
-        Assert.Equal(migrations.Length - 6, financeGuardIndex);
+        Assert.Equal(migrations.Length - 7, financeGuardIndex);
         Assert.Equal(new[] { "20261110123614_AuditCompletionVarianceCommandReceipts",
           "20261110181648_AuditCompletionGoingConcernCommandReceipts",
           "20261111041752_AuditCompletionSubsequentEventCommandReceipts",
           "20261111051049_OpeningBalanceReviewedBasis",
-          "20261111160000_OpeningBalanceCommandReceipts" }, migrations[(financeGuardIndex + 1)..]);
-        // EF Core 10.0.12 commits each completed migration command list. The empty receipt
-        // migrations are removed, while the failed finance Down transaction is rolled back.
-        var expectedAppliedAfterRefusal = migrations[..(financeGuardIndex + 1)];
-        var refusedV2Downgrade = await Assert.ThrowsAnyAsync<Exception>(() =>
-          migrator.MigrateAsync(migrations[foundationIndex]));
-        var v2DowngradeFailure = Assert.IsType<PostgresException>(refusedV2Downgrade.GetBaseException());
-        Assert.Equal("P0001", v2DowngradeFailure.SqlState);
-        Assert.Equal("Finance profile maker/checker downgrade would discard profile approval evidence.",
-          v2DowngradeFailure.MessageText);
-        Assert.Equal(expectedAppliedAfterRefusal, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
-        await using (var restoreDb = new AuditSphereDbContext(pg.Options))
-        {
-          await restoreDb.GetService<IMigrator>().MigrateAsync();
-          Assert.Equal(migrations, (await restoreDb.Database.GetAppliedMigrationsAsync()).ToArray());
-        }
+          "20261111160000_OpeningBalanceCommandReceipts",
+          "20261113204633_TrialBalanceDigestVersioning" }, migrations[(financeGuardIndex + 1)..]);
+        // Assert this migration's own generated Down guard. Later migrations have independent
+        // retained-evidence guards, so rolling the whole chain back would test whichever runs first.
+        await MigrationTestAssertions.AssertDownOperationBlockedAsync(db, financeGuard, "P0001",
+          "Finance profile maker/checker downgrade would discard profile approval evidence.");
+        Assert.Equal(migrations, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.False(await db.AuditCompletionVarianceCommandReceipts.AnyAsync());
         Assert.False(await db.AuditCompletionGoingConcernCommandReceipts.AnyAsync());
         Assert.False(await db.AuditCompletionSubsequentEventCommandReceipts.AnyAsync());
@@ -1506,20 +1497,16 @@ public sealed partial class AuditDeliverablesTests
         Assert.Equal(financeEvidence.DraftBasisSha256, financeEvidence.ApprovedDraftBasisSha256);
         var retainedFinanceJson = JsonSerializer.Serialize(financeEvidence);
         var financeGuardIndex = Array.IndexOf(migrations, "20261110102702_FirmFinanceProfileMakerChecker");
-        Assert.Equal(migrations.Length - 6, financeGuardIndex);
+        Assert.Equal(migrations.Length - 7, financeGuardIndex);
         Assert.Equal(new[] { "20261110123614_AuditCompletionVarianceCommandReceipts",
           "20261110181648_AuditCompletionGoingConcernCommandReceipts",
           "20261111041752_AuditCompletionSubsequentEventCommandReceipts",
           "20261111051049_OpeningBalanceReviewedBasis",
-          "20261111160000_OpeningBalanceCommandReceipts" }, migrations[(financeGuardIndex + 1)..]);
-        var expectedAppliedAfterRefusal = migrations[..(financeGuardIndex + 1)];
-        var refused = await Assert.ThrowsAnyAsync<Exception>(() =>
-          db.GetService<IMigrator>().MigrateAsync(migrations[foundationIndex]));
-        var financeFailure = Assert.IsType<PostgresException>(refused.GetBaseException());
-        Assert.Equal("P0001", financeFailure.SqlState);
-        Assert.Equal("Finance profile maker/checker downgrade would discard profile approval evidence.",
-          financeFailure.MessageText);
-        Assert.Equal(expectedAppliedAfterRefusal, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
+          "20261111160000_OpeningBalanceCommandReceipts",
+          "20261113204633_TrialBalanceDigestVersioning" }, migrations[(financeGuardIndex + 1)..]);
+        await MigrationTestAssertions.AssertDownOperationBlockedAsync(db, migrations[financeGuardIndex], "P0001",
+          "Finance profile maker/checker downgrade would discard profile approval evidence.");
+        Assert.Equal(migrations, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
 
         await using var verifyDb = new AuditSphereDbContext(pg.Options);
         Assert.Contains(sharedArchiveMigrationId, await verifyDb.Database.GetAppliedMigrationsAsync());

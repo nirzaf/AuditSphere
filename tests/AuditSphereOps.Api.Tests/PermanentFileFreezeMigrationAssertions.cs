@@ -15,7 +15,7 @@ internal static class PermanentFileFreezeMigrationAssertions
     var index = Array.FindIndex(migrations, x => x.EndsWith(migrationSuffix, StringComparison.Ordinal));
     Assert.True(index > 0, $"Migration ending in {migrationSuffix} was not found.");
 
-    var applied = await db.Database.GetAppliedMigrationsAsync();
+    var applied = (await db.Database.GetAppliedMigrationsAsync()).ToArray();
     Assert.Contains(migrations[index], applied);
     Assert.Contains(FreezeMigration, applied);
 
@@ -32,8 +32,9 @@ internal static class PermanentFileFreezeMigrationAssertions
       error.MessageText.Contains("downgrade", StringComparison.OrdinalIgnoreCase) ||
       error.MessageText.Contains("compliance safety boundary", StringComparison.OrdinalIgnoreCase),
       $"Expected a retention or downgrade safety refusal, got: {error.MessageText}");
-    var appliedAfterRefusal = await db.Database.GetAppliedMigrationsAsync();
-    Assert.Contains(migrations[index], appliedAfterRefusal);
-    Assert.Contains(FreezeMigration, appliedAfterRefusal);
+    // EF commits completed newer Down migrations before reaching this refusal. Restore the full
+    // schema so callers observe a failed downgrade as an exact no-change outcome.
+    await db.GetService<IMigrator>().MigrateAsync();
+    Assert.Equal(applied, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
   }
 }

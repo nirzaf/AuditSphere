@@ -192,6 +192,7 @@ public sealed class AdjustmentEligibilityQueryTests
     const string baseline = "20261029065958_AdHocProcedureHistoryScope";
     const string scopedSource = "20261029072350_AdjustmentSourceDatasetScope";
     await using var pg = await PgTestSchema.CreateAsync(baseline);
+    await pg.AddHistoricalTrialBalanceDigestVersionCompatibilityColumnAsync();
     var own = await SeedAsync(pg);
     var foreign = await SeedAsync(pg);
     await using var db = new AuditSphereDbContext(pg.Options);
@@ -213,6 +214,7 @@ public sealed class AdjustmentEligibilityQueryTests
     }
     var ownRecords = await CreateNativeAsync(own);
     await CreateNativeAsync(foreign);
+    await pg.RemoveHistoricalTrialBalanceDigestVersionCompatibilityColumnAsync();
     async Task<string[]> ReadHeadersAsync() => await db.Database.SqlQueryRaw<string>("""
       SELECT ('journal:' || to_jsonb(j)::text) AS "Value" FROM adjustment_journals j
       UNION ALL SELECT ('plan:' || to_jsonb(p)::text) AS "Value" FROM adjustment_plans p

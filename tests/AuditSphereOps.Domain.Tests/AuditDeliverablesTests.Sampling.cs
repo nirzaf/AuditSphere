@@ -144,6 +144,7 @@ public sealed partial class AuditDeliverablesTests
     var retained = await db.Database.SqlQueryRaw<string>("""
       SELECT jsonb_agg(to_jsonb(r) ORDER BY id)::text AS "Value" FROM audit_item_test_reviews r
       """).SingleAsync();
+    await pg.RemoveHistoricalTrialBalanceDigestVersionCompatibilityColumnAsync();
     await db.GetService<IMigrator>().MigrateAsync();
     var upgraded = await db.Database.SqlQueryRaw<string>("""
       SELECT jsonb_agg(to_jsonb(r) - 'review_sequence' ORDER BY id)::text AS "Value" FROM audit_item_test_reviews r

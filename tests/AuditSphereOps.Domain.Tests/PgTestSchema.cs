@@ -29,6 +29,9 @@ public sealed class PgTestSchema : IAsyncDisposable, ITestPostgresDatabase
 
   private readonly string _database;
   private readonly string _adminConnectionString;
+  private bool _historicalTrialBalanceDigestVersionCompatibilityColumn;
+
+  private const string TrialBalanceDigestVersionMigration = "20261113204633_TrialBalanceDigestVersioning";
 
   private PgTestSchema(
     string database,
@@ -91,6 +94,63 @@ public sealed class PgTestSchema : IAsyncDisposable, ITestPostgresDatabase
     }
 
     return new PgTestSchema(testDatabase, options, connectionString, adminConnectionString);
+  }
+
+  /// <summary>
+  /// Adds the one nullable column introduced by a later migration so current-model test fixtures can
+  /// seed/read historical-schema evidence. The migration under test remains responsible for creating
+  /// the column in tests that exercise that migration; remove this shim before advancing through it.
+  /// </summary>
+  public async Task AddHistoricalTrialBalanceDigestVersionCompatibilityColumnAsync()
+  {
+    if (_historicalTrialBalanceDigestVersionCompatibilityColumn)
+      return;
+
+    await using var db = new AuditSphereDbContext(Options);
+    var applied = await db.Database.GetAppliedMigrationsAsync();
+    if (applied.Contains(TrialBalanceDigestVersionMigration, StringComparer.Ordinal))
+      throw new InvalidOperationException("The digest-version migration is already applied; a historical compatibility column is not appropriate.");
+
+    var existing = await db.Database.SqlQueryRaw<int>("""
+      SELECT count(*)::int AS "Value"
+      FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = 'trial_balance_datasets'
+        AND column_name = 'normalized_dataset_digest_version'
+      """).SingleAsync();
+    if (existing != 0)
+      throw new InvalidOperationException("The historical digest-version compatibility column already exists outside this test fixture.");
+
+    await db.Database.ExecuteSqlRawAsync("""
+      ALTER TABLE trial_balance_datasets
+      ADD COLUMN normalized_dataset_digest_version character varying(40) NULL
+      """);
+    _historicalTrialBalanceDigestVersionCompatibilityColumn = true;
+  }
+
+  /// <summary>Removes only the temporary current-model compatibility column before its real migration runs.</summary>
+  public async Task RemoveHistoricalTrialBalanceDigestVersionCompatibilityColumnAsync()
+  {
+    if (!_historicalTrialBalanceDigestVersionCompatibilityColumn)
+      return;
+
+    await using var db = new AuditSphereDbContext(Options);
+    var applied = await db.Database.GetAppliedMigrationsAsync();
+    if (applied.Contains(TrialBalanceDigestVersionMigration, StringComparer.Ordinal))
+      throw new InvalidOperationException("The digest-version migration owns the column; the test shim must not remove it.");
+
+    var retainedVersions = await db.Database.SqlQueryRaw<int>("""
+      SELECT count(*)::int AS "Value"
+      FROM trial_balance_datasets
+      WHERE normalized_dataset_digest_version IS NOT NULL
+      """).SingleAsync();
+    if (retainedVersions != 0)
+      throw new InvalidOperationException("The historical compatibility column contains digest-version evidence and cannot be removed by the fixture.");
+
+    await db.Database.ExecuteSqlRawAsync("""
+      ALTER TABLE trial_balance_datasets
+      DROP COLUMN normalized_dataset_digest_version
+      """);
+    _historicalTrialBalanceDigestVersionCompatibilityColumn = false;
   }
 
   /// <summary>

@@ -54,6 +54,10 @@ public sealed partial class AuditDeliverablesTests
 
   private static async Task<World> SeedSchemaEraRetentionSubstrateAsync(PgTestSchema pg, World? sourceScope = null)
   {
+    // These fixtures deliberately start before TrialBalanceDigestVersioning but use current EF-owned
+    // synthetic evidence. The shim is unrelated to each tested migration and is removed when a test
+    // explicitly advances through the digest-version migration.
+    await pg.AddHistoricalTrialBalanceDigestVersionCompatibilityColumnAsync();
     Guid firmId, clientId, engagementId;
     if (sourceScope is null) (firmId, clientId, engagementId) = await pg.SeedScopeAsync();
     else

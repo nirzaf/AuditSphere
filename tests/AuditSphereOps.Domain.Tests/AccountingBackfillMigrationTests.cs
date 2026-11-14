@@ -16,6 +16,7 @@ public sealed class AccountingBackfillMigrationTests
   public async Task LegacyContextBackfill_BindsSingleMatchesAndQuarantinesAmbiguity()
   {
     await using var pg = await PgTestSchema.CreateAsync(Previous);
+    await pg.AddHistoricalTrialBalanceDigestVersionCompatibilityColumnAsync();
     var firmId = Guid.NewGuid();
     var userId = Guid.NewGuid();
     var exact = SeedScope(firmId, userId, "EXACT", 1);
@@ -45,6 +46,7 @@ public sealed class AccountingBackfillMigrationTests
             {m.Status}, {m.CreatedByUserId}, {m.CreatedAt})
           """);
       }
+      await pg.RemoveHistoricalTrialBalanceDigestVersionCompatibilityColumnAsync();
       await db.Database.MigrateAsync();
     }
 

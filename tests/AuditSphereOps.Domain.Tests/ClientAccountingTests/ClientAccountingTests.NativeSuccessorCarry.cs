@@ -31,6 +31,9 @@ public sealed partial class ClientAccountingTests
       Assert.Contains("native-opening-successor.v1", constraint);
       Assert.DoesNotContain("native-opening-successor.v2", constraint);
       await migrationDb.GetService<IMigrator>().MigrateAsync(migrations[index]);
+      // Restore migrations newer than this historical migration probe before the fixture uses
+      // the current EF model and current accounting workflows.
+      await migrationDb.GetService<IMigrator>().MigrateAsync();
     }
     var native = await CreateNativeBehaviourFixtureAsync(pg, withOpening: false, successorAccounts: true, cashAccount: true);
     var scope = native.Scope;
@@ -167,11 +170,9 @@ public sealed partial class ClientAccountingTests
     {
       var migrations = migrationDb.Database.GetMigrations().ToArray();
       var index = Array.FindIndex(migrations, x => x.EndsWith("_ClientOpeningSuccessorCarry", StringComparison.Ordinal));
-      var wrapper = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-        migrationDb.GetService<IMigrator>().MigrateAsync(migrations[index - 1]));
-      var refusal = Assert.IsType<PostgresException>(wrapper.GetBaseException());
-      Assert.Equal("55000", refusal.SqlState);
-      Assert.Contains("Cannot remove retained original-item successor evidence", refusal.MessageText);
+      await MigrationTestAssertions.AssertDownOperationBlockedAsync(migrationDb, migrations[index], "55000",
+        "Cannot remove retained original-item successor evidence");
+      Assert.Contains(migrations[index], await migrationDb.Database.GetAppliedMigrationsAsync());
       Assert.True(await migrationDb.ClientOperationalOpeningSuccessorProofs.AnyAsync(x => x.OpeningId == created.Value!.Opening.Id));
     }
     using (var proof = JsonDocument.Parse(created.Value!.ProofJson))

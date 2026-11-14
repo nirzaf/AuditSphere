@@ -262,6 +262,7 @@ public sealed class AuditSamplingSelectionIsolationTests
   {
     const string baseline = "20261029072350_AdjustmentSourceDatasetScope";
     await using var pg = await PgTestSchema.CreateAsync(baseline);
+    await pg.AddHistoricalTrialBalanceDigestVersionCompatibilityColumnAsync();
     var own = (await PlanningSeed.CreateAsync(pg, role: "Partner")).Primary;
     var foreign = (await PlanningSeed.CreateAsync(pg, role: "Partner")).Primary;
     await using var db = new AuditSphereDbContext(pg.Options);
@@ -311,6 +312,7 @@ public sealed class AuditSamplingSelectionIsolationTests
     var foreignKeys = await ReadForeignKeysAsync();
     var scoped = db.Database.GetMigrations().Single(x => x.EndsWith("_SamplingRunSelectionScope", StringComparison.Ordinal));
     var migrator = db.GetService<IMigrator>();
+    await pg.RemoveHistoricalTrialBalanceDigestVersionCompatibilityColumnAsync();
     await migrator.MigrateAsync(scoped);
     Assert.Equal(302, (await db.Database.GetAppliedMigrationsAsync()).Count());
     Assert.Equal(rows, await ReadRowsAsync());
