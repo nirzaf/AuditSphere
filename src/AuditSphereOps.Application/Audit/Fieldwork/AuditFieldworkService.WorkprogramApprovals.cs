@@ -1,7 +1,9 @@
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,8 +15,29 @@ public static partial class AuditFieldworkService
   public static async Task<bool> CanApproveWorkprogramsAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
   {
-    var auth = await AuthorizeEngagementAsync(db, actor, engagementId, ["Manager", "Partner", "Administrator"], ct);
-    return auth.Succeeded && await EngagementRankAsync(db, actor, engagementId, ct) >= 3;
+    var engagement = await db.Engagements.AsNoTracking()
+      .Where(x => x.FirmId == actor.FirmId && x.Id == engagementId)
+      .Select(x => new { x.PracticeClientId, x.ProfessionalWorkBlocked })
+      .SingleOrDefaultAsync(ct);
+    if (engagement is null || engagement.ProfessionalWorkBlocked)
+      return false;
+
+    // This is a read-only UI capability projection. Do not use RequireProfessionalWork here:
+    // that write-boundary authorization intentionally persists a frozen-access refusal, while
+    // merely rendering the completion page must not create an audit event.
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagementId,
+        ["Manager", "Partner", "Administrator"], InternalOnly: true), ct);
+    if (!auth.Succeeded || await EngagementRankAsync(db, actor, engagementId, ct) < 3)
+      return false;
+
+    var activeHold = await db.EngagementHolds.AsNoTracking().AnyAsync(x =>
+      x.FirmId == actor.FirmId && x.EngagementId == engagementId && !x.Released, ct);
+    if (activeHold)
+      return false;
+
+    return !await db.EngagementFileFreezes.AsNoTracking().AnyAsync(x =>
+      x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.State == FileFreezeStates.Frozen, ct);
   }
 
   /// <summary>

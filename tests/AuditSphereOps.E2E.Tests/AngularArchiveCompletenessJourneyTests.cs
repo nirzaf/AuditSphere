@@ -334,4 +334,206 @@ public sealed class AngularArchiveCompletenessJourneyTests
     Assert.DoesNotContain("Archive complete", text, StringComparison.OrdinalIgnoreCase);
     Assert.Empty(errors);
   }
+
+  [Fact]
+  [Trait("CaseId", "PMS-R10-NATIVE-CHROME-REVIEW-RECOVERY")]
+  public async Task LostReviewOutcomeRecoversAfterReloadWithoutClearingOtherIntent()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "PMS-R10-NATIVE-CHROME-REVIEW-RECOVERY");
+    var f = host.Fixture;
+    var now = DateTimeOffset.UtcNow;
+    var archiveId = Guid.NewGuid();
+    var manifestId = Guid.NewGuid();
+    var digest = Hashing.Sha256Hex(JsonSerializer.Serialize(Array.Empty<object>()));
+    await using (var db = host.CreateDbContext())
+    {
+      db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Reviewer, "Partner", f.ClientId, f.EngagementId));
+      db.Archives.Add(new Archive
+      {
+        Id = archiveId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ProfileId = "SYNTH-R10-RECOVERY", ProfileVersion = 1, Status = ArchiveStates.ManifestBuilt, CreatedAt = now
+      });
+      db.ArchiveManifests.Add(new ArchiveManifest
+      {
+        Id = manifestId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ArchiveId = archiveId, Version = 1, Status = "BUILT", ManifestDigest = digest,
+        EntryCount = 0, CompletenessStatus = "COMPLETE", BuiltAt = now
+      });
+      await db.SaveChangesAsync();
+    }
+
+    var origin = await host.StartApiForIdentityAsync(f.Reviewer, new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = "true"
+    });
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var context = await browser.NewContextAsync();
+    var page = await context.NewPageAsync();
+    var pageErrors = new List<string>();
+    page.PageError += (_, error) => pageErrors.Add(error);
+    var archiveUrl = $"{origin}/api/ui/records/archives/{archiveId:D}";
+    var reviewUrl = archiveUrl + "/review";
+    var archiveReads = 0;
+    page.Request += (_, request) =>
+    {
+      if (request.Method == "GET" && request.Url == archiveUrl) archiveReads++;
+    };
+
+    var route = $"/app/records/archives/{archiveId:D}";
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(route));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Records archive", Exact = true }))
+      .ToBeVisibleAsync();
+    var reviewButton = page.GetByRole(AriaRole.Button, new() { Name = "Review exact manifest", Exact = true });
+    await Assertions.Expect(reviewButton).ToBeEnabledAsync();
+
+    var firstBody = "";
+    var replayBody = "";
+    var firstReceipt = "";
+    var replayReceipt = "";
+    var postCount = 0;
+    await page.RouteAsync(reviewUrl, async interception =>
+    {
+      if (interception.Request.Method != "POST")
+      {
+        await interception.ContinueAsync();
+        return;
+      }
+
+      postCount++;
+      if (postCount == 1)
+      {
+        firstBody = interception.Request.PostData ?? "";
+        await using var committed = await interception.FetchAsync();
+        Assert.Equal(200, committed.Status);
+        firstReceipt = await committed.TextAsync();
+        // The real API commits the review; only its response is lost to the browser.
+        await interception.AbortAsync("failed");
+        return;
+      }
+
+      replayBody = interception.Request.PostData ?? "";
+      await using var replayed = await interception.FetchAsync();
+      Assert.Equal(200, replayed.Status);
+      replayReceipt = await replayed.TextAsync();
+      await interception.FulfillAsync(new() { Response = replayed });
+    });
+
+    await reviewButton.ClickAsync();
+    var unconfirmed = "An original review request is unconfirmed. Recover it before starting another action.";
+    var retry = page.GetByRole(AriaRole.Button, new() { Name = "Retry original review", Exact = true });
+    await Assertions.Expect(page.GetByText(unconfirmed, new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(retry).ToBeEnabledAsync();
+    Assert.Equal(1, postCount);
+    Assert.NotEmpty(firstBody);
+
+    var storageKey = $"auditsphere-archive-intent-v1:{f.FirmId:D}:{f.Reviewer.Id:D}:{f.EngagementId:D}:{archiveId:D}";
+    var retained = await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey);
+    Assert.NotNull(retained);
+    using var originalIntent = JsonDocument.Parse(retained);
+    var requestKey = originalIntent.RootElement.GetProperty("requestKey").GetString();
+    Assert.False(string.IsNullOrWhiteSpace(requestKey));
+    using (var receipt = JsonDocument.Parse(firstReceipt))
+      Assert.Equal("REVIEWED", receipt.RootElement.GetProperty("value").GetProperty("status").GetString());
+
+    var sessionBeforeText = await page.EvaluateAsync<string>(
+      "async () => await (await fetch('/api/ui/session', { cache: 'no-store' })).text()");
+    using var sessionBefore = JsonDocument.Parse(sessionBeforeText);
+    Assert.Equal(f.Reviewer.Id, sessionBefore.RootElement.GetProperty("userId").GetGuid());
+    var generationBefore = sessionBefore.RootElement.GetProperty("generation").GetString();
+
+    DateTimeOffset? firstReviewedAt;
+    await using (var db = host.CreateDbContext())
+    {
+      var manifest = await db.ArchiveManifests.SingleAsync(x => x.Id == manifestId);
+      Assert.Equal("REVIEWED", manifest.Status);
+      Assert.Equal(requestKey, manifest.ReviewRequestKey);
+      Assert.Equal(f.Reviewer.Id, manifest.ReviewedByUserId);
+      firstReviewedAt = manifest.ReviewedAt;
+      await db.Users.Where(x => x.Id == f.Reviewer.Id).ExecuteUpdateAsync(x =>
+        x.SetProperty(user => user.SessionEpoch, user => user.SessionEpoch + 1));
+    }
+
+    await page.ReloadAsync();
+    Assert.Equal(retained, await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey));
+    await page.GotoAsync(origin + "/auth/sign-out");
+    Assert.Equal(retained, await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey));
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(route));
+    await Assertions.Expect(page.GetByText(unconfirmed, new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button,
+      new() { Name = "Review exact manifest", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(page.GetByRole(AriaRole.Button,
+      new() { Name = "Retry original review", Exact = true })).ToBeEnabledAsync();
+    var sessionAfterText = await page.EvaluateAsync<string>(
+      "async () => await (await fetch('/api/ui/session', { cache: 'no-store' })).text()");
+    using var sessionAfter = JsonDocument.Parse(sessionAfterText);
+    Assert.Equal(f.Reviewer.Id, sessionAfter.RootElement.GetProperty("userId").GetGuid());
+    Assert.NotEqual(generationBefore, sessionAfter.RootElement.GetProperty("generation").GetString());
+
+    var otherOrigin = await host.StartApiForIdentityAsync(f.Client, new Dictionary<string, string>
+    {
+      ["AngularUi__Enabled"] = "true",
+      ["AngularUi__CanonicalRoutes"] = "true"
+    });
+    await page.GotoAsync(otherOrigin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(route));
+    var replacementSessionText = await page.EvaluateAsync<string>(
+      "async () => await (await fetch('/api/ui/session', { cache: 'no-store' })).text()");
+    using (var replacementSession = JsonDocument.Parse(replacementSessionText))
+      Assert.Equal(f.Client.Id, replacementSession.RootElement.GetProperty("userId").GetGuid());
+    await page.GotoAsync(origin + route);
+    var currentActorText = await page.EvaluateAsync<string>(
+      "async () => await (await fetch('/api/ui/session', { cache: 'no-store' })).text()");
+    using (var currentActor = JsonDocument.Parse(currentActorText))
+      Assert.Equal(f.Client.Id, currentActor.RootElement.GetProperty("userId").GetGuid());
+    await Assertions.Expect(page.GetByRole(AriaRole.Button,
+      new() { Name = "Retry original review", Exact = true })).ToHaveCountAsync(0);
+    Assert.Equal(retained, await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey));
+
+    await page.GotoAsync(origin + "/auth/sign-out");
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(route));
+    await Assertions.Expect(page.GetByText(unconfirmed, new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(page.GetByRole(AriaRole.Button,
+      new() { Name = "Retry original review", Exact = true })).ToBeEnabledAsync();
+
+    var unrelatedArchiveId = Guid.NewGuid();
+    var unrelatedKey = $"auditsphere-archive-intent-v1:{f.FirmId:D}:{f.Reviewer.Id:D}:{f.EngagementId:D}:{unrelatedArchiveId:D}";
+    var unrelatedRaw = JsonSerializer.Serialize(new
+    {
+      version = 1, firmId = f.FirmId, actorUserId = f.Reviewer.Id, engagementId = f.EngagementId,
+      archiveId = unrelatedArchiveId, action = "build", requestKey = Guid.NewGuid(),
+      commercialBundleId = (Guid?)null, manifestId = (Guid?)null,
+      manifestVersion = (long?)null, manifestDigest = (string?)null
+    });
+    await page.EvaluateAsync("x => sessionStorage.setItem(x.key, x.raw)", new { key = unrelatedKey, raw = unrelatedRaw });
+    var readsBeforeRecovery = archiveReads;
+    await page.GetByRole(AriaRole.Button, new() { Name = "Retry original review", Exact = true }).ClickAsync();
+
+    await Assertions.Expect(page.GetByText(unconfirmed, new() { Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(page.GetByRole(AriaRole.Button,
+      new() { Name = "Retry original review", Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(page.Locator("audit-status")).ToContainTextAsync("assembly reviewed");
+    Assert.True(archiveReads > readsBeforeRecovery, "The terminal receipt must refresh the archive from the API.");
+    Assert.Equal(2, postCount);
+    Assert.Equal(firstBody, replayBody);
+    Assert.Equal(firstReceipt, replayReceipt);
+    using (var replayRequest = JsonDocument.Parse(replayBody))
+      Assert.Equal(requestKey, replayRequest.RootElement.GetProperty("requestKey").GetString());
+    Assert.Null(await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey));
+    Assert.Equal(unrelatedRaw, await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", unrelatedKey));
+
+    await using (var db = host.CreateDbContext())
+    {
+      Assert.Equal(1, await db.ArchiveManifests.CountAsync(x => x.ArchiveId == archiveId));
+      var manifest = await db.ArchiveManifests.SingleAsync(x => x.Id == manifestId);
+      Assert.Equal("REVIEWED", manifest.Status);
+      Assert.Equal(requestKey, manifest.ReviewRequestKey);
+      Assert.Equal(f.Reviewer.Id, manifest.ReviewedByUserId);
+      Assert.Equal(firstReviewedAt, manifest.ReviewedAt);
+      Assert.Equal(ArchiveStates.AssemblyReviewed,
+        await db.Archives.Where(x => x.Id == archiveId).Select(x => x.Status).SingleAsync());
+    }
+    Assert.Empty(pageErrors);
+  }
 }

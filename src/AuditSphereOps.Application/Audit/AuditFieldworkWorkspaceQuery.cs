@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Records;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -69,12 +70,35 @@ public static class AuditFieldworkWorkspaceQuery
     if (engagement is null) return new(null, CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied."), false, false, false, false, false, false);
 
     async Task<CommandResult> AuthorizeRolesAsync(string[] roles) => await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, roles, true, true), ct);
+      new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id, roles, InternalOnly: true), ct);
 
     var access = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagement.Id,
-        FieldworkRoles.Concat(ReviewParticipantRoles).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), true, true), ct);
+        FieldworkRoles.Concat(ReviewParticipantRoles).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), InternalOnly: true), ct);
     if (!access.Succeeded) return new(engagement, access, false, false, false, false, false, false);
+
+    // This query only projects the fieldwork workspace. RequireProfessionalWork authorization records
+    // a frozen-access refusal for commands; using it on a GET would turn ordinary page rendering into
+    // a write. Preserve the same fail-closed response without manufacturing an attempted-write event.
+    if (engagement.ProfessionalWorkBlocked)
+    {
+      var frozen = await db.EngagementFileFreezes.AsNoTracking().AnyAsync(x =>
+        x.FirmId == actor.FirmId && x.EngagementId == engagement.Id && x.State == FileFreezeStates.Frozen, ct);
+      return new(engagement, CommandResult.Fail(frozen ? ErrorCodes.ProtectedState : ErrorCodes.GateBlocked,
+        frozen ? "The engagement file is frozen after the report; an approved amendment is required to change it."
+          : "Professional work is blocked on this engagement."), false, false, false, false, false, false);
+    }
+
+    if (await db.EngagementHolds.AsNoTracking().AnyAsync(x =>
+      x.FirmId == actor.FirmId && x.EngagementId == engagement.Id && !x.Released, ct))
+      return new(engagement, CommandResult.Fail(ErrorCodes.GateBlocked, "An unreleased hold blocks professional work."),
+        false, false, false, false, false, false);
+
+    if (await db.EngagementFileFreezes.AsNoTracking().AnyAsync(x =>
+      x.FirmId == actor.FirmId && x.EngagementId == engagement.Id && x.State == FileFreezeStates.Frozen, ct))
+      return new(engagement, CommandResult.Fail(ErrorCodes.ProtectedState,
+        "The engagement file is frozen after the report; an approved amendment is required to change it."),
+        false, false, false, false, false, false);
 
     var canManage = (await AuthorizeRolesAsync(FieldworkRoles)).Succeeded;
     var canApproveApplicability = (await AuthorizeRolesAsync(PartnerApplicabilityRoles)).Succeeded;

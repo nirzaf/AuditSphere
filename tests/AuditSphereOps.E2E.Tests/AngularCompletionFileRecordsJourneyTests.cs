@@ -178,6 +178,16 @@ public sealed class AngularCompletionFileRecordsJourneyTests
         x.Action == "professional work on a frozen engagement file"));
     }
 
+    // Rendering the frozen completion workspace projects a disabled workprogram capability. A read-only
+    // projection must not record another attempted write or change the three command refusal events above.
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(completionRoute));
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "File freeze and activity trail", Exact = true })).ToBeVisibleAsync();
+    await using (var db = host.CreateDbContext())
+      Assert.Equal(priorProfessionalWorkRefusals + 3, await db.FrozenAccessAttempts.CountAsync(x => x.FirmId == f.FirmId &&
+        x.EngagementId == f.EngagementId && x.ActorUserId == partner.Id &&
+        x.Action == "professional work on a frozen engagement file"));
+
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(engagementRoute));
     workflow = page.GetByRole(AriaRole.Region,
       new() { Name = "Engagement workflow", Exact = true });
