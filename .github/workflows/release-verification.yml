@@ -594,9 +594,10 @@ jobs:
             dotnet restore AuditSphereOps.slnx --locked-mode
 
       # A successful master push or manually dispatched master run of ci.yml may have compiled
-      # this exact commit in the same pinned SDK and runner image. Its optional artifact is a
-      # performance hint only: identity, manifest, digest and every extracted path are verified
-      # below, and any absence/refusal uses the clean solution-build path. The uploaded binaries
+      # this exact commit in the same pinned SDK and ubuntu-24.04 image family. Hosted image patch
+      # releases can differ between jobs, so the producer version is provenance; image family,
+      # OS, architecture, source, run identity, SDK, build properties, digest and paths are checked
+      # below. Any absent or incompatible artifact uses the clean solution-build path. The outputs
       # let full .NET tests and contract checks start independently as soon as this job completes.
       - name: Locate a successful exact-source fast-CI build artifact
         id: fast-build

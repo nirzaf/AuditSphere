@@ -73,6 +73,61 @@ class CiBuildArtifactTests(unittest.TestCase):
         self.assertEqual(b"compiled assembly", (self.bin_output / "Example.dll").read_bytes())
         self.assertEqual("{}", (self.obj_output / "project.assets.json").read_text(encoding="utf-8"))
 
+    def test_hosted_runner_patch_version_is_provenance_not_a_compatibility_gate(self) -> None:
+        manifest = self.create_artifact()
+        self.assertEqual("20261101.1", manifest["runnerImageVersion"])
+
+        result = self.verify_artifact(runner_version="20261114.127.1")
+
+        self.assertTrue(result["restored"])
+        self.assertEqual("20261101.1", result["producerRunnerImageVersion"])
+        self.assertEqual("20261114.127.1", result["consumerRunnerImageVersion"])
+        self.assertEqual(b"compiled assembly", (self.bin_output / "Example.dll").read_bytes())
+
+    def test_runner_family_mismatch_is_rejected_before_output_restore(self) -> None:
+        manifest = self.create_artifact()
+        manifest["runnerImage"] = "ubuntu-22.04"
+        (self.artifact_dir / "source.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
+
+        with self.assertRaisesRegex(ValueError, "manifest mismatch for runnerImage"):
+            self.verify_artifact()
+
+        self.assertEqual(b"compiled assembly", (self.bin_output / "Example.dll").read_bytes())
+
+    def test_missing_runner_version_provenance_is_rejected(self) -> None:
+        manifest = self.create_artifact()
+        del manifest["runnerImageVersion"]
+        (self.artifact_dir / "source.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
+
+        with self.assertRaisesRegex(
+            ValueError, "producer runner version provenance is missing"
+        ):
+            self.verify_artifact()
+
+        self.assertEqual(b"compiled assembly", (self.bin_output / "Example.dll").read_bytes())
+
+    def test_runner_os_and_architecture_mismatches_are_rejected(self) -> None:
+        manifest = self.create_artifact()
+
+        for field in ("runnerImageOS", "operatingSystem", "machine"):
+            with self.subTest(field=field):
+                altered = dict(manifest)
+                altered[field] = f"{manifest[field]}-mismatch"
+                (self.artifact_dir / "source.json").write_text(
+                    json.dumps(altered), encoding="utf-8"
+                )
+
+                with self.assertRaisesRegex(
+                    ValueError, f"manifest mismatch for {field}"
+                ):
+                    self.verify_artifact()
+
+        self.assertEqual(b"compiled assembly", (self.bin_output / "Example.dll").read_bytes())
+
     def test_build_property_mismatch_is_rejected_before_output_restore(self) -> None:
         manifest = self.create_artifact()
         manifest["buildProperties"]["maxCpuCount"] = 1

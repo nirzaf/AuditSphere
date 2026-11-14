@@ -101,13 +101,21 @@ def _output_directories(root: Path) -> list[Path]:
     return sorted(set(directories), key=lambda path: path.relative_to(root).as_posix())
 
 
-def _runner_identity(runner_image: str, runner_version: str) -> dict[str, str]:
+def _runner_compatibility_identity(runner_image: str) -> dict[str, str]:
     return {
         "runnerImage": runner_image,
         "runnerImageOS": os.environ.get("ImageOS", "unknown"),
-        "runnerImageVersion": runner_version or os.environ.get("ImageVersion", "unknown"),
         "operatingSystem": platform.system(),
         "machine": platform.machine(),
+    }
+
+
+def _runner_identity(runner_image: str, runner_version: str) -> dict[str, str]:
+    return {
+        **_runner_compatibility_identity(runner_image),
+        # GitHub-hosted jobs using the same image label may receive different patch
+        # releases. Keep the producer version for provenance, not as a consumer gate.
+        "runnerImageVersion": runner_version or os.environ.get("ImageVersion", "unknown"),
     }
 
 
@@ -123,7 +131,7 @@ def create_build_artifact(
     runner_image: str,
     runner_version: str,
 ) -> dict[str, Any]:
-    """Package all Release/net11.0 bin/obj trees and bind them to their exact build identity."""
+    """Package Release/net11.0 outputs with exact source/build identity and runner provenance."""
 
     root = root.resolve()
     output_dir = output_dir.resolve()
@@ -207,7 +215,7 @@ def verify_and_extract_build_artifact(
     runner_image: str,
     runner_version: str,
 ) -> dict[str, Any]:
-    """Verify identity, digest and member paths before transactionally restoring outputs."""
+    """Verify source/build compatibility, digest and paths before restoring outputs."""
 
     root = root.resolve()
     artifact_dir = artifact_dir.resolve()
@@ -219,6 +227,9 @@ def verify_and_extract_build_artifact(
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
         raise ValueError("build artifact manifest must be a JSON object")
+    producer_runner_version = manifest.get("runnerImageVersion")
+    if not isinstance(producer_runner_version, str) or not producer_runner_version:
+        raise ValueError("build artifact producer runner version provenance is missing")
     expected = {
         "schemaVersion": SCHEMA_VERSION,
         "repository": repository,
@@ -230,7 +241,7 @@ def verify_and_extract_build_artifact(
         "targetFramework": "net11.0",
         "dotnetSdk": dotnet_sdk,
         "buildProperties": dict(BUILD_PROPERTIES),
-        **_runner_identity(runner_image, runner_version),
+        **_runner_compatibility_identity(runner_image),
         "archiveFile": ARCHIVE_NAME,
     }
     for field, value in expected.items():
@@ -350,6 +361,8 @@ def verify_and_extract_build_artifact(
         "sourceSha": source_sha,
         "workflowRunId": run_id,
         "workflowRunAttempt": run_attempt,
+        "producerRunnerImageVersion": producer_runner_version,
+        "consumerRunnerImageVersion": runner_version or os.environ.get("ImageVersion", "unknown"),
         "archiveSha256": manifest["archiveSha256"],
         "archiveBytes": archive_bytes,
         "outputDirectoryCount": len(output_directories),
