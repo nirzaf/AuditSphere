@@ -31,6 +31,9 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(rows, shards.inventory(list(reversed(x)), list(reversed(v))))
         assignments = shards.partition(rows)
         self.assertEqual(sorted(i for a in assignments for i in a), sorted(r["id"] for r in rows))
+        for assignment in assignments:
+            self.assertLessEqual(len({r["collection"] for r in rows if r["id"] in assignment}),
+                                 shards.MAX_COLLECTIONS)
         for collection in {r["collection"] for r in rows}:
             ids = {r["id"] for r in rows if r["collection"] == collection}
             self.assertEqual(sum(ids.issubset(a) for a in map(set, assignments)), 1)
@@ -53,7 +56,7 @@ class ProtocolTests(unittest.TestCase):
         rows = [{"id": str(i), "collection": str(i // 7)} for i in range(35)]
         assignments = shards.partition(rows)
         self.assertEqual([len(s) for s in assignments], [21, 14])
-        self.assertEqual([len(s) for s in shards.partition([{"id": str(i), "collection": str(i)} for i in range(5)])], [4, 1])
+        self.assertEqual([len(s) for s in shards.partition([{"id": str(i), "collection": str(i)} for i in range(5)])], [3, 2])
         with self.assertRaises(ValueError):
             shards.partition([])
 

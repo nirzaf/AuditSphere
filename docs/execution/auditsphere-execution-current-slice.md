@@ -16,12 +16,11 @@
 - The owner approved an exception to the backup and restored-copy rehearsal requirements for this exact test rollout. Both remain unproved for a separate release. The release operator and owner must establish applicable recovery and restore evidence, source-bound gates and authenticated acceptance for any subsequent release. The receipt identifies the digest-only Compose overlay and its file order. After the schema advance, recovery is repair-forward.
 - R01–R11 source is published in the deployed ancestry. The [PMS ledger](status.json) keeps the original criteria, dependencies, owners, local review limits and next actions. Exact integrated CI and the test smoke establish their recorded scopes. The [generated task board](auditsphere-execution-index-task-board-current.md) retains the independent R2R/AUD card states and its existing source limitations.
 
-## Current R03/R06/R05 recovery and image CI (2026-11-14)
+## Current API shard resource correction (2026-11-14)
 
-- R03 and R05 Chrome/PostgreSQL recovery each passed 1/1; exact intent/receipt was retained without duplicate or cross-actor disclosure. Evidence: `.local/autonomous/evidence/pms-r03-variance-chrome-context-28b4/focused-chrome-recovery-review.json`; `.local/autonomous/evidence/pms-r05-chrome-20261114/focused-chrome-recovery-review.json`. The project runner uses Chrome only; Edge was removed and its absence verified.
-- R04 passed three focused cases on `28b4`: same-epoch grant expiry during a firm-lock wait, legacy `NOT_ASSESSED` review refusal, and the Chrome freeze journey. Evidence: `.local/autonomous/evidence/pms-r04-focused-20261114/focused-r04-review.json`. Professional decisions on real evidence remain open.
-- The four-path `28b4f938` candidate adds the R03 regression, worker compiler cap and aligned status/handoff. Fast run `43621260359` predates these edits; no exact-source CI has run for this candidate.
-- Q01/Q02 and Q04–Q08 remain open; focused checks do not establish release acceptance.
+- Exact `8240b72e72e88c0bfe205e00ba4b9e9367c4f8fd` fast `43630143603` and images `43630143708` passed. Full run `43632985675` stopped at API shard 018's 3-GiB RSS guard (3,230,646,272 bytes; four fixture collections, ten cases; no assertion failure); E2E remains active.
+- Candidate cap is three fixture collections per process instead of four. The retained 441-case/103-collection inventory repartitions to 35 shards without splitting fixtures or dropping tests. Focused shard protocol 5/5 and release-source verifier 8/8 passed; exact-source CI for the correction is pending.
+- Evidence: `.local/autonomous/evidence/api-shard-rss-cap-20261114T204412Z/api-rss-repartition-review.json`; CI artifacts and digests are retained in `.local/autonomous/evidence/ci-8240b72e-current-20261114/api-terminal-review/`. Chrome only; external/professional acceptance remains open.
 
 ## Open acceptance dependencies
 

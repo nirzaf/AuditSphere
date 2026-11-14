@@ -21,7 +21,9 @@ import time
 import xml.etree.ElementTree as ET
 
 MAX_ROWS = 24
-MAX_COLLECTIONS = 4
+# A four-collection shard exceeded the verified 3 GiB process-group RSS ceiling
+# on the exact full run. Keep fixture collections intact, but reduce co-location.
+MAX_COLLECTIONS = 3
 RSS_LIMIT = 3 * 1024**3
 NS = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
 
