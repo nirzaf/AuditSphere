@@ -22,13 +22,19 @@ public sealed class AngularVariancePreparationRecoveryJourneyTests
     });
     var scope = world.Primary;
     AppUser preparer;
+    AppUser reviewer;
     await using (var db = host.CreateDbContext())
+    {
       preparer = await db.Users.AsNoTracking().SingleAsync(x => x.Id == scope.Preparer.UserId);
-    var origin = await host.StartApiForIdentityAsync(preparer, new Dictionary<string, string>
+      reviewer = await db.Users.AsNoTracking().SingleAsync(x => x.Id == world.Reviewer.UserId);
+    }
+    var angular = new Dictionary<string, string>
     {
       ["AngularUi__Enabled"] = "true",
       ["AngularUi__CanonicalRoutes"] = "true"
-    });
+    };
+    var origin = await host.StartApiForIdentityAsync(preparer, angular);
+    var replacementOrigin = await host.StartApiForIdentityAsync(reviewer, angular);
     using var playwright = await Playwright.CreateAsync();
     await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
     var page = await browser.NewPageAsync();
@@ -79,16 +85,65 @@ public sealed class AngularVariancePreparationRecoveryJourneyTests
     await Assertions.Expect(prepare).ToHaveCountAsync(0);
     await Assertions.Expect(pending).ToContainTextAsync("REVENUE / 2026-Q1");
 
-    await pending.GetByRole(AriaRole.Button, new() { Name = "Load pending request scope", Exact = true }).ClickAsync();
+    var storageKey = $"auditsphere-variance-pending-v1:{scope.FirmId:D}:{preparer.Id:D}:{scope.EngagementId:D}";
+    var saved = await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey);
+    Assert.NotNull(saved);
+    using (var savedIntent = JsonDocument.Parse(saved))
+    {
+      Assert.Equal(requestId, savedIntent.RootElement.GetProperty("requestId").GetGuid());
+      Assert.Equal(hash, savedIntent.RootElement.GetProperty("requestHash").GetString());
+    }
+    var sessionBeforeText = await page.EvaluateAsync<string>(
+      "async () => await (await fetch('/api/ui/session', { cache: 'no-store' })).text()");
+    using var sessionBefore = JsonDocument.Parse(sessionBeforeText);
+    Assert.Equal(preparer.Id, sessionBefore.RootElement.GetProperty("userId").GetGuid());
+    var sessionEpochBefore = sessionBefore.RootElement.GetProperty("generation").GetString();
+
+    await page.GotoAsync(origin + "/auth/sign-out");
+    Assert.Equal(saved, await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey));
+    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(completion));
+    await Assertions.Expect(pending).ToContainTextAsync(requestId.ToString("D"));
+    var renewedSessionText = await page.EvaluateAsync<string>(
+      "async () => await (await fetch('/api/ui/session', { cache: 'no-store' })).text()");
+    using (var renewedSession = JsonDocument.Parse(renewedSessionText))
+    {
+      Assert.Equal(preparer.Id, renewedSession.RootElement.GetProperty("userId").GetGuid());
+      Assert.Equal(sessionEpochBefore, renewedSession.RootElement.GetProperty("generation").GetString());
+    }
+
     var lookupUrl = $"{origin}{apiPath}/receipts/{requestId:D}?requestHash={hash}";
+    var lookupCount = 0;
     var observedLookup = new TaskCompletionSource<(int Status, string Body)>(TaskCreationOptions.RunContinuationsAsynchronously);
     await page.RouteAsync(lookupUrl, async route =>
     {
-      // Capture the real response before delivering it to the browser, which may invalidate the network body handle.
+      Interlocked.Increment(ref lookupCount);
       await using var response = await route.FetchAsync();
       observedLookup.TrySetResult((response.Status, await response.TextAsync()));
       await route.FulfillAsync(new() { Response = response });
     });
+
+    await using (var signIn = await page.Context.APIRequest.GetAsync(replacementOrigin + "/auth/sign-in",
+      new() { MaxRedirects = 0 }))
+      Assert.Equal(302, signIn.Status);
+    await page.GotoAsync(origin + completion);
+    var replacementSessionText = await page.EvaluateAsync<string>(
+      "async () => await (await fetch('/api/ui/session', { cache: 'no-store' })).text()");
+    using (var replacementSession = JsonDocument.Parse(replacementSessionText))
+      Assert.Equal(reviewer.Id, replacementSession.RootElement.GetProperty("userId").GetGuid());
+    await Assertions.Expect(pending).ToHaveCountAsync(0);
+    await Assertions.Expect(panel.Locator("[data-variance-record]")).ToHaveCountAsync(0);
+    Assert.DoesNotContain(requestId.ToString("D"), await panel.InnerTextAsync(), StringComparison.Ordinal);
+    Assert.Equal(saved, await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey));
+    Assert.Equal(0, Volatile.Read(ref lookupCount));
+
+    await using (var signIn = await page.Context.APIRequest.GetAsync(origin + "/auth/sign-in",
+      new() { MaxRedirects = 0 }))
+      Assert.Equal(302, signIn.Status);
+    await page.GotoAsync(origin + completion);
+    await Assertions.Expect(pending).ToContainTextAsync(requestId.ToString("D"));
+    Assert.Equal(saved, await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey));
+
+    await pending.GetByRole(AriaRole.Button, new() { Name = "Load pending request scope", Exact = true }).ClickAsync();
     await pending.GetByRole(AriaRole.Button, new() { Name = "Look up this exact request", Exact = true }).ClickAsync();
     var lookup = await observedLookup.Task.WaitAsync(TimeSpan.FromSeconds(15));
     Assert.Equal(200, lookup.Status);
@@ -101,6 +156,7 @@ public sealed class AngularVariancePreparationRecoveryJourneyTests
     await Assertions.Expect(record).ToContainTextAsync("Not independently reviewed.");
     await Assertions.Expect(record).ToContainTextAsync(VarianceInvestigationConclusions.Unexplained);
     Assert.Equal(1, Volatile.Read(ref sent));
+    Assert.Equal(1, Volatile.Read(ref lookupCount));
 
     await using var verify = host.CreateDbContext();
     var retained = await verify.AnalyticalReviewVarianceInvestigations.AsNoTracking().SingleAsync();
