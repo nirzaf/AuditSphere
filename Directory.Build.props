@@ -13,4 +13,8 @@
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'AuditSphereOps.Api' Or '$(MSBuildProjectName)' == 'AuditSphereOps.Application' Or '$(MSBuildProjectName)' == 'AuditSphereOps.Domain' Or '$(MSBuildProjectName)' == 'AuditSphereOps.Infrastructure' Or '$(MSBuildProjectName)' == 'AuditSphereOps.Worker'">
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
 </Project>
