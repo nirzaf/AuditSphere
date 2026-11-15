@@ -23,6 +23,7 @@ namespace AuditSphereOps.Api.Tests;
 public sealed partial class CompletionVarianceCommandsApiTests
 {
   [Fact]
+  [Trait("CompletionUnit", "WU-015")]
   public async Task GoingConcernCommandsPreserveExactEvidenceReviewRecoveryAndAmbiguousSelection()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -330,22 +331,77 @@ public sealed partial class CompletionVarianceCommandsApiTests
 
     var revokedReview = await ReviewIntent(id, date);
     int beforeRevocationReceipts;
+    Guid reviewGrantId;
+    long reviewerEpochBeforeRevocation;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       beforeRevocationReceipts = await db.AuditCompletionGoingConcernCommandReceipts.CountAsync();
-      var grantId = await db.RoleGrants.Where(x => x.UserId == reviewer.UserId && x.Role == "Manager" &&
+      reviewGrantId = await db.RoleGrants.Where(x => x.UserId == reviewer.UserId && x.Role == "Manager" &&
         x.EngagementId == world.Primary.EngagementId && x.RevokedAt == null).Select(x => x.Id).SingleAsync();
-      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db, world.Administrator,
-        new(grantId, Reason: "Synthetic R04 exact review scope revocation."));
-      Assert.True(revoked.Succeeded, revoked.Message);
+      reviewerEpochBeforeRevocation = await db.Users.Where(x => x.Id == reviewer.UserId)
+        .Select(x => x.SessionEpoch).SingleAsync();
     }
-    using (var refused = await Post(reviewClient, reviewCsrf, root + $"/{id}/review", revokedReview))
-      Assert.False(refused.IsSuccessStatusCode);
+
+    // Queue the real role revocation before the review command on the existing firm
+    // authorization fence. Once that lock is released, revocation must commit first,
+    // and the review must re-read the now-revoked grant before any review/receipt write.
+    await using var firmBlocker = new AuditSphereDbContext(pg.Options);
+    await using var observer = new AuditSphereDbContext(pg.Options);
+    await using var firmFence = await firmBlocker.Database.BeginTransactionAsync();
+    await firmBlocker.FirmSafetyStates.FromSqlInterpolated($"""
+      SELECT * FROM firm_safety_states WHERE id = {world.Primary.FirmId} FOR UPDATE
+      """).AsNoTracking().SingleAsync();
+    await using var revoker = new AuditSphereDbContext(pg.Options);
+    using var revocationTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+
+    async Task WaitForFirmSafetyWaiters(int expected, CancellationToken ct)
+    {
+      while (true)
+      {
+        var count = await observer.Database.SqlQueryRaw<int>(
+          "SELECT count(*)::int AS \"Value\" FROM pg_stat_activity WHERE datname=current_database() " +
+          "AND pid<>pg_backend_pid() AND wait_event_type='Lock' AND query LIKE '%firm_safety_states%'")
+          .SingleAsync(ct);
+        if (count >= expected) return;
+        await Task.Delay(25, ct);
+      }
+    }
+
+    var revocation = RoleAdministrationService.RevokeRoleGrantAsync(revoker, world.Administrator,
+      new(reviewGrantId, Reason: "Synthetic R04 exact review scope revocation while review waits on the firm authorization fence."),
+      revocationTimeout.Token);
+    Task<HttpResponseMessage>? waitingReview = null;
+    try
+    {
+      await WaitForFirmSafetyWaiters(1, revocationTimeout.Token);
+      waitingReview = Post(reviewClient, reviewCsrf, root + $"/{id}/review", revokedReview);
+      await WaitForFirmSafetyWaiters(2, revocationTimeout.Token);
+      await firmFence.CommitAsync(revocationTimeout.Token);
+    }
+    finally
+    {
+      if (firmBlocker.Database.CurrentTransaction is not null)
+        await firmFence.RollbackAsync();
+    }
+
+    var revocationResult = await revocation;
+    Assert.True(revocationResult.Succeeded, revocationResult.Message);
+    using (var refused = await waitingReview!)
+    {
+      Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+      using var failure = JsonDocument.Parse(await refused.Content.ReadAsStringAsync());
+      Assert.Equal(ErrorCodes.GenerationStale, failure.RootElement.GetProperty("code").GetString());
+    }
     await AssertCounts(beforeRevocationReceipts, long.Parse(finalPrepared.Result.Revision));
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var unchanged = await db.GoingConcernAssessments.AsNoTracking().SingleAsync(x => x.Id == id);
       Assert.Null(unchanged.ReviewedByUserId);
+      Assert.Null(unchanged.ReviewedAt);
+      Assert.Null(unchanged.ReviewedRevision);
+      Assert.NotNull((await db.RoleGrants.AsNoTracking().SingleAsync(x => x.Id == reviewGrantId)).RevokedAt);
+      Assert.Equal(reviewerEpochBeforeRevocation + 1,
+        await db.Users.AsNoTracking().Where(x => x.Id == reviewer.UserId).Select(x => x.SessionEpoch).SingleAsync());
       var immutable = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlRawAsync(
         "UPDATE audit_completion_going_concern_command_receipts SET action = 'REVIEW'"));
       Assert.Equal("55000", immutable.SqlState);
