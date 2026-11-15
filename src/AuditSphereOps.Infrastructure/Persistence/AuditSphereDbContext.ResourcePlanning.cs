@@ -13,6 +13,8 @@ public sealed partial class AuditSphereDbContext
   {
     b.Entity<EngagementStaffAssignment>(e =>
     {
+      e.HasAlternateKey(x => new { x.FirmId, x.EngagementId, x.Id })
+        .HasName("ak_engagement_staff_assignments_scope_id");
       e.HasIndex(x => new { x.FirmId, x.EngagementId, x.UserId }).IsUnique().HasFilter("revoked_at IS NULL");
       e.HasIndex(x => new { x.FirmId, x.EngagementId }).IsUnique().HasFilter("revoked_at IS NULL AND staffing_level = 'ENGAGEMENT_PARTNER'")
         .HasDatabaseName("ix_engagement_staff_assignments_single_partner");
@@ -102,6 +104,8 @@ public sealed partial class AuditSphereDbContext
     });
     b.Entity<MaterialityCalculation>(e =>
     {
+      e.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+        .HasName("ak_materiality_calculations_scope_id");
       e.HasIndex(x => new { x.FirmId, x.MaterialityAssessmentId }).IsUnique();
       e.HasIndex(x => new { x.FirmId, x.EngagementId, x.CreatedAt });
       e.HasOne<MaterialityAssessment>().WithMany().HasForeignKey(x => x.MaterialityAssessmentId).OnDelete(DeleteBehavior.Restrict);
@@ -138,6 +142,8 @@ public sealed partial class AuditSphereDbContext
     });
     b.Entity<RiskBandAssessment>(e =>
     {
+      e.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+        .HasName("ak_risk_band_assessments_scope_id");
       e.HasIndex(x => new { x.FirmId, x.RiskId, x.AssessedAt });
       e.HasOne<AuditRisk>().WithMany().HasForeignKey(x => x.RiskId).OnDelete(DeleteBehavior.Restrict);
       e.HasOne<AuditRisk>().WithMany()

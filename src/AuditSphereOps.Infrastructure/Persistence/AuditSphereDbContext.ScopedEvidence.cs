@@ -195,6 +195,10 @@ public sealed partial class AuditSphereDbContext
       " AND ((start_date IS NULL OR end_date IS NULL) OR start_date <= end_date)"));
 
     var eqr = b.Entity<EqrCase>();
+    // Keep the original scope lookup index alongside the new composite parent key.
+    eqr.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId });
+    eqr.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
+      .HasName("ak_eqr_cases_scope_id");
     eqr.Property(x => x.Status).HasMaxLength(30);
     eqr.Property(x => x.Revision).HasDefaultValue(0L);
     eqr.Property(x => x.CurrentDecisionRevision).HasDefaultValue(0L);

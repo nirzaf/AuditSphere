@@ -27,6 +27,7 @@ public sealed partial class AuditSphereDbContext
     });
     b.Entity<QuotationVersion>(e =>
     {
+      e.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("ak_quotation_versions_firm_id_id");
       e.HasIndex(x => new { x.FirmId, x.ProposalId, x.Revision }).IsUnique();
       e.HasOne<Proposal>().WithMany().HasForeignKey(x => x.ProposalId).OnDelete(DeleteBehavior.Restrict);
       e.Property(x => x.LinesJson).HasColumnType("jsonb");
@@ -46,6 +47,7 @@ public sealed partial class AuditSphereDbContext
     });
     b.Entity<QuotationApproval>(e =>
     {
+      e.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("ak_quotation_approvals_firm_id_id");
       // Not unique: a withdrawn approval's rule key can be approved again by a fresh decision, and the revoked
       // evidence is append-only. At most one approval per rule key stands at a time; QuotationService enforces
       // that under the firm lock.
@@ -110,6 +112,7 @@ public sealed partial class AuditSphereDbContext
     });
     b.Entity<EngagementFeeAgreement>(e =>
     {
+      e.HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("ak_engagement_fee_agreements_firm_id_id");
       e.HasIndex(x => new { x.FirmId, x.ProposalId }).IsUnique();
       e.HasOne<Proposal>().WithMany().HasForeignKey(x => x.ProposalId).OnDelete(DeleteBehavior.Restrict);
       e.Property(x => x.AdvancePercent).HasPrecision(9, 4);

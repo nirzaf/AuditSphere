@@ -1282,6 +1282,83 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     output.WriteLine($"Foreign keys between firm-scoped tables: {scoped}; without exact firm_id mapping: {unscoped.Count}");
     Assert.True(scoped > 20, $"Only {scoped} firm-scoped foreign keys found; the probe would be vacuous.");
 
+    // These were the 24 single-column edges the original fixture did not populate. Assert each installed,
+    // validated, restrictive FK maps the complete available scope tuple to the matching parent identity.
+    var requiredScopeForeignKeys = new[]
+    {
+      (Name: "fk_client_conversion_client_scope", Child: "client_conversions", Parent: "practice_clients", ChildColumns: new[] { "firm_id", "client_id" }, ParentColumns: new[] { "firm_id", "id" }),
+      (Name: "fk_client_conversion_proposal_client_scope", Child: "client_conversions", Parent: "proposals", ChildColumns: new[] { "firm_id", "client_id", "proposal_id" }, ParentColumns: new[] { "firm_id", "practice_client_id", "id" }),
+      (Name: "fk_client_portal_intent_client_scope", Child: "client_portal_intents", Parent: "practice_clients", ChildColumns: new[] { "firm_id", "practice_client_id" }, ParentColumns: new[] { "firm_id", "id" }),
+      (Name: "fk_engagement_activation_engagement_scope", Child: "engagement_activations", Parent: "engagements", ChildColumns: new[] { "firm_id", "practice_client_id", "engagement_id" }, ParentColumns: new[] { "firm_id", "practice_client_id", "id" }),
+      (Name: "fk_engagement_creation_engagement_scope", Child: "engagement_creations", Parent: "engagements", ChildColumns: new[] { "firm_id", "client_id", "engagement_id" }, ParentColumns: new[] { "firm_id", "practice_client_id", "id" }),
+      (Name: "fk_engagement_fee_agreement_proposal_scope", Child: "engagement_fee_agreements", Parent: "proposals", ChildColumns: new[] { "firm_id", "practice_client_id", "proposal_id" }, ParentColumns: new[] { "firm_id", "practice_client_id", "id" }),
+      (Name: "fk_eqr_decision_case_scope", Child: "eqr_decisions", Parent: "eqr_cases", ChildColumns: new[] { "firm_id", "client_id", "engagement_id", "eqr_case_id" }, ParentColumns: new[] { "firm_id", "client_id", "engagement_id", "id" }),
+      (Name: "fk_fee_milestone_agreement_scope", Child: "fee_milestones", Parent: "engagement_fee_agreements", ChildColumns: new[] { "firm_id", "agreement_id" }, ParentColumns: new[] { "firm_id", "id" }),
+      (Name: "fk_file_freeze_early_lock_deliverable_scope", Child: "file_freeze_early_locks", Parent: "audit_deliverables", ChildColumns: new[] { "firm_id", "client_id", "engagement_id", "report_deliverable_id" }, ParentColumns: new[] { "firm_id", "client_id", "engagement_id", "id" }),
+      (Name: "fk_journal_source_reconciliation_dataset_scope", Child: "journal_source_reconciliations", Parent: "trial_balance_datasets", ChildColumns: new[] { "firm_id", "client_id", "engagement_id", "base_dataset_id" }, ParentColumns: new[] { "firm_id", "client_id", "engagement_id", "id" }),
+      (Name: "fk_materiality_calculation_mapping_scope", Child: "materiality_calculations", Parent: "mapping_versions", ChildColumns: new[] { "firm_id", "client_id", "engagement_id", "mapping_version_id" }, ParentColumns: new[] { "firm_id", "client_id", "engagement_id", "id" }),
+      (Name: "fk_materiality_calculation_assessment_scope", Child: "materiality_calculations", Parent: "materiality_assessments", ChildColumns: new[] { "firm_id", "client_id", "engagement_id", "materiality_assessment_id" }, ParentColumns: new[] { "firm_id", "client_id", "engagement_id", "id" }),
+      (Name: "fk_materiality_rounding_effective_assessment_scope", Child: "materiality_rounding_decisions", Parent: "materiality_assessments", ChildColumns: new[] { "firm_id", "client_id", "engagement_id", "effective_assessment_id" }, ParentColumns: new[] { "firm_id", "client_id", "engagement_id", "id" }),
+      (Name: "fk_materiality_rounding_source_assessment_scope", Child: "materiality_rounding_decisions", Parent: "materiality_assessments", ChildColumns: new[] { "firm_id", "client_id", "engagement_id", "source_assessment_id" }, ParentColumns: new[] { "firm_id", "client_id", "engagement_id", "id" }),
+      (Name: "fk_materiality_rounding_calculation_scope", Child: "materiality_rounding_decisions", Parent: "materiality_calculations", ChildColumns: new[] { "firm_id", "client_id", "engagement_id", "materiality_calculation_id" }, ParentColumns: new[] { "firm_id", "client_id", "engagement_id", "id" }),
+      (Name: "fk_operator_command_event_operation_scope", Child: "operator_command_events", Parent: "durable_operations", ChildColumns: new[] { "firm_id", "operation_id" }, ParentColumns: new[] { "firm_id", "id" }),
+      (Name: "fk_quotation_approval_revocation_approval_scope", Child: "quotation_approval_revocations", Parent: "quotation_approvals", ChildColumns: new[] { "firm_id", "quotation_approval_id" }, ParentColumns: new[] { "firm_id", "id" }),
+      (Name: "fk_quotation_approval_version_scope", Child: "quotation_approvals", Parent: "quotation_versions", ChildColumns: new[] { "firm_id", "quotation_version_id" }, ParentColumns: new[] { "firm_id", "id" }),
+      (Name: "fk_quotation_version_proposal_scope", Child: "quotation_versions", Parent: "proposals", ChildColumns: new[] { "firm_id", "proposal_id" }, ParentColumns: new[] { "firm_id", "id" }),
+      (Name: "fk_risk_owner_assignment_assessment_scope", Child: "risk_owner_assignments", Parent: "risk_band_assessments", ChildColumns: new[] { "firm_id", "client_id", "engagement_id", "risk_band_assessment_id" }, ParentColumns: new[] { "firm_id", "client_id", "engagement_id", "id" }),
+      (Name: "fk_risk_partner_clearance_assessment_scope", Child: "risk_partner_clearances", Parent: "risk_band_assessments", ChildColumns: new[] { "firm_id", "client_id", "engagement_id", "risk_band_assessment_id" }, ParentColumns: new[] { "firm_id", "client_id", "engagement_id", "id" }),
+      (Name: "fk_signature_application_specimen_scope", Child: "signature_applications", Parent: "signature_specimens", ChildColumns: new[] { "firm_id", "specimen_id" }, ParentColumns: new[] { "firm_id", "id" }),
+      (Name: "fk_staffing_change_assignment_scope", Child: "staffing_changes", Parent: "engagement_staff_assignments", ChildColumns: new[] { "firm_id", "engagement_id", "assignment_id" }, ParentColumns: new[] { "firm_id", "engagement_id", "id" }),
+      (Name: "fk_staffing_change_engagement_scope", Child: "staffing_changes", Parent: "engagements", ChildColumns: new[] { "firm_id", "engagement_id" }, ParentColumns: new[] { "firm_id", "id" })
+    };
+    const string scopeCatalogSql = """
+      SELECT c.conname::text, child.relname::text, parent.relname::text,
+             ARRAY(SELECT child_column.attname::text
+                   FROM unnest(c.conkey) WITH ORDINALITY AS key_column(attnum, ordinal)
+                   JOIN pg_attribute child_column
+                     ON child_column.attrelid = c.conrelid AND child_column.attnum = key_column.attnum
+                   ORDER BY key_column.ordinal) AS child_columns,
+             ARRAY(SELECT parent_column.attname::text
+                   FROM unnest(c.confkey) WITH ORDINALITY AS key_column(attnum, ordinal)
+                   JOIN pg_attribute parent_column
+                     ON parent_column.attrelid = c.confrelid AND parent_column.attnum = key_column.attnum
+                   ORDER BY key_column.ordinal) AS parent_columns,
+             c.confdeltype::text, c.convalidated
+      FROM pg_constraint c
+      JOIN pg_class child ON child.oid = c.conrelid
+      JOIN pg_class parent ON parent.oid = c.confrelid
+      JOIN pg_namespace n ON n.oid = child.relnamespace
+      WHERE c.contype = 'f' AND n.nspname = current_schema()
+        AND c.conname::text = ANY(@constraint_names)
+      """;
+    var actualScopeForeignKeys = new Dictionary<string,
+      (string Child, string Parent, string[] ChildColumns, string[] ParentColumns, string DeleteAction, bool Validated)>(StringComparer.Ordinal);
+    await using (var command = new NpgsqlCommand(scopeCatalogSql, connection))
+    {
+      command.Parameters.AddWithValue("constraint_names", requiredScopeForeignKeys.Select(x => x.Name).ToArray());
+      await using var reader = await command.ExecuteReaderAsync();
+      while (await reader.ReadAsync())
+        actualScopeForeignKeys[reader.GetString(0)] = (
+          reader.GetString(1), reader.GetString(2), reader.GetFieldValue<string[]>(3), reader.GetFieldValue<string[]>(4),
+          reader.GetString(5), reader.GetBoolean(6));
+    }
+    var missingScopeForeignKeys = requiredScopeForeignKeys
+      .Where(expected => !actualScopeForeignKeys.ContainsKey(expected.Name))
+      .Select(expected => expected.Name).ToArray();
+    Assert.True(missingScopeForeignKeys.Length == 0,
+      "Missing validated scope foreign keys: " + string.Join(", ", missingScopeForeignKeys));
+    foreach (var expected in requiredScopeForeignKeys)
+    {
+      var actual = actualScopeForeignKeys[expected.Name];
+      Assert.Equal(expected.Child, actual.Child);
+      Assert.Equal(expected.Parent, actual.Parent);
+      Assert.Equal(expected.ChildColumns, actual.ChildColumns);
+      Assert.Equal(expected.ParentColumns, actual.ParentColumns);
+      Assert.Equal("r", actual.DeleteAction);
+      Assert.True(actual.Validated, $"Scope foreign key {expected.Name} is not validated.");
+    }
+    output.WriteLine($"Validated restrictive composite scope FKs: {requiredScopeForeignKeys.Length}/{requiredScopeForeignKeys.Length} exact column mappings.");
+
     // Probe each single-column key: copy a seeded child row, repoint it at another firm's parent and observe
     // whether the database refuses it. Every probe is rolled back; nothing is committed.
     var own = await PbcSeed.SeedAsync(pg);
@@ -1339,6 +1416,8 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     await transaction.RollbackAsync();
     output.WriteLine($"Single-column scoped-key probes: discovered {probes.Count}; refused by target FK {refusedByTargetForeignKey}; " +
       $"accepted cross-firm {accepted.Count}; no fixture row {notProbed.Count}; unexpected refusal {unexpectedRefusals.Count}");
+    Assert.Empty(unscoped);
+    Assert.Empty(notProbed);
     Assert.True(accepted.Count == 0, "Cross-firm references accepted: " + string.Join(", ", accepted));
     Assert.True(unexpectedRefusals.Count == 0, "Probe blocked before the target FK: " + string.Join("; ", unexpectedRefusals));
   }

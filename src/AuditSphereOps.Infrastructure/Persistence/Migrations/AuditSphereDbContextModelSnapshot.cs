@@ -17867,6 +17867,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("ak_materiality_calculations_scope_id");
+
                     b.HasIndex("MappingVersionId");
 
                     b.HasIndex("MaterialityAssessmentId");
@@ -18603,6 +18606,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnName("significant");
 
                     b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("ak_risk_band_assessments_scope_id");
 
                     b.HasIndex("RiskId");
 
@@ -20048,6 +20054,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnName("status");
 
                     b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .HasName("ak_eqr_cases_scope_id");
 
                     b.HasIndex("FirmId", "EngagementId")
                         .IsUnique()
@@ -26291,6 +26300,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("ak_engagement_fee_agreements_firm_id_id");
+
                     b.HasIndex("ProposalId");
 
                     b.HasIndex("FirmId", "ProposalId")
@@ -26351,6 +26363,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnName("user_id");
 
                     b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "EngagementId", "Id")
+                        .HasName("ak_engagement_staff_assignments_scope_id");
 
                     b.HasIndex("EngagementId");
 
@@ -28203,6 +28218,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("AK_proposals_firm_id_id");
+
                     b.HasIndex("FirmId", "ApprovedByUserId");
 
                     b.HasIndex("FirmId", "PracticeClientId");
@@ -28211,6 +28229,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("FirmId", "OpportunityId", "Revision")
                         .IsUnique();
+
+                    b.HasIndex("FirmId", "PracticeClientId", "Id")
+                        .IsUnique()
+                        .HasDatabaseName("ux_proposals_firm_client_id");
 
                     b.ToTable("proposals", null, t =>
                         {
@@ -28369,6 +28391,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("ak_quotation_approvals_firm_id_id");
+
                     b.HasIndex("QuotationVersionId");
 
                     b.HasIndex("FirmId", "QuotationVersionId", "RuleKey");
@@ -28522,6 +28547,9 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnName("valid_until");
 
                     b.HasKey("Id");
+
+                    b.HasAlternateKey("FirmId", "Id")
+                        .HasName("ak_quotation_versions_firm_id_id");
 
                     b.HasIndex("ProposalId");
 

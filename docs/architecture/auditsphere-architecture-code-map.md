@@ -349,6 +349,8 @@ identities; provider acceptance (Purview/eSignature) is never claimed.
 
 ## Practice — CRM, time, billing, firm ledger
 
+- WU-004 scoped relational integrity: migration `Wu004ScopedReferenceIntegrity` adds 24 validated PostgreSQL `RESTRICT` foreign keys that pair existing firm/client/engagement columns with the referenced row identity across client conversion and portal intent, engagement setup, EQR, fee agreements, file freeze, accounting reconciliation, materiality/risk, quotations, operations, signatures and staffing. The `AuditSphereDbContext` partials add only the required principal keys; existing scalar foreign keys, lookup indexes and append-only guards remain. The migration does not repair rows: inconsistent legacy links cause it to fail closed for an operator-led review.
+
 - Recorded outbound history: `Application/Acceptance/EngagementCommunicationTimelineQuery.cs`, existing `/engagements/{id}/communications` endpoint and Angular `features/engagements/engagement-communications.ts`. Exact source-scoped counts and bounded rows share a read snapshot, followed by fresh authorization. Voucher mail follows its retained document and agreement identities. Provider-acceptance timestamps are not delivery times. The separate `.Activity.cs` feed remains management-only; neither query grants client access to internal reviews.
 
 - Practice analytics cost: `Application/Practice/FirmOperationsServices.cs` uses the latest applicable staff-cost effective date. Conflicting values at that date leave cost, profit and margin unavailable; identical duplicate values retain the amount. Charge-out value, billing and collection remain separate measures.

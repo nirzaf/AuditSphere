@@ -13,6 +13,14 @@ public sealed partial class AuditSphereDbContext
   private static void ConfigurePractice(ModelBuilder b)
   {
     b.Entity<PracticeClient>().HasIndex(x => new { x.FirmId, x.LegalName }).IsUnique();
+    // WU-004 uses database composite references while retaining the existing scalar EF relationships.
+    // PracticeClientId is nullable on proposals, so the client-scoped principal is a unique index, not an EF key.
+    b.Entity<Proposal>().HasAlternateKey(x => new { x.FirmId, x.Id })
+      .HasName("AK_proposals_firm_id_id");
+    // Preserve the pre-existing FK lookup index; the client-scoped unique index below is a separate parent key.
+    b.Entity<Proposal>().HasIndex(x => new { x.FirmId, x.PracticeClientId });
+    b.Entity<Proposal>().HasIndex(x => new { x.FirmId, x.PracticeClientId, x.Id })
+      .IsUnique().HasDatabaseName("ux_proposals_firm_client_id");
     b.Entity<WorkTask>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_work_tasks_firm_id_id");
     b.Entity<TimeEntry>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_time_entries_firm_id_id");
     b.Entity<TimeEntryReviewEvent>().HasAlternateKey(x => new { x.FirmId, x.Id }).HasName("AK_time_entry_review_events_firm_id_id");
