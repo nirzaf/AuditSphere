@@ -152,7 +152,11 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     var dueAt = signedAt.AddDays(60);
     await using var connection = new NpgsqlConnection(pg.ConnectionString);
     await connection.OpenAsync();
+    await using var applicationDmlRole = await ApplicationDmlRole.CreateAsync(pg);
     await using var transaction = await connection.BeginTransactionAsync();
+    await applicationDmlRole.SetLocalAsync(connection, transaction);
+    await using (var identity = new NpgsqlCommand("SELECT current_user", connection, transaction))
+      Assert.Equal(applicationDmlRole.Name, await identity.ExecuteScalarAsync());
     async Task ExecuteAsync(string sql)
     {
       await using var command = new NpgsqlCommand(sql, connection, transaction);
@@ -262,6 +266,36 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       }
     }
 
+    async Task AssertAppendOnlyMutationRejectedAsync(string label, string sql)
+    {
+      const string savepoint = "completion_evidence_append_only_probe";
+      await ExecuteAsync($"SAVEPOINT {savepoint}");
+      PostgresException? observed = null;
+      var affected = 0;
+      try
+      {
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("id", ownDeliverable.Id);
+        affected = await command.ExecuteNonQueryAsync();
+      }
+      catch (PostgresException exception)
+      {
+        observed = exception;
+      }
+
+      await ExecuteAsync($"ROLLBACK TO SAVEPOINT {savepoint}");
+      await ExecuteAsync($"RELEASE SAVEPOINT {savepoint}");
+      Assert.NotNull(observed);
+      Assert.Equal("P0001", observed.SqlState);
+      Assert.Contains("append-only completion evidence", observed.MessageText);
+      Assert.Equal(0, affected);
+      await using var preserved = new NpgsqlCommand(
+        "SELECT file_name FROM audit_deliverables WHERE id = @id", connection, transaction);
+      preserved.Parameters.AddWithValue("id", ownDeliverable.Id);
+      Assert.Equal(ownDeliverable.FileName, await preserved.ExecuteScalarAsync());
+      output.WriteLine($"{label}: REFUSED SqlState={observed.SqlState}; original evidence row preserved after savepoint rollback.");
+    }
+
     var ownFreezeId = Guid.NewGuid();
     var foreignFreezeId = Guid.NewGuid();
     var otherClientFreezeId = Guid.NewGuid();
@@ -271,6 +305,11 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     Assert.Equal(1, await InsertFreezeAsync(otherClientFreezeId, own.FirmId, otherClientId, otherClientEngagementId, otherClientDeliverable.Id));
     Assert.Equal(1, await InsertFreezeAsync(siblingFreezeId, own.FirmId, own.ClientId, siblingEngagementId, siblingDeliverable.Id));
     output.WriteLine("VALID_SYNTHETIC_FREEZE_PARENTS: ACCEPTED for firm/client/engagement-matched structural headers");
+
+    await AssertAppendOnlyMutationRejectedAsync("AUDIT_DELIVERABLE_UPDATE",
+      "UPDATE audit_deliverables SET file_name = file_name || '.mutated' WHERE id = @id");
+    await AssertAppendOnlyMutationRejectedAsync("AUDIT_DELIVERABLE_DELETE",
+      "DELETE FROM audit_deliverables WHERE id = @id");
 
     const string engagementScope = "fk_engagement_file_freeze_engagement_scope";
     const string deliverableScope = "fk_engagement_file_freeze_deliverable_scope";
