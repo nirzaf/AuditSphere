@@ -874,11 +874,11 @@ function Add-M365MailRuntimeGate($Result, $Snapshot) {
     $expected = 'actual API capability evidence for the existing legacy mail runtime'
     $observed = 'This read-only provider adapter did not evaluate the existing legacy mail capability verifier; API capability evidence is still required.'
   } elseif ($model -ceq 'EXCHANGE_RBAC_RESOURCE_SCOPE') {
-    $prerequisite = 'engineering:exchange-rbac-mail-runtime-not-implemented'
-    $errorCode = 'mail-rbac-runtime-not-implemented'
+    $prerequisite = 'verification:mail-rbac-deployment-binding-unverified'
+    $errorCode = 'mail-rbac-deployment-binding-unverified'
     $checkId = 'mail-runtime-activation'
-    $expected = 'implemented Exchange RBAC mail runtime and current authorization enforcement'
-    $observed = 'Engineering prerequisite: Exchange RBAC mail runtime support is not implemented; provider authorization evidence alone is not application readiness.'
+    $expected = 'deployment-bound Exchange RBAC runtime and current signed authorization evidence'
+    $observed = 'Application Exchange RBAC runtime and model-bound token enforcement are implemented; this provider-only readback does not verify the deployment binding, enrolled signed evidence, or current persisted capability state. No mail readiness is inferred.'
   } else { throw 'INVALID_OR_UNSAFE' }
   $Result.blockedPrerequisites += $prerequisite
   $Result.errorCode = $errorCode

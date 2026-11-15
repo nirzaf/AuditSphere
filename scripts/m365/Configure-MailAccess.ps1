@@ -7,8 +7,8 @@
   ReadOnly checks the approved source and plan, then reads state through pre-authenticated app-only
   Graph and Exchange sessions using the same operator.clientId and tenant. The operator must establish
   those sessions beforehand with a custom application and least-privilege grants. Overall readiness
-  remains incomplete pending model-specific application capability evidence. This script never
-  authenticates or changes provider state.
+  remains incomplete until deployment-bound runtime configuration and model-specific current
+  authorization evidence are verified. This script never authenticates or changes provider state.
 #>
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(

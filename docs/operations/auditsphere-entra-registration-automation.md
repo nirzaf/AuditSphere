@@ -431,13 +431,19 @@ The legacy `Test-ApplicationAccessPolicy` identity/result field shape still need
 confirmation in an approved live run; absence is not a successful denial.
 
 Even matching provider checks yield **INCOMPLETE_EVIDENCE**, not overall MAIL
-readiness: legacy still needs actual API capability evidence, and RBAC still
-needs its runtime implementation. A successful scope simulation also does not
-prove transport delivery. Inspect stable check/error codes and retain the
-redacted result; use `verify-result.py --expect INCOMPLETE_EVIDENCE` only when
-that is the actual expected outcome. Do not enable RBAC or remove legacy grants
-from this result. Reviewed migration/rollback and an approved controlled
-recipient/send probe remain separate requirements.
+readiness. The application implements model-bound legacy and Exchange RBAC
+runtime checks; for RBAC, the mail-only token validator requires the roleless
+application-token model, and the runtime gate verifies fresh signed evidence
+against deployment-owned tenant, app, sender, model and current consent bindings.
+This provider-only readback does not inspect those deployment settings, enrolled
+CMS evidence or the current persisted capability result, so it cannot establish
+that a selected deployment is ready. Legacy likewise still needs its exact API
+capability verification. A successful scope simulation also does not prove
+transport delivery. Inspect stable check/error codes and retain the redacted
+result; use `verify-result.py --expect INCOMPLETE_EVIDENCE` only when that is the
+actual expected outcome. Do not enable RBAC or remove legacy grants from this
+result. Reviewed migration/rollback and an approved controlled recipient/send
+probe remain separate requirements.
 
 ### Retained provider snapshot and source identity
 

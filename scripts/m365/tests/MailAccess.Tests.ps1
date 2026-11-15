@@ -544,10 +544,12 @@ try {
   $rbacGateResult.repositoryCommit = $sourceIdentity.repositoryCommit
   $rbacGateResult.tenantId = $script:mailTenant
   $rbacGateStatus = Add-M365MailRuntimeGate $rbacGateResult $rbacSnapshotForGate
-  Assert-That 'rbac-provider-readiness-names-missing-engineering-runtime' ($rbacGateStatus -eq 'INCOMPLETE_EVIDENCE' -and
+  Assert-That 'rbac-provider-readback-does-not-claim-deployment-readiness' ($rbacGateStatus -eq 'INCOMPLETE_EVIDENCE' -and
     $rbacGateResult.checks[1].state -eq 'INCOMPLETE_EVIDENCE' -and
-    $rbacGateResult.errorCode -eq 'mail-rbac-runtime-not-implemented' -and
-    $rbacGateResult.blockedPrerequisites[0] -eq 'engineering:exchange-rbac-mail-runtime-not-implemented' -and
+    $rbacGateResult.errorCode -eq 'mail-rbac-deployment-binding-unverified' -and
+    $rbacGateResult.blockedPrerequisites[0] -eq 'verification:mail-rbac-deployment-binding-unverified' -and
+    $rbacGateResult.checks[1].observed -match 'runtime and model-bound token enforcement are implemented' -and
+    $rbacGateResult.checks[1].observed -match 'does not verify the deployment binding' -and
     $rbacGateResult.checks[0].providerSnapshot.exchangeRbacAuthorization.recipientFilter -eq '(Department -eq "Readback")' -and
     $rbacGateResult.mutationsAttempted -eq 0 -and $rbacGateResult.mutationsConfirmed -eq 0 -and $rbacGateResult.changes.Count -eq 0)
 
