@@ -59,6 +59,25 @@ def source_snapshot():
     return source_state(sorted(set(p for p in paths if p)))
 
 
+def google_chrome_executable():
+    for executable in ('google-chrome', 'google-chrome-stable', 'chrome', 'chrome.exe'):
+        resolved = shutil.which(executable)
+        if resolved:
+            return resolved
+    candidates = []
+    if sys.platform == 'darwin':
+        candidates.extend([
+            Path('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'),
+            Path.home() / 'Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        ])
+    elif os.name == 'nt':
+        for key in ('PROGRAMFILES', 'PROGRAMFILES(X86)', 'LOCALAPPDATA'):
+            base = os.environ.get(key)
+            if base:
+                candidates.append(Path(base) / 'Google/Chrome/Application/chrome.exe')
+    return next((str(path) for path in candidates if path.is_file()), None)
+
+
 def check_command(check, results='<TEMP_RESULTS>'):
     if check['kind'] == 'dotnet':
         return ['dotnet', 'test', check['project'], '--no-restore', '--configuration', 'Release', '--maxcpucount:1', '--filter', check['filter'], '--logger', 'trx', '--results-directory', str(results)]
@@ -140,9 +159,9 @@ def preflight(packet, checks):
         overrides = any(os.environ.get(k) for k in ('AUDITSPHERE_TEST_ARTIFACTS_ROOT', 'AUDITSPHERE_TEST_REPOSITORY_ROOT'))
         record('Browser host source', not overrides, 'Unset alternate E2E repository/artifact roots; this packet must build and serve the current checkout.')
         record('Angular browser bundle', (ROOT / 'src/AuditSphereOps.Ui/dist/auditsphere-ui/browser/index.html').is_file(), 'Build the current Angular UI before browser journeys; the fixtures serve the built bundle.')
-        record('Chromium selected', os.environ.get('E2E_BROWSER', 'chromium') in ('', 'chromium'), 'Unset E2E_BROWSER or select chromium for this pilot.')
-        cache = Path(os.environ.get('PLAYWRIGHT_BROWSERS_PATH', str(Path.home() / ('Library/Caches/ms-playwright' if sys.platform == 'darwin' else '.cache/ms-playwright'))))
-        record('Playwright browser installed', cache.is_dir() and any(cache.glob('chromium*')), 'Install the project-pinned Playwright Chromium through the existing E2E setup. The runner never downloads a browser.')
+        browser = os.environ.get('E2E_BROWSER', '').strip().lower()
+        record('Google Chrome selected', browser in ('', 'chrome'), 'Unset E2E_BROWSER or set it to chrome; other browser engines are unsupported.')
+        record('Google Chrome installed', google_chrome_executable() is not None, 'Install Google Chrome using the approved system package; the runner never downloads browsers.')
     return results
 
 

@@ -273,6 +273,32 @@ class PacketAndSourceTests(unittest.TestCase):
             result = runner.preflight(packet, checks)
         self.assertEqual('BLOCKED', next(p for p in result if p['name'] == 'Browser host source')['status'])
 
+    def test_browser_preflight_requires_google_chrome(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ui = root / 'src/AuditSphereOps.Ui'
+            (ui / 'node_modules/@angular/cli/bin').mkdir(parents=True)
+            (ui / 'node_modules/@angular/cli/bin/ng.js').write_text('')
+            (ui / 'dist/auditsphere-ui/browser').mkdir(parents=True)
+            (ui / 'dist/auditsphere-ui/browser/index.html').write_text('')
+            (ui / '.nvmrc').write_text('20.0.0')
+            packet = dict(owningFiles=[], documents=[])
+            test_file = root / 'tests/BrowserTests.cs'
+            test_file.parent.mkdir(parents=True)
+            test_file.write_text('')
+            checks = [dict(kind='browser', browser=True, testFile='tests/BrowserTests.cs')]
+            with patch.object(runner, 'ROOT', root), patch.object(runner, 'invoke', return_value=dict(exitCode=0, seconds=0, output='v20.0.0')), patch.object(runner, 'google_chrome_executable', return_value='/usr/bin/google-chrome'):
+                with patch.dict(runner.os.environ, {}, clear=True):
+                    default = runner.preflight(packet, checks)
+                with patch.dict(runner.os.environ, {'E2E_BROWSER': 'chromium'}, clear=True):
+                    chromium = runner.preflight(packet, checks)
+                with patch.object(runner, 'google_chrome_executable', return_value=None), patch.dict(runner.os.environ, {'E2E_BROWSER': 'chrome'}, clear=True):
+                    missing = runner.preflight(packet, checks)
+        self.assertEqual('PASS', next(p for p in default if p['name'] == 'Google Chrome selected')['status'])
+        self.assertEqual('PASS', next(p for p in default if p['name'] == 'Google Chrome installed')['status'])
+        self.assertEqual('BLOCKED', next(p for p in chromium if p['name'] == 'Google Chrome selected')['status'])
+        self.assertEqual('BLOCKED', next(p for p in missing if p['name'] == 'Google Chrome installed')['status'])
+
     def test_default_preflight_never_executes_tests_and_omitted_browser_stays_unverified(self):
         stdout = io.StringIO()
         with patch.object(sys, 'argv', ['agent-check', 'engagement-ui', '--json']), patch.object(runner, 'preflight', return_value=[]), patch.object(runner, 'source_snapshot', return_value={}), patch.object(runner, 'invoke', return_value=dict(output='synthetic-commit', exitCode=0, seconds=0)), patch.object(runner, 'execute_check') as execute, contextlib.redirect_stdout(stdout):

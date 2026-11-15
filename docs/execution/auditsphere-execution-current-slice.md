@@ -1,5 +1,9 @@
 # Current-slice handoff
 
+## Chrome-only E2E policy (2026-11-15)
+
+Playwright defaults to Google Chrome and release CI selects its Chrome channel; Edge is absent. Focused Chrome E2E passed 1/1 (evidence: `.local/autonomous/evidence/chrome-only-e2e-20261115/local-chrome-e2e-review.json`). The 5a fast/images passes predate this policy change; candidate CI remains pending.
+
 ## WU-004 scoped relational integrity (2026-11-15)
 
 - **Implementation:** `20261115003351_Wu004ScopedReferenceIntegrity` adds 24 validated `RESTRICT` composite foreign keys and required principal keys. Scalar foreign keys, lookup indexes, append-only guards and history remain; the migration does not repair rows.
