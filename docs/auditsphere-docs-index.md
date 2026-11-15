@@ -1,6 +1,6 @@
 # AuditSphere documentation index
 
-**Status: CURRENT · Navigation only · Reconciled 2026-11-08**
+**Status: CURRENT · Navigation only · Reconciled 2026-11-15**
 
 This index helps developers find the current source of authority. It does not create requirements, approve proposals, or certify release readiness.
 
@@ -25,7 +25,7 @@ When documents differ, use this order:
 | Design | [Design index](design/auditsphere-design-index-current.md) | Current visual foundation and progress tracker; proposed UX work remains proposed |
 | Operations | [Operations index](operations/auditsphere-operations-index-current.md) | Restore, M365, telemetry, reminders, evidence, and capacity procedures |
 | Testing | [Testing strategy and Definition of Done](testing/auditsphere-testing-strategy-definition-of-done-current.md) | The [capability packet catalog](testing/agent-check-capabilities.json) is machine input for `scripts/agent/agent-check.py`; `AGENTS.md` controls local versus CI test scope. |
-| Execution | [Current-slice handoff](execution/auditsphere-execution-current-slice.md) · [machine-readable status](execution/status.json) · [generated task board](execution/auditsphere-execution-index-task-board-current.md) | The board generator renders available task cards as `PARTIAL_SOURCE` when its code-audit JSON or STE story inputs are missing; code verdicts remain `NOT_AUDITED` and missing findings are never inferred. Regenerate it with `scripts/docs/build-task-board.py`; do not hand-edit it. Use the handoff/status for observed CI and source state. The ignored `.local/autonomous/` continuation ledger remains the active detailed task state. |
+| Execution | [Current-slice handoff](execution/auditsphere-execution-current-slice.md) · [machine-readable status](execution/status.json) · [generated task board](execution/auditsphere-execution-index-task-board-current.md) | The board generator renders available task cards as `PARTIAL_SOURCE` when its code-audit JSON or STE story inputs are missing; code verdicts remain `NOT_AUDITED` and missing findings are never inferred. Regenerate it with `scripts/docs/build-task-board.py`; do not hand-edit it. Use the handoff/status for observed CI and source state. The [PMS open-decisions brief](execution/auditsphere-pms-open-decisions-and-acceptance-proposed.md) is a non-authoritative recommendation/checklist. The ignored `.local/autonomous/` continuation ledger remains the active detailed task state. |
 | Task breakdown and source provenance | [Consolidated task library](auditsphere-task-library-index.md) | One human entry point; immutable task-card and Word-source snapshots remain only because the progress API and source-manifest check consume them. The September snapshot is stale and is not current completion evidence. |
 | Evidence | [Evidence index](evidence/auditsphere-evidence-index-current.md) | Approved evidence-methodology records remain separate, unchanged approval artifacts |
 
