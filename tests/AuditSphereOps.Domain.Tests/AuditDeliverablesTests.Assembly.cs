@@ -1351,13 +1351,16 @@ public sealed partial class AuditDeliverablesTests
         var retainedFinanceJson = JsonSerializer.Serialize(financeEvidence);
         const string financeGuard = "20261110102702_FirmFinanceProfileMakerChecker";
         var financeGuardIndex = Array.IndexOf(migrations, financeGuard);
-        Assert.Equal(migrations.Length - 7, financeGuardIndex);
-        Assert.Equal(new[] { "20261110123614_AuditCompletionVarianceCommandReceipts",
+        var migrationsFollowingFinanceGuard = new[] { "20261110123614_AuditCompletionVarianceCommandReceipts",
           "20261110181648_AuditCompletionGoingConcernCommandReceipts",
           "20261111041752_AuditCompletionSubsequentEventCommandReceipts",
           "20261111051049_OpeningBalanceReviewedBasis",
           "20261111160000_OpeningBalanceCommandReceipts",
-          "20261113204633_TrialBalanceDigestVersioning" }, migrations[(financeGuardIndex + 1)..]);
+          "20261113204633_TrialBalanceDigestVersioning",
+          "20261115003351_Wu004ScopedReferenceIntegrity" };
+        Assert.True(financeGuardIndex >= 0);
+        Assert.Equal(migrationsFollowingFinanceGuard,
+          migrations.Skip(financeGuardIndex + 1).Take(migrationsFollowingFinanceGuard.Length));
         // Assert this migration's own generated Down guard. Later migrations have independent
         // retained-evidence guards, so rolling the whole chain back would test whichever runs first.
         await MigrationTestAssertions.AssertDownOperationBlockedAsync(db, financeGuard, "P0001",
@@ -1497,13 +1500,16 @@ public sealed partial class AuditDeliverablesTests
         Assert.Equal(financeEvidence.DraftBasisSha256, financeEvidence.ApprovedDraftBasisSha256);
         var retainedFinanceJson = JsonSerializer.Serialize(financeEvidence);
         var financeGuardIndex = Array.IndexOf(migrations, "20261110102702_FirmFinanceProfileMakerChecker");
-        Assert.Equal(migrations.Length - 7, financeGuardIndex);
-        Assert.Equal(new[] { "20261110123614_AuditCompletionVarianceCommandReceipts",
+        var migrationsFollowingFinanceGuard = new[] { "20261110123614_AuditCompletionVarianceCommandReceipts",
           "20261110181648_AuditCompletionGoingConcernCommandReceipts",
           "20261111041752_AuditCompletionSubsequentEventCommandReceipts",
           "20261111051049_OpeningBalanceReviewedBasis",
           "20261111160000_OpeningBalanceCommandReceipts",
-          "20261113204633_TrialBalanceDigestVersioning" }, migrations[(financeGuardIndex + 1)..]);
+          "20261113204633_TrialBalanceDigestVersioning",
+          "20261115003351_Wu004ScopedReferenceIntegrity" };
+        Assert.True(financeGuardIndex >= 0);
+        Assert.Equal(migrationsFollowingFinanceGuard,
+          migrations.Skip(financeGuardIndex + 1).Take(migrationsFollowingFinanceGuard.Length));
         await MigrationTestAssertions.AssertDownOperationBlockedAsync(db, migrations[financeGuardIndex], "P0001",
           "Finance profile maker/checker downgrade would discard profile approval evidence.");
         Assert.Equal(migrations, (await db.Database.GetAppliedMigrationsAsync()).ToArray());

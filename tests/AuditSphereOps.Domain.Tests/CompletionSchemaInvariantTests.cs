@@ -340,9 +340,9 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
   }
 
   [Fact]
-  public async Task ClientConversionPublicationGuardRejectsForeignFirmParents()
+  public async Task ClientConversionScopedForeignKeysRejectForeignFirmParents()
   {
-    static async Task ExerciseAsync(PgTestSchema pg, bool disablePublicationGuard, bool foreignProposalReference)
+    static async Task ExerciseAsync(PgTestSchema pg, bool foreignProposalReference)
     {
       var own = await PbcSeed.SeedAsync(pg);
       var foreign = await PbcSeed.SeedAsync(pg);
@@ -368,8 +368,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       {
         Id = Guid.CreateVersion7(),
         FirmId = own.FirmId,
-        // Change only one parent at a time. The existing global FK accepts either reference;
-        // the publication guard must bind each one to the reviewed firm's commercial handover.
+        // Change only one parent at a time so each scoped foreign key is exercised independently.
         ProposalId = foreignProposalReference ? foreignProposalId : proposalId,
         ClientId = foreignProposalReference ? own.ClientId : foreign.ClientId,
         ActorId = actor.UserId,
@@ -381,30 +380,13 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
         CreatedAt = DateTimeOffset.UtcNow
       };
 
-      if (disablePublicationGuard)
-        await db.Database.ExecuteSqlRawAsync(
-          "ALTER TABLE client_conversions DISABLE TRIGGER client_conversion_publication_guard");
-
       db.ClientConversions.Add(receipt);
-      await db.SaveChangesAsync();
-      if (disablePublicationGuard)
-      {
-        // The counterfactual lives only in this disposable, owner-created test database.
-        await transaction.CommitAsync();
-        await using var accepted = new AuditSphereDbContext(pg.Options);
-        Assert.True(await accepted.ClientConversions.AnyAsync(x => x.Id == receipt.Id));
-        var parentFirm = foreignProposalReference
-          ? await accepted.Proposals.Where(x => x.Id == receipt.ProposalId).Select(x => x.FirmId).SingleAsync()
-          : await accepted.PracticeClients.Where(x => x.Id == receipt.ClientId).Select(x => x.FirmId).SingleAsync();
-        Assert.Equal(foreign.FirmId, parentFirm);
-        Assert.NotEqual(receipt.FirmId, parentFirm);
-        return;
-      }
-
-      var refusal = await Assert.ThrowsAsync<PostgresException>(() => transaction.CommitAsync());
-      Assert.Equal("23514", refusal.SqlState);
-      Assert.Contains("Conversion requires exact authorized committed commercial handover", refusal.MessageText);
-
+      var update = await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+      var refusal = Assert.IsType<PostgresException>(update.InnerException);
+      Assert.Equal("23503", refusal.SqlState);
+      Assert.Equal(foreignProposalReference
+        ? "fk_client_conversion_proposal_client_scope"
+        : "fk_client_conversion_client_scope", refusal.ConstraintName);
       await using var persisted = new AuditSphereDbContext(pg.Options);
       Assert.False(await persisted.ClientConversions.AnyAsync(x => x.Id == receipt.Id));
       Assert.Null((await persisted.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).PracticeClientId);
@@ -414,16 +396,62 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
 
     foreach (var foreignProposalReference in new[] { false, true })
     {
-      await using (var counterfactual = await PgTestSchema.CreateAsync())
-        await ExerciseAsync(counterfactual, disablePublicationGuard: true, foreignProposalReference);
-
-      await using (var guarded = await PgTestSchema.CreateAsync())
-        await ExerciseAsync(guarded, disablePublicationGuard: false, foreignProposalReference);
+      await using var pg = await PgTestSchema.CreateAsync();
+      await ExerciseAsync(pg, foreignProposalReference);
     }
   }
 
   [Fact]
-  public async Task NativeEngagementActivationGuardRejectsForeignFirmEngagementParent()
+  public async Task ClientConversionPublicationGuardRejectsMismatchedReviewHashWithinScope()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var own = await PbcSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var proposalId = await ClientConversionReviewSeed.PopulateAsync(db, own);
+    var actor = PbcSeed.Actor(own.Admin, "Administrator");
+    var request = new ClientConversionRequest(Guid.CreateVersion7(),
+      new ClientConversionFields("PBC TEST CLIENT"));
+    var preview = await ClientConversionWorkspace.PreviewAsync(db, actor, proposalId, request);
+    Assert.True(preview.Succeeded, preview.Message);
+    Assert.Equal(own.ClientId, preview.Value!.ExistingClientId);
+
+    var linked = await PracticeCrmService.ConvertToClientDraftAsync(db, actor,
+      new ConvertToClientDraftRequest(proposalId, request.Fields.LegalName,
+        request.Fields.CommercialName, request.Fields.RegistrationNumber,
+        request.Fields.Jurisdiction, request.Fields.RestrictedProfile));
+    Assert.True(linked.Succeeded, linked.Message);
+    Assert.Equal(own.ClientId, linked.Value);
+
+    var mismatchedHash = new string('0', 64);
+    Assert.NotEqual(preview.Value.RequestHash, mismatchedHash);
+    var receipt = new ClientConversion
+    {
+      Id = Guid.CreateVersion7(),
+      FirmId = own.FirmId,
+      ProposalId = proposalId,
+      ClientId = own.ClientId,
+      ActorId = actor.UserId,
+      ActorEpoch = actor.SessionEpoch,
+      RequestId = request.RequestId,
+      RequestHash = mismatchedHash,
+      ReviewBasis = preview.Value.ReviewBasis,
+      PreviewJson = JsonSerializer.Serialize(preview.Value),
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+
+    await using var transaction = await db.Database.BeginTransactionAsync();
+    db.ClientConversions.Add(receipt);
+    await db.SaveChangesAsync();
+    var refusal = await Assert.ThrowsAsync<PostgresException>(() => transaction.CommitAsync());
+    Assert.Equal("23514", refusal.SqlState);
+    Assert.Equal("Conversion requires exact authorized committed commercial handover", refusal.MessageText);
+
+    await using var persisted = new AuditSphereDbContext(pg.Options);
+    Assert.False(await persisted.ClientConversions.AnyAsync(x => x.Id == receipt.Id));
+  }
+
+  [Fact]
+  public async Task NativeEngagementActivationScopedForeignKeyRejectsForeignFirmEngagementParent()
   {
     static async Task<EngagementActivationReceipt> ActivateAsync(AuditSphereDbContext db, PbcSeed.Fixture fixture)
     {
@@ -441,7 +469,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       return activated.Value!;
     }
 
-    static async Task ExerciseAsync(PgTestSchema pg, bool disableScopeGuard)
+    static async Task ExerciseAsync(PgTestSchema pg)
     {
       var own = await PbcSeed.SeedAsync(pg);
       var foreign = await PbcSeed.SeedAsync(pg);
@@ -454,11 +482,6 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
         Assert.Equal(foreign.EngagementId, foreignReceipt.EngagementId);
         sourceId = ownReceipt.Id;
       }
-
-      if (disableScopeGuard)
-        await using (var db = new AuditSphereDbContext(pg.Options))
-          await db.Database.ExecuteSqlRawAsync(
-            "ALTER TABLE engagement_activations DISABLE TRIGGER native_engagement_activation_scope_guard");
 
       var forgedId = Guid.CreateVersion7();
       await using var connection = new NpgsqlConnection(pg.ConnectionString);
@@ -475,42 +498,68 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
         insert.Parameters.AddWithValue("request_id", Guid.CreateVersion7());
         insert.Parameters.AddWithValue("engagement_id", foreign.EngagementId);
         insert.Parameters.AddWithValue("source_id", sourceId);
-        Assert.Equal(1, await insert.ExecuteNonQueryAsync());
-
-        if (disableScopeGuard)
-        {
-          await transaction.CommitAsync();
-          await using var accepted = new AuditSphereDbContext(pg.Options);
-          var receipt = await accepted.EngagementActivations.AsNoTracking().SingleAsync(x => x.Id == forgedId);
-          Assert.Equal(own.FirmId, receipt.FirmId);
-          Assert.Equal(foreign.EngagementId, receipt.EngagementId);
-          Assert.Equal(foreign.FirmId, await accepted.Engagements.Where(x => x.Id == receipt.EngagementId)
-            .Select(x => x.FirmId).SingleAsync());
-          Assert.NotEqual(receipt.FirmId, foreign.FirmId);
-          return;
-        }
-
-        var refusal = await Assert.ThrowsAsync<PostgresException>(() => transaction.CommitAsync());
-        // RAISE EXCEPTION without an explicit ERRCODE uses PostgreSQL's default P0001.
-        Assert.Equal("P0001", refusal.SqlState);
-        Assert.Equal("Native activation requires the exact current scoped activation and accepted decision", refusal.MessageText);
+        var refusal = await Assert.ThrowsAsync<PostgresException>(() => insert.ExecuteNonQueryAsync());
+        Assert.Equal("23503", refusal.SqlState);
+        Assert.Equal("fk_engagement_activation_engagement_scope", refusal.ConstraintName);
       }
 
       await using var persisted = new AuditSphereDbContext(pg.Options);
       Assert.False(await persisted.EngagementActivations.AnyAsync(x => x.Id == forgedId));
       Assert.Single(await persisted.EngagementActivations.Where(x => x.EngagementId == own.EngagementId).ToListAsync());
       Assert.Single(await persisted.EngagementActivations.Where(x => x.EngagementId == foreign.EngagementId).ToListAsync());
+
+      var currentEngagement = await persisted.Engagements.AsNoTracking()
+        .SingleAsync(x => x.Id == own.EngagementId);
+      var staleSameScopeEngagement = new Engagement
+      {
+        Id = Guid.CreateVersion7(),
+        FirmId = currentEngagement.FirmId,
+        PracticeClientId = currentEngagement.PracticeClientId,
+        ServiceRoute = currentEngagement.ServiceRoute,
+        PeriodStart = "2099-01-01",
+        PeriodEnd = "2099-12-31",
+        ServiceProfileId = currentEngagement.ServiceProfileId,
+        Status = currentEngagement.Status,
+        ProfessionalWorkBlocked = currentEngagement.ProfessionalWorkBlocked,
+        Generation = currentEngagement.Generation + 1,
+        CreatedAt = currentEngagement.CreatedAt
+      };
+      await using (var seed = new AuditSphereDbContext(pg.Options))
+      {
+        seed.Engagements.Add(staleSameScopeEngagement);
+        await seed.SaveChangesAsync();
+      }
+
+      var invalidGenerationId = Guid.CreateVersion7();
+      await using (var guardTransaction = await connection.BeginTransactionAsync())
+      {
+        await using var invalidGeneration = new NpgsqlCommand("""
+          INSERT INTO engagement_activations
+          SELECT (jsonb_populate_record(NULL::engagement_activations, to_jsonb(a) || jsonb_build_object(
+            'id', @id, 'request_id', @request_id, 'engagement_id', @engagement_id))).*
+          FROM engagement_activations a WHERE a.id = @source_id
+          """, connection, guardTransaction);
+        invalidGeneration.Parameters.AddWithValue("id", invalidGenerationId);
+        invalidGeneration.Parameters.AddWithValue("request_id", Guid.CreateVersion7());
+        invalidGeneration.Parameters.AddWithValue("engagement_id", staleSameScopeEngagement.Id);
+        invalidGeneration.Parameters.AddWithValue("source_id", sourceId);
+        Assert.Equal(1, await invalidGeneration.ExecuteNonQueryAsync());
+        var guardRefusal = await Assert.ThrowsAsync<PostgresException>(() => guardTransaction.CommitAsync());
+        Assert.Equal("P0001", guardRefusal.SqlState);
+        Assert.Equal("Native activation requires the exact current scoped activation and accepted decision",
+          guardRefusal.MessageText);
+      }
+
+      await using var afterGuardRefusal = new AuditSphereDbContext(pg.Options);
+      Assert.False(await afterGuardRefusal.EngagementActivations.AnyAsync(x => x.Id == invalidGenerationId));
     }
 
-    await using (var counterfactual = await PgTestSchema.CreateAsync())
-      await ExerciseAsync(counterfactual, disableScopeGuard: true);
-
-    await using (var guarded = await PgTestSchema.CreateAsync())
-      await ExerciseAsync(guarded, disableScopeGuard: false);
+    await using var pg = await PgTestSchema.CreateAsync();
+    await ExerciseAsync(pg);
   }
 
   [Fact]
-  public async Task EngagementCreationPublicationGuardRejectsForeignFirmEngagementParent()
+  public async Task EngagementCreationScopedForeignKeyRejectsForeignFirmEngagementParent()
   {
     static async Task<EngagementCreationReceipt> CreateAsync(AuditSphereDbContext db, PbcSeed.Fixture fixture)
     {
@@ -528,7 +577,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       return created.Value!;
     }
 
-    static async Task ExerciseAsync(PgTestSchema pg, bool disablePublicationGuard)
+    static async Task ExerciseAsync(PgTestSchema pg)
     {
       var own = await PbcSeed.SeedAsync(pg);
       var foreign = await PbcSeed.SeedAsync(pg);
@@ -553,12 +602,6 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       await using var connection = new NpgsqlConnection(pg.ConnectionString);
       await connection.OpenAsync();
       await using var transaction = await connection.BeginTransactionAsync();
-      if (disablePublicationGuard)
-      {
-        await using var disable = new NpgsqlCommand(
-          "ALTER TABLE engagement_creations DISABLE TRIGGER engagement_creation_publication_guard", connection, transaction);
-        await disable.ExecuteNonQueryAsync();
-      }
 
       await using (var insert = new NpgsqlCommand("""
         INSERT INTO engagement_creations
@@ -571,33 +614,64 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
         insert.Parameters.AddWithValue("request_id", Guid.CreateVersion7());
         insert.Parameters.AddWithValue("engagement_id", foreignReceipt.EngagementId);
         insert.Parameters.AddWithValue("source_id", ownReceipt.Id);
-        Assert.Equal(1, await insert.ExecuteNonQueryAsync());
+        var refusal = await Assert.ThrowsAsync<PostgresException>(() => insert.ExecuteNonQueryAsync());
+        Assert.Equal("23503", refusal.SqlState);
+        Assert.Equal("fk_engagement_creation_engagement_scope", refusal.ConstraintName);
       }
-
-      if (disablePublicationGuard)
-      {
-        // The counterfactual is confined to this disposable test database. The global FK alone
-        // accepts the foreign engagement; the deferred publication guard supplies the scope rule.
-        await transaction.CommitAsync();
-        await using var accepted = new AuditSphereDbContext(pg.Options);
-        var receipt = await accepted.EngagementCreations.AsNoTracking().SingleAsync(x => x.Id == forgedId);
-        Assert.Equal(own.FirmId, receipt.FirmId);
-        Assert.Equal(foreignReceipt.EngagementId, receipt.EngagementId);
-        Assert.Equal(foreign.FirmId, await accepted.Engagements.Where(x => x.Id == receipt.EngagementId)
-          .Select(x => x.FirmId).SingleAsync());
-        Assert.NotEqual(receipt.FirmId, foreign.FirmId);
-        return;
-      }
-
-      var refusal = await Assert.ThrowsAsync<PostgresException>(() => transaction.CommitAsync());
-      Assert.Equal("23514", refusal.SqlState);
-      Assert.Equal("Creation receipt requires exact current scoped blocked publication", refusal.MessageText);
+      await transaction.RollbackAsync();
 
       await using var persisted = new AuditSphereDbContext(pg.Options);
       Assert.False(await persisted.EngagementCreations.AnyAsync(x => x.Id == forgedId));
       Assert.Equal(2, await persisted.EngagementCreations.CountAsync());
       Assert.Equal(ownReceipt.EngagementId, (await ReadReceiptAsync(pg, ownReceipt.Id)).EngagementId);
       Assert.Equal(foreignReceipt.EngagementId, (await ReadReceiptAsync(pg, foreignReceipt.Id)).EngagementId);
+
+      var ownEngagement = await persisted.Engagements.AsNoTracking()
+        .SingleAsync(x => x.Id == ownReceipt.EngagementId);
+      var sameScopeButDifferentPeriod = new Engagement
+      {
+        Id = Guid.CreateVersion7(),
+        FirmId = ownEngagement.FirmId,
+        PracticeClientId = ownEngagement.PracticeClientId,
+        ServiceRoute = ownEngagement.ServiceRoute,
+        PeriodStart = "2099-01-01",
+        PeriodEnd = "2099-12-31",
+        ServiceProfileId = ownEngagement.ServiceProfileId,
+        Status = ownEngagement.Status,
+        ProfessionalWorkBlocked = ownEngagement.ProfessionalWorkBlocked,
+        Generation = ownEngagement.Generation,
+        CreatedAt = ownEngagement.CreatedAt
+      };
+      await using (var seed = new AuditSphereDbContext(pg.Options))
+      {
+        seed.Engagements.Add(sameScopeButDifferentPeriod);
+        await seed.SaveChangesAsync();
+      }
+
+      var invalidReceiptId = Guid.CreateVersion7();
+      await using (var guardConnection = new NpgsqlConnection(pg.ConnectionString))
+      {
+        await guardConnection.OpenAsync();
+        await using var guardTransaction = await guardConnection.BeginTransactionAsync();
+        await using var invalidReceipt = new NpgsqlCommand("""
+          INSERT INTO engagement_creations
+          SELECT (jsonb_populate_record(NULL::engagement_creations, to_jsonb(c) || jsonb_build_object(
+            'id', @id, 'request_id', @request_id, 'engagement_id', @engagement_id))).*
+          FROM engagement_creations c WHERE c.id = @source_id
+          """, guardConnection, guardTransaction);
+        invalidReceipt.Parameters.AddWithValue("id", invalidReceiptId);
+        invalidReceipt.Parameters.AddWithValue("request_id", Guid.CreateVersion7());
+        invalidReceipt.Parameters.AddWithValue("engagement_id", sameScopeButDifferentPeriod.Id);
+        invalidReceipt.Parameters.AddWithValue("source_id", ownReceipt.Id);
+        Assert.Equal(1, await invalidReceipt.ExecuteNonQueryAsync());
+        var guardRefusal = await Assert.ThrowsAsync<PostgresException>(() => guardTransaction.CommitAsync());
+        Assert.Equal("23514", guardRefusal.SqlState);
+        Assert.Equal("Creation receipt requires exact current scoped blocked publication",
+          guardRefusal.MessageText);
+      }
+
+      await using var afterGuardRefusal = new AuditSphereDbContext(pg.Options);
+      Assert.False(await afterGuardRefusal.EngagementCreations.AnyAsync(x => x.Id == invalidReceiptId));
     }
 
     static async Task<EngagementCreation> ReadReceiptAsync(PgTestSchema pg, Guid id)
@@ -606,11 +680,8 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       return await db.EngagementCreations.AsNoTracking().SingleAsync(x => x.Id == id);
     }
 
-    await using (var counterfactual = await PgTestSchema.CreateAsync())
-      await ExerciseAsync(counterfactual, disablePublicationGuard: true);
-
-    await using (var guarded = await PgTestSchema.CreateAsync())
-      await ExerciseAsync(guarded, disablePublicationGuard: false);
+    await using var pg = await PgTestSchema.CreateAsync();
+    await ExerciseAsync(pg);
   }
 
   [Theory]
@@ -1572,7 +1643,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
   }
 
   [Fact]
-  public async Task StaffingChangeReceipts_RejectForeignFirmParentsBeforePublication()
+  public async Task StaffingChangeScopedForeignKeys_RejectForeignFirmParentsBeforePublication()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var own = await PbcSeed.SeedAsync(pg);
@@ -1603,8 +1674,10 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     await using var transaction = await connection.BeginTransactionAsync();
     await new NpgsqlCommand("SET CONSTRAINTS ALL IMMEDIATE", connection, transaction).ExecuteNonQueryAsync();
 
-    async Task<int> InsertAsync(Guid engagementId, Guid assignmentId)
+    async Task<int> InsertAsync(Guid engagementId, Guid assignmentId, Guid? requestId = null,
+      string? requestHash = null)
     {
+      var probe = original.Probe with { EngagementId = engagementId, RequestId = requestId ?? original.Probe.RequestId };
       await using var command = new NpgsqlCommand("""
         INSERT INTO staffing_changes
         SELECT (jsonb_populate_record(NULL::staffing_changes, to_jsonb(c) || jsonb_build_object(
@@ -1614,12 +1687,12 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
         FROM staffing_changes c WHERE c.id = @source_id
         """, connection, transaction);
       command.Parameters.AddWithValue("id", Guid.NewGuid());
-      command.Parameters.AddWithValue("request_id", original.Probe.RequestId);
-      command.Parameters.AddWithValue("request_hash", original.Probe.RequestHash);
+      command.Parameters.AddWithValue("request_id", probe.RequestId);
+      command.Parameters.AddWithValue("request_hash", requestHash ?? original.Probe.RequestHash);
       command.Parameters.AddWithValue("review_basis", original.Probe.ReviewBasis);
       command.Parameters.AddWithValue("engagement_id", engagementId);
       command.Parameters.AddWithValue("assignment_id", assignmentId);
-      command.Parameters.AddWithValue("preview_json", JsonSerializer.Serialize(original.Probe with { EngagementId = engagementId }));
+      command.Parameters.AddWithValue("preview_json", JsonSerializer.Serialize(probe));
       command.Parameters.AddWithValue("source_id", original.Row.Id);
       return await command.ExecuteNonQueryAsync();
     }
@@ -1628,16 +1701,27 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     Assert.Equal(1, await InsertAsync(own.EngagementId, original.Row.AssignmentId));
     output.WriteLine("SAME_FIRM_CURRENT_ASSIGNMENT: ACCEPTED rows=1");
     await new NpgsqlCommand("ROLLBACK TO SAVEPOINT staffing_scope_probe", connection, transaction).ExecuteNonQueryAsync();
-    foreach (var (label, engagementId, assignmentId) in new[]
+    var mismatchedHash = new string('0', 64);
+    Assert.NotEqual(original.Probe.RequestHash, mismatchedHash);
+    var invalidRequestId = Guid.NewGuid();
+    var guardRefusal = await Assert.ThrowsAsync<PostgresException>(() =>
+      InsertAsync(own.EngagementId, original.Row.AssignmentId, invalidRequestId, mismatchedHash));
+    Assert.Equal("23514", guardRefusal.SqlState);
+    Assert.Equal("Staffing change requires exact authorized committed assignment", guardRefusal.MessageText);
+    output.WriteLine("SAME_FIRM_CURRENT_ASSIGNMENT_WITH_MISMATCHED_HASH: REFUSED SqlState=23514 publication guard");
+    await new NpgsqlCommand("ROLLBACK TO SAVEPOINT staffing_scope_probe", connection, transaction).ExecuteNonQueryAsync();
+    foreach (var (label, engagementId, assignmentId, expectedConstraints) in new[]
     {
-      ("FOREIGN_ENGAGEMENT", foreign.EngagementId, original.Row.AssignmentId),
-      ("FOREIGN_ASSIGNMENT", own.EngagementId, other.Row.AssignmentId)
+      ("FOREIGN_ENGAGEMENT", foreign.EngagementId, original.Row.AssignmentId,
+        new[] { "fk_staffing_change_engagement_scope", "fk_staffing_change_assignment_scope" }),
+      ("FOREIGN_ASSIGNMENT", own.EngagementId, other.Row.AssignmentId,
+        new[] { "fk_staffing_change_assignment_scope" })
     })
     {
       var exception = await Assert.ThrowsAsync<PostgresException>(() => InsertAsync(engagementId, assignmentId));
-      Assert.Equal("23514", exception.SqlState);
-      Assert.Equal("Staffing change requires exact authorized committed assignment", exception.MessageText);
-      output.WriteLine($"{label}: REFUSED SqlState={exception.SqlState} publication guard");
+      Assert.Equal("23503", exception.SqlState);
+      Assert.Contains(exception.ConstraintName, expectedConstraints);
+      output.WriteLine($"{label}: REFUSED SqlState={exception.SqlState} scoped foreign key");
       await new NpgsqlCommand("ROLLBACK TO SAVEPOINT staffing_scope_probe", connection, transaction).ExecuteNonQueryAsync();
     }
     await transaction.RollbackAsync();

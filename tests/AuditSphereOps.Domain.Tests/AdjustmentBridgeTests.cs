@@ -1218,7 +1218,6 @@ public sealed class AdjustmentBridgeTests
       var migrations = db.Database.GetMigrations().ToArray();
       var index = Array.FindIndex(migrations, x => x.EndsWith("_TrialBalanceDigestVersioning", StringComparison.Ordinal));
       Assert.True(index > 0, "Trial-balance digest version migration was not found.");
-      Assert.Equal(migrations[^1], migrations[index]);
       return (migrations[index], migrations[index - 1]);
     }
 
