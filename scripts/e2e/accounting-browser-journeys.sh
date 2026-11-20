@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-pg_bin="${PGSQL_HOME:-/opt/homebrew/opt/postgresql@18/bin}"
+pg_bin="${PGSQL_HOME:-/opt/homebrew/opt/postgresql@19/bin}"
 database="auditsphere_browser"
 connection="Host=127.0.0.1;Port=5433;Database=${database};Username=postgres"
 

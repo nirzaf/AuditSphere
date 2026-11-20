@@ -183,8 +183,8 @@ public sealed class PgTestSchema : IAsyncDisposable, ITestPostgresDatabase
       };
       await using var admin = new NpgsqlConnection(adminBuilder.ConnectionString);
       await admin.OpenAsync();
-      if (admin.PostgreSqlVersion.Major != 18)
-        throw new InvalidOperationException("Database tests require PostgreSQL 18.");
+      if (admin.PostgreSqlVersion.Major != 19)
+        throw new InvalidOperationException("Database tests require PostgreSQL 19.");
 
       await using (var acquireLock = new NpgsqlCommand(
         "SELECT pg_advisory_lock(hashtext('auditsphere_tpl'))", admin)
@@ -232,8 +232,8 @@ public sealed class PgTestSchema : IAsyncDisposable, ITestPostgresDatabase
   {
     await using var admin = new NpgsqlConnection(adminConnectionString);
     await admin.OpenAsync();
-    if (admin.PostgreSqlVersion.Major != 18)
-      throw new InvalidOperationException("Database tests require PostgreSQL 18.");
+    if (admin.PostgreSqlVersion.Major != 19)
+      throw new InvalidOperationException("Database tests require PostgreSQL 19.");
     await ExecuteOnAsync(admin, sql);
   }
 

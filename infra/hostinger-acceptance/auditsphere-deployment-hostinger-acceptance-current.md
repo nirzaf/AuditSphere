@@ -9,6 +9,23 @@ the VPS's existing applications. Development identity and external effects for c
 off. The dedicated client-sites worker is enabled by default but remains blocked until its explicit
 rollout boundary, separate credentials and Microsoft authorization are ready.
 
+## PostgreSQL 19 data boundary
+
+The checked-in Acceptance Compose selects `postgres:19.0-alpine3.24`, sets `PGDATA` to
+`/var/lib/postgresql/19/docker`, and runs a guard before the official image entrypoint. The guard
+allows an empty volume or an existing PostgreSQL 19 cluster at that exact path. It refuses to
+initialize PostgreSQL 19 when it finds a PostgreSQL 18 or legacy cluster elsewhere in the mounted
+volume. A changed image tag or `PGDATA` is **not** a major-version migration. Preserve the existing
+volume and the previous working image until a copied-data rehearsal and verified recovery path
+complete; never point PostgreSQL 19 at PostgreSQL 18 data files. Follow the [major-version upgrade
+runbook](../../docs/operations/auditsphere-operations-runbook-postgresql-major-upgrade.md) and
+inspect the actual Docker volume and mounts before any maintenance. No existing Acceptance volume
+has been migrated by changing this Compose file.
+
+The Azure Bicep production entry point continues to default to PostgreSQL 18 because the current
+Azure PostgreSQL 19 service is preview-only in East Asia. That managed-service selection is
+separate from this self-managed Acceptance image and from any existing database migration.
+
 ## Required owner configuration
 
 Before startup, create an Entra confidential-client application for the acceptance tenant and

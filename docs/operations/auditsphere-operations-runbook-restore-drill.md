@@ -10,6 +10,8 @@
 
 `scripts/db/restore-drill.sh` performs a bounded local rehearsal against `127.0.0.1:5433` only:
 
+It requires PostgreSQL 19.x server and client tools. This is a same-host restore rehearsal, not a PostgreSQL major-version upgrade or a production recovery rehearsal. For an 18-to-19 major upgrade, use the separate [major-version upgrade runbook](auditsphere-operations-runbook-postgresql-major-upgrade.md); do not point 19 binaries at 18 data files.
+
 1. dump the development `auditsphere` database to a generated temporary file;
 
 2. create a generated `auditsphere_restore_*` database;

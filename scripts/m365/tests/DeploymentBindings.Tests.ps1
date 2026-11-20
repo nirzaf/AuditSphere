@@ -81,7 +81,7 @@ function New-SyntheticComposeModel([string] $SourceSha) {
     Storage__ReleaseCheckpointRoot = '/var/lib/auditsphere/release-checkpoints'
   }
   $services = [ordered]@{
-    db = [ordered]@{ image = 'postgres:18-alpine'; environment = [ordered]@{ POSTGRES_PASSWORD = '[REDACTED:POSTGRES_PASSWORD]' }; volumes = @('postgres_data:/var/lib/postgresql') }
+    db = [ordered]@{ image = 'postgres:19.0-alpine3.24'; entrypoint = @('/usr/local/bin/auditsphere-postgres-entrypoint-guard.sh'); environment = [ordered]@{ POSTGRES_PASSWORD = '[REDACTED:POSTGRES_PASSWORD]'; PGDATA = '/var/lib/postgresql/19/docker' }; volumes = @('postgres_data:/var/lib/postgresql', './postgres-entrypoint-guard.sh:/usr/local/bin/auditsphere-postgres-entrypoint-guard.sh:ro') }
     migrate = [ordered]@{ image = "ghcr.io/nirzaf/auditsphere-acceptance-migrations:$SourceSha"; environment = [ordered]@{ ConnectionStrings__AuditSphere = $apiEnv.ConnectionStrings__AuditSphere } }
     api = [ordered]@{ image = "ghcr.io/nirzaf/auditsphere-acceptance-api:$SourceSha"; environment = $apiEnv; volumes = @(
       (New-Volume 'data_protection' '/app/data-protection-home'), (New-Volume 'pbc_staging' '/var/lib/auditsphere/pbc-staging'), (New-Volume 'release_checkpoints' '/var/lib/auditsphere/release-checkpoints'),
@@ -179,6 +179,7 @@ try {
   Assert-That 'dryrun-is-planned' ($planExit -eq 0 -and $planResult.status -eq 'PLANNED' -and $planResult.mode -eq 'Plan') "exit=$planExit status=$($planResult.status)"
   Assert-That 'dryrun-zero-effects-and-runtime-null' ($planResult.networkCalls -eq 0 -and $planResult.mutationsAttempted -eq 0 -and $null -eq $planResult.deploymentEvidence.runtimeEnvironment -and $null -eq $planResult.deploymentEvidence.rollbackPath)
   Assert-That 'dryrun-target-source-hashed' (@($planResult.deploymentEvidence.targetFiles | Where-Object path -eq 'infra/hostinger-acceptance/compose.yaml').Count -eq 1)
+  Assert-That 'dryrun-postgres-guard-source-hashed' (@($planResult.deploymentEvidence.targetFiles | Where-Object path -eq 'infra/hostinger-acceptance/postgres-entrypoint-guard.sh').Count -eq 1)
 
   $overrideOut = Join-Path $work 'override-plan.json'
   $overrideExit = Invoke-EntryPoint 'Test-DeploymentBindings' @('-PlanPath', $fixture, '-DryRun', '-IsolationOverridePath', 'infra/hostinger-acceptance/m365-isolation.override.example.yaml', '-OutputPath', $overrideOut)
@@ -202,7 +203,8 @@ try {
   Assert-That 'verify-observes-source-only-runtime-null' ($evidenceLevel -eq 'SANITIZED_COMPOSE_MODEL_ONLY' -and $runtimeNull -and $null -eq $evidence.outboundHosts -and $null -eq $evidence.outboundEgressPolicy) "error=$($verifyResult.errorCode) evidenceLevel=$evidenceLevel"
   Assert-That 'verify-api-key-isolation-check-pass' (@($verifyResult.checks | Where-Object { $_.id -eq 'api-client-sites-key-isolated' -and $_.state -eq 'PASS' }).Count -eq 1)
   $composeGitBinding = @($evidence.sourceGitBindings | Where-Object { $_.path -eq 'infra/hostinger-acceptance/compose.yaml' -and $_.atHead -eq $true })
-  Assert-That 'verify-exact-source-checkout-bound' (@($verifyResult.checks | Where-Object { $_.id -eq 'exact-checkout-source-binding' -and $_.state -eq 'PASS' }).Count -eq 1 -and $evidence.observedSourceSha -eq $headSha -and $evidence.sourceFilesAtHead -and $composeGitBinding.Count -eq 1 -and $composeGitBinding[0].gitBlobSha)
+  $postgresGuardGitBinding = @($evidence.sourceGitBindings | Where-Object { $_.path -eq 'infra/hostinger-acceptance/postgres-entrypoint-guard.sh' -and $_.atHead -eq $true })
+  Assert-That 'verify-exact-source-checkout-bound' (@($verifyResult.checks | Where-Object { $_.id -eq 'exact-checkout-source-binding' -and $_.state -eq 'PASS' }).Count -eq 1 -and $evidence.observedSourceSha -eq $headSha -and $evidence.sourceFilesAtHead -and $composeGitBinding.Count -eq 1 -and $composeGitBinding[0].gitBlobSha -and $postgresGuardGitBinding.Count -eq 1 -and $postgresGuardGitBinding[0].gitBlobSha)
   $modelProvenancePresent = $evidence -is [System.Collections.IDictionary] -and $evidence.Contains('modelProvenance') -and $evidence.Contains('modelProvenanceState') -and $evidence.Contains('artifactProvenance') -and $evidence.Contains('artifactProvenanceState')
   $evidenceDescription = if ($evidence -is [System.Collections.IDictionary]) { @($evidence.Keys) -join ',' } elseif ($null -eq $evidence) { 'null' } else { $evidence.GetType().FullName }
   Assert-That 'verify-image-tag-is-not-artifact-provenance' ($modelProvenancePresent -and $null -eq $evidence.modelProvenance -and $evidence.modelProvenanceState -eq 'UNOBSERVED_OPERATOR_PROVIDED_MODEL' -and $null -eq $evidence.artifactProvenance -and $evidence.artifactProvenanceState -eq 'UNOBSERVED' -and $evidence.declaredImageTagSha -eq $headSha) "error=$($verifyResult.errorCode) evidence=$evidenceDescription"

@@ -1,9 +1,9 @@
-@description('PostgreSQL 18 Flexible Server: the single PostgreSQL authority for AuditSphere. TLS enforced, backups with point-in-time recovery, no application-side migration at startup (migrations run as a dedicated job).')
+@description('PostgreSQL Flexible Server: the single PostgreSQL authority for AuditSphere. TLS enforced, backups with point-in-time recovery, no application-side migration at startup (migrations run as a dedicated job). PostgreSQL 19 is currently preview-only in Azure East Asia.')
 param name string
 param location string
 param tags object = {}
-@description('PostgreSQL major version; the local development standard is 18.')
-@allowed([18])
+@description('PostgreSQL major version. PostgreSQL 19 is currently preview-only in Azure East Asia; the default 18 preserves existing deployment regions.')
+@allowed([18, 19])
 param postgresVersion int = 18
 @description('Administrator login name; the password is referenced from the approved secret store.')
 param administratorLogin string
@@ -18,7 +18,7 @@ param delegatedSubnetId string
 @description('Maintenance window day of week (0 = Sunday).')
 param maintenanceDay int = 6
 
-resource server 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
+resource server 'Microsoft.DBforPostgreSQL/flexibleServers@2026-10-01' = {
   name: name
   location: location
   tags: tags

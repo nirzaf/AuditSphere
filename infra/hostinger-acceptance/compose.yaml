@@ -2,14 +2,20 @@ name: auditsphere-acceptance
 
 services:
   db:
-    image: postgres:18-alpine
+    image: postgres:19.0-alpine3.24
     restart: unless-stopped
+    entrypoint: ["/usr/local/bin/auditsphere-postgres-entrypoint-guard.sh"]
     environment:
       POSTGRES_DB: auditsphere
       POSTGRES_USER: auditsphere
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      PGDATA: /var/lib/postgresql/19/docker
     volumes:
       - postgres_data:/var/lib/postgresql
+      - type: bind
+        source: ./postgres-entrypoint-guard.sh
+        target: /usr/local/bin/auditsphere-postgres-entrypoint-guard.sh
+        read_only: true
     networks:
       - acceptance
     healthcheck:

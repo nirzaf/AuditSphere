@@ -4,6 +4,7 @@
 
 | Operator need | Procedure or reference |
 |---|---|
+| PostgreSQL 18-to-19 major-version upgrade | [Major-version upgrade runbook](auditsphere-operations-runbook-postgresql-major-upgrade.md) |
 | Local PostgreSQL restore rehearsal | [Restore drill](auditsphere-operations-runbook-restore-drill.md) |
 | Client Microsoft 365 onboarding | [Terminal-driven setup guide](auditsphere-operations-guide-terminal-driven-microsoft365-setup-current.md) · [client-tenant runbook](auditsphere-operations-runbook-client-tenant-microsoft365-current.md) · [configuration reference](auditsphere-operations-reference-microsoft365-configuration-current.md) |
 | Entra registration automation | [Registration automation](auditsphere-entra-registration-automation.md) |

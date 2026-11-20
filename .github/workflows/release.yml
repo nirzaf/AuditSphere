@@ -2,8 +2,11 @@
 #
 # Dispatch-only (never runs on push); the production Azure environment must be protected by a
 # GitHub environment approval. The pipeline needs owner-approved plumbing before first use:
-#   - an Azure AD application with a federated credential for this repository (OIDC, no stored
-#     secrets) holding Contributor on the target resource group,
+#   - a single-tenant Entra application with a GitHub OIDC federated credential bound to the
+#     protected production environment (no Microsoft Graph permissions or stored secret),
+#   - Azure deployment access on the target resource group. Contributor cannot write the two
+#     Key Vault Secrets User/AcrPull assignments declared by stack.bicep; the bootstrap permission
+#     must be separately approved and narrowly constrained before the first deployment,
 #   - an Azure Container Registry accepted by the owner,
 #   - deployment secrets (connection string, identity client secret, PostgreSQL admin password)
 #     created in the environment Key Vault through the approved secret process.

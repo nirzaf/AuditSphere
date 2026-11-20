@@ -2,7 +2,7 @@
 
 [![.NET 11](https://img.shields.io/badge/.NET-11-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![Angular 22](https://img.shields.io/badge/Angular-22-DD0031?logo=angular&logoColor=white)](src/AuditSphereOps.Ui/auditsphere-angular-development.md)
-[![PostgreSQL 18.6](https://img.shields.io/badge/PostgreSQL-18.6-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![PostgreSQL 19](https://img.shields.io/badge/PostgreSQL-19-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![EF Core 10](https://img.shields.io/badge/EF%20Core-10-0078D4)](https://learn.microsoft.com/ef/core/)
 
 **AuditSphereOps** is an audit, accounting, and practice-management platform for accounting firms. It connects client onboarding, engagement management, professional audit work, financial-statement preparation, time and billing, controlled deliverable release, records, and group consolidation within a **.NET modular monolith with an Angular frontend**.
@@ -199,7 +199,7 @@ flowchart TB
     APP --> DOMAIN["Domain: invariants and pure calculators"]
     API --> INF["Infrastructure: EF Core / Npgsql / adapters"]
     INF -.->|"Implements Application contracts"| APP
-    INF --> DB[("PostgreSQL 18.6")]
+    INF --> DB[("PostgreSQL 19.x")]
     WORKER[".NET Worker: durable operations"] --> APP
     WORKER --> INF
     API -.-> ENTRA["Entra ID: OIDC / cookie session"]
@@ -241,7 +241,7 @@ Use the **exact versions pinned by this checkout**, not whichever SDK is newest.
 | Node.js | **26.13.0 (LTS)** from `src/AuditSphereOps.Ui/.nvmrc` |
 | npm | **11.20.0** declared in Angular `package.json` |
 | Angular / Material/CDK | **22.2.1** dependency pins; Angular CLI **22.2.3** |
-| PostgreSQL | **18.6** project development/CI baseline; local port **5433** |
+| PostgreSQL | **19.x** local/CI/self-managed target; local port **5433**. Azure PG19 remains an explicit preview selection only in East Asia; current Bicep defaults preserve major 18. |
 | PowerShell (optional for M365) | PowerShell **7.4 or newer**; use pinned modules from `scripts/m365/modules.lock.json` |
 
 On a new checkout, install dependencies **once** or when a lockfile/toolchain changes:
@@ -264,17 +264,26 @@ npm --prefix src/AuditSphereOps.Ui ci
 
 The application and tests use PostgreSQL—not EF InMemory. The local development database is `auditsphere`; tests use a separate **disposable** `auditsphere_tests` database. Do not point test/migration commands at an existing customer or production database.
 
-For an existing Homebrew PostgreSQL 18 installation, a typical Apple Silicon/macOS setup is:
+For a fresh Homebrew PostgreSQL 19 development cluster on macOS:
 
 ```bash
-export PATH="$(brew --prefix postgresql@18)/bin:$PATH"
-PGDATA="$(brew --prefix)/var/postgresql@18"
-pg_ctl -D "$PGDATA" -o '-p 5433' start     # only if this cluster is stopped
+set -eu
+brew install postgresql@19
+export PATH="$(brew --prefix postgresql@19)/bin:$PATH"
+PGDATA="$(brew --prefix)/var/postgresql@19"
+if [ ! -s "$PGDATA/PG_VERSION" ]; then
+  initdb -D "$PGDATA" --username=postgres --locale=C -E UTF8
+fi
+if [ "$(cat "$PGDATA/PG_VERSION")" != 19 ]; then
+  echo "Refusing PostgreSQL startup: PGDATA contains PostgreSQL $(cat "$PGDATA/PG_VERSION"); expected 19." >&2
+  exit 1
+fi
+pg_ctl -D "$PGDATA" -o '-p 5433' start    # only if this cluster is stopped
 createdb -h 127.0.0.1 -p 5433 auditsphere       # only if absent
 createdb -h 127.0.0.1 -p 5433 auditsphere_tests # only if absent
 ```
 
-Your existing cluster location, database role and authentication policy may differ. Verify them before running these commands. Supply the development API connection string and approved development identity through **user-secrets/private environment configuration**, never by committing credentials. Local database migrations must be deliberately targeted at the development database; see the [data model and migration contract](docs/architecture/auditsphere-architecture-contract-data-model-current.md).
+Keep the PG19 cluster separate from any existing PG18 data directory. Do not point PG19 binaries at PG18 files or let a new container initialize beside an old cluster on the same volume; use the [major-version upgrade runbook](docs/operations/auditsphere-operations-runbook-postgresql-major-upgrade.md) and rehearse a supported migration first. Your database role and authentication policy may differ. Supply the development API connection string and approved development identity through **user-secrets/private environment configuration**, never by committing credentials. Local database migrations must be deliberately targeted at the development database; see the [data model and migration contract](docs/architecture/auditsphere-architecture-contract-data-model-current.md).
 
 ### 3. Start the app
 

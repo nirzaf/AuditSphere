@@ -17,6 +17,18 @@ rollback, managed identities with secrets by reference, and PostgreSQL Flexible 
 PITR. The modular monolith stays a modular monolith; multiple deployable roles do not turn it
 into microservices.
 
+## PostgreSQL version selection
+
+Both environment entry points expose `postgresVersion`, but default to PostgreSQL 18 to preserve
+the configured region. As of 2026-11-20, Azure PostgreSQL 19.0 is a preview available only in
+East Asia and some extensions may not be supported there. Choose 19 only after verifying the
+target region, extension availability, service/backup/HA behavior and an isolated restore rehearsal
+for that exact target. The parameter selects the major version for server provisioning; it does not
+convert an existing PostgreSQL data directory or perform a data migration. Use the separate
+[major-version upgrade runbook](../docs/operations/auditsphere-operations-runbook-postgresql-major-upgrade.md)
+for self-managed cluster migration planning. No managed or self-managed database is migrated by
+this documentation change.
+
 ## Topology
 
 ```text
@@ -116,13 +128,39 @@ publish → non-root runtime with the Angular asset set), `src/AuditSphereOps.Wo
 ## Required owner plumbing before first live release (BLOCKED_EXTERNAL)
 
 - Azure subscription + resource group, and an ACR accepted by the owner.
-- Entra application for GitHub OIDC federation (Contributor on the resource group). No secrets
-  are stored in GitHub.
+- A single-tenant Entra application and service principal for GitHub OIDC. The release workflow
+  should trust only `issuer=https://token.actions.githubusercontent.com`,
+  `audience=api://AzureADTokenExchange`, and
+  `subject=repo:nirzaf/AuditSphere:environment:production`. This is an Azure deployment identity,
+  not the web sign-in app or an M365 capability app: it needs no Microsoft Graph permissions,
+  redirect URI, client secret, or certificate.
+- The GitHub `production` environment must exist and enforce the approved reviewer and branch
+  restrictions before its subject is trusted. The workflow references this environment, but source
+  code alone does not prove its live protection rules.
+- Azure RBAC for the release identity must be limited to the chosen resource group. **Contributor
+  alone is not sufficient for the current template:** `infra/modules/stack.bicep` declares
+  `Key Vault Secrets User` and `AcrPull` role assignments, while Contributor cannot write role
+  assignments. Before the first deployment, the owner must approve either a narrowly conditioned
+  role-assignment bootstrap for those exact assignments or a separately verified bootstrap design
+  that removes role-assignment writes from the routine release identity. Do not grant Owner,
+  subscription-wide access, or unconditioned role-assignment administration to make deployment pass.
 - Key Vault secrets created through the approved secret process:
   `auditsphere-connection-string`, `identity-client-secret`, `postgres-admin-password`.
 - The PostgreSQL server, databases and the two UI file shares are created by the stack; the
   `auditsphere` database schema itself is created by the migration bundle on first run.
-- GitHub environment `production` protected with required reviewer approval.
+
+### Keep Entra identities separate
+
+| Purpose | Minimum identity configuration | Do not conflate with |
+|---|---|---|
+| GitHub production deployment | Single-tenant app; GitHub OIDC federation only after the protected environment exists; no Graph API permissions, redirect URI, client secret or app certificate. Azure RBAC is separately scoped to the selected resource group. | Staff sign-in or Microsoft 365 capability apps. |
+| AuditSphere staff sign-in | Separate single-tenant Web app. The current API requests only `openid`, `profile` and `email`; it does not need Microsoft Graph permissions for sign-in. Register the exact approved production origin plus `/signin-oidc`, and provision the confidential-client secret through the approved secret store. | GitHub deployment federation or an M365 capability app. |
+| Microsoft 365 capability | Separate per-capability app and credential, with only the signed plan's exact application roles. Registration and role grants use the clean-source, plan-hash and detached-approval procedures in [Entra registration automation](../docs/operations/auditsphere-entra-registration-automation.md). | Deployment RBAC or the staff sign-in client. |
+
+Do not create a placeholder callback or trust the GitHub production subject before the environment
+has approved reviewer and branch restrictions. A tenant-level Entra session without an Azure
+subscription cannot establish a resource-group deployment scope. Record these as separate rollout
+prerequisites; do not grant Microsoft Graph scopes to compensate for missing Azure RBAC.
 
 ## Verification honesty
 

@@ -31,7 +31,7 @@ class RunnerSafetyTests(unittest.TestCase):
     def test_external_connection_override_blocks_preflight(self):
         packet = dict(owningFiles=[], documents=[])
         checks = [dict(kind='dotnet', database=True, project='tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj', testFile='tests/AuditSphereOps.Domain.Tests/AuthorizationDecisionTests.cs')]
-        with patch.dict(runner.os.environ, {'AUDITSPHERE_TEST_CONNECTION': 'Host=production;Database=real'}, clear=True), patch.object(runner, 'invoke', return_value=dict(exitCode=0, seconds=0, output='180006')):
+        with patch.dict(runner.os.environ, {'AUDITSPHERE_TEST_CONNECTION': 'Host=production;Database=real'}, clear=True), patch.object(runner, 'invoke', return_value=dict(exitCode=0, seconds=0, output='190000')):
             checks = runner.preflight(packet, checks)
         target = next(x for x in checks if x['name'] == 'Test database target')
         self.assertEqual('BLOCKED', target['status'])
@@ -43,9 +43,18 @@ class SocketDiagnosticTests(unittest.TestCase):
         checks = [dict(kind='dotnet', database=True, project='tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj', testFile='tests/AuditSphereOps.Domain.Tests/AuthorizationDecisionTests.cs')]
         with patch.dict(runner.os.environ, {}, clear=True), patch.object(runner, 'invoke', return_value=dict(exitCode=1, seconds=0, output='connection failed: Operation not permitted')):
             results = runner.preflight(packet, checks)
-        database = next(x for x in results if x['name'] == 'PostgreSQL 18.6 test database')
+        database = next(x for x in results if x['name'] == 'PostgreSQL 19 test database')
         self.assertEqual('SOCKET_ACCESS_DENIED', database['failureKind'])
         self.assertIn('do not recreate or reset', database['action'])
+
+    def test_postgres19_preflight_accepts_minors_and_rejects_postgres18(self):
+        packet = dict(owningFiles=[], documents=[])
+        checks = [dict(kind='dotnet', database=True, project='tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj', testFile='tests/AuditSphereOps.Domain.Tests/AuthorizationDecisionTests.cs')]
+        for version, expected in [('190000', 'PASS'), ('190007', 'PASS'), ('180007', 'BLOCKED')]:
+            with self.subTest(version=version), patch.dict(runner.os.environ, {}, clear=True), patch.object(runner, 'invoke', return_value=dict(exitCode=0, seconds=0, output=version)):
+                results = runner.preflight(packet, checks)
+            database = next(x for x in results if x['name'] == 'PostgreSQL 19 test database')
+            self.assertEqual(expected, database['status'])
 
 
 def trx(executed=1, passed=1, failed=0, rows=None):
@@ -269,7 +278,7 @@ class PacketAndSourceTests(unittest.TestCase):
     def test_alternate_browser_checkout_is_blocked(self):
         packet = dict(owningFiles=[], documents=[])
         checks = [dict(kind='dotnet', database=True, browser=True, project='tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj', testFile='tests/AuditSphereOps.E2E.Tests/AngularClientScopeEngagementParityJourneyTests.cs')]
-        with patch.dict(runner.os.environ, {'AUDITSPHERE_TEST_REPOSITORY_ROOT': '/other/checkout'}, clear=True), patch.object(runner, 'invoke', return_value=dict(exitCode=0, seconds=0, output='180006')):
+        with patch.dict(runner.os.environ, {'AUDITSPHERE_TEST_REPOSITORY_ROOT': '/other/checkout'}, clear=True), patch.object(runner, 'invoke', return_value=dict(exitCode=0, seconds=0, output='190000')):
             result = runner.preflight(packet, checks)
         self.assertEqual('BLOCKED', next(p for p in result if p['name'] == 'Browser host source')['status'])
 

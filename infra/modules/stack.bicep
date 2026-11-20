@@ -22,6 +22,9 @@ param postgresServerName string
 param postgresAdministratorLogin string
 @description('Key Vault secret name holding the PostgreSQL administrator password.')
 param postgresPasswordSecretName string
+@description('PostgreSQL major version. 19 is currently preview-only in Azure East Asia; the default 18 preserves existing deployment regions until that preview is approved there.')
+@allowed([18, 19])
+param postgresVersion int = 18
 @description('AuditSphere database name created by the migration job (single schema authority).')
 param databaseName string = 'auditsphere'
 @description('Existing Azure Container Registry (immutable SHA-tagged images).')
@@ -178,13 +181,13 @@ resource identityAcrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = 
   }
 }
 
-resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
+resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2026-10-01' = {
   name: postgresServerName
   location: location
   tags: baseTags
   sku: { name: 'Standard_D2ds_v5', tier: 'GeneralPurpose' }
   properties: {
-    version: '18'
+    version: '${postgresVersion}'
     administratorLogin: postgresAdministratorLogin
     administratorLoginPassword: '${keyVault.properties.vaultUri}secrets/${postgresPasswordSecretName}'
     network: { delegatedSubnetResourceId: postgresSubnet.id }
@@ -194,7 +197,7 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
   }
 }
 
-resource database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-01' = {
+resource database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2026-10-01' = {
   parent: postgres
   name: databaseName
   properties: {}

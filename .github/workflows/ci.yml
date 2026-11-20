@@ -382,6 +382,7 @@ jobs:
           bash scripts/diagnostics/test-image-build-memory.sh
           python3 scripts/diagnostics/test-image-build-counters.py
           python3 -m unittest discover -s scripts/agent -p 'test_*.py'
+          python3 -m unittest discover -s scripts/db/tests -p 'test_*.py'
           python3 -m unittest discover -s scripts/verification -p 'test_*.py'
           python3 -m unittest discover -s scripts/release -p 'test_ci_*.py'
           python3 -m unittest discover -s scripts/dev/tests -p 'test_*.py'

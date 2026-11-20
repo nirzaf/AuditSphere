@@ -23,10 +23,10 @@ $psqlPath = if ($psqlCommand) {
   $psqlCommand.Source
 } elseif ($env:PGSQL_HOME -and (Test-Path (Join-Path $env:PGSQL_HOME "bin\psql.exe"))) {
   Join-Path $env:PGSQL_HOME "bin\psql.exe"
-} elseif (Test-Path "C:\Users\DELL\.pgsql18\bin\psql.exe") {
-  "C:\Users\DELL\.pgsql18\bin\psql.exe"
-} elseif (Test-Path "C:\Users\DELL\.pgsql18\pgsql\bin\psql.exe") {
-  "C:\Users\DELL\.pgsql18\pgsql\bin\psql.exe"
+} elseif (Test-Path "C:\Users\DELL\.pgsql19\bin\psql.exe") {
+  "C:\Users\DELL\.pgsql19\bin\psql.exe"
+} elseif (Test-Path "C:\Users\DELL\.pgsql19\pgsql\bin\psql.exe") {
+  "C:\Users\DELL\.pgsql19\pgsql\bin\psql.exe"
 } else {
   throw "psql.exe was not found. Put PostgreSQL bin on PATH or set PGSQL_HOME."
 }

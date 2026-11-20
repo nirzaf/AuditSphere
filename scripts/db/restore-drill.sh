@@ -8,16 +8,32 @@ db_port="5433"
 source_db="auditsphere"
 db_user="postgres"
 evidence_file="${AUDITSPHERE_EVIDENCE_FILE:-.local/autonomous/evidence/restore-drill-latest.json}"
-psql_bin="$(command -v psql || true)"
-if [[ -z "$psql_bin" && -x /opt/homebrew/opt/postgresql@18/bin/psql ]]; then
-  psql_bin=/opt/homebrew/opt/postgresql@18/bin/psql
+if [[ -n "${PGSQL_HOME:-}" ]]; then
+  psql_bin="${PGSQL_HOME%/}/psql"
+  if [[ ! -x "$psql_bin" ]]; then
+    echo "PGSQL_HOME must name the PostgreSQL 19 bin directory; psql was not found at $psql_bin." >&2
+    exit 1
+  fi
+else
+  psql_bin="$(command -v psql || true)"
+  if [[ -z "$psql_bin" && -x /opt/homebrew/opt/postgresql@19/bin/psql ]]; then
+    psql_bin=/opt/homebrew/opt/postgresql@19/bin/psql
+  fi
 fi
 pg_dump_bin="${psql_bin%/psql}/pg_dump"
 pg_restore_bin="${psql_bin%/psql}/pg_restore"
 if [[ ! -x "$psql_bin" || ! -x "$pg_dump_bin" || ! -x "$pg_restore_bin" ]]; then
-  echo "PostgreSQL 18 client tools are required (psql, pg_dump, pg_restore)." >&2
+  echo "PostgreSQL 19 client tools are required (psql, pg_dump, pg_restore)." >&2
   exit 1
 fi
+
+for tool in "$psql_bin" "$pg_dump_bin" "$pg_restore_bin"; do
+  tool_version="$("$tool" --version | awk '{print $NF}')"
+  if [[ "${tool_version%%.*}" != 19 ]]; then
+    echo "PostgreSQL 19 client tools are required; $tool reports $tool_version." >&2
+    exit 1
+  fi
+done
 
 suffix="$(date +%s)_$RANDOM"
 restore_db="auditsphere_restore_${suffix}"
@@ -31,8 +47,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-"$psql_bin" -h "$db_host" -p "$db_port" -U "$db_user" -d "$source_db" \
-  -v ON_ERROR_STOP=1 -Atc 'SELECT current_setting('"'"'server_version_num'"'"')::int >= 180000'
+server_version_num="$("$psql_bin" -h "$db_host" -p "$db_port" -U "$db_user" -d "$source_db" \
+  -v ON_ERROR_STOP=1 -Atc 'SELECT current_setting('"'"'server_version_num'"'"')::int')"
+if [[ ! "$server_version_num" =~ ^[0-9]+$ ]] || (( server_version_num < 190000 || server_version_num >= 200000 )); then
+  echo "Restore drill requires a PostgreSQL 19.x source; server_version_num=$server_version_num." >&2
+  exit 1
+fi
 expected_migrations="$($psql_bin -h "$db_host" -p "$db_port" -U "$db_user" -d "$source_db" \
   -Atc 'SELECT count(*) FROM "__EFMigrationsHistory"')"
 expected_latest_migration="$($psql_bin -h "$db_host" -p "$db_port" -U "$db_user" -d "$source_db" \
@@ -132,4 +152,4 @@ printf '%s\n' \
   '  "custodiallySeparateStorage": false,' \
   '  "productionRpoRto": "NOT_RUN"' \
   '}' > "$evidence_file"
-echo "Restore rehearsal passed: PostgreSQL 18 schema restored with $restored_migrations migrations; latest $latest_migration. Evidence: $evidence_file."
+echo "Restore rehearsal passed: PostgreSQL 19 schema restored with $restored_migrations migrations; latest $latest_migration. Evidence: $evidence_file."

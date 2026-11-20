@@ -1,9 +1,9 @@
 # Shared PostgreSQL settings for local development (Windows, no admin required).
 # These defaults match this workstation; override via environment variables elsewhere.
-$PG_ROOT   = if ($env:PGSQL_HOME)   { $env:PGSQL_HOME }   else { 'C:\Users\DELL\.pgsql18\pgsql' }
-$PG_DATA   = if ($env:PGSQL_DATA)   { $env:PGSQL_DATA }   else { 'C:\Users\DELL\.pgsql18\data\db' }
-$PG_RUN    = if ($env:PGSQL_RUN)    { $env:PGSQL_RUN }    else { 'C:\Users\DELL\.pgsql18\run' }
-$PG_LOG    = if ($env:PGSQL_LOG)    { $env:PGSQL_LOG }    else { 'C:\Users\DELL\.pgsql18\run\pg.log' }
+$PG_ROOT   = if ($env:PGSQL_HOME)   { $env:PGSQL_HOME }   else { 'C:\Users\DELL\.pgsql19\pgsql' }
+$PG_DATA   = if ($env:PGSQL_DATA)   { $env:PGSQL_DATA }   else { 'C:\Users\DELL\.pgsql19\data\db' }
+$PG_RUN    = if ($env:PGSQL_RUN)    { $env:PGSQL_RUN }    else { 'C:\Users\DELL\.pgsql19\run' }
+$PG_LOG    = if ($env:PGSQL_LOG)    { $env:PGSQL_LOG }    else { 'C:\Users\DELL\.pgsql19\run\pg.log' }
 $PG_PORT   = if ($env:PGSQL_PORT)   { $env:PGSQL_PORT }   else { '5433' }
 $PG_HOST   = '127.0.0.1'
 $PG_SUPER  = 'postgres'
@@ -11,14 +11,14 @@ $PG_DBS    = @('auditsphere', 'auditsphere_tests')
 $PG_BIN    = Join-Path $PG_ROOT 'bin'
 
 # Required major version. Development evidence only; production uses the approved baseline.
-$PG_REQUIRED_MAJOR = '18'
+$PG_REQUIRED_MAJOR = '19'
 
 function Assert-PgBinaries {
   if (-not (Test-Path (Join-Path $PG_BIN 'postgres.exe'))) {
     throw "PostgreSQL binaries not found at '$PG_BIN'. Set PGSQL_HOME or install PostgreSQL $PG_REQUIRED_MAJOR."
   }
   $raw = (& (Join-Path $PG_BIN 'postgres.exe') --version | Select-Object -First 1)
-  # Output is e.g. "postgres (PostgreSQL) 18.6"; take the trailing version token.
+  # Output is e.g. "postgres (PostgreSQL) 19.0"; take the trailing version token.
   $version = (($raw -split '\s+') | Where-Object { $_ })[-1]
 
   $major = ($version -split '\.')[0]

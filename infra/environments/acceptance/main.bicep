@@ -17,6 +17,9 @@ param registryId string
 param externalWorkerGroups array = ['mail', 'pbc', 'client-sites']
 @description('Name prefix distinguishing this environment, e.g. auditsphere-acc.')
 param namePrefix string = 'auditsphere-acc'
+@description('PostgreSQL major version. Azure PostgreSQL 19 is preview-only in East Asia; default 18 preserves the configured region.')
+@allowed([18, 19])
+param postgresVersion int = 18
 
 module stack '../../modules/stack.bicep' = {
   name: 'auditsphere-stack'
@@ -32,6 +35,7 @@ module stack '../../modules/stack.bicep' = {
     postgresServerName: '${namePrefix}-pg'
     postgresAdministratorLogin: 'auditsphere_admin'
     postgresPasswordSecretName: 'postgres-admin-password'
+    postgresVersion: postgresVersion
     registryServer: registryServer
     registryId: registryId
     keyVaultName: '${namePrefix}-kv'

@@ -92,7 +92,7 @@ flowchart TB
     end
 
     subgraph DATA["Authoritative application data / document evidence"]
-        PG[("PostgreSQL 18.6: firm, client, group, audit, receipts, history")]
+        PG[("PostgreSQL 19.0 project target: firm, client, group, audit, receipts, history")]
         RELEASE["Authoritative issued bytes and manifest, SHA-256 lineage"]
         FREEZE["Local file freeze and immutable archive evidence"]
     end
@@ -238,7 +238,7 @@ PostgreSQL schema remain the executable truth.
 flowchart LR
   B["Browser<br/>Angular /ui/app · /ui/portal"] -->|same-origin| A["ASP.NET Core API<br/>minimal APIs + SPA fallback"]
   A -->|static Angular build| B
-  A --> DB["PostgreSQL 18.6<br/>EF Core 10, append-only triggers"]
+  A --> DB["PostgreSQL 19.0 project target<br/>EF Core 10, append-only triggers"]
   W["Worker<br/>durable outbox"] --> DB
   A -->|enqueue durable operation| DB
   W -->|claim FOR UPDATE SKIP LOCKED| DB

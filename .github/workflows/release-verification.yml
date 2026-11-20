@@ -272,7 +272,7 @@ jobs:
     services:
       # Each matrix child runs on its own runner and receives its own PostgreSQL service/container.
       postgres:
-        image: postgres:18.6
+        image: postgres:19.0-bookworm
         env:
           POSTGRES_DB: auditsphere_tests
           POSTGRES_USER: postgres
@@ -492,7 +492,7 @@ jobs:
           set -uo pipefail
           diagnostics_dir="${VERIFICATION_LOG_DIR:-${RUNNER_TEMP:-/tmp}/release-verification/logs}"
           mkdir -p "$diagnostics_dir"
-          container_id="$(docker ps -aq --filter 'ancestor=postgres:18.6' | head -n 1)"
+          container_id="$(docker ps -aq --filter 'ancestor=postgres:19.0-bookworm' | head -n 1)"
           if [ -n "$container_id" ]; then
             docker logs "$container_id" > "$diagnostics_dir/postgres-service.log" 2>&1 || true
           else

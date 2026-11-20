@@ -140,7 +140,7 @@ def preflight(packet, checks):
         connection = os.environ.get('AUDITSPHERE_TEST_CONNECTION', '')
         # Refuse overrides rather than partially parsing credential-bearing Npgsql strings.
         record('Test database target', not connection, 'Unset AUDITSPHERE_TEST_CONNECTION for this runner. It supports only 127.0.0.1:5433/auditsphere_tests with local postgres authentication.')
-        pg_home = Path(os.environ.get('PGSQL_HOME', '/opt/homebrew/opt/postgresql@18/bin'))
+        pg_home = Path(os.environ.get('PGSQL_HOME', '/opt/homebrew/opt/postgresql@19/bin'))
         psql = shutil.which('psql') or str(pg_home / ('psql.exe' if os.name == 'nt' else 'psql'))
         env = os.environ.copy()
         for k in list(env):
@@ -149,7 +149,8 @@ def preflight(packet, checks):
         env['PGCONNECT_TIMEOUT'] = '5'
         db = invoke([psql, '-X', '-w', '-h', '127.0.0.1', '-p', '5433', '-U', 'postgres', '-d', 'auditsphere_tests', '-Atqc', 'show server_version_num'], env=env)
         observed = db['output'].strip() if db['exitCode'] == 0 and db['output'].strip().isdigit() else 'unavailable'
-        record('PostgreSQL 18.6 test database', observed == '180006', 'Make the existing PostgreSQL 18.6 auditsphere_tests database reachable on port 5433. No database is created, reset or migrated by preflight.')
+        major_version_19 = observed.isdigit() and 190000 <= int(observed) < 200000
+        record('PostgreSQL 19 test database', major_version_19, 'Make a PostgreSQL 19.x auditsphere_tests database reachable on port 5433. No database is created, reset or migrated by preflight.')
         results[-1]['observedVersionNumber'] = observed
         if db['exitCode'] != 0:
             denied = any(term in db['output'].lower() for term in ['operation not permitted', 'permission denied'])

@@ -97,8 +97,8 @@ internal sealed class OwnedPostgresDatabase : IAsyncDisposable, ITestPostgresDat
         await admin.OpenAsync();
         var version = (int)(await new NpgsqlCommand("SELECT current_setting('server_version_num')::integer", admin)
           .ExecuteScalarAsync())!;
-        if (version != 180006)
-          throw new InvalidOperationException($"E2E requires PostgreSQL 18.6 (180006); server reported {version}.");
+        if (version < 190000 || version >= 200000)
+          throw new InvalidOperationException($"E2E requires PostgreSQL 19.x; server reported {version}.");
         var createDatabaseSql = fullMigrationTemplate is null
           ? $"CREATE DATABASE \"{databaseName}\""
           : $"CREATE DATABASE \"{databaseName}\" TEMPLATE \"{fullMigrationTemplate}\"";
