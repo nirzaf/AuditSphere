@@ -58,6 +58,39 @@ The self-managed Compose file pins the official PG19 image index by digest, moun
 
 Before any future Acceptance rollout, inspect the actual container image, `PGDATA`, Docker volume name/options, mount source, and `PG_VERSION` on the host. Do not recreate, prune, rename or empty an existing volume to bypass refusal. The initial image/path transition requires a separate copied-data major-upgrade rehearsal and owner-authorized cutover plan. This guard is not a migration utility and is not proof that an existing volume has been migrated.
 
+## PG19 runtime and migration principals
+
+The tracked Hostinger Compose target separates the database bootstrap login from service access.
+`auditsphere` remains a bootstrap superuser confined to the database container;
+`auditsphere_migrator` is used only by the one-shot migration service; the API and workers use
+`auditsphere_runtime`. Both service logins use SCRAM-SHA-256 and have no superuser, role/database
+creation, replication or row-security-bypass attributes. The bootstrap script revokes schema
+creation from `PUBLIC`, assigns the application schema to the migration principal, and grants the
+runtime principal DML plus the required sequence, function and type access. Future object grants
+are attached explicitly to objects created by `auditsphere_migrator`, as PostgreSQL default
+privileges are selected by the role creating each object.
+
+This is a PG19 target change, not a live PG18 credential rotation. The init script runs automatically
+only for an empty PGDATA. On a disposable restored PG19 target, apply it as the bootstrap role
+before restore. Restore a custom-format archive into a fresh database as
+`auditsphere_migrator` with `pg_restore --no-owner --no-acl`; PostgreSQL documents that
+`--no-owner` makes the connecting restore user own restored objects, and `--no-acl` leaves the
+explicit least-privilege grants to the role bootstrap. Then apply/verify the release migrations and
+confirm migration history, extensions, RLS, role grants and application read/write behavior. Do not
+restore into a non-empty target with cleanup/drop options as a shortcut.
+
+Keep independent high-entropy values for `POSTGRES_PASSWORD`,
+`AUDITSPHERE_MIGRATOR_DB_PASSWORD` and `AUDITSPHERE_RUNTIME_DB_PASSWORD` in a protected mode-`0600`
+`.env`; use shell-safe values (for example, 32-byte random hex) because they are embedded in
+Npgsql connection strings. The Compose model gives these three variables only to the database
+service; migration receives only its login and password, and runtime services receive only the
+runtime login and password. Official references: PostgreSQL 19
+[`pg_restore`](https://www.postgresql.org/docs/19/app-pgrestore.html),
+[password authentication](https://www.postgresql.org/docs/19/auth-password.html),
+[`ALTER DEFAULT PRIVILEGES`](https://www.postgresql.org/docs/19/sql-alterdefaultprivileges.html),
+[`CREATE EXTENSION`](https://www.postgresql.org/docs/19/sql-createextension.html) and
+[privileges](https://www.postgresql.org/docs/19/ddl-priv.html).
+
 ## Azure boundary
 
 Azure is used only for Microsoft Entra and SharePoint integration under the current owner scope. Do not provision Azure Database for PostgreSQL, change its Bicep parameters, or migrate an Azure database as part of this task. Keep the existing templates untouched.

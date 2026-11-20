@@ -5,6 +5,7 @@ Set-StrictMode -Version Latest
 $script:AcceptedProjectName = 'auditsphere-acceptance'
 $script:ComposeRelativePath = 'infra/hostinger-acceptance/compose.yaml'
 $script:PostgresGuardRelativePath = 'infra/hostinger-acceptance/postgres-entrypoint-guard.sh'
+$script:PostgresRoleBootstrapRelativePath = 'infra/hostinger-acceptance/postgres-role-bootstrap.sh'
 $script:OverrideRelativePath = 'infra/hostinger-acceptance/m365-isolation.override.example.yaml'
 $script:CredentialHostRoot = '/opt/auditsphere/storage/m365-credentials'
 $script:CredentialTargetRoot = '/run/auditsphere/m365'
@@ -104,6 +105,9 @@ function Get-AuditSphereDeploymentSourceFiles([string] $RepositoryRoot, [string]
   $postgresGuardPath = [System.IO.Path]::GetFullPath((Join-Path $root $script:PostgresGuardRelativePath))
   if (-not [System.IO.File]::Exists($postgresGuardPath)) { throw 'deployment-postgres-guard-source-not-found' }
   $paths.Add($postgresGuardPath)
+  $postgresRoleBootstrapPath = [System.IO.Path]::GetFullPath((Join-Path $root $script:PostgresRoleBootstrapRelativePath))
+  if (-not [System.IO.File]::Exists($postgresRoleBootstrapPath)) { throw 'deployment-postgres-role-bootstrap-source-not-found' }
+  $paths.Add($postgresRoleBootstrapPath)
   if (-not [string]::IsNullOrWhiteSpace($IsolationOverridePath)) {
     $requestedPath = if ([System.IO.Path]::IsPathFullyQualified($IsolationOverridePath)) { $IsolationOverridePath } else { Join-Path $root $IsolationOverridePath }
     $requested = [System.IO.Path]::GetFullPath($requestedPath)
@@ -150,7 +154,7 @@ function Get-AuditSphereExactCheckoutEvidence([string] $RepositoryRoot, $SourceF
     }
     $relativePaths = @($SourceFiles | ForEach-Object { [string]$_.path })
     foreach ($relative in $relativePaths) {
-      if ($relative -notin @($script:ComposeRelativePath, $script:PostgresGuardRelativePath, $script:OverrideRelativePath)) {
+      if ($relative -notin @($script:ComposeRelativePath, $script:PostgresGuardRelativePath, $script:PostgresRoleBootstrapRelativePath, $script:OverrideRelativePath)) {
         return [ordered]@{ state = 'FAIL'; observedSourceSha = $observedSha; sourceFilesAtHead = $false; fileBindings = @(); errorCode = 'source-file-not-approved' }
       }
       $headBlobOutput = @(& git -C $RepositoryRoot rev-parse --verify ("HEAD:$relative") 2>$null)

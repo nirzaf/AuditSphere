@@ -24,6 +24,35 @@ runbook](../../docs/operations/auditsphere-operations-runbook-postgresql-major-u
 inspect the actual Docker volume and mounts before any maintenance. No existing Acceptance volume
 has been migrated by changing this Compose file.
 
+### Database credentials and service roles
+
+The PG19 candidate keeps the `auditsphere` bootstrap superuser inside the database container. The
+one-shot migration service connects as `auditsphere_migrator`; the API and every worker connect as
+`auditsphere_runtime`. Only the database service receives the bootstrap, runtime and migration
+password variables. Do not copy `POSTGRES_PASSWORD` into an application service or use the
+bootstrap login from the API or workers.
+
+`postgres-role-bootstrap.sh` creates the two non-superuser logins, removes `PUBLIC` schema-creation
+access, makes the migration role own the application schema, and gives the runtime role only table
+DML, sequence usage/select, function execution and type usage. It also sets corresponding default
+privileges for objects created by the migration role. PostgreSQL applies defaults from the current
+object-creating role, not from its memberships; see the official
+[`ALTER DEFAULT PRIVILEGES`](https://www.postgresql.org/docs/19/sql-alterdefaultprivileges.html),
+[privileges](https://www.postgresql.org/docs/19/ddl-priv.html) and
+[`CREATE EXTENSION`](https://www.postgresql.org/docs/19/sql-createextension.html) references.
+The roles use SCRAM authentication and neither service login can create roles/databases, replicate,
+bypass row security or assume the other login. Runtime has no schema `CREATE`, `TRUNCATE` or
+`SET ROLE` grant.
+
+Set three independent high-entropy, shell-safe values in the protected mode-`0600` `.env` file:
+`POSTGRES_PASSWORD`, `AUDITSPHERE_MIGRATOR_DB_PASSWORD` and
+`AUDITSPHERE_RUNTIME_DB_PASSWORD`. Hex-encoded 32-byte random values avoid semicolons and whitespace
+in Npgsql connection strings. Never reuse a value or place one in the repository, chat or command
+history. The init script runs automatically only while initializing an empty PGDATA. On a restored
+PG19 target, an operator must apply it explicitly before restoring or migrating; never run it
+against the live PG18 source. The live Hostinger PG18.6 superuser credential and roles remain
+unchanged until a separately authorized cutover.
+
 Azure is reserved for Microsoft Entra and SharePoint integration. Azure database resources and
 their existing Bicep templates are outside this deployment scope and remain unchanged.
 
@@ -77,7 +106,8 @@ Run `fallocate` after `mkfs.ext4`; formatting the image can discard preallocated
 ```
 
 1. Create `.env` with `umask 077` and mode `0600`. Set `RELEASE_TAG` to the full source commit,
-   a generated `POSTGRES_PASSWORD`, `FIRM_ID`, `INSTALLATION_ID`, `BOOTSTRAP_PROOF_HASH`,
+   independently generated `POSTGRES_PASSWORD`, `AUDITSPHERE_MIGRATOR_DB_PASSWORD` and
+   `AUDITSPHERE_RUNTIME_DB_PASSWORD`, `FIRM_ID`, `INSTALLATION_ID`, `BOOTSTRAP_PROOF_HASH`,
    `IDENTITY_TENANT_ID`, `IDENTITY_CLIENT_ID`, `IDENTITY_CLIENT_SECRET`,
    `INITIAL_ADMIN_OBJECT_ID`, and a positive `DEPLOYMENT_EPOCH`. For dedicated new-client sites,
    set `CLIENT_SITES_ENABLED=true` (the default) and an explicitly approved UTC

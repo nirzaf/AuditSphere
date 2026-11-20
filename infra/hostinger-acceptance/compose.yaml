@@ -9,12 +9,18 @@ services:
       POSTGRES_DB: auditsphere
       POSTGRES_USER: auditsphere
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      AUDITSPHERE_RUNTIME_DB_PASSWORD: ${AUDITSPHERE_RUNTIME_DB_PASSWORD:?Set AUDITSPHERE_RUNTIME_DB_PASSWORD in .env}
+      AUDITSPHERE_MIGRATOR_DB_PASSWORD: ${AUDITSPHERE_MIGRATOR_DB_PASSWORD:?Set AUDITSPHERE_MIGRATOR_DB_PASSWORD in .env}
       PGDATA: /var/lib/postgresql/19/docker
     volumes:
       - postgres_data:/var/lib/postgresql
       - type: bind
         source: ./postgres-entrypoint-guard.sh
         target: /usr/local/bin/auditsphere-postgres-entrypoint-guard.sh
+        read_only: true
+      - type: bind
+        source: ./postgres-role-bootstrap.sh
+        target: /docker-entrypoint-initdb.d/10-auditsphere-role-bootstrap.sh
         read_only: true
     networks:
       - acceptance
@@ -30,7 +36,7 @@ services:
     image: ghcr.io/nirzaf/auditsphere-acceptance-migrations:${RELEASE_TAG:?Set RELEASE_TAG in .env}
     restart: "no"
     environment:
-      ConnectionStrings__AuditSphere: "Host=db;Port=5432;Database=auditsphere;Username=auditsphere;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+      ConnectionStrings__AuditSphere: "Host=db;Port=5432;Database=auditsphere;Username=auditsphere_migrator;Password=${AUDITSPHERE_MIGRATOR_DB_PASSWORD:?Set AUDITSPHERE_MIGRATOR_DB_PASSWORD in .env}"
     depends_on:
       db:
         condition: service_healthy
@@ -45,7 +51,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Acceptance
       ASPNETCORE_URLS: http://+:8080
       HOME: /app/data-protection-home
-      ConnectionStrings__AuditSphere: "Host=db;Port=5432;Database=auditsphere;Username=auditsphere;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+      ConnectionStrings__AuditSphere: "Host=db;Port=5432;Database=auditsphere;Username=auditsphere_runtime;Password=${AUDITSPHERE_RUNTIME_DB_PASSWORD:?Set AUDITSPHERE_RUNTIME_DB_PASSWORD in .env}"
       Application__FirmId: ${FIRM_ID:?Set FIRM_ID in .env}
       Application__InstallationId: ${INSTALLATION_ID:?Set INSTALLATION_ID in .env}
       Application__PublicBaseUrl: https://audit.steaudit.com
@@ -157,7 +163,7 @@ services:
     environment: &worker_environment
       ASPNETCORE_ENVIRONMENT: Acceptance
       DOTNET_ENVIRONMENT: Acceptance
-      ConnectionStrings__AuditSphere: "Host=db;Port=5432;Database=auditsphere;Username=auditsphere;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+      ConnectionStrings__AuditSphere: "Host=db;Port=5432;Database=auditsphere;Username=auditsphere_runtime;Password=${AUDITSPHERE_RUNTIME_DB_PASSWORD:?Set AUDITSPHERE_RUNTIME_DB_PASSWORD in .env}"
       Worker__FirmId: ${FIRM_ID:?Set FIRM_ID in .env}
       Worker__DeploymentEpoch: ${DEPLOYMENT_EPOCH:-1}
       ExternalEffects__Enabled: "false"
