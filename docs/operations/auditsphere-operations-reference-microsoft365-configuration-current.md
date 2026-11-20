@@ -1,6 +1,6 @@
 # Microsoft 365 deployment configuration reference
 
-**Status: CURRENT source/configuration reference.** Use with the [client-tenant CLI runbook](auditsphere-operations-runbook-client-tenant-microsoft365-current.md). Values are examples or key names, not live tenant settings. The [Wiki operator guide](https://github.com/nirzaf/AuditSphere/wiki/Production-Entra-ID-Configuration) is the publication entry point.
+**Status: CURRENT source/configuration reference.** Use with the [client-tenant CLI runbook](auditsphere-operations-runbook-client-tenant-microsoft365-current.md). Values are examples or key names, not live tenant settings. The repository now retains the migrated [client-tenant runbook](auditsphere-m365-runbook-client-tenant-current.md) and [production environment reference](auditsphere-m365-reference-production-environment-current.md) as Markdown under `docs/operations`.
 
 ## AI-agent reading packet
 
