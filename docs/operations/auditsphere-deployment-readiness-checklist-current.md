@@ -4,7 +4,7 @@ Use this checklist in order. Mark an item complete only with observed evidence f
 
 ## 1. Source and deployment
 
-- [ ] Reviewed the current `AGENTS.md`, `docs/auditsphere-accounting-module-requirements-current.md`, `docs/architecture/auditsphere-architecture-current-architecture.md`, execution ledger, and release diff.
+- [ ] Reviewed the current `AGENTS.md`, `docs/requirements/auditsphere-accounting-module-requirements-current.md`, `docs/architecture/auditsphere-architecture-current-architecture.md`, execution ledger, and release diff.
 - [ ] Confirmed the exact commit SHA, build artifact, environment, hostname, and deployment epoch.
 - [ ] Confirmed no credentials, tokens, bootstrap proof, connection strings, or tenant secrets are in Git, Wiki, logs, or support exports.
 - [ ] Confirmed the production secret/configuration references are injected outside the repository.

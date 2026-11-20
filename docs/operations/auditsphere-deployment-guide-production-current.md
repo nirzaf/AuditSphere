@@ -4,7 +4,7 @@ AuditSphereOps uses Microsoft Entra ID for staff identity, local database grants
 
 This Wiki is the primary source for deployment guidance. Update it when the implementation, approved topology, or operational procedure changes; do not rely on a copied Google Doc as the current runbook.
 
-This guide is a deployment runbook. Read it with the [current requirements](https://github.com/nirzaf/AuditSphere/blob/master/docs/auditsphere-accounting-module-requirements-current.md), the [implementation architecture](https://github.com/nirzaf/AuditSphere/blob/master/docs/architecture/auditsphere-architecture-current-architecture.md), and the [execution ledger](https://github.com/nirzaf/AuditSphere/blob/13f31321d9abc270703a3d6ac74a2ffe30b2efc3/docs/execution/status.json).
+This guide is a deployment runbook. Read it with the [current requirements](../requirements/auditsphere-accounting-module-requirements-current.md), the [implementation architecture](../architecture/auditsphere-architecture-current-architecture.md), and the [execution ledger](../execution/status.json).
 
 ## Current implementation boundary
 

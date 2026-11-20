@@ -1,6 +1,6 @@
 # AuditSphere production deployment
 
-This Wiki is the operational entry point for deploying AuditSphereOps, a .NET 10 / ASP.NET Core API + Angular UI (with a legacy Blazor rollback host) / EF Core / PostgreSQL modular monolith with Microsoft Entra ID and selected-resource SharePoint/Microsoft Graph integration.
+This Wiki is the operational entry point for deploying AuditSphereOps, a .NET 11 / C# 15 / ASP.NET Core API + Angular UI (with a legacy Blazor rollback host) / EF Core 10 / PostgreSQL 18.6 modular monolith with Microsoft Entra ID and selected-resource SharePoint/Microsoft Graph integration.
 
 This Wiki is the primary source for deployment-guidance documentation. Update these pages first; Google Docs and other copied guides are non-authoritative convenience copies and may be stale.
 
@@ -19,7 +19,7 @@ These pages explain configuration. They are not evidence that a tenant is produc
 
 Never put passwords, client secrets, certificates, private keys, access tokens, cookies, bootstrap proofs, or connection-string values in this Wiki, Git, issues, or logs. Keep `ExternalEffects__Enabled=false` until the approved live provider composition exists and the applicable external gates have observed evidence.
 
-The authoritative repository contract is the [current requirements](https://github.com/nirzaf/AuditSphere/blob/master/docs/auditsphere-accounting-module-requirements-current.md) and the [implementation architecture](https://github.com/nirzaf/AuditSphere/blob/master/docs/architecture/auditsphere-architecture-current-architecture.md); current implementation and open gates are recorded in the [execution ledger](https://github.com/nirzaf/AuditSphere/blob/13f31321d9abc270703a3d6ac74a2ffe30b2efc3/docs/execution/status.json). Purview and eSignature provider integrations are outside the approved product scope.
+The authoritative repository contract is the [current requirements](../requirements/auditsphere-accounting-module-requirements-current.md) and the [implementation architecture](../architecture/auditsphere-architecture-current-architecture.md); current implementation and open gates are recorded in the [execution ledger](../execution/status.json). Purview and eSignature provider integrations are outside the approved product scope.
 
 ## Scope baseline
 

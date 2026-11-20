@@ -1,5 +1,29 @@
 # Current-slice handoff
 
+## Current docs CI reconciliation and STE role request (2026-11-20 15:50 UTC)
+
+- Push run `44765394995` identifies master SHA `36ace3f23e08c4e9e29a1e54b10bb9690ca5837c` and failed only `Docs · Health` (job `136388528530`): the Markdown validator found the old backticked requirements path after the file moved under `docs/requirements/`. The documentation-only classifier and WU-019 offline safety job passed; application build jobs were skipped. The failed log was inspected once but not retained, so the job's actual checkout SHA remains unverified. This is not a fast-CI pass.
+- The four-file docs correction updates the moved requirements links and current deployment references; the deployment index now reflects the repository's .NET 11/C# 15, EF Core 10 and PostgreSQL 18.6 stack. After this handoff update, the docs validator passed locally (191 Markdown files, 22 canonical docs, 3,006 relative links, 265 backticked paths, zero deleted references); `git diff --check` passed. No tests were run. The corrected successor had not yet been committed or dispatched for CI at this observation. Evidence: `.local/autonomous/evidence/docs-consolidation-fix-20261120T155017Z/failure-and-fix-review.json`.
+- Full run `44758155114` remains in progress for older SHA `5b6e314b5ad1b93575a765e7517310a264f33b5a`. Resolver, exact-source Release build, Angular (2,138 tests/200 files), and contracts/publication jobs passed. Complete E2E, Domain, and API jobs were active; their actual checkouts and terminal results are not yet established. No current-source full or image run exists for `36ace3f23e08c4e9e29a1e54b10bb9690ca5837c`. No release acceptance or deployment is claimed.
+
+### Requested local AuditSphere role assignments
+
+The user supplied these assignments; they remain requests, not completed grants:
+
+| User | Requested local role(s) | Requested scope class |
+|---|---|---|
+| Mohamed Aashikkhan | Partner; RelationshipManager; FinanceReviewer; AccountingReviewer | ENGAGEMENT; CLIENT; FIRM_WIDE; CLIENT |
+| Mohamed Asleem | Manager; Senior; FinanceManager; AccountingPreparer | ENGAGEMENT; ENGAGEMENT; FIRM_WIDE; CLIENT |
+| Salem | Partner | ENGAGEMENT |
+| Ayash Mohamed | Staff | ENGAGEMENT |
+| Ibrahim Abdul Gafoor | Staff | ENGAGEMENT |
+| Shazreen | Staff | ENGAGEMENT |
+| Haneef | Staff | ENGAGEMENT |
+| Fazrin (`fazrin@gbschool.cc`) | Administrator | FIRM_WIDE |
+
+A fresh read of [the nomination sheet](https://docs.google.com/spreadsheets/d/1Sy6piaqYyxBwx1olhptqI2BsuEKxUFCHQnKVewsi4uo/edit) found 13 nominated role rows, all still `Needs nomination`; `Approved by` is blank on every row, and all 11 CLIENT/ENGAGEMENT target-ID cells are blank. The separate Fazrin administrator request is not an approved nomination. Seven STE Entra identities were previously verified read-only, but local AuditSphere UserIds, current grants, and an independent active app Administrator are not verified. Two sheet descriptions conflict with the `Staff` role codes; the role codes match the user table and were left untouched.
+
+No role, Sheet, Entra permission, or application grant was changed. The existing `/api/ui/administration/access/preview` → `/assign` process requires an authorized current app Administrator, exact scope IDs, a current digest, and explicit review. It blocks the acting Administrator from granting their own Administrator role. Completion therefore needs approved nomination rows with exact CLIENT/ENGAGEMENT IDs and a different current AuditSphere Administrator to execute the normal workflow for Fazrin; an Entra Global Administrator role is not the requested local AuditSphere role.
 ## PostgreSQL 19 candidate and production identity (2026-11-20)
 
 - Candidate `998417394231fac4ce5bd53156352ce611a5b78c` is pushed to `master` and `origin/master`. Fast workflow `44750532146` completed successfully across six jobs by GitHub run metadata. The completed-job log capture was attempted once but not retained, so actual checkout SHA is **unverified**; logs were not fetched again. Exact metadata is `.local/autonomous/evidence/ci-99841739-current-20261120/fast/terminal-run-metadata.json` (SHA-256 `789582e96a4f5742531042cea9a24993871ad229f1af6759d953e1aab62f9c8d`). No exact-source full or image workflow was dispatched for this candidate.
