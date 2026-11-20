@@ -1,4 +1,8 @@
-# AuditSphere Infrastructure as Code
+# AuditSphere Azure Infrastructure as Code — retained, not an active deployment path
+
+**Current owner boundary:** AuditSphere's existing self-hosted deployment remains the hosting target. Microsoft Azure is reserved for Entra ID and the existing SharePoint Online integration. This Azure hosting/database design and its templates are retained for review and historical continuity; they are not authorized for provisioning or deployment under the current boundary. Do not run `azd provision`, `azd deploy`, `azd up`, or direct Azure/Bicep deployments for AuditSphere infrastructure. This notice does not claim that pre-existing Azure resources were inventoried, changed, or removed.
+
+The current self-hosted PostgreSQL target is PostgreSQL 19.0 on Hostinger. The observed live database remains PostgreSQL 18.6 pending its independent backup, restore, least-privilege, CI, and cutover gates; see the [major-version upgrade runbook](../docs/operations/auditsphere-operations-runbook-postgresql-major-upgrade.md).
 
 For customer Microsoft identities, consent, selected-site grants and email setup, use the [client-tenant CLI runbook](../docs/operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md) and [configuration inventory](../docs/operations/auditsphere-operations-reference-microsoft365-configuration-current.md). Current Azure templates do not wire the complete M365 capability certificates/provider settings or mandatory Production installation/Data Protection credentials. Acceptance lists external worker groups but does not supply all required enablement and credentials; template compilation does not prove those workers or the Production API start. Production live M365 worker composition remains a separate engineering/release prerequisite.
 

@@ -1,6 +1,8 @@
 # AuditSphere production deployment
 
-This Wiki is the operational entry point for deploying AuditSphereOps, a .NET 11 / C# 15 / ASP.NET Core API + Angular UI (with a legacy Blazor rollback host) / EF Core 10 / PostgreSQL 18.6 modular monolith with Microsoft Entra ID and selected-resource SharePoint/Microsoft Graph integration.
+This Wiki is the operational entry point for the existing self-hosted AuditSphereOps deployment: a .NET 11 / C# 15 / ASP.NET Core API + Angular UI (with a legacy Blazor rollback host) / EF Core 10 modular monolith. PostgreSQL 19.0 is the current project target, while the observed Hostinger database remains PostgreSQL 18.6 until a separately qualified cutover. See the [PostgreSQL major-upgrade runbook](auditsphere-operations-runbook-postgresql-major-upgrade.md); changing an image tag is not a database migration.
+
+**Hosting boundary:** use the existing self-hosted deployment. Microsoft Azure is limited to Microsoft Entra ID and the existing SharePoint Online integration. The retained Azure hosting/database templates are not an approved deployment path under this boundary; do not provision or deploy them. This statement does not assert that existing Azure resources have been inventoried or removed.
 
 This Wiki is the primary source for deployment-guidance documentation. Update these pages first; Google Docs and other copied guides are non-authoritative convenience copies and may be stale.
 
@@ -12,6 +14,7 @@ This Wiki is the primary source for deployment-guidance documentation. Update th
 - [Production Entra ID Configuration](auditsphere-m365-runbook-client-tenant-current.md)
 - [Production SharePoint Configuration](auditsphere-m365-sharepoint-runbook-current.md)
 - [Production Readiness Checklist](auditsphere-deployment-readiness-checklist-current.md)
+- [PostgreSQL 18-to-19 Upgrade](auditsphere-operations-runbook-postgresql-major-upgrade.md) — current Hostinger target, compatibility practices, and cutover gates
 
 ## Safety boundary
 
