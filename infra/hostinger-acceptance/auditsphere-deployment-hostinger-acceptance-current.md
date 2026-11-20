@@ -11,8 +11,10 @@ rollout boundary, separate credentials and Microsoft authorization are ready.
 
 ## PostgreSQL 19 data boundary
 
-The checked-in Acceptance Compose selects `postgres:19.0-alpine3.24`, sets `PGDATA` to
-`/var/lib/postgresql/19/docker`, and runs a guard before the official image entrypoint. The guard
+The checked-in Acceptance Compose pins the official PostgreSQL `19.0-alpine3.24` image by its
+immutable multi-platform OCI index digest
+`sha256:8b0ff4cdf221f0c53d7fcda681d3b461be725c492cd881c5ec9c0ad25023f188`. It sets
+`PGDATA=/var/lib/postgresql/19/docker` and runs a guard before the official image entrypoint. The guard
 allows an empty volume or an existing PostgreSQL 19 cluster at that exact path. It refuses to
 initialize PostgreSQL 19 when it finds a PostgreSQL 18 or legacy cluster elsewhere in the mounted
 volume. A changed image tag or `PGDATA` is **not** a major-version migration. Preserve the existing
@@ -22,9 +24,8 @@ runbook](../../docs/operations/auditsphere-operations-runbook-postgresql-major-u
 inspect the actual Docker volume and mounts before any maintenance. No existing Acceptance volume
 has been migrated by changing this Compose file.
 
-The Azure Bicep production entry point continues to default to PostgreSQL 18 because the current
-Azure PostgreSQL 19 service is preview-only in East Asia. That managed-service selection is
-separate from this self-managed Acceptance image and from any existing database migration.
+Azure is reserved for Microsoft Entra and SharePoint integration. Azure database resources and
+their existing Bicep templates are outside this deployment scope and remain unchanged.
 
 ## Required owner configuration
 

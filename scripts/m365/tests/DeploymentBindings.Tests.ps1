@@ -81,7 +81,7 @@ function New-SyntheticComposeModel([string] $SourceSha) {
     Storage__ReleaseCheckpointRoot = '/var/lib/auditsphere/release-checkpoints'
   }
   $services = [ordered]@{
-    db = [ordered]@{ image = 'postgres:19.0-alpine3.24'; entrypoint = @('/usr/local/bin/auditsphere-postgres-entrypoint-guard.sh'); environment = [ordered]@{ POSTGRES_PASSWORD = '[REDACTED:POSTGRES_PASSWORD]'; PGDATA = '/var/lib/postgresql/19/docker' }; volumes = @('postgres_data:/var/lib/postgresql', './postgres-entrypoint-guard.sh:/usr/local/bin/auditsphere-postgres-entrypoint-guard.sh:ro') }
+    db = [ordered]@{ image = 'postgres:19.0-alpine3.24@sha256:8b0ff4cdf221f0c53d7fcda681d3b461be725c492cd881c5ec9c0ad25023f188'; entrypoint = @('/usr/local/bin/auditsphere-postgres-entrypoint-guard.sh'); environment = [ordered]@{ POSTGRES_PASSWORD = '[REDACTED:POSTGRES_PASSWORD]'; PGDATA = '/var/lib/postgresql/19/docker' }; volumes = @('postgres_data:/var/lib/postgresql', './postgres-entrypoint-guard.sh:/usr/local/bin/auditsphere-postgres-entrypoint-guard.sh:ro') }
     migrate = [ordered]@{ image = "ghcr.io/nirzaf/auditsphere-acceptance-migrations:$SourceSha"; environment = [ordered]@{ ConnectionStrings__AuditSphere = $apiEnv.ConnectionStrings__AuditSphere } }
     api = [ordered]@{ image = "ghcr.io/nirzaf/auditsphere-acceptance-api:$SourceSha"; environment = $apiEnv; volumes = @(
       (New-Volume 'data_protection' '/app/data-protection-home'), (New-Volume 'pbc_staging' '/var/lib/auditsphere/pbc-staging'), (New-Volume 'release_checkpoints' '/var/lib/auditsphere/release-checkpoints'),

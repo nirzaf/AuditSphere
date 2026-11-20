@@ -14,7 +14,7 @@ Apply an approved ADR within its explicit scope without asking for the same deci
 
 ## 2. Technical boundaries
 
-**Stack:** pinned .NET 11 / C# 15, ASP.NET Core API, Angular 22 / Material-CDK, EF Core 10 / Npgsql / PostgreSQL 19.x for local tests, CI and self-managed acceptance, .NET Worker and existing durable operations. Azure Flexible Server PG19 is preview-only in East Asia and is not the default deployment target; preserve the current region/version until its support and extension gates pass. Honor `global.json`, `.config/dotnet-tools.json`, `Directory.Packages.props`, NuGet locks and `src/AuditSphereOps.Ui/.nvmrc`.
+**Stack:** pinned .NET 11 / C# 15, ASP.NET Core API, Angular 22 / Material-CDK, EF Core 10 / Npgsql / PostgreSQL 19.x for local tests, CI and self-managed Hostinger acceptance, .NET Worker and existing durable operations. Azure is reserved for Microsoft Entra and SharePoint integration; do not provision Azure PostgreSQL or change Azure database templates under this scope. Honor `global.json`, `.config/dotnet-tools.json`, `Directory.Packages.props`, NuGet locks and `src/AuditSphereOps.Ui/.nvmrc`.
 
 | Directory under `src/` | Owns |
 | --- | --- |
