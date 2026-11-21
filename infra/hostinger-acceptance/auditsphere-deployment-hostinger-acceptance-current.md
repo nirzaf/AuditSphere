@@ -14,7 +14,7 @@ rollout boundary, separate credentials and Microsoft authorization are ready.
 The checked-in Acceptance Compose pins the official PostgreSQL `19.0-alpine3.24` image by its
 immutable multi-platform OCI index digest
 `sha256:8b0ff4cdf221f0c53d7fcda681d3b461be725c492cd881c5ec9c0ad25023f188`. It sets
-`PGDATA=/var/lib/postgresql/19/docker` and runs a guard before the official image entrypoint. The guard
+`PGDATA=/var/lib/postgresql/19/docker` and runs a guard before the official image entrypoint. The Compose service explicitly passes `command: ["postgres"]`; [Docker Compose ignores the image's default command when a custom entrypoint is set](https://docs.docker.com/reference/compose-file/services/#entrypoint). The guard
 allows an empty volume or an existing PostgreSQL 19 cluster at that exact path. It refuses to
 initialize PostgreSQL 19 when it finds a PostgreSQL 18 or legacy cluster elsewhere in the mounted
 volume. A changed image tag or `PGDATA` is **not** a major-version migration. Preserve the existing

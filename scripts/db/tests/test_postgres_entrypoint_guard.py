@@ -1,6 +1,7 @@
 """Fail-closed tests for the self-managed PostgreSQL major-version guard."""
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
@@ -8,9 +9,24 @@ import unittest
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 GUARD = REPOSITORY_ROOT / "infra/hostinger-acceptance/postgres-entrypoint-guard.sh"
+COMPOSE = REPOSITORY_ROOT / "infra/hostinger-acceptance/compose.yaml"
 
 
 class PostgresEntrypointGuardTests(unittest.TestCase):
+    def test_compose_passes_postgres_command_to_custom_entrypoint_guard(self):
+        compose = COMPOSE.read_text()
+        db_service = re.search(r"(?ms)^  db:\n(.*?)(?=^  [A-Za-z0-9_-]+:|\Z)", compose)
+
+        self.assertIsNotNone(db_service)
+        self.assertRegex(
+            db_service.group(1),
+            r'(?m)^    entrypoint: \["/usr/local/bin/auditsphere-postgres-entrypoint-guard\.sh"\]$',
+        )
+        self.assertRegex(
+            db_service.group(1),
+            r'(?m)^    command: \["postgres"\]$',
+        )
+
     def run_guard(self, root: Path, entrypoint: Path, pgdata: Path | None = None):
         env = os.environ.copy()
         env.update({

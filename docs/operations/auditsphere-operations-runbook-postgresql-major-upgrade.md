@@ -54,7 +54,7 @@ Bind every inventory and backup to the source, database, provider, engine versio
 
 ## Hostinger Acceptance image/data-path guard
 
-The self-managed Compose file pins the official PG19 image index by digest, mounts the named volume at `/var/lib/postgresql`, sets `PGDATA=/var/lib/postgresql/19/docker`, and executes `infra/hostinger-acceptance/postgres-entrypoint-guard.sh` before the official image entrypoint. A fresh empty volume is initialized at the new path. A PG19 cluster is accepted only at that path. A detected PG18 or legacy cluster causes a refusal before initialization.
+The self-managed Compose file pins the official PG19 image index by digest, mounts the named volume at `/var/lib/postgresql`, sets `PGDATA=/var/lib/postgresql/19/docker`, and executes `infra/hostinger-acceptance/postgres-entrypoint-guard.sh` before the official image entrypoint. It explicitly sets `command: ["postgres"]` because [Compose ignores the image's default `CMD` when a custom entrypoint is configured](https://docs.docker.com/reference/compose-file/services/#entrypoint); omitting the command would let the guard exit without starting PostgreSQL. A fresh empty volume is initialized at the new path. A PG19 cluster is accepted only at that path. A detected PG18 or legacy cluster causes a refusal before initialization.
 
 Before any future Acceptance rollout, inspect the actual container image, `PGDATA`, Docker volume name/options, mount source, and `PG_VERSION` on the host. Do not recreate, prune, rename or empty an existing volume to bypass refusal. The initial image/path transition requires a separate copied-data major-upgrade rehearsal and owner-authorized cutover plan. This guard is not a migration utility and is not proof that an existing volume has been migrated.
 
