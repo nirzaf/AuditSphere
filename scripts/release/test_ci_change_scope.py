@@ -21,6 +21,38 @@ class CiChangeScopeTests(unittest.TestCase):
             )
         )
 
+    def test_hostinger_acceptance_markdown_can_skip_application_builds(self) -> None:
+        self.assertFalse(
+            ci_change_scope.requires_application_checks(
+                [
+                    "infra/hostinger-acceptance/auditsphere-deployment-hostinger-acceptance-current.md",
+                    "docs/execution/auditsphere-execution-current-slice.md",
+                ]
+            )
+        )
+
+    def test_hostinger_compose_changes_still_run_application_checks(self) -> None:
+        for path in (
+            "infra/hostinger-acceptance/compose.yaml",
+            "infra/hostinger-acceptance/postgres-entrypoint-guard.sh",
+        ):
+            with self.subTest(path=path):
+                self.assertTrue(
+                    ci_change_scope.requires_application_checks(
+                        [
+                            "infra/hostinger-acceptance/auditsphere-deployment-hostinger-acceptance-current.md",
+                            path,
+                        ]
+                    )
+                )
+
+    def test_unapproved_infrastructure_markdown_remains_full(self) -> None:
+        self.assertTrue(
+            ci_change_scope.requires_application_checks(
+                ["infra/azure/operations.md"]
+            )
+        )
+
     def test_empty_diff_fails_closed(self) -> None:
         self.assertTrue(ci_change_scope.requires_application_checks([]))
 

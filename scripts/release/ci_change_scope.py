@@ -19,7 +19,10 @@ def requires_application_checks(paths: list[str]) -> bool:
             return True
         if raw_path == "docs/execution/status.json":
             continue
-        if not raw_path.startswith("docs/") or path.suffix.lower() != ".md":
+        docs_markdown = path.suffix.lower() == ".md" and (
+            raw_path.startswith("docs/") or path.parts[:2] == ("infra", "hostinger-acceptance")
+        )
+        if not docs_markdown:
             return True
     return False
 
