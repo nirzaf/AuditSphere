@@ -4,18 +4,19 @@ For a new customer tenant, start with the [CLI setup runbook](../../docs/operati
 
 ## Release modes and current automation boundary (2026-11-22)
 
-- **FAST_ITERATION** is for an explicitly approved disposable development/acceptance target using synthetic data only. It must remain inactive until the exact host, Compose project, database and volume are independently identified as disposable and deployment authority, protected SSH credentials and host key are verified. The name “acceptance” alone is not proof of disposability.
-- **PROTECTED_RELEASE** applies to retained data. It requires candidate-bound CI and immutable images plus the applicable backup, restore, maintenance, migration, least-privilege, runtime and human-acceptance gates. A documentation or image-build pass is not a deployment approval.
-- No Hostinger deployment workflow currently exists. `hostinger-acceptance-images.yml` builds and publishes images; `release.yml` is Azure-oriented and is not the Hostinger deployment path. A routine Hostinger deployment time/procedure is therefore **NOT VERIFIED**. The outline below is an operator plan for an independently identified target, not proof of an existing target's configuration or a verified automated release.
-- The last retained SSH read-only observation (`2026-11-22T03:01:51Z`) reported PG18.6 on a writable retained-data volume and was not quiesced. A read-only Docker inventory request at `2026-11-22T18:04:18Z` failed with Hostinger `VPS2044` because the installed OS does not support Docker Manager; no current Docker project, mount or volume identity was obtained. Do not activate FAST_ITERATION or reset data until a supported, independently verified read establishes the target identity.
+- **FAST_ITERATION** is for an explicitly approved disposable development/acceptance target using synthetic data only. The running Hostinger VM 1304586 is now identified as a live retained-data environment, so it is not eligible. Never infer disposability from the “acceptance” project name.
+- **PROTECTED_RELEASE** applies to the identified retained-data Hostinger target. It requires exact-source fast/full/image gates, immutable images, fresh quiesced database/catalog and actual mutable-storage/configuration/credential/overlay backups, independent restore, approved maintenance/RPO/RTO/rollback, least-privilege live roles, runtime guards and authenticated acceptance. A documentation or image-build pass is not deployment approval.
+- No Hostinger deployment workflow currently exists. `hostinger-acceptance-images.yml` builds and publishes images; `release.yml` is Azure-oriented and is not the Hostinger deployment path. GitHub currently reports zero repository environments. The live VPS, project, origin and strict SSH host-key pin have been read-only verified, but no protected deployment environment/reviewer or automated deployment path is configured. Routine deployment time remains **NOT MEASURED**. The outline below is an operator plan, not a verified automated release.
+- **Fast-CI routing and current candidate:** the fail-closed classifier allows a master push containing only approved Markdown under `docs/` or `infra/hostinger-acceptance/`, optionally with `docs/execution/status.json`, to skip application builds; Docs Health and offline M365 safety still run. Source, Compose, shell, workflow, mixed/unknown paths, pull requests and manual runs retain application checks. Exact f860 push run [45057908988](https://github.com/nirzaf/AuditSphere/actions/runs/45057908988) failed only at the .NET Release build operation, which was cancelled after severe memory pressure; causation remains unconfirmed. A local candidate lowers both the fast Release build and the full-verification artifact-rejection fallback from three to two workers, based on prior exact-CI two-worker evidence. It is uncommitted and unverified on current source; publish and run exact fast CI before claiming resolution. The pure Hostinger-docs-only fast route has not yet been demonstrated.
+- Fresh strict-host-key SSH and Docker/SQL metadata read at `2026-11-22T19:55:59Z` verified VM 1304586 (`crm.steaudit.com`), Compose project `auditsphere-acceptance` at `/opt/auditsphere/repo/infra/hostinger-acceptance`, origin `https://github.com/nirzaf/AuditSphere.git`, and host checkout `510394848ff5c2b0780091f99f60e37b8adc3c5a`. The checkout is detached and has untracked `compose.acceptance-workflow.yaml` and `compose.release-2b8faeb3.yaml`; preserve their exact bytes. The live DB container is `postgres:18-alpine`, PostgreSQL 18.6, with `PGDATA=/var/lib/postgresql/18/docker`; it uses named volume `auditsphere-acceptance_postgres_data`, actually bind-backed at `/opt/auditsphere/storage/postgres` on a 30 GB ext4 loop filesystem. The project has six bind-backed volumes plus six read-only credential binds. The DB was not quiesced: 11 other sessions were visible. The `auditsphere` login is superuser and can create databases/roles, replicate and bypass row security; `archive_mode=off`. No role, setting, file, volume, service or database was changed. Evidence: `.local/autonomous/evidence/release-cycle-optimization-20261122/hostinger-readonly-refresh-20261122T195559Z.json` and its raw metadata-only read. Hostinger Docker Manager still returns `VPS2044`; direct pinned-key SSH supplied the current inventory.
 
-The checked-in Acceptance Compose describes a separate synthetic-data environment intended for
-Hostinger. It uses the existing host Caddy instance and does not publish API or PostgreSQL ports
-publicly. Its Compose project, network, database, data-protection keys and upload staging are
-configured separately from existing VPS applications. This configuration does not prove that the
-project or volumes exist on the current VPS. Development identity and external effects for core
-workers are off. The dedicated client-sites worker is enabled by default but remains blocked until
-its explicit rollout boundary, separate credentials and Microsoft authorization are ready.
+The tracked base Compose is the PostgreSQL 19 candidate, not the effective live stack. Strict SSH
+verified the live project, its six named volumes and two untracked Compose overlays in the detached
+host checkout. Preserve the exact base/overlay files, private `.env`, Caddy configuration, every
+mutable volume and all credential binds in the recovery inventory. No `.env` values or effective
+external-effect settings were read. Do not assume the name “acceptance” means the live data is
+synthetic. The dedicated client-sites worker remains gated by its explicit rollout boundary,
+separate credentials and Microsoft authorization.
 
 ## PostgreSQL 19 data boundary
 
@@ -161,8 +162,9 @@ Run `fallocate` after `mkfs.ext4`; formatting the image can discard preallocated
 6. Add a Cloudflare proxied `A` record `audit` → `72.62.252.165`, then verify HTTPS and the Entra
    sign-in flow in a browser. Ensure Cloudflare's origin mode is Full (strict) so the Caddy
    certificate is validated.
-7. Bootstrap the initial firm administrator through the application's proof-backed setup flow.
-   Confirm only synthetic acceptance records are present.
+7. For a newly provisioned, isolated synthetic acceptance target only, bootstrap the initial firm
+   administrator through the application's proof-backed setup flow. Confirm only synthetic records
+   are present. Do not apply this step to the identified retained-data VPS.
 
 ## Microsoft 365 capability setup
 

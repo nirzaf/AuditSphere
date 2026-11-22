@@ -135,8 +135,9 @@ jobs:
           set -euo pipefail
           test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
           dotnet restore AuditSphereOps.slnx --locked-mode
-          # The exact three-worker CI trial beat the best observed two-worker timing within the
-          # memory ceiling. Retain the validated two-worker fallback for rejected artifacts.
+          # The fast f860 Release build reached near-zero available RAM and swap before its
+          # operation was cancelled. The cancellation cause is unconfirmed, so use the previously
+          # validated two-worker fallback until a new exact run demonstrates safe headroom.
           free -b
           python3 scripts/release/ci-api-resource-sampler.py /dev/null DOTNET_BUILD_RESOURCES &
           sampler_pid=$!
@@ -148,7 +149,7 @@ jobs:
             wait "$sampler_pid" 2>/dev/null || :
           }
           trap cleanup_sampler EXIT
-          /usr/bin/time -v dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:3 \
+          /usr/bin/time -v dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:2 \
             -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \
             -p:CscEnvironment=DOTNET_PROCESSOR_COUNT=2 \
             -clp:PerformanceSummary
