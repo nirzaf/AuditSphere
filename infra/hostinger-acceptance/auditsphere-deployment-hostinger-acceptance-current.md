@@ -2,12 +2,20 @@
 
 For a new customer tenant, start with the [CLI setup runbook](../../docs/operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md) and [configuration inventory](../../docs/operations/auditsphere-operations-reference-microsoft365-configuration-current.md). They explain Entra registrations/consent, certificates, exact SharePoint grants, email authorization/DNS, worker activation and rotation. This guide's dated observations are acceptance history, not new-customer verification. Current base Compose narrows API credentials to six read-only capability mounts. Prepare protected empty capability directories before approved API recreation; inspect actual mounts before staging privileged keys, since older containers can retain the parent mount. The [isolation example](m365-isolation.override.example.yaml) remains available for older base revisions. Microsoft's current Exchange RBAC recommendation and AuditSphere's legacy mail-verifier compatibility limit are documented in the new runbook.
 
-This is a separate, synthetic-data acceptance environment for the Hostinger VPS. It uses the
-existing host Caddy instance and does not publish the API or PostgreSQL ports publicly. Its
-Compose project, network, database, data-protection keys and upload staging are isolated from
-the VPS's existing applications. Development identity and external effects for core workers are
-off. The dedicated client-sites worker is enabled by default but remains blocked until its explicit
-rollout boundary, separate credentials and Microsoft authorization are ready.
+## Release modes and current automation boundary (2026-11-22)
+
+- **FAST_ITERATION** is for an explicitly approved disposable development/acceptance target using synthetic data only. It must remain inactive until the exact host, Compose project, database and volume are independently identified as disposable and deployment authority, protected SSH credentials and host key are verified. The name “acceptance” alone is not proof of disposability.
+- **PROTECTED_RELEASE** applies to retained data. It requires candidate-bound CI and immutable images plus the applicable backup, restore, maintenance, migration, least-privilege, runtime and human-acceptance gates. A documentation or image-build pass is not a deployment approval.
+- No Hostinger deployment workflow currently exists. `hostinger-acceptance-images.yml` builds and publishes images; `release.yml` is Azure-oriented and is not the Hostinger deployment path. A routine Hostinger deployment time/procedure is therefore **NOT VERIFIED**. The outline below is an operator plan for an independently identified target, not proof of an existing target's configuration or a verified automated release.
+- The last retained SSH read-only observation (`2026-11-22T03:01:51Z`) reported PG18.6 on a writable retained-data volume and was not quiesced. A read-only Docker inventory request at `2026-11-22T18:04:18Z` failed with Hostinger `VPS2044` because the installed OS does not support Docker Manager; no current Docker project, mount or volume identity was obtained. Do not activate FAST_ITERATION or reset data until a supported, independently verified read establishes the target identity.
+
+The checked-in Acceptance Compose describes a separate synthetic-data environment intended for
+Hostinger. It uses the existing host Caddy instance and does not publish API or PostgreSQL ports
+publicly. Its Compose project, network, database, data-protection keys and upload staging are
+configured separately from existing VPS applications. This configuration does not prove that the
+project or volumes exist on the current VPS. Development identity and external effects for core
+workers are off. The dedicated client-sites worker is enabled by default but remains blocked until
+its explicit rollout boundary, separate credentials and Microsoft authorization are ready.
 
 ## PostgreSQL 19 data boundary
 
@@ -66,7 +74,12 @@ using the application's approved setup procedure and place it in `.env` alongsid
 application, administrator object, firm and installation IDs. Use fresh synthetic identifiers
 and data only.
 
-## Deployment outline
+## Candidate deployment outline (requires a fresh target preflight)
+
+This is a manual candidate procedure, not a verified routine deployment or automated Hostinger
+workflow. Before using it, verify the exact VPS, project, mounted volumes, data classification,
+host key, protected credentials and deployment authority. For the retained-data host, complete the
+protected-release gates above; never infer a disposable target from the Compose project name.
 
 Run commands from `/opt/auditsphere/repo/infra/hostinger-acceptance` on the VPS. The deployment
 operator must first install Git and Docker Compose if unavailable, create `/opt/auditsphere` with
