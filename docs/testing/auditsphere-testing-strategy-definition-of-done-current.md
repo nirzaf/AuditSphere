@@ -11,7 +11,7 @@
 3. **CI/CD:** `.github/workflows/ci.yml` is the fast gate. `.github/workflows/release-verification.yml` runs complete unfiltered Domain, Angular, and Playwright/PostgreSQL cohorts and the complete API suite via verified process-isolated shards against a resolved immutable SHA. Every required job and the aggregate must pass on the same SHA for `FULL_CI_PASS`.
 4. **External/professional acceptance:** tenant consent, provider behavior, human audit/accounting decisions, accessibility acceptance, and deployment are separate evidence leaves. Tests and green CI do not supply them.
 
-When rerunning a failed .NET job, retain its GitHub job log and any needed TRX before rerunning. The workflow retains command logs for each attempt and replaces only that cohort’s canonical TRX artifact. The release contract still requires all cohorts and verifies evidence for the same source commit.
+When rerunning a failed .NET job, retain its GitHub job log and any needed TRX before rerunning. The workflow retains command logs for each attempt and replaces only that cohort’s canonical TRX artifact. The release contract checks each cohort’s most recent retained command log at or before the aggregate attempt, including logs from successful jobs carried forward. It binds actual artifact names, IDs and digests to the same source commit and still requires all cohorts.
 
 ## Risk-based coverage
 

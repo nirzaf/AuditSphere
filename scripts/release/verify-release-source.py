@@ -41,6 +41,7 @@ TEST_COHORTS = ('domain', 'api', 'e2e')
 REQUIRED_ARTIFACTS = tuple(sorted(
     [f'release-verification-logs-{key}' for key in ('angular', 'contract') + TEST_COHORTS]
     + [f'release-verification-trx-{key}' for key in TEST_COHORTS]))
+ATTEMPT_LOG = re.compile(r'(release-verification-logs-(?:api|domain|e2e))-attempt-([1-9][0-9]{0,9})')
 TRUSTED_EVENTS = ('schedule', 'workflow_dispatch')
 MAX_CANDIDATES = 10
 MAX_ARCHIVE_BYTES = 256 * 1024
@@ -64,6 +65,15 @@ def is_count(value, minimum=0):
 
 def evidence_artifact_name(commit):
     return EVIDENCE_ARTIFACT_PREFIX + commit
+
+
+def artifact_slot(name, run_attempt):
+    if name in REQUIRED_ARTIFACTS:
+        return name, 0
+    match = ATTEMPT_LOG.fullmatch(name) if isinstance(name, str) else None
+    if match and is_count(run_attempt, 1) and int(match[2]) <= run_attempt:
+        return match[1], int(match[2])
+    return None, 0
 
 
 def load_json_values(path):
@@ -164,6 +174,7 @@ def record_errors(record):
         errors.append('evidence record has no bounded evidenceArtifacts list')
         artifacts = []
     names = set()
+    slots = set()
     for item in artifacts:
         valid = (isinstance(item, dict) and isinstance(item.get('name'), str)
                  and is_count(item.get('id'), 1) and is_count(item.get('sizeInBytes'), 1)
@@ -173,8 +184,13 @@ def record_errors(record):
             errors.append('an evidence artifact identity is malformed or duplicated')
             continue
         names.add(item['name'])
+        slot, _ = artifact_slot(item['name'], run.get('attempt'))
+        if slot is not None:
+            if slot in slots:
+                errors.append(f'evidence artifact {slot} has multiple recorded identities')
+            slots.add(slot)
     for name in REQUIRED_ARTIFACTS:
-        if name not in names:
+        if name not in slots:
             errors.append(f'evidence artifact {name} is not recorded')
     return errors
 
@@ -259,16 +275,25 @@ def build_record(repository, workflow_ref, workflow_sha, run_id, run_attempt, ev
             cohorts[cohort] = dict(executed=evidence['executedTests'], passed=evidence['passedTests'],
                                    failed=evidence['failedTests'], skipped=evidence['skippedTests'])
 
+    selected = {}
+    for artifact in run_artifacts:
+        if not isinstance(artifact, dict) or not is_count(artifact.get('id'), 1) or not retained(artifact, now):
+            continue
+        slot, attempt = artifact_slot(artifact.get('name'), run_attempt)
+        if slot is None:
+            continue
+        rank = (attempt, artifact['id'])
+        if slot not in selected or rank > selected[slot][0]:
+            selected[slot] = (rank, artifact)
+
     identities = []
     for name in REQUIRED_ARTIFACTS:
-        listed = [a for a in run_artifacts if isinstance(a, dict) and a.get('name') == name
-                  and is_count(a.get('id'), 1) and retained(a, now)]
-        if not listed:
+        if name not in selected:
             errors.append(f'evidence artifact {name} was not uploaded by this run')
             continue
-        newest = max(listed, key=lambda a: a['id'])
-        identities.append(dict(name=name, id=newest['id'], sizeInBytes=newest.get('size_in_bytes'),
-                               digest=newest.get('digest')))
+        _, artifact = selected[name]
+        identities.append(dict(name=artifact['name'], id=artifact['id'], sizeInBytes=artifact.get('size_in_bytes'),
+                               digest=artifact.get('digest')))
 
     record = dict(
         schema=SCHEMA, repository=repository,
@@ -359,7 +384,8 @@ def artifact_identity_reasons(record, run_artifacts, now):
     reasons = []
     by_id = {a.get('id'): a for a in run_artifacts if isinstance(a, dict) and is_count(a.get('id'), 1)}
     for item in record['evidenceArtifacts']:
-        if item['name'] not in REQUIRED_ARTIFACTS:
+        slot, _ = artifact_slot(item['name'], record['run']['attempt'])
+        if slot is None:
             continue
         listed = by_id.get(item['id'])
         if listed is None or listed.get('name') != item['name']:

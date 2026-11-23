@@ -153,6 +153,33 @@ class ReleaseEvidenceTests(unittest.TestCase):
         self.assertTrue(result['accepted'], result)
         self.assertEqual(self.run_id, result['selected']['runId'])
 
+    def test_attempt_named_logs_keep_prior_passes_and_verify_real_artifact_identity(self):
+        (self.root / 'workflow.json').write_text(json.dumps({'id': 77, 'path': verify_source.WORKFLOW_PATH}), encoding='utf-8')
+        for artifact in self.run_artifacts:
+            if artifact['name'] in ('release-verification-logs-api', 'release-verification-logs-domain',
+                                    'release-verification-logs-e2e'):
+                artifact['name'] += '-attempt-1'
+        e2e = next(a for a in self.run_artifacts if a['name'] == 'release-verification-logs-e2e-attempt-1')
+        self.run_artifacts.extend((dict(e2e, id=200, name='release-verification-logs-e2e-attempt-2'),
+                                   dict(e2e, id=201, name='release-verification-logs-e2e-attempt-3')))
+        record, errors = verify_source.build_record(
+            self.repo, f'{self.repo}/{verify_source.WORKFLOW_PATH}@refs/heads/master', self.workflow_sha,
+            self.run_id, self.attempt, 'workflow_dispatch', self.workflow_sha, 'master', self.candidate,
+            {job: 'success' for job in verify_source.REQUIRED_JOBS}, self.trx_root, self.run_artifacts,
+            self.now, toolchain=self.toolchain)
+        self.assertEqual([], errors)
+        self.assertEqual({'release-verification-logs-api-attempt-1',
+                          'release-verification-logs-domain-attempt-1',
+                          'release-verification-logs-e2e-attempt-2'},
+                         {a['name'] for a in record['evidenceArtifacts'] if '-attempt-' in a['name']})
+        self.assertTrue(self.verify(record=record)['accepted'])
+        self.run_artifacts = [a for a in self.run_artifacts if a['id'] != 200]
+        self.assertFalse(self.verify(record=record)['accepted'])
+        api = next(a for a in record['evidenceArtifacts'] if a['name'] == 'release-verification-logs-api-attempt-1')
+        api['name'] = 'release-verification-logs-api-attempt-3'
+        self.assertIn('evidence artifact release-verification-logs-api is not recorded',
+                      verify_source.record_errors(record))
+
     def test_wrong_resolved_source_is_rejected(self):
         (self.root / 'workflow.json').write_text(json.dumps({'id': 77, 'path': verify_source.WORKFLOW_PATH}), encoding='utf-8')
         other = dict(self.record)
