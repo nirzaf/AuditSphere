@@ -24,7 +24,8 @@ ARCHIVE_NAME = "release-build.tar.gz"
 ARTIFACT_PREFIX = "auditsphere-release-build"
 OUTPUT_ROOTS = {"src", "tests", "tools"}
 BUILD_PROPERTIES = {
-    "maxCpuCount": 2,
+    "maxCpuCount": 1,
+    "cscProcessorCount": 1,
     "buildInParallel": True,
     "graphBuild": True,
     "useSharedCompilation": False,

@@ -134,9 +134,9 @@ jobs:
           set -euo pipefail
           test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
           dotnet restore AuditSphereOps.slnx --locked-mode
-          # The fast f860 Release build reached near-zero available RAM and swap before its
-          # operation was cancelled. The cancellation cause is unconfirmed, so use the previously
-          # validated two-worker fallback until a new exact run demonstrates safe headroom.
+          # Run 45158798029 reached 20 MiB available RAM and about 1 MiB free swap before the
+          # build step was cancelled; cgroup OOM counters were unavailable. Keep MSBuild and
+          # Roslyn single-worker until a later exact run demonstrates adequate memory headroom.
           free -b
           python3 scripts/release/ci-api-resource-sampler.py /dev/null DOTNET_BUILD_RESOURCES &
           sampler_pid=$!
@@ -148,9 +148,9 @@ jobs:
             wait "$sampler_pid" 2>/dev/null || :
           }
           trap cleanup_sampler EXIT
-          /usr/bin/time -v dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:2 \
+          /usr/bin/time -v dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:1 \
             -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \
-            -p:CscEnvironment=DOTNET_PROCESSOR_COUNT=2 \
+            -p:CscEnvironment=DOTNET_PROCESSOR_COUNT=1 \
             -clp:PerformanceSummary
 
       # The same manifest, confined archive and digest checks protect this same-run handoff and
@@ -284,8 +284,9 @@ jobs:
         if: ${{ steps.verify-parallel-build.outputs.reused != 'true' }}
         run: |
           set -euo pipefail
-          # If exact-run outputs are unavailable, retain the validated two-worker graph build.
-          dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:2 \
+          # If exact-run outputs are unavailable, use the same memory-bounded graph build.
+          dotnet build AuditSphereOps.slnx --no-restore --configuration Release --graphBuild --maxcpucount:1 \
+            -p:CscEnvironment=DOTNET_PROCESSOR_COUNT=1 \
             -p:BuildInParallel=true -p:UseSharedCompilation=false -p:RunAnalyzers=false \
             -clp:PerformanceSummary
 

@@ -18,9 +18,9 @@ and unresolved acceptance gates before making current-status claims.
 
 ## Build diagnostics ownership
 
-The fast Release outputs job and API image publish set Roslyn's reported processor count to two through `CscEnvironment`. This limits compiler concurrency independently of MSBuild scheduling. All migration sources remain in the compile, and the setting applies only to the build process.
+The Release outputs and fallback build steps set Roslyn's processor count to one through `CscEnvironment`, independently of MSBuild scheduling. This memory-safety response follows an exact runner sample with near-zero available RAM and swap; revisit only with new resource evidence. The artifact manifest records both limits, and all migration sources remain in the compile.
 
-The full release workflow uses the artifact finder's GitHub step outputs to locate the exact-source fast Release build. It verifies provenance and contents before reusing the binaries. When reuse is unavailable, the clean build uses the fast Release outputs job's two-worker MSBuild graph and two-processor Roslyn setting.
+The full release workflow uses the artifact finder's GitHub step outputs to locate the exact-source fast Release build. It verifies provenance and contents before reusing the binaries. When reuse is unavailable, the clean build uses the same single-worker MSBuild graph and single-processor Roslyn setting as the Release outputs job, matching the build-artifact provenance manifest.
 
 ## PostgreSQL major-upgrade preflight ownership
 
