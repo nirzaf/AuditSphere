@@ -40,6 +40,7 @@ public sealed class HttpBoundarySecurityTests
   }
 
   [Fact]
+  [Trait("CompletionUnit", "WU-015")]
   public async Task EstablishedCookieSessionsStillReachApplicationWorkspaces()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("HTTP-BOUNDARY-SESSION");
@@ -61,6 +62,7 @@ public sealed class HttpBoundarySecurityTests
   }
 
   [Fact]
+  [Trait("CompletionUnit", "WU-015")]
   public async Task RevokedSessionsRemainRefusedByTheApplicationLayer()
   {
     // A valid cookie with a stale session epoch passes the HTTP boundary on purpose and is
@@ -225,6 +227,7 @@ public sealed class HttpBoundarySecurityTests
   }
 
   [Fact]
+  [Trait("CompletionUnit", "WU-015")]
   public async Task SecurityHeadersAreAppliedToEveryResponse()
   {
     using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?> {
@@ -244,6 +247,7 @@ public sealed class HttpBoundarySecurityTests
   }
 
   [Fact]
+  [Trait("CompletionUnit", "WU-015")]
   public async Task ContentSecurityPolicyAppliesOnlyToDocumentsAndKeepsScriptsStrict()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("HTTP-BOUNDARY-CSP");
