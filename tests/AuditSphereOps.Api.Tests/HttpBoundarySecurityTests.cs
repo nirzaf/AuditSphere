@@ -89,6 +89,26 @@ public sealed class HttpBoundarySecurityTests
   }
 
   [Fact]
+  [Trait("CompletionUnit", "WU-015")]
+  public async Task UntrustedOriginsReceiveNoCorsAuthorization()
+  {
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?> {
+      ["DevelopmentIdentity:Enabled"] = "true",
+      ["DevelopmentIdentity:Subject"] = "boundary-cors-subject",
+      ["DevelopmentIdentity:TenantId"] = Guid.NewGuid().ToString("D"),
+      ["Application:AllowSimulationAdapters"] = "true",
+      ["ExternalEffects:Enabled"] = "false" });
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    client.DefaultRequestHeaders.Add("Origin", "https://untrusted.example");
+
+    using var response = await client.GetAsync("/api/ui/portfolio");
+
+    Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    Assert.False(response.Headers.Contains("Access-Control-Allow-Origin"));
+    Assert.False(response.Headers.Contains("Access-Control-Allow-Credentials"));
+  }
+
+  [Fact]
   public async Task RateLimitRejectsExcessReadsWithASafeStructuredBody()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("HTTP-BOUNDARY-THROTTLE");

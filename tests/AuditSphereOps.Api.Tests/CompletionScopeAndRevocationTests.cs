@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Tests;
@@ -112,6 +113,43 @@ public sealed partial class CompletionScopeAndRevocationTests(Xunit.Abstractions
     using (var wrongFirmDenied = await Post(foreignClient, path, foreignCsrf, validBody))
       await AssertFailure(wrongFirmDenied, HttpStatusCode.Forbidden, "scope.denied");
     Assert.Equal(baseline, await CaptureAcceptanceState(pg, target.Fixture.FirmId, target.Fixture.ClientId));
+  }
+
+  [Fact]
+  public async Task GroupOnlyGrant_DoesNotAuthorizeClientAccountingMutation()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("WU015-GROUP-ONLY");
+    var seed = await PbcSeed.SeedAsync(pg);
+    var groupOnly = PbcSeed.User(seed.FirmId, "Staff");
+    var groupId = Guid.CreateVersion7();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var now = DateTimeOffset.UtcNow;
+      db.Users.Add(groupOnly);
+      db.ClientGroups.Add(new ClientGroup
+      {
+        Id = groupId, FirmId = seed.FirmId, Code = "WU015-GROUP-ONLY", Name = "Group-only authorization",
+        CreatedByUserId = seed.Admin.Id, CreatedAt = now
+      });
+      db.GroupAccessGrants.Add(new GroupAccessGrant
+      {
+        Id = Guid.CreateVersion7(), FirmId = seed.FirmId, GroupId = groupId, UserId = groupOnly.Id,
+        Role = "AccountingPreparer", GrantedByUserId = seed.Admin.Id, GrantedAt = now
+      });
+      await db.SaveChangesAsync();
+      Assert.Empty(await db.RoleGrants.Where(x => x.UserId == groupOnly.Id && x.RevokedAt == null).ToListAsync());
+    }
+
+    using var factory = Factory(pg, groupOnly);
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    var csrf = await SignIn(client);
+    using var denied = await Post(client, "/api/ui/accounting/clients/" + seed.ClientId.ToString("D") + "/charts",
+      csrf, new { latestVersion = "0", sourceScope = "TEST-SCOPE", effectiveFrom = "2026-01-01", reviewed = true });
+    await AssertFailure(denied, HttpStatusCode.Forbidden, "scope.denied");
+
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await proof.ClientChartVersions.Where(x => x.FirmId == seed.FirmId).ToListAsync());
+    Assert.Single(await proof.GroupAccessGrants.Where(x => x.UserId == groupOnly.Id && x.RevokedAt == null).ToListAsync());
   }
 
   private static StandaloneApiApplicationFactory Factory(OwnedPostgresDatabase pg, AppUser user) => new(new Dictionary<string, string?>
