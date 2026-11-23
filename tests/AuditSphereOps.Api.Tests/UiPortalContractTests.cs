@@ -43,6 +43,7 @@ public sealed class UiPortalContractTests
   }
 
   [Fact]
+  [Trait("CompletionUnit", "WU-015")]
   public async Task PortalContracts_RequireCurrentParticipantAndCsrf_AndNeverReturnCapabilityInReads()
   {
     const string internalRiskEvidence = "SYNTHETIC-INTERNAL-KYC-AML-EVIDENCE-NOT-FOR-CLIENT";
@@ -236,6 +237,7 @@ public sealed class UiPortalContractTests
   }
 
   [Theory]
+  [Trait("CompletionUnit", "WU-015")]
   [InlineData("state", PbcStates.Sent, "financial_packages", HttpStatusCode.Conflict)]
   [InlineData("revision", PbcStates.Sent, "financial_packages", HttpStatusCode.Conflict)]
   [InlineData("window", PbcStates.UnderReview, "commercial_deliverable_bundles", HttpStatusCode.OK)]
@@ -293,6 +295,7 @@ public sealed class UiPortalContractTests
   }
 
   [Theory]
+  [Trait("CompletionUnit", "WU-015")]
   [InlineData("detail", "revision", HttpStatusCode.Conflict, "generation.stale")]
   [InlineData("history", "revision", HttpStatusCode.Conflict, "generation.stale")]
   [InlineData("detail", "owner", HttpStatusCode.Forbidden, "scope.denied")]
@@ -365,6 +368,7 @@ public sealed class UiPortalContractTests
   }
 
   [Fact]
+  [Trait("CompletionUnit", "WU-015")]
   public async Task PortalReplyReplayAndReceiptRead_RecheckOwnerAfterOperationLookup()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-PORTAL-REPLY-OWNER-RACE");
@@ -604,6 +608,7 @@ public sealed class UiPortalContractTests
   }
 
   [Fact]
+  [Trait("CompletionUnit", "WU-015")]
   public async Task PortalDocuments_ProjectOnlyTheCurrentClientContextAndRecords()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("ANGULAR-PORTAL-DOC-CONTEXT");
@@ -629,6 +634,7 @@ public sealed class UiPortalContractTests
   }
 
   [Theory]
+  [Trait("CompletionUnit", "WU-015")]
   [InlineData("grant", HttpStatusCode.Forbidden, "scope.denied")]
   [InlineData("context", HttpStatusCode.Conflict, "generation.stale")]
   public async Task PortalDocuments_RecheckScopeAndContextAfterDeliverableRowsAreRead(

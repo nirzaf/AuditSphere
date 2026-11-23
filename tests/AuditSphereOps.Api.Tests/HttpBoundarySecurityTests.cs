@@ -18,6 +18,7 @@ namespace AuditSphereOps.Api.Tests;
 public sealed class HttpBoundarySecurityTests
 {
   [Fact]
+  [Trait("CompletionUnit", "WU-015")]
   public async Task UnauthenticatedUiRequestsAreRefusedBeforeAnyBusinessHandler()
   {
     // No database is configured on purpose: any refusal produced by a business handler or the

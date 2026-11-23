@@ -55,6 +55,7 @@ public sealed class StatementReviewApiTests
   }
 
   [Fact]
+  [Trait("CompletionUnit", "WU-015")]
   public async Task RestrictedAndGuessedScopesExposeNoStatementOrEvidencePopulations()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-STATEMENT-SCOPE"); var f = await PbcSeed.SeedAsync(pg);
@@ -74,6 +75,7 @@ public sealed class StatementReviewApiTests
   }
 
   [Fact]
+  [Trait("CompletionUnit", "WU-015")]
   public async Task LateEpochDuringBasisReadCannotReturnTotals()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-STATEMENT-LATE-EPOCH"); var f = await PbcSeed.SeedAsync(pg);
