@@ -513,7 +513,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: release-verification-logs-${{ matrix.key }}
+          name: release-verification-logs-${{ matrix.key }}-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/release-verification/logs
           if-no-files-found: warn
           retention-days: 30
@@ -526,6 +526,7 @@ jobs:
           path: ${{ runner.temp }}/release-verification/trx
           if-no-files-found: warn
           retention-days: 30
+          overwrite: true
 
       - name: Record ${{ matrix.name }} project outcome
         if: ${{ always() }}
