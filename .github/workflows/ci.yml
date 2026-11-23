@@ -345,6 +345,9 @@ jobs:
       - name: Verify OpenAPI contract drift
         run: bash scripts/contracts/verify-openapi.sh
 
+      - name: Verify source-bound Hostinger image manifest helper
+        run: python3 -m unittest scripts.release.test_hostinger_image_manifest
+
       - name: Summarize
         if: ${{ always() }}
         env:

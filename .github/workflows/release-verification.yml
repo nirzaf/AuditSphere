@@ -1023,6 +1023,8 @@ jobs:
             python3 -m unittest discover -s scripts/release -p 'test_verify_release_source.py'
           bash scripts/release/run-verification-step.sh "Exact-source CI build artifact unit tests" \
             python3 -m unittest discover -s scripts/release -p 'test_ci_build_artifact.py'
+          bash scripts/release/run-verification-step.sh "Hostinger immutable image manifest unit tests" \
+            python3 -m unittest discover -s scripts/release -p 'test_hostinger_image_manifest.py'
           bash scripts/release/run-verification-step.sh "Verification evidence guard unit tests" \
             python3 -m unittest discover -s scripts/verification -p 'test_*.py'
           bash scripts/release/run-verification-step.sh "M365 result contract unit tests" \

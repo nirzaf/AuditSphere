@@ -20,6 +20,8 @@ on:
       - 'scripts/diagnostics/image-build-process-memory.sh'
       - 'scripts/diagnostics/image-build-counters.py'
       - 'scripts/diagnostics/image-build-counter-target.sh'
+      - 'scripts/release/hostinger_image_manifest.py'
+      - 'scripts/release/test_hostinger_image_manifest.py'
       - 'docs/task_breakdown/tracking/pack_manifest.json'
       - 'docs/task_breakdown/tasks/**'
       - '.dockerignore'
@@ -50,14 +52,17 @@ jobs:
       matrix:
         include:
           - name: API
+            key: api
             timeout_minutes: 75
             image: auditsphere-acceptance-api
             dockerfile: src/AuditSphereOps.Api/Dockerfile
           - name: worker
+            key: worker
             timeout_minutes: 75
             image: auditsphere-acceptance-worker
             dockerfile: src/AuditSphereOps.Worker/Dockerfile
           - name: migrations
+            key: migrations
             timeout_minutes: 165
             image: auditsphere-acceptance-migrations
             dockerfile: infra/docker/migrations.Dockerfile
@@ -134,18 +139,39 @@ jobs:
 
       - name: Build and push image
         env:
+          IMAGE_KEY: ${{ matrix.key }}
           IMAGE_NAME: ${{ matrix.image }}
           DOCKERFILE: ${{ matrix.dockerfile }}
           USE_PREBUILT_ANGULAR: ${{ matrix.name == 'API' && steps.prepare-angular.outputs.available == 'true' }}
         run: |
           set -euo pipefail
+          metadata_file="$RUNNER_TEMP/buildx-metadata.json"
+          record_dir="$RUNNER_TEMP/hostinger-image-records"
+          mkdir -p "$record_dir"
           bash scripts/diagnostics/image-build-memory.sh buildx_buildkit_hostinger-acceptance0 -- \
             docker buildx build --platform linux/amd64 --push \
             --cache-from "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}:buildcache" \
             --cache-to "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}:buildcache,mode=max" \
             --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}:${GITHUB_SHA}" \
             --build-arg "USE_PREBUILT_ANGULAR=${USE_PREBUILT_ANGULAR}" \
+            --metadata-file "$metadata_file" \
             --file "$DOCKERFILE" .
+          python3 scripts/release/hostinger_image_manifest.py record \
+            --metadata-file "$metadata_file" \
+            --output "$record_dir/${IMAGE_KEY}.json" \
+            --image-key "$IMAGE_KEY" \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-sha "$GITHUB_SHA" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT"
+
+      - name: Upload immutable image digest record
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hostinger-image-digest-${{ matrix.key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/hostinger-image-records/${{ matrix.key }}.json
+          if-no-files-found: error
+          retention-days: 1
 
   summarize:
     name: Summarize image references
@@ -154,12 +180,51 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Check out image workflow source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Download API digest record
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: hostinger-image-digest-api-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/hostinger-image-records
+
+      - name: Download worker digest record
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: hostinger-image-digest-worker-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/hostinger-image-records
+
+      - name: Download migrations digest record
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: hostinger-image-digest-migrations-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/hostinger-image-records
+
+      - name: Assemble complete source-bound image manifest
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release/hostinger_image_manifest.py assemble \
+            --records-dir "$RUNNER_TEMP/hostinger-image-records" \
+            --output "$RUNNER_TEMP/hostinger-image-manifest.json" \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-sha "$SOURCE_SHA" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload complete immutable image manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hostinger-image-manifest-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/hostinger-image-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Summarize image references
         run: |
-          {
-            printf "Source commit: \`%s\`\n\n" "$GITHUB_SHA"
-            printf "Private GHCR images:\n"
-            printf -- "- \`ghcr.io/%s/auditsphere-acceptance-api:%s\`\n" "${GITHUB_REPOSITORY_OWNER,,}" "$GITHUB_SHA"
-            printf -- "- \`ghcr.io/%s/auditsphere-acceptance-worker:%s\`\n" "${GITHUB_REPOSITORY_OWNER,,}" "$GITHUB_SHA"
-            printf -- "- \`ghcr.io/%s/auditsphere-acceptance-migrations:%s\`\n" "${GITHUB_REPOSITORY_OWNER,,}" "$GITHUB_SHA"
-          } >> "$GITHUB_STEP_SUMMARY"
+          jq -r '"Source commit: `\(.sourceSha)`\n\nImmutable GHCR image references:\n" + ([.images[] | "- `\(.immutableReference)`"] | join("\n"))' \
+            "$RUNNER_TEMP/hostinger-image-manifest.json" >> "$GITHUB_STEP_SUMMARY"
