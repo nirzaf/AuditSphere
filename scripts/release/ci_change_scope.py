@@ -1,30 +1,49 @@
 #!/usr/bin/env python3
-"""Select the fast CI path, allowing only approved docs-content pushes to skip app builds."""
+"""Select fast CI paths while keeping every unapproved or ambiguous diff fail-closed."""
 
 from __future__ import annotations
 
 import os
 import subprocess
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 
-def requires_application_checks(paths: list[str]) -> bool:
-    """Return false only for a non-empty, unambiguous docs-only Markdown diff."""
+PG19_PREFLIGHT_PATHS = frozenset(
+    {
+        "scripts/db/postgresql_major_upgrade_preflight.py",
+        "scripts/db/tests/test_postgresql_major_upgrade_preflight.py",
+    }
+)
+
+
+def classify_paths(paths: list[str], *, preflight_files_present: bool = True) -> str:
+    """Classify only verified documentation or PG19-preflight-only diffs as narrow."""
     if not paths:
-        return True
+        return "application-paths"
 
+    has_pg19_preflight = False
     for raw_path in paths:
         path = PurePosixPath(raw_path)
         if path.is_absolute() or ".." in path.parts or "\\" in raw_path:
-            return True
+            return "application-paths"
         if raw_path == "docs/execution/status.json":
+            continue
+        if raw_path in PG19_PREFLIGHT_PATHS:
+            has_pg19_preflight = True
             continue
         docs_markdown = path.suffix.lower() == ".md" and (
             raw_path.startswith("docs/") or path.parts[:2] == ("infra", "hostinger-acceptance")
         )
         if not docs_markdown:
-            return True
-    return False
+            return "application-paths"
+    if has_pg19_preflight:
+        return "pg19-preflight-only" if preflight_files_present else "application-paths"
+    return "docs-content-only"
+
+
+def requires_application_checks(paths: list[str]) -> bool:
+    """Keep application builds for all changes outside the explicitly narrow paths."""
+    return classify_paths(paths) == "application-paths"
 
 
 def _set_output(full_build: bool, reason: str) -> None:
@@ -82,8 +101,9 @@ def main() -> int:
         print(f"Could not classify the push diff ({error}); running full application checks.")
         return 0
 
-    full_build = requires_application_checks(paths)
-    reason = "application-paths" if full_build else "docs-content-only"
+    preflight_files_present = all(path.is_file() for path in map(Path, PG19_PREFLIGHT_PATHS))
+    reason = classify_paths(paths, preflight_files_present=preflight_files_present)
+    full_build = reason == "application-paths"
     _set_output(full_build, reason)
     print(f"CI classification: {reason}; changed paths: {len(paths)}.")
     if not paths:
