@@ -22,6 +22,13 @@ The fast Release outputs job and API image publish set Roslyn's reported process
 
 The full release workflow uses the artifact finder's GitHub step outputs to locate the exact-source fast Release build. It verifies provenance and contents before reusing the binaries. When reuse is unavailable, the clean build uses the fast Release outputs job's two-worker MSBuild graph and two-processor Roslyn setting.
 
+## PostgreSQL major-upgrade preflight ownership
+
+`scripts/db/postgresql_major_upgrade_preflight.py` runs a read-only PostgreSQL 18 catalog inventory
+for the PostgreSQL 19 adoption plan. It reports compatibility signals and never changes data or
+qualifies cutover. The [major-upgrade runbook](../operations/auditsphere-operations-runbook-postgresql-major-upgrade.md)
+owns the manual checks, exact-copy `pg_upgrade --check`, recovery evidence and release boundary.
+
 The root `.dockerignore` excludes Angular `src/**/*.spec.ts` files from the production image context. The Angular CI test job still runs them from its Git checkout. The production TypeScript configuration excludes the same files, so test-only edits leave the Docker source copy cache eligible for reuse.
 
 Image builds emit compact memory snapshots during compilation. The fast .NET Release build uses the existing fixed-field runner sampler for live host and cgroup observations. These samples remain available in the Actions log if final build diagnostics are interrupted.
