@@ -456,6 +456,15 @@ jobs:
           bash scripts/release/run-verification-step.sh "Playwright Google Chrome install" \
             pwsh tests/AuditSphereOps.E2E.Tests/bin/Release/net11.0/playwright.ps1 install --with-deps chrome
 
+      - name: Verify Hostinger PostgreSQL 19 role bootstrap on isolated service
+        if: ${{ matrix.key == 'api' }}
+        run: |
+          set -euo pipefail
+          container_id="$(docker ps -q --filter 'ancestor=postgres:19.0-bookworm' | head -n 1)"
+          test -n "$container_id"
+          bash scripts/release/run-verification-step.sh "PostgreSQL 19 Hostinger role bootstrap integration" \
+            bash scripts/db/tests/verify_postgres_role_bootstrap.sh "$container_id"
+
       - name: Save Playwright cache before the long E2E suite
         if: ${{ always() && matrix.key == 'e2e' && steps.playwright-install.outcome == 'success' && steps.playwright-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0

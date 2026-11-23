@@ -8,9 +8,13 @@
 
 The repository targets PostgreSQL 19 for local development, CI and self-managed Hostinger acceptance. Hostinger Compose pins the official `postgres:19.0-alpine3.24` multi-platform OCI index to `sha256:8b0ff4cdf221f0c53d7fcda681d3b461be725c492cd881c5ec9c0ad25023f188`; update that digest only through a reviewed image-provenance change. Azure is reserved for Microsoft Entra and SharePoint integration. Azure database provisioning and the existing Azure database templates are outside this upgrade and must remain unchanged.
 
-**Latest provider and reachability refresh (2026-11-23 04:15:29 UTC):** the Hostinger read-only API reports VM 1304586 (`crm.steaudit.com`) running on the KVM 2 plan. The latest backup listing contains only snapshots from Nov 20 and Nov 13; it is not a fresh quiesced database/catalog plus actual-volume/configuration/credential backup or restore proof. Hostinger Docker Manager still returns `VPS:2044` for this Ubuntu 24.04 VM. The most recent SSH attempt returned `No route to host`; no remote command ran. The API refresh does not expose PostgreSQL catalogs, Docker mounts, volumes, or current compose overlays, so the last complete direct database read below remains the `2026-11-23T03:49:19Z` observation. Evidence: `.local/autonomous/evidence/release-cycle-optimization-20261123/hostinger-readonly-refresh-20261123T041529Z.json` and `.local/autonomous/evidence/release-cycle-optimization-20261123/hostinger-readonly-refresh-20261123T034919Z.json`. No production mutation occurred.
+**Latest direct Hostinger observation (read-only, 2026-11-23 10:15:37 UTC):** strict host-key-verified SSH and read-only Hostinger API checks found VM 1304586 (`crm.steaudit.com`, Ubuntu 24.04) still running the retained PostgreSQL 18.6 database in `auditsphere-acceptance-db-1`, image `postgres:18-alpine`, `PGDATA=/var/lib/postgresql/18/docker`, mutable RW volume `auditsphere-acceptance_postgres_data`. The `auditsphere` database was 40,883,903 bytes with 392 public tables, 327 EF migration rows through `20261111160000_OpeningBalanceCommandReceipts`, and `pgcrypto 1.4` plus `plpgsql 1.0`. One active and three idle sessions mean it was not quiesced. Its only login, `auditsphere`, remained superuser with role/database creation, replication and RLS-bypass privileges; runtime/migrator logins were absent. Observed settings include `archive_mode=off`, `wal_level=replica`, autovacuum on, `io_method=worker`, `io_workers=3`, JIT on, `max_locks_per_transaction=64`, shared buffers 16,384 pages and SSL off.
 
-**Last complete database/catalog read (2026-11-23 03:49:19 UTC):** PostgreSQL 18.6 was healthy on mutable `postgres:18-alpine`, using the retained named volume `auditsphere-acceptance_postgres_data`; the API readiness endpoint returned HTTP 200. The repository was detached at `510394848ff5c2b0780091f99f60e37b8adc3c5a` with untracked `compose.acceptance-workflow.yaml` and `compose.release-2b8faeb3.yaml`; preserve both. The application and worker image digests were older than the then-current candidate. This state is now historical because SSH could not refresh the database after 03:49. The provider snapshot did not include a fresh quiesced backup, actual volume/configuration/credential/overlay backup, or independent restored-copy rehearsal. GitHub had no deployment environment, repository deployment secrets/variables, or Hostinger deployment workflow at that observation. Evidence: `.local/autonomous/evidence/release-cycle-optimization-20261123/hostinger-readonly-refresh-20261123T034919Z.json`.
+The deployed repository was at `510394848ff5c2b0780091f99f60e37b8adc3c5a`; tracked Compose SHA-256 was `ec1fca5a04953bbe5c2a0aaf147cd0c0f7dc8448d7c2140e29d100787be96081`. Preserve its two untracked overlays exactly: `compose.acceptance-workflow.yaml` (`15127f887f0cde3834a8978807b3aa6be6773dc9b274dd975a5224ceefab2a64`) and `compose.release-2b8faeb3.yaml` (`95539545e8dc09b06cd3b0727f64884e6184129a9aa88244def4efc4f7fd039b`). The API image digest was `sha256:38451684423fe1cd624fbd7b538b9a20d26726efee200e14d2077587268c024d`; worker image digest was `sha256:3b2216b7591da1929c35a70dc99ac1fcc01856e12969ad0cd712c0b33305ebcc`. General, processing and records workers were running; the mail worker was stopped and remains paused. Actual mutable mounts included PostgreSQL data, PBC staging, release checkpoints, data protection, M365 capability credentials and the stopped mail credential volume. The root filesystem had 42,150,277,120 bytes free (60% used).
+
+Hostinger listed backups `60586474` (Nov 20) and `59617550` (Nov 13); the snapshot API returned 404 because this VM has no manual snapshot. No fresh quiesced database/catalog plus actual mutable-volume/configuration/credential/overlay backup or independent restored-copy rehearsal was evidenced. Docker Manager returned `VPS:2044`. No deployment, database mutation, permission change or release acceptance occurred. Evidence: `.local/autonomous/evidence/pg19-role-bootstrap-followup-20261123/hostinger-readonly-refresh-20261123T101537Z/normalized-readonly-summary.json`. This is a normalized record of the read-only result; its raw SSH/provider transcript was not retained in the current checkpoint.
+
+**Earlier database/catalog read (2026-11-23 03:49:19 UTC; superseded):** the API readiness endpoint returned HTTP 200, and the database was also observed at PostgreSQL 18.6 on the same named volume. The provider snapshot did not include a fresh quiesced backup, actual volume/configuration/credential/overlay backup, or independent restored-copy rehearsal. Evidence: `.local/autonomous/evidence/release-cycle-optimization-20261123/hostinger-readonly-refresh-20261123T034919Z.json`.
 
 **Earlier source-cluster inventory (2026-11-22):** PostgreSQL 18.6 used `archive_mode=off` and `wal_level=replica`; the `auditsphere` login had superuser, database/role creation, replication, and row-security-bypass attributes; runtime/migrator roles were absent. The database had 392 public tables and 327 EF migration-history rows; three sessions were visible at one instant, which was not quiescence. Only `plpgsql` 1.0 was listed. This older inventory is useful for planning but does not establish the current catalog. Evidence: `.local/autonomous/evidence/pg19-f42-recovery-20261122/hostinger-readonly-observation-20261122.json`.
 
@@ -90,9 +94,24 @@ only for an empty PGDATA. On a disposable restored PG19 target, apply it as the 
 before restore. Restore a custom-format archive into a fresh database as
 `auditsphere_migrator` with `pg_restore --no-owner --no-acl`; PostgreSQL documents that
 `--no-owner` makes the connecting restore user own restored objects, and `--no-acl` leaves the
-explicit least-privilege grants to the role bootstrap. Then apply/verify the release migrations and
-confirm migration history, extensions, RLS, role grants and application read/write behavior. Do not
-restore into a non-empty target with cleanup/drop options as a shortcut.
+explicit least-privilege grants to the role bootstrap. Run the bootstrap again after restore and
+before migrations so its explicit grants cover the restored objects and its assertions fail closed
+on drift. Then apply/verify the release migrations and confirm migration history, extensions, RLS,
+role grants and application read/write behavior. Do not restore into a non-empty target with
+cleanup/drop options as a shortcut.
+
+The bootstrap refuses a server whose `server_version_num` is not PostgreSQL 19 before executing
+role or grant DDL. Its final verification checks both membership directions in `pg_auth_members`
+(service roles cannot inherit another role, and no other role can assume a service login), role
+attributes, database/schema ownership, the `PUBLIC` schema ACL, and effective runtime privileges on
+existing tables and sequences. It grants no runtime DDL, `TRUNCATE`, `REFERENCES`, `TRIGGER` or
+sequence-update authority. `scripts/db/tests/verify_postgres_role_bootstrap.sh` exercises idempotence, default
+privileges for new objects, grants on existing objects after rerun, forbidden runtime
+`CREATE`/`TRUNCATE`, and both membership directions against a disposable PostgreSQL 19 server.
+`scripts/db/tests/test_postgres_role_bootstrap.py` verifies PostgreSQL 18 is refused before role
+DDL. The full release workflow runs the integration in the API matrix job's isolated PostgreSQL 19
+service. These checks verify the role bootstrap only; they do not qualify a restored production
+database, cutover or release.
 
 Keep independent high-entropy values for `POSTGRES_PASSWORD`,
 `AUDITSPHERE_MIGRATOR_DB_PASSWORD` and `AUDITSPHERE_RUNTIME_DB_PASSWORD` in a protected mode-`0600`

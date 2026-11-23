@@ -29,6 +29,13 @@ for the PostgreSQL 19 adoption plan. It reports compatibility signals and never 
 qualifies cutover. The [major-upgrade runbook](../operations/auditsphere-operations-runbook-postgresql-major-upgrade.md)
 owns the manual checks, exact-copy `pg_upgrade --check`, recovery evidence and release boundary.
 
+`infra/hostinger-acceptance/postgres-role-bootstrap.sh` is limited to PostgreSQL 19 and establishes
+the isolated migrator/runtime roles, default privileges, existing-object grants and verified
+membership/ownership boundaries and absence of `PUBLIC` schema creation. `scripts/db/tests/verify_postgres_role_bootstrap.sh` exercises it
+against a disposable PG19 service; `scripts/db/tests/test_postgres_role_bootstrap.py` verifies the
+PG18 fail-closed guard. The full release workflow runs the integration in its isolated API-matrix
+database. These checks do not qualify production restore or cutover.
+
 The root `.dockerignore` excludes Angular `src/**/*.spec.ts` files from the production image context. The Angular CI test job still runs them from its Git checkout. The production TypeScript configuration excludes the same files, so test-only edits leave the Docker source copy cache eligible for reuse.
 
 Image builds emit compact memory snapshots during compilation. The fast .NET Release build uses the existing fixed-field runner sampler for live host and cgroup observations. These samples remain available in the Actions log if final build diagnostics are interrupted.
