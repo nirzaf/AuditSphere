@@ -9,7 +9,7 @@ namespace AuditSphereOps.Application.Accounting;
 public sealed record MappedStatementLine(string SourceAccountCode, string DestinationCode, string StatementSection, string? AuditArea, decimal Amount);
 
 /// <summary>
-/// The engagement's current approved mapping over its sealed, balanced trial balance, expanded into mapped lines with
+/// The current approved mapping for one unambiguous engagement reporting context, expanded into mapped lines with
 /// the same allocation arithmetic as financial packages. Shared by the materiality engine and statement drill-down.
 /// </summary>
 internal static class MappedTrialBalanceSource
@@ -19,9 +19,32 @@ internal static class MappedTrialBalanceSource
     public IReadOnlyList<MappedBenchmarkLine> BenchmarkLines => Lines.Select(x => new MappedBenchmarkLine(x.SourceAccountCode, x.DestinationCode, x.StatementSection, x.Amount)).ToList();
   }
 
-  internal static IQueryable<MappingVersion> CurrentMappingQuery(IAuditSphereDbContext db, Guid firmId, Guid engagementId) =>
-    db.MappingVersions.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId && x.Status == AccountingPackageStates.MappingApproved)
-      .OrderByDescending(x => x.ApprovedAt).ThenByDescending(x => x.Version);
+  internal static async Task<(MappingVersion Mapping, TrialBalanceDataset Dataset)?> ResolveAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
+  {
+    var candidates = from mapping in db.MappingVersions.AsNoTracking()
+      join dataset in db.TrialBalanceDatasets.AsNoTracking()
+        on new { mapping.FirmId, mapping.ClientId, mapping.EngagementId, mapping.DatasetId }
+        equals new { dataset.FirmId, dataset.ClientId, dataset.EngagementId, DatasetId = dataset.Id }
+      where mapping.FirmId == firmId && mapping.EngagementId == engagementId && mapping.Status == AccountingPackageStates.MappingApproved &&
+        db.Engagements.Any(e => e.FirmId == firmId && e.Id == engagementId && e.PracticeClientId == mapping.ClientId) &&
+        dataset.ImportState == TrialBalanceImportStates.Sealed && dataset.ValidationStatus == "Accepted" &&
+        dataset.Balanced && dataset.ControlTotal == 0m
+      select new { Mapping = mapping, Dataset = dataset };
+
+    // These callers have only an engagement ID. Recency can choose a revision within
+    // one context; it cannot choose a period, book, basis, currency or entity for the caller.
+    var selected = await candidates.Where(candidate => !candidates.Any(other =>
+        other.Dataset.PeriodId != candidate.Dataset.PeriodId ||
+        other.Dataset.BookId != candidate.Dataset.BookId ||
+        other.Dataset.Basis != candidate.Dataset.Basis ||
+        other.Dataset.Currency != candidate.Dataset.Currency ||
+        other.Dataset.LegalEntityKey != candidate.Dataset.LegalEntityKey ||
+        other.Mapping.PeriodStart != candidate.Mapping.PeriodStart || other.Mapping.PeriodEnd != candidate.Mapping.PeriodEnd))
+      .OrderByDescending(x => x.Mapping.ApprovedAt).ThenByDescending(x => x.Mapping.Version)
+      .FirstOrDefaultAsync(ct);
+    return selected is null ? null : (selected.Mapping, selected.Dataset);
+  }
 
   internal static string Digest(TrialBalanceDataset dataset) =>
     dataset.SourceKind == NativeTrialBalanceSourceWorkspace.SourceKind ? dataset.Sha256Hex :
@@ -29,10 +52,9 @@ internal static class MappedTrialBalanceSource
 
   internal static async Task<Source?> LoadAsync(IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
   {
-    var mapping = await CurrentMappingQuery(db, firmId, engagementId).FirstOrDefaultAsync(ct);
-    if (mapping is null) return null;
-    var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.Id == mapping.DatasetId && x.FirmId == firmId, ct);
-    if (dataset is null || dataset.ImportState != TrialBalanceImportStates.Sealed || !dataset.Balanced) return null;
+    var selected = await ResolveAsync(db, firmId, engagementId, ct);
+    if (selected is null) return null;
+    var (mapping, dataset) = selected.Value;
     if (!(await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, dataset, ct)).Succeeded) return null;
     var balances = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == dataset.Id)
       .GroupBy(x => x.AccountCode).Select(g => new { g.Key, Amount = g.Sum(x => x.Amount) }).ToDictionaryAsync(x => x.Key, x => x.Amount, ct);

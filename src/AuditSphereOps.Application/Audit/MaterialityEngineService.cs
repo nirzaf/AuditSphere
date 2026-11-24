@@ -344,14 +344,12 @@ public static class MaterialityEngineService
 
   private static async Task<bool> IsCurrentAsync(IAuditSphereDbContext db, MaterialityCalculation calculation, CancellationToken ct)
   {
-    var mapping = await CurrentMappingQuery(db, calculation.FirmId, calculation.EngagementId).FirstOrDefaultAsync(ct);
-    if (mapping is null || mapping.Id != calculation.MappingVersionId) return false;
-    var dataset = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.Id == mapping.DatasetId && x.FirmId == calculation.FirmId, ct);
-    return dataset is not null && DatasetDigest(dataset) == calculation.DatasetDigest;
+    var selected = await MappedTrialBalanceSource.ResolveAsync(db, calculation.FirmId, calculation.EngagementId, ct);
+    if (selected is null) return false;
+    var (mapping, dataset) = selected.Value;
+    return mapping.Id == calculation.MappingVersionId && DatasetDigest(dataset) == calculation.DatasetDigest &&
+      (await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, dataset, ct)).Succeeded;
   }
-
-  private static IQueryable<MappingVersion> CurrentMappingQuery(IAuditSphereDbContext db, Guid firmId, Guid engagementId) =>
-    MappedTrialBalanceSource.CurrentMappingQuery(db, firmId, engagementId);
 
   private static string DatasetDigest(TrialBalanceDataset dataset) => MappedTrialBalanceSource.Digest(dataset);
 

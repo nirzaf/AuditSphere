@@ -1,5 +1,6 @@
 using System.Data.Common;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Security;
@@ -174,7 +175,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     Assert.True(await db.RoleGrantChangeEvidences.AnyAsync(x => x.RoleGrantId == expired.Id && x.Source == "EXPIRY"));
   }
 
-  private static async Task SeedApprovedMappingAsync(PgTestSchema pg, World w, Guid? replaces = null)
+  private static async Task SeedApprovedMappingAsync(PgTestSchema pg, World w, int year = 2026)
   {
     await using var db = new AuditSphereDbContext(pg.Options);
     var datasetId = Guid.NewGuid();
@@ -201,7 +202,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     db.MappingVersions.Add(new MappingVersion
     {
       Id = mappingId, FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, DatasetId = datasetId, TaxonomyVersion = "tax-v1",
-      PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Status = AccountingPackageStates.MappingApproved, CreatedByUserId = w.Users["senior"].Id,
+      PeriodStart = $"{year}-01-01", PeriodEnd = $"{year}-12-31", Status = AccountingPackageStates.MappingApproved, CreatedByUserId = w.Users["senior"].Id,
       ApprovedByUserId = w.Users["manager"].Id, ApprovedAt = DateTimeOffset.UtcNow, CreatedAt = DateTimeOffset.UtcNow
     });
     db.MappingAllocations.AddRange(accounts.Select(a => new MappingAllocation
@@ -210,6 +211,23 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       SourceAccountCode = a.Code, DestinationCode = a.Destination, StatementSection = a.Section, Fraction = 1m, Rationale = "Mapped", CreatedAt = DateTimeOffset.UtcNow
     }));
     await db.SaveChangesAsync();
+  }
+
+  [Fact]
+  public async Task EngagementOnlyReportingRejectsDistinctApprovedPeriods()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var manager = w.Actor("manager", "Manager");
+    await SeedApprovedMappingAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    Assert.True((await FinancialStatementDrillDownQuery.GetAsync(db, manager, w.EngagementId)).Succeeded);
+    Assert.True((await MaterialityEngineService.GetSourceAsync(db, manager, w.EngagementId)).Succeeded);
+
+    await SeedApprovedMappingAsync(pg, w, year: 2025);
+    var statements = await FinancialStatementDrillDownQuery.GetAsync(db, manager, w.EngagementId);
+    var materiality = await MaterialityEngineService.GetSourceAsync(db, manager, w.EngagementId);
+    Assert.Equal((ErrorCodes.GateBlocked, ErrorCodes.GateBlocked), (statements.ErrorCode, materiality.ErrorCode));
   }
 
   [Fact]

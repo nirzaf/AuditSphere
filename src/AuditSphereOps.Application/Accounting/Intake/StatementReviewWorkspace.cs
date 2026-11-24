@@ -146,10 +146,11 @@ public static class StatementReviewWorkspace
     if (e is null) return Fail<Snapshot>(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await Authorize(db, actor, e.PracticeClientId, engagementId, ct);
     if (!auth.Succeeded) return Fail<Snapshot>(auth.ErrorCode!, auth.Message!);
-    var m = await MappedTrialBalanceSource.CurrentMappingQuery(db, actor.FirmId, engagementId).FirstOrDefaultAsync(ct);
-    if (m is null || m.ClientId != e.PracticeClientId) return Fail<Snapshot>(ErrorCodes.GateBlocked, "Statements require an approved mapping for this engagement.");
-    var d = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == m.DatasetId && x.ClientId == m.ClientId && x.EngagementId == engagementId, ct);
-    if (d is null || !NativeTrialBalanceSourceWorkspace.IsBaseSource(d) || d.ImportState != TrialBalanceImportStates.Sealed || !d.Balanced || d.ControlTotal != 0m || d.ValidationStatus != "Accepted")
+    var basisSelection = await MappedTrialBalanceSource.ResolveAsync(db, actor.FirmId, engagementId, ct);
+    if (basisSelection is null)
+      return Fail<Snapshot>(ErrorCodes.GateBlocked, "Statements require an approved mapping in a single eligible reporting context.");
+    var (m, d) = basisSelection.Value;
+    if (!NativeTrialBalanceSourceWorkspace.IsBaseSource(d))
       return Fail<Snapshot>(ErrorCodes.GateBlocked, "The exact mapped raw trial balance must be sealed, balanced and validated.");
     var nativeSource = await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, d, ct);
     if (!nativeSource.Succeeded) return Fail<Snapshot>(nativeSource.ErrorCode!, nativeSource.Message!);
