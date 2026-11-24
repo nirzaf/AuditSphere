@@ -12,6 +12,7 @@ const card = (n: number, currency = 'QAR', fee = '100.00') => ({
   periodStart: '2026-01-01', periodEnd: '2026-12-31', expectedFee: fee, currency, probability: null, ownerUserId: null, ownerName: null,
   ownerState: 'UNASSIGNED', nextAction: null, createdAt: `2026-10-${(25 - n % 20).toString().padStart(2, '0')}T08:00:00+00:00`,
   proposalId: null, proposalRevision: null, proposalStatus: null, proposalRevisions: 0,
+  acceptanceProcess: 'CLIENT_ACCEPTANCE', acceptanceStatus: 'PENDING_ACCEPTANCE', canPrepareCommercial: false,
 });
 const empty = (stage: string) => ({ stage, count: 0, totals: [], unavailableCurrencyCount: 0, items: [], hasMore: false });
 const board = () => ({
@@ -63,7 +64,7 @@ describe('CommercialPipeline', () => {
       expect(discovery.textContent).toContain('Showing 2 of 4');
       const proposal = host.querySelector('section[aria-labelledby="pipeline-PROPOSAL"]')!;
       expect(proposal.textContent).toMatch(/Proposal revision 2\s*· Draft · 2 revisions/);
-      expect(host.textContent).toContain('nothing is converted or weighted by probability');
+      expect(host.textContent).toContain('Nothing is converted or weighted by probability');
       const buttons = [...host.querySelectorAll('button')].map(b => b.textContent?.trim());
       expect(buttons).toEqual(['Apply filters', 'Clear filters', 'Show more discovery']);
       expect(host.querySelector('[draggable="true"]')).toBeNull();
