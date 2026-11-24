@@ -42,7 +42,7 @@ public sealed partial class ConsolidationWorkspaceApiTests
     {
       var proposal = await SupportedAuditCompletionWorldBuilder.CreateAcceptedProposalAsync(pg,
         relationship.Actor, partner.Actor, manager.Actor, "Ownership" + suffix,
-        "2026-01-01", "2026-12-31", _ => Task.CompletedTask);
+        "Synthetic ownership " + suffix, "2026-01-01", "2026-12-31", _ => Task.CompletedTask);
       await using var conversion = new AuditSphereDbContext(pg.Options);
       var converted = await PracticeCrmService.ConvertToClientDraftAsync(conversion, relationship.Actor,
         new(proposal, "Synthetic ownership " + suffix, "Ownership " + suffix));
