@@ -76,6 +76,8 @@ desktop.ini
 ## Agent and tooling artifacts (regenerated from source; local state only)
 .qoder/
 .claude/
+.agents/skills/
+skills-lock.json
 .graphify_*
 graphify-out/
 docs/architecture/auditsphere-dependencies*
