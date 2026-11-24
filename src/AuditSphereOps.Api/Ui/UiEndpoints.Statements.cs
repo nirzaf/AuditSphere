@@ -9,23 +9,28 @@ namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
-  public sealed record StatementExportInput(string Revision);
+  public sealed record StatementExportInput(string Revision, Guid? MappingId = null);
   private static void MapStatementEndpoints(RouteGroupBuilder group)
   {
-    group.MapGet("/engagements/{id:guid}/statements/workspace", (Guid id, string? section, string? filter, int? page, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.GetAsync(db, actor, id, section ?? "profit", filter, page ?? 1, ct)))
+    group.MapGet("/engagements/{id:guid}/statements/contexts", (Guid id, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.ContextsAsync(db, actor, id, ct)))
+      .Produces<IReadOnlyList<StatementContextOption>>(StatusCodes.Status200OK, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
+      .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
+    group.MapGet("/engagements/{id:guid}/statements/workspace", (Guid id, string? section, string? filter, int? page, Guid? mappingId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.GetAsync(db, actor, id, section ?? "profit", filter, page ?? 1, ct, mappingId)))
       .Produces<StatementReviewPage>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
-    group.MapGet("/engagements/{id:guid}/statements/split", (Guid id, string? filter, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.GetSplitDashboardAsync(db, actor, id, filter, ct)))
+    group.MapGet("/engagements/{id:guid}/statements/split", (Guid id, string? filter, Guid? mappingId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.GetSplitDashboardAsync(db, actor, id, filter, ct, mappingId)))
       .Produces<StatementReviewPage>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
-    group.MapGet("/engagements/{id:guid}/statements/contributions", (Guid id, string section, string destination, string statementSection, string revision, int? page, int? procedurePage, HttpContext http) =>
-      ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.ContributionsAsync(db, actor, id, section, destination, statementSection, revision, page ?? 1, procedurePage ?? 1, ct)))
+    group.MapGet("/engagements/{id:guid}/statements/contributions", (Guid id, string section, string destination, string statementSection, string revision, int? page, int? procedurePage, Guid? mappingId, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => StatementReviewWorkspace.ContributionsAsync(db, actor, id, section, destination, statementSection, revision, page ?? 1, procedurePage ?? 1, ct, mappingId)))
       .Produces<StatementContributionPage>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
@@ -38,7 +43,7 @@ public static partial class UiEndpoints
       try { await csrf.ValidateRequestAsync(http); }
       catch (AntiforgeryValidationException) { return Failure("csrf.invalid", "Refresh the page and try again.", 403); }
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await StatementReviewWorkspace.ExportAsync(db, actor, id, input?.Revision ?? "", http.RequestAborted);
+      var result = await StatementReviewWorkspace.ExportAsync(db, actor, id, input?.Revision ?? "", http.RequestAborted, input?.MappingId);
       if (!result.Succeeded) return Failure(result.ErrorCode, result.Message);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Failure("session.unavailable", "Sign in again.", 401);
       http.Response.Headers["X-Statement-Basis"] = result.Value!.Revision;

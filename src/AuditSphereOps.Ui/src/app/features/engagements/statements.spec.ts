@@ -161,8 +161,15 @@ describe('Statement review protected async state', () => {
     });
   });
   afterEach(() => {
-    TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true });
-    TestBed.resetTestingModule();
+    const http = TestBed.inject(HttpTestingController);
+    try {
+      for (const request of http.match(r => r.url.endsWith('/statements/contexts'))) {
+        if (!request.cancelled) request.flush([]);
+      }
+      http.verify({ ignoreCancelled: true });
+    } finally {
+      TestBed.resetTestingModule();
+    }
   });
   function open() {
     const f = TestBed.createComponent(StatementDrillDown);
@@ -176,6 +183,21 @@ describe('Statement review protected async state', () => {
     TestBed.tick();
     return { f, http, c: f.componentInstance };
   }
+  it('clears old totals and cancels the old request when the selected mapping changes', () => {
+    const f = TestBed.createComponent(StatementDrillDown);
+    f.detectChanges();
+    TestBed.tick();
+    const http = TestBed.inject(HttpTestingController);
+    const automatic = http.expectOne(r => r.url.includes('/statements/workspace'));
+    query.next(convertToParamMap({ section: 'position', mappingId: basis.mappingId }));
+    TestBed.tick();
+    expect(automatic.cancelled).toBe(true);
+    expect(f.componentInstance.visibleView()).toBeNull();
+    http.expectOne(r => r.url.includes('/statements/workspace') &&
+      r.url.includes(`mappingId=${basis.mappingId}`)).flush(summary);
+    TestBed.tick();
+    expect(f.componentInstance.visibleView()?.basis.mappingId).toBe(basis.mappingId);
+  });
   it('shows complete totals and exact accounts then clears them before refresh', () => {
     const { f, http, c } = open();
     expect(f.nativeElement.textContent).toContain('100.123456');

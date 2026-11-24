@@ -10,6 +10,23 @@
 @if (!location()) {
   <p role="alert">Use a valid statement section, bounded filter and page.</p>
 }
+<audit-state [loading]="contexts.loading()" [error]="contexts.error()" label="reporting contexts" />
+@if (contexts.data(); as options) {
+  @if (options.length) {
+    <label for="statement-context">Reporting context</label>
+    <select id="statement-context" #context [value]="location()?.mappingId ?? ''"
+      [disabled]="downloading()" (change)="selectContext(context.value)">
+      <option value="">Use the single eligible context automatically</option>
+      @for (option of options; track option.mappingId) {
+        <option [value]="option.mappingId" [disabled]="!option.eligible">
+          {{ option.periodStart }} to {{ option.periodEnd }} · {{ option.bookId ?? 'No book' }}
+          · {{ option.basis ?? 'No basis' }} · {{ option.currency }} · {{ option.legalEntityKey }}
+          @if (option.blocker) { — {{ option.blocker }} }
+        </option>
+      }
+    </select>
+  }
+}
 <audit-state [loading]="view.loading()" [error]="view.error()" label="statements" />
 <audit-state [error]="detail.error()" label="statement basis" />
 @if (visibleView(); as v) {
@@ -177,7 +194,11 @@
                   </span>
                 </td>
                 <td>
-                  <span class="risk-badge" [attr.data-band]="l.riskBand">{{ l.riskLabel }}</span>
+                  @if (location()?.mappingId) {
+                    <span>Not assessed for this selection</span>
+                  } @else {
+                    <span class="risk-badge" [attr.data-band]="l.riskBand">{{ l.riskLabel }}</span>
+                  }
                   <small>{{ l.riskExplanation }}</small>
                 </td>
                 <td>
@@ -352,7 +373,11 @@
                   </span>
                 </td>
                 <td>
-                  <span class="risk-badge" [attr.data-band]="l.riskBand">{{ l.riskLabel }}</span>
+                  @if (location()?.mappingId) {
+                    <span>Not assessed for this selection</span>
+                  } @else {
+                    <span class="risk-badge" [attr.data-band]="l.riskBand">{{ l.riskLabel }}</span>
+                  }
                   <small>{{ l.riskExplanation }}</small>
                 </td>
                 <td>

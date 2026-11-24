@@ -9,6 +9,7 @@ import { SHARED } from '../../core/ui';
 import { TrialBalanceSource } from './tb-source';
 import {
   decodeStatementPage,
+  decodeStatementContexts,
   decodeStatementContributions,
   decodeStatementEvidence,
   statementLocation,
@@ -41,7 +42,7 @@ export class StatementDrillDown {
   private readonly viewUrl = computed(() => {
     const q = this.location();
     return this.id() && q
-      ? `${this.base()}/workspace?${new URLSearchParams({ section: q.section, filter: q.filter, page: String(q.page) })}`
+      ? `${this.base()}/workspace?${new URLSearchParams({ section: q.section, filter: q.filter, page: String(q.page), ...(q.mappingId ? { mappingId: q.mappingId } : {}) })}`
       : null;
   });
   readonly view = this.api.resource(
@@ -50,22 +51,45 @@ export class StatementDrillDown {
       const v = decodeStatementPage(value, path);
       if (
         v.basis.engagementId !== this.id() ||
+        (!!this.location()?.mappingId && v.basis.mappingId !== this.location()?.mappingId) ||
         (this.location()?.section !== 'split' &&
           v.section !== 'split' &&
           v.section !== this.location()?.section)
       )
         throw new Error('Wrong statement context');
-      return v;
+      return { ...v, requestUrl: this.viewUrl() };
     },
     'Statements are unavailable in your current engagement scope.',
   );
+  readonly contexts = this.api.resource(
+    () => this.id() ? `${this.base()}/contexts` : null,
+    (value, path) => {
+      const options = decodeStatementContexts(value, path);
+      if (options.some(option => option.engagementId !== this.id()))
+        throw new Error('Wrong statement context catalogue');
+      return options;
+    },
+    'Reporting contexts are unavailable in your current engagement scope.',
+  );
+  private readonly selectedView = computed(() => {
+    const value = this.view.data();
+    const location = this.location();
+    return value && location && value.requestUrl === this.viewUrl() &&
+      value.basis.engagementId === this.id() &&
+      (!location.mappingId || value.basis.mappingId === location.mappingId) ? value : null;
+  });
+  selectContext(mappingId: string): void {
+    if (mappingId && !this.contexts.data()?.some(option => option.mappingId === mappingId && option.eligible)) return;
+    this.navigate({ mappingId: mappingId || null, page: 1, line: null, lineSection: null,
+      basis: null, accounts: null, procedures: null, procedure: null });
+  }
   readonly stale = computed(() => {
-    const v = this.view.data(),
+    const v = this.selectedView(),
       q = this.location();
     return !!v && !!q?.basis && q.basis !== v.basis.revision;
   });
   private readonly detailUrl = computed(() => {
-    const v = this.view.data(),
+    const v = this.selectedView(),
       q = this.location();
     if (!v || !q?.line || this.stale()) return null;
     const isProfit = [
@@ -85,6 +109,7 @@ export class StatementDrillDown {
       revision: v.basis.revision,
       page: String(q.accounts),
       procedurePage: String(q.procedures),
+      ...(q.mappingId ? { mappingId: q.mappingId } : {}),
     })}`;
   });
   readonly detail = this.api.resource(
@@ -92,9 +117,9 @@ export class StatementDrillDown {
     decodeStatementContributions,
     'This statement line is unavailable in the current scope.',
   );
-  readonly visibleView = computed(() => (this.detail.error() ? null : this.view.data()));
+  readonly visibleView = computed(() => (this.detail.error() ? null : this.selectedView()));
   readonly currentDetail = computed(() => {
-    const v = this.view.data(),
+    const v = this.selectedView(),
       d = this.detail.data(),
       q = this.location();
     return v && d && q && !this.stale() && sameStatementBasis(v, d, q.line, q.lineSection)
@@ -127,21 +152,21 @@ export class StatementDrillDown {
   });
 
   readonly profitLines = computed(() => {
-    const v = this.view.data();
+    const v = this.selectedView();
     if (!v) return [];
     if (v.profitOrLoss) return v.profitOrLoss.lines;
     return v.section === 'profit' ? v.lines : [];
   });
 
   readonly positionLines = computed(() => {
-    const v = this.view.data();
+    const v = this.selectedView();
     if (!v) return [];
     if (v.financialPosition) return v.financialPosition.lines;
     return v.section === 'position' ? v.lines : [];
   });
 
   readonly profitSummary = computed(() => {
-    const v = this.view.data();
+    const v = this.selectedView();
     if (!v) return null;
     if (v.profitOrLoss) return v.profitOrLoss;
     if (v.section === 'profit') {
@@ -161,7 +186,7 @@ export class StatementDrillDown {
   });
 
   readonly positionSummary = computed(() => {
-    const v = this.view.data();
+    const v = this.selectedView();
     if (!v) return null;
     if (v.financialPosition) return v.financialPosition;
     if (v.section === 'position') {
@@ -248,7 +273,7 @@ export class StatementDrillDown {
       });
   }
   choose(line: string, section: string): void {
-    const v = this.view.data();
+    const v = this.selectedView();
     if (v)
       this.navigate({
         line,
@@ -264,17 +289,18 @@ export class StatementDrillDown {
       this.sourceOpen.set(false);
       this.message.set('');
       this.view.reload();
+      this.contexts.reload();
     }
   }
   useCurrent(): void {
-    const v = this.view.data();
+    const v = this.selectedView();
     if (v) this.navigate({ basis: v.basis.revision, procedure: null });
   }
   inspectSource(): void {
     this.sourceOpen.set(!this.sourceOpen());
   }
   async export(): Promise<void> {
-    const v = this.view.data();
+    const v = this.selectedView();
     if (
       !v ||
       this.detail.error() ||
@@ -290,11 +316,11 @@ export class StatementDrillDown {
     try {
       const r = await this.api.download(
         this.base() + '/export',
-        { revision: v.basis.revision },
+        { revision: v.basis.revision, ...(this.location()?.mappingId ? { mappingId: v.basis.mappingId } : {}) },
         (m) =>
           started === this.generation &&
           epoch === this.session.invalidation() &&
-          this.view.data() === v &&
+          this.selectedView() === v &&
           !this.stale() &&
           m.headers['x-statement-basis'] === v.basis.revision &&
           m.headers['x-mapping-id'] === v.basis.mappingId &&

@@ -31,6 +31,9 @@ public sealed record StatementContribution(string AccountCode, string AccountNam
 public sealed record StatementContributionPage(StatementBasis Basis, string Section, string DestinationCode, string StatementSection,
   decimal LineTotal, int AccountCount, int Page, int PageSize, IReadOnlyList<StatementContribution> Accounts,
   int ProcedureCount, int ProcedurePage, IReadOnlyList<DrillDownProcedure> Procedures);
+public sealed record StatementContextOption(Guid EngagementId, Guid ClientId, Guid MappingId, long MappingVersion,
+  Guid DatasetId, long DatasetRevision, Guid? PeriodId, Guid? BookId, string PeriodStart, string PeriodEnd,
+  string? Basis, string Currency, string LegalEntityKey, string DatasetDigest, bool Eligible, string? Blocker);
 public sealed record StatementReviewExport(byte[] Content, Guid EngagementId, Guid MappingId, string Revision, string FileName);
 
 /// <summary>Read-only statement navigation fenced to a complete approved source and independently reviewed mapping.
@@ -140,6 +143,46 @@ public static class StatementReviewWorkspace
     return map;
   }
 
+  public static async Task<CommandResult<IReadOnlyList<StatementContextOption>>> ContextsAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  {
+    var engagement = await db.Engagements.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
+    if (engagement is null) return Fail<IReadOnlyList<StatementContextOption>>(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await Authorize(db, actor, engagement.PracticeClientId, engagementId, ct);
+    if (!auth.Succeeded) return Fail<IReadOnlyList<StatementContextOption>>(auth.ErrorCode!, auth.Message!);
+
+    const int limit = 16;
+    var candidates = await (from m in db.MappingVersions.AsNoTracking()
+      join d in db.TrialBalanceDatasets.AsNoTracking()
+        on new { m.FirmId, m.ClientId, m.EngagementId, m.DatasetId }
+        equals new { d.FirmId, d.ClientId, d.EngagementId, DatasetId = d.Id }
+      where m.FirmId == actor.FirmId && m.ClientId == engagement.PracticeClientId && m.EngagementId == engagementId &&
+        m.Status == AccountingPackageStates.MappingApproved
+      orderby m.PeriodEnd descending, d.BookId, d.Basis, d.Currency, d.LegalEntityKey, m.ApprovedAt descending, m.Version descending, m.Id descending
+      select new { Mapping = m, Dataset = d }).Take(limit + 1).ToListAsync(ct);
+    if (candidates.Count > limit)
+      return Fail<IReadOnlyList<StatementContextOption>>(ErrorCodes.GateBlocked, "Too many approved mappings to list for this engagement.");
+
+    var options = new List<StatementContextOption>(candidates.Count);
+    foreach (var candidate in candidates)
+    {
+      var m = candidate.Mapping;
+      var d = candidate.Dataset;
+      var check = await ReadAsync(db, actor, engagementId, ct, m.Id);
+      if (check.Succeeded && (check.Value!.Basis.DatasetId != d.Id ||
+          check.Value.Basis.DatasetRevision != d.Revision || check.Value.Basis.MappingVersion != m.Version))
+        return Fail<IReadOnlyList<StatementContextOption>>(ErrorCodes.StaleRevision, "Statement mappings changed. Refresh and try again.");
+      options.Add(new(engagementId, m.ClientId, m.Id, m.Version, d.Id, d.Revision, d.PeriodId, d.BookId,
+        m.PeriodStart, m.PeriodEnd, d.Basis, d.Currency, d.LegalEntityKey, MappedTrialBalanceSource.Digest(d),
+        check.Succeeded, check.Succeeded ? null : check.Message));
+    }
+
+    auth = await Authorize(db, actor, engagement.PracticeClientId, engagementId, ct);
+    return auth.Succeeded ? CommandResult<IReadOnlyList<StatementContextOption>>.Ok(options)
+      : Fail<IReadOnlyList<StatementContextOption>>(auth.ErrorCode!, auth.Message!);
+  }
+
   private static async Task<CommandResult<Snapshot>> ReadAsync(IClientAccountingDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct, Guid? mappingId)
   {
     var e = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
@@ -189,13 +232,14 @@ public static class StatementReviewWorkspace
     var source = MappedTrialBalanceSource.Build(m, d, accounts.ToDictionary(x => x.AccountCode, x => x.Amount, StringComparer.Ordinal), allocations);
     var riskAreas = risks.ToDictionary(x => x.Id, x => x.AccountArea);
     var projected = FinancialStatementDrillDownQuery.Project(source, _ => []);
-    var revision = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { actor.FirmId, actor.UserId, actor.SessionEpoch, e, m, d, rows, allocations, procedures, risks, firm, safety, chart, taxonomy, nodes, period, book })));
+    var revision = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { actor.FirmId, actor.UserId, actor.SessionEpoch, e, m, d, rows, allocations, procedures, risks, firm, safety, chart, taxonomy, nodes, period, book, ExplicitSelection = mappingId.HasValue })));
     auth = await Authorize(db, actor, m.ClientId, engagementId, ct);
     if (!auth.Succeeded) return Fail<Snapshot>(auth.ErrorCode!, auth.Message!);
 
-    var priorBalances = await LoadPriorBalancesAsync(db, actor.FirmId, m.ClientId, engagementId, m, d, ct);
-    var calculation = await MaterialityEngineService.GetLatestAsync(db, actor.FirmId, engagementId, ct);
-    var assessments = await db.RiskBandAssessments.AsNoTracking()
+    // Engagement-wide comparative and planning evidence is not authoritative for an explicit selection.
+    Dictionary<(string DestinationCode, string StatementSection), decimal> priorBalances = mappingId.HasValue ? [] : await LoadPriorBalancesAsync(db, actor.FirmId, m.ClientId, engagementId, m, d, ct);
+    var calculation = mappingId.HasValue ? null : await MaterialityEngineService.GetLatestAsync(db, actor.FirmId, engagementId, ct);
+    List<RiskBandAssessment> assessments = mappingId.HasValue ? [] : await db.RiskBandAssessments.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).ToListAsync(ct);
 
     var basis = new StatementBasis(engagementId, m.ClientId, m.Id, m.Version, d.Id, d.Revision, digest, d.Currency, m.PeriodStart, m.PeriodEnd, m.TaxonomyVersion, m.ClientChartVersionId, m.Generation, m.ApprovedByUserId, m.ApprovedAt, revision);

@@ -142,6 +142,25 @@ export const decodeStatementContributions = (value: unknown, path: string) => {
 export type StatementPage = ReturnType<typeof decodeStatementPage>;
 export type StatementDetail = ReturnType<typeof decodeStatementContributions>;
 
+export const decodeStatementContexts = arr(obj({
+  engagementId: guid,
+  clientId: guid,
+  mappingId: guid,
+  mappingVersion: nat,
+  datasetId: guid,
+  datasetRevision: nat,
+  periodId: nullable(guid),
+  bookId: nullable(guid),
+  periodStart: date,
+  periodEnd: date,
+  basis: nullable(str(100)),
+  currency: str(10),
+  legalEntityKey: str(200),
+  datasetDigest: str(64),
+  eligible: bool,
+  blocker: nullable(str(500)),
+}), 16);
+
 export interface StatementLocation {
   section: 'profit' | 'position' | 'split';
   filter: string;
@@ -152,6 +171,7 @@ export interface StatementLocation {
   procedures: number;
   procedure: string;
   basis: string;
+  mappingId: string;
 }
 /** Only bounded navigation metadata lives in the URL. No financial rows or cached totals are restored. */
 export function statementLocation(get: (key: string) => string | null): StatementLocation | null {
@@ -167,7 +187,8 @@ export function statementLocation(get: (key: string) => string | null): Statemen
     accounts = integer('accounts'),
     procedures = integer('procedures'),
     procedure = get('procedure') ?? '',
-    revision = get('basis') ?? '';
+    revision = get('basis') ?? '',
+    mappingId = get('mappingId') ?? '';
   if (
     !['profit', 'position', 'split'].includes(section) ||
     filter.length > 80 ||
@@ -178,6 +199,7 @@ export function statementLocation(get: (key: string) => string | null): Statemen
     !procedures ||
     !!line !== !!lineSection ||
     (procedure && !guidPattern.test(procedure)) ||
+    (mappingId && !guidPattern.test(mappingId)) ||
     (revision && !/^[0-9a-f]{64}$/.test(revision))
   )
     return null;
@@ -191,6 +213,7 @@ export function statementLocation(get: (key: string) => string | null): Statemen
     procedures,
     procedure,
     basis: revision,
+    mappingId,
   };
 }
 export function sameStatementBasis(

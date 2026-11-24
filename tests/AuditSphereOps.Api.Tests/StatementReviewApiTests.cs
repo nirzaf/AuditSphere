@@ -35,6 +35,22 @@ public sealed class StatementReviewApiTests
     Assert.Equal(revision, export.Headers.GetValues("X-Statement-Basis").Single()); var csv = await export.Content.ReadAsStringAsync();
     Assert.Contains(seed.DatasetId.ToString(), csv); Assert.Contains("100.123486", csv); Assert.Contains("\"'=SYNTHETIC_FORMULA\"", csv);
     Assert.Equal(34, csv.Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Length);
+    var contexts = await Read(c, url + "/contexts");
+    var selectedContext = Assert.Single(contexts.EnumerateArray());
+    Assert.Equal(seed.MappingId, selectedContext.GetProperty("mappingId").GetGuid());
+    Assert.True(selectedContext.GetProperty("eligible").GetBoolean());
+    var explicitQuery = $"&mappingId={seed.MappingId:D}";
+    var explicitPage = await Read(c, url + "/workspace?section=position" + explicitQuery);
+    var explicitRevision = explicitPage.GetProperty("basis").GetProperty("revision").GetString()!;
+    Assert.NotEqual(revision, explicitRevision);
+    Assert.Equal("100.123486", explicitPage.GetProperty("total").GetString());
+    var explicitDetail = await Read(c, Detail(url, explicitRevision) + explicitQuery);
+    Assert.Equal("100.123486", explicitDetail.GetProperty("lineTotal").GetString());
+    using var explicitExport = await Post(c, csrf, url + "/export", new { revision = explicitRevision, mappingId = seed.MappingId });
+    Assert.Equal(HttpStatusCode.OK, explicitExport.StatusCode);
+    Assert.Equal(seed.MappingId.ToString("D"), explicitExport.Headers.GetValues("X-Mapping-Id").Single());
+    using var unknownMapping = await c.GetAsync(url + $"/workspace?mappingId={Guid.NewGuid():D}");
+    Assert.Equal(HttpStatusCode.Conflict, unknownMapping.StatusCode);
     Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync(url + "/workspace?page=2")).StatusCode);
     Assert.Equal(HttpStatusCode.BadRequest, (await c.GetAsync(Detail(url, revision) + "&page=3")).StatusCode);
   }

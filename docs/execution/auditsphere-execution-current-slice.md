@@ -1,6 +1,6 @@
 # Current-slice handoff
 
-**F-03:** PG19 exact mapping resolver passed. HTTP and UI selection open. **F-08:** Four MCP tests and Chrome profile cleanup pass.
+**F-03:** Explicit statement API/UI verified locally. Materiality open. **F-08:** Four MCP tests and Chrome profile cleanup pass.
 
 ## PostgreSQL 19 exact-source verification and Hostinger release boundary (observed 2026-11-23; source `d59d6be05e30a6dc84f146ee3861cf0ec994d8e6`)
 
