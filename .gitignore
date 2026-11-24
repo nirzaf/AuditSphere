@@ -18,7 +18,7 @@ packages/
 ## Test and coverage output
 [Tt]est[Rr]esults/
 coverage/
-!docs/AuditSphere_R2R_Task_Breakdown/coverage/
+!/docs/task_breakdown/coverage/
 *.trx
 *.coverage
 coverage*.xml
@@ -52,6 +52,7 @@ appsettings.*.json
 *.key
 .env
 .env.*
+!/infra/hostinger-acceptance/.env.example
 *.secret
 
 ## OS metadata
@@ -81,6 +82,7 @@ docs/architecture/auditsphere-dependencies*
 *.log
 tmp/go-build/
 tmp/go-mod/
+/scratchpad/parity-verification-20261016/*.png
 
 ## Python cache
 __pycache__/
