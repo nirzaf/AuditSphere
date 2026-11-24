@@ -6,6 +6,9 @@
 FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS bundle
 ARG DOTNET_ROLL_FORWARD=Major
 ENV DOTNET_ROLL_FORWARD=$DOTNET_ROLL_FORWARD
+# Match the bounded Release CI compiler configuration. Keep the processor
+# limit in the SDK stage so it also applies to EF's child publish process.
+ENV DOTNET_PROCESSOR_COUNT=1 DOTNET_gcServer=0 DOTNET_GCConserveMemory=9
 WORKDIR /repo
 COPY global.json Directory.Build.props Directory.Packages.props AuditSphereOps.slnx ./
 COPY docs/task_breakdown/tracking/pack_manifest.json docs/task_breakdown/tracking/pack_manifest.json
@@ -17,15 +20,16 @@ COPY src/ src/
 # the same compiler, project-reference, and API-host publication limits through the inherited
 # MSBuild environment.
 RUN dotnet tool install --global dotnet-ef --version 10.0.12 \
-  && export PATH="$PATH:/root/.dotnet/tools" \
-  && dotnet restore src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --locked-mode \
-  && DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj \
+  && dotnet restore src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --locked-mode
+RUN dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj \
     --configuration Release --no-restore -m:1 -p:BuildInParallel=false \
     -p:UseSharedCompilation=false -p:PublishAngularUi=false \
-    -p:RunAnalyzers=false -p:DebugType=None -p:DebugSymbols=false \
-  && RunAnalyzers=false BuildInParallel=false UseSharedCompilation=false \
+    -p:CscEnvironment=DOTNET_PROCESSOR_COUNT=1 \
+    -p:RunAnalyzers=false -p:DebugType=None -p:DebugSymbols=false
+RUN PATH="$PATH:/root/.dotnet/tools" \
+    RunAnalyzers=false BuildInParallel=false UseSharedCompilation=false \
     PublishAngularUi=false DebugType=None DebugSymbols=false \
-    DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet ef migrations bundle --configuration Release --no-build \
+    CscEnvironment=DOTNET_PROCESSOR_COUNT=1 dotnet ef migrations bundle --configuration Release --no-build \
     --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api \
     -o /out/efbundle
 
