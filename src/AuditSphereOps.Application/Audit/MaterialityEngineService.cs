@@ -11,13 +11,19 @@ namespace AuditSphereOps.Application.Audit;
 
 public sealed record CalculateMaterialityRequest(
   Guid EngagementId, string BenchmarkKind, string? DestinationCode, decimal RatePercent, decimal PerformancePercent,
-  decimal TrivialPercent, string Rationale, string? QualitativeConsiderations = null);
+  decimal TrivialPercent, string Rationale, string? QualitativeConsiderations = null,
+  Guid? MappingId = null, Guid? ExpectedDatasetId = null, long? ExpectedMappingVersion = null, string? ExpectedDatasetDigest = null);
 
 public sealed record MaterialityBenchmarkOption(string Kind, string? DestinationCode, string Label, decimal? Amount, int LineCount);
 
 public sealed record MaterialitySourceView(
   Guid MappingVersionId, long MappingVersion, Guid DatasetId, string DatasetDigest, string Currency,
-  IReadOnlyList<MaterialityBenchmarkOption> Options);
+  IReadOnlyList<MaterialityBenchmarkOption> Options, long DatasetRevision = 1, Guid? PeriodId = null,
+  Guid? BookId = null, string? Basis = null, string LegalEntityKey = "", string PeriodStart = "", string PeriodEnd = "");
+
+public sealed record MaterialityContextOption(Guid MappingId, long MappingVersion, Guid DatasetId, long DatasetRevision,
+  Guid? PeriodId, Guid? BookId, string PeriodStart, string PeriodEnd, string? Basis, string Currency, string LegalEntityKey,
+  string DatasetDigest, bool Eligible, string? Blocker);
 
 public static class MaterialityCalculationStates
 {
@@ -58,24 +64,82 @@ public static class MaterialityEngineService
   internal static readonly string[] RoundingRoles = ["Manager", "SeniorManager"];
 
   public static async Task<CommandResult<MaterialitySourceView>> GetSourceAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default, Guid? mappingId = null)
   {
+    if (mappingId == Guid.Empty)
+      return CommandResult<MaterialitySourceView>.Fail(ErrorCodes.AuditPlanning.Invalid, "Select a valid reporting context.");
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
     if (engagement is null) return CommandResult<MaterialitySourceView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId,
       engagementId, AuditPlanningService.PlanningRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<MaterialitySourceView>.Fail(auth.ErrorCode!, auth.Message!);
-    var source = await LoadSourceAsync(db, actor.FirmId, engagementId, ct);
+    var source = await LoadSourceAsync(db, actor.FirmId, engagementId, ct, mappingId);
     if (source is null)
+    {
+      if (mappingId is { } selected)
+      {
+        var existsInScope = await db.MappingVersions.AsNoTracking().AnyAsync(x => x.Id == selected &&
+          x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId, ct);
+        return CommandResult<MaterialitySourceView>.Fail(existsInScope ? ErrorCodes.StaleRevision : ErrorCodes.ScopeDenied,
+          existsInScope ? "The selected mapping or its source is no longer current." : "Access denied.");
+      }
       return CommandResult<MaterialitySourceView>.Fail(ErrorCodes.GateBlocked,
-        "Materiality needs an approved mapping over a sealed, balanced trial balance for this engagement.");
+        "Materiality needs one unambiguous approved mapping, or an exact reporting-context selection, over a sealed balanced trial balance.");
+    }
     var (mapping, dataset, lines) = source.Value;
     var options = StandardBenchmarks.Select(b =>
     {
       var derived = MaterialityCalculator.DeriveBenchmark(b.Kind, null, lines);
       return new MaterialityBenchmarkOption(b.Kind, null, b.Label, derived?.Amount, derived?.LineCount ?? 0);
     }).ToList();
-    return CommandResult<MaterialitySourceView>.Ok(new(mapping.Id, mapping.Version, dataset.Id, DatasetDigest(dataset), dataset.Currency, options));
+    return CommandResult<MaterialitySourceView>.Ok(new(mapping.Id, mapping.Version, dataset.Id, DatasetDigest(dataset), dataset.Currency, options,
+      dataset.Revision, dataset.PeriodId, dataset.BookId, dataset.Basis, dataset.LegalEntityKey, mapping.PeriodStart, mapping.PeriodEnd));
+  }
+
+  public static async Task<CommandResult<IReadOnlyList<MaterialityContextOption>>> GetContextsAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  {
+    var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
+    if (engagement is null) return CommandResult<IReadOnlyList<MaterialityContextOption>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId,
+      engagementId, AuditPlanningService.PlanningRoles, InternalOnly: true), ct);
+    if (!auth.Succeeded) return CommandResult<IReadOnlyList<MaterialityContextOption>>.Fail(auth.ErrorCode!, auth.Message!);
+
+    var candidates = await (from mapping in db.MappingVersions.AsNoTracking()
+      join dataset in db.TrialBalanceDatasets.AsNoTracking()
+        on new { mapping.FirmId, mapping.ClientId, mapping.EngagementId, mapping.DatasetId }
+        equals new { dataset.FirmId, dataset.ClientId, dataset.EngagementId, DatasetId = dataset.Id }
+      where mapping.FirmId == actor.FirmId && mapping.ClientId == engagement.PracticeClientId && mapping.EngagementId == engagementId &&
+        mapping.Status == AccountingPackageStates.MappingApproved && dataset.ImportState == TrialBalanceImportStates.Sealed &&
+        dataset.ValidationStatus == "Accepted" && dataset.Balanced && dataset.ControlTotal == 0m
+      orderby mapping.PeriodStart, mapping.PeriodEnd, dataset.PeriodId, dataset.BookId, dataset.Basis, dataset.Currency,
+        dataset.LegalEntityKey, mapping.ApprovedAt descending, mapping.Version descending, mapping.Id descending
+      select new { Mapping = mapping, Dataset = dataset }).Take(4097).ToListAsync(ct);
+    if (candidates.Count > 4096)
+      return CommandResult<IReadOnlyList<MaterialityContextOption>>.Fail(ErrorCodes.GateBlocked,
+        "The reporting-context catalogue exceeds its safe review bound.");
+
+    var contexts = candidates.GroupBy(x => (x.Dataset.PeriodId, x.Dataset.BookId, x.Dataset.Basis, x.Dataset.Currency,
+        x.Dataset.LegalEntityKey, x.Mapping.PeriodStart, x.Mapping.PeriodEnd))
+      .Select(g => g.OrderByDescending(x => x.Mapping.ApprovedAt).ThenByDescending(x => x.Mapping.Version).ThenByDescending(x => x.Mapping.Id).First())
+      .OrderBy(x => x.Mapping.PeriodStart, StringComparer.Ordinal).ThenBy(x => x.Mapping.PeriodEnd, StringComparer.Ordinal)
+      .ThenBy(x => x.Dataset.PeriodId).ThenBy(x => x.Dataset.BookId).ThenBy(x => x.Dataset.Basis, StringComparer.Ordinal)
+      .ThenBy(x => x.Dataset.Currency, StringComparer.Ordinal).ThenBy(x => x.Dataset.LegalEntityKey, StringComparer.Ordinal).ToList();
+    if (contexts.Count > 16)
+      return CommandResult<IReadOnlyList<MaterialityContextOption>>.Fail(ErrorCodes.GateBlocked,
+        "More than 16 reporting contexts are available; narrow the approved source set before planning.");
+
+    var result = new List<MaterialityContextOption>(contexts.Count);
+    foreach (var context in contexts)
+    {
+      var source = await MappedTrialBalanceSource.LoadAsync(db, actor.FirmId, engagementId, ct, context.Mapping.Id);
+      var eligible = source is not null;
+      var dataset = context.Dataset;
+      result.Add(new(context.Mapping.Id, context.Mapping.Version, dataset.Id, dataset.Revision, dataset.PeriodId, dataset.BookId,
+        context.Mapping.PeriodStart, context.Mapping.PeriodEnd, dataset.Basis, dataset.Currency, dataset.LegalEntityKey,
+        DatasetDigest(dataset), eligible, eligible ? null : "The selected source does not satisfy current reporting validation."));
+    }
+    return CommandResult<IReadOnlyList<MaterialityContextOption>>.Ok(result);
   }
 
   public static async Task<CommandResult<MaterialityCalculationView>> CalculateAsync(
@@ -84,6 +148,12 @@ public static class MaterialityEngineService
     var kind = (request.BenchmarkKind ?? string.Empty).Trim().ToUpperInvariant();
     var invalid = MaterialityCalculator.Validate(kind, request.RatePercent, request.PerformancePercent, request.TrivialPercent);
     if (invalid is null && string.IsNullOrWhiteSpace(request.Rationale)) invalid = "A rationale for the benchmark choice is required.";
+    var hasExpectedSource = request.ExpectedDatasetId.HasValue || request.ExpectedMappingVersion.HasValue || request.ExpectedDatasetDigest is not null;
+    if (invalid is null && request.MappingId == Guid.Empty) invalid = "Select a valid reporting context.";
+    if (invalid is null && (request.MappingId.HasValue != hasExpectedSource || request.MappingId.HasValue &&
+        (request.ExpectedDatasetId is null || request.ExpectedDatasetId == Guid.Empty ||
+         request.ExpectedMappingVersion is null or <= 0 || !IsSha256(request.ExpectedDatasetDigest))))
+      invalid = "Review the exact mapping revision, dataset identity and SHA-256 before calculating materiality.";
     if (invalid is not null) return CommandResult<MaterialityCalculationView>.Fail(ErrorCodes.AuditPlanning.Invalid, invalid);
 
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
@@ -91,11 +161,25 @@ public static class MaterialityEngineService
     if (!publication.Succeeded) return CommandResult<MaterialityCalculationView>.Fail(publication.ErrorCode!, publication.Message!);
     var scope = await AuditPlanningService.LockedEngagementAsync(db, actor, request.EngagementId, ct);
     if (scope.Denied is not null) return CommandResult<MaterialityCalculationView>.Fail(scope.Denied, scope.Message);
-    var source = await LoadSourceAsync(db, actor.FirmId, request.EngagementId, ct);
+    var source = await LoadSourceAsync(db, actor.FirmId, request.EngagementId, ct, request.MappingId);
     if (source is null)
+    {
+      if (request.MappingId is { } selected)
+      {
+        var existsInScope = await db.MappingVersions.AsNoTracking().AnyAsync(x => x.Id == selected && x.FirmId == scope.FirmId &&
+          x.ClientId == scope.ClientId && x.EngagementId == request.EngagementId, ct);
+        return CommandResult<MaterialityCalculationView>.Fail(existsInScope ? ErrorCodes.StaleRevision : ErrorCodes.ScopeDenied,
+          existsInScope ? "The selected reporting context changed; refresh and review it again." : "Access denied.");
+      }
       return CommandResult<MaterialityCalculationView>.Fail(ErrorCodes.GateBlocked,
-        "Materiality needs an approved mapping over a sealed, balanced trial balance for this engagement.");
+        "Materiality needs one unambiguous approved mapping, or an exact reporting-context selection, over a sealed balanced trial balance.");
+    }
     var (mapping, dataset, lines) = source.Value;
+    var digest = DatasetDigest(dataset);
+    if (request.MappingId.HasValue && (request.ExpectedDatasetId != dataset.Id || request.ExpectedMappingVersion != mapping.Version ||
+        !string.Equals(request.ExpectedDatasetDigest, digest, StringComparison.Ordinal)))
+      return CommandResult<MaterialityCalculationView>.Fail(ErrorCodes.StaleRevision,
+        "The selected mapping revision or dataset changed after review; refresh the exact reporting context.");
     var derived = MaterialityCalculator.DeriveBenchmark(kind, request.DestinationCode, lines);
     if (derived is null)
       return CommandResult<MaterialityCalculationView>.Fail(ErrorCodes.GateBlocked, "The chosen benchmark has no mapped trial-balance lines.");
@@ -103,7 +187,6 @@ public static class MaterialityEngineService
       return CommandResult<MaterialityCalculationView>.Fail(ErrorCodes.GateBlocked,
         $"The {kind} benchmark derives to {derived.Value.Amount:N2} {dataset.Currency}; choose a benchmark with a positive amount.");
     var figures = MaterialityCalculator.Calculate(derived.Value.Amount, derived.Value.LineCount, request.RatePercent, request.PerformancePercent, request.TrivialPercent);
-    var digest = DatasetDigest(dataset);
     var destination = kind == MaterialityBenchmarks.MappedLine ? request.DestinationCode!.Trim().ToUpperInvariant() : null;
     var now = DateTimeOffset.UtcNow;
     var assessment = new MaterialityAssessment
@@ -126,8 +209,11 @@ public static class MaterialityEngineService
       RatePercent = request.RatePercent, PerformancePercent = request.PerformancePercent, TrivialPercent = request.TrivialPercent,
       PlanningMateriality = figures.PlanningMateriality, TolerableError = figures.TolerableError, SadThreshold = figures.SadThreshold,
       PolicyVersion = MaterialityCalculator.PolicyVersion,
-      InputHash = MaterialityCalculator.InputHash(mapping.Id, digest, kind, destination, figures.BenchmarkAmount,
-        request.RatePercent, request.PerformancePercent, request.TrivialPercent),
+      InputHash = request.MappingId.HasValue
+        ? MaterialityCalculator.ExplicitContextInputHash(mapping.Id, mapping.Version, dataset.Id, digest, kind, destination,
+          figures.BenchmarkAmount, request.RatePercent, request.PerformancePercent, request.TrivialPercent)
+        : MaterialityCalculator.InputHash(mapping.Id, digest, kind, destination, figures.BenchmarkAmount,
+          request.RatePercent, request.PerformancePercent, request.TrivialPercent),
       CreatedByUserId = actor.UserId, CreatedAt = now
     };
     db.MaterialityAssessments.Add(assessment);
@@ -218,10 +304,7 @@ public static class MaterialityEngineService
       return false;
     var figures = MaterialityCalculator.Calculate(calculation.BenchmarkAmount, calculation.SourceLineCount,
       calculation.RatePercent, calculation.PerformancePercent, calculation.TrivialPercent);
-    var expectedHash = MaterialityCalculator.InputHash(calculation.MappingVersionId, calculation.DatasetDigest,
-      calculation.BenchmarkKind, calculation.DestinationCode, calculation.BenchmarkAmount,
-      calculation.RatePercent, calculation.PerformancePercent, calculation.TrivialPercent);
-    if (calculation.InputHash != expectedHash || figures.PlanningMateriality != calculation.PlanningMateriality ||
+    if (!MaterialityCalculator.HasValidInputHash(calculation) || figures.PlanningMateriality != calculation.PlanningMateriality ||
         figures.TolerableError != calculation.TolerableError || figures.SadThreshold != calculation.SadThreshold)
       return false;
     if (rounding is null)
@@ -344,18 +427,24 @@ public static class MaterialityEngineService
 
   private static async Task<bool> IsCurrentAsync(IAuditSphereDbContext db, MaterialityCalculation calculation, CancellationToken ct)
   {
-    var selected = await MappedTrialBalanceSource.ResolveAsync(db, calculation.FirmId, calculation.EngagementId, ct);
+    if (!MaterialityCalculator.HasValidInputHash(calculation)) return false;
+    var explicitContext = MaterialityCalculator.HasExplicitContextInputHash(calculation);
+    var selected = await MappedTrialBalanceSource.ResolveAsync(db, calculation.FirmId, calculation.EngagementId, ct,
+      explicitContext ? calculation.MappingVersionId : null);
     if (selected is null) return false;
     var (mapping, dataset) = selected.Value;
-    return mapping.Id == calculation.MappingVersionId && DatasetDigest(dataset) == calculation.DatasetDigest &&
+    return mapping.Id == calculation.MappingVersionId && mapping.Version == calculation.MappingVersionNumber &&
+      dataset.Id == calculation.DatasetId && DatasetDigest(dataset) == calculation.DatasetDigest &&
       (await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, dataset, ct)).Succeeded;
   }
 
   private static string DatasetDigest(TrialBalanceDataset dataset) => MappedTrialBalanceSource.Digest(dataset);
 
   private static async Task<(MappingVersion Mapping, TrialBalanceDataset Dataset, List<MappedBenchmarkLine> Lines)?> LoadSourceAsync(
-    IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct) =>
-    await MappedTrialBalanceSource.LoadAsync(db, firmId, engagementId, ct) is { } source
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct, Guid? mappingId = null) =>
+    await MappedTrialBalanceSource.LoadAsync(db, firmId, engagementId, ct, mappingId) is { } source
       ? (source.Mapping, source.Dataset, source.BenchmarkLines.ToList())
       : null;
+
+  private static bool IsSha256(string? value) => value is { Length: 64 } && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
 }

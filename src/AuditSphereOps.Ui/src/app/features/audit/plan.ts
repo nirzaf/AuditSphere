@@ -1,10 +1,12 @@
 import { ChangeDetectorRef, Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { Api, CommandState, routeGuid } from '../../core/api';
 import { SessionService } from '../../core/session';
-import { arr, bool, date, dec, decode, decimalInput, guid, instant, int, nat, nullable, obj, text } from '../../core/decode';
+import { arr, bool, date, dec, decode, decimalInput, guid, instant, int, nat, nullable, obj, sha256, text } from '../../core/decode';
 import { PlanningCommandState } from './planning-command-state';
 import { PlanningCommandReview } from './planning-command-review';
 import { SHARED } from '../../core/ui';
@@ -12,11 +14,15 @@ import { SHARED } from '../../core/ui';
 const materiality = obj({ id: guid, preparedByUserId: guid, benchmarkSource: text, benchmarkVersion: text, rationale: text, benchmarkAmount: dec, rateApplied: dec,
   overallMateriality: dec, performanceMateriality: dec, clearlyTrivialThreshold: dec, qualitativeConsiderations: nullable(text), status: text,
   approvedByUserId: nullable(guid), approvedAt: nullable(instant) });
-const source = obj({ mappingVersionId: guid, mappingVersion: nat, datasetId: guid, datasetDigest: text, currency: text,
-  options: arr(obj({ kind: text, destinationCode: nullable(text), label: text, amount: nullable(dec), lineCount: nat }), 500) });
+const source = obj({ mappingVersionId: guid, mappingVersion: nat, datasetId: guid, datasetDigest: sha256, currency: text,
+  options: arr(obj({ kind: text, destinationCode: nullable(text), label: text, amount: nullable(dec), lineCount: nat }), 500),
+  datasetRevision: nat, periodId: nullable(guid), bookId: nullable(guid), basis: nullable(text), legalEntityKey: text, periodStart: text, periodEnd: text });
+const materialityContext = obj({ mappingId: guid, mappingVersion: nat, datasetId: guid, datasetRevision: nat,
+  periodId: nullable(guid), bookId: nullable(guid), periodStart: text, periodEnd: text, basis: nullable(text), currency: text,
+  legalEntityKey: text, datasetDigest: sha256, eligible: bool, blocker: nullable(text) });
 const calculation = obj({ assessmentId: guid, state: text, route: text, benchmarkKind: text, destinationCode: nullable(text), benchmarkAmount: dec, currency: text,
   sourceLineCount: nat, mappingVersionNumber: nat, ratePercent: dec, performancePercent: dec, trivialPercent: dec, planningMateriality: dec,
-  tolerableError: dec, sadThreshold: dec, policyVersion: text,
+  tolerableError: dec, sadThreshold: dec, policyVersion: text, mappingVersionId: nullable(guid), datasetId: nullable(guid), datasetDigest: nullable(sha256),
   rounding: nullable(obj({ decidedAt: instant, decidedByUserId: guid, rationale: text, adjustedPlanningMateriality: dec, adjustedTolerableError: dec,
     adjustedSadThreshold: dec, planningDeltaPercent: dec, tolerableDeltaPercent: dec, sadDeltaPercent: dec })) });
 const routing = obj({ riskId: guid, area: text, assertion: text, significanceDecision: text, assessmentId: nullable(guid), assessedByUserId: nullable(guid), band: nullable(text), likelihood: nullable(int),
@@ -47,7 +53,7 @@ export const decodePlan = obj({ engagementId: guid, professionalWorkBlocked: boo
   populations: arr(obj({ id: guid, purpose: text, assertion: text, rowCount: nat, monetaryControlTotal: dec, currency: text, status: text }), 2000),
   findings: arr(obj({ id: guid, findingType: text, status: text, monetaryAmount: nullable(dec) }), 2000),
   workpapers: arr(obj({ id: guid, index: text, title: text, status: text, revision: nat }), 5000),
-  materialitySource: nullable(source), materialitySourceMessage: nullable(text), latestCalculation: nullable(calculation),
+  materialitySource: nullable(source), materialitySourceMessage: nullable(text), materialityContexts: arr(materialityContext, 16), latestCalculation: nullable(calculation),
   rateRanges: arr(obj({ kind: text, minRatePercent: dec, maxRatePercent: dec }), 50), performanceMin: dec, performanceMax: dec, trivialMin: dec, trivialMax: dec,
   riskRuleVersion: text, routing: arr(routing, 2000),
   team: arr(obj({ assignmentId: guid, userId: guid, name: text, level: text, levelLabel: text, authorizationRole: text, certified: bool }), 500),
@@ -157,6 +163,7 @@ interface WorkpaperContext { engagementId: string; generation: number; actorKey:
         <h2 id="materiality-engine-heading">Materiality calculator</h2>
         <p>PM means planning materiality: the selected benchmark amount multiplied by the base rate. TE (tolerable error) is 50–75% of PM; SAD (clearly trivial threshold) is 3–5% of PM. The benchmark-rate ranges follow the active STE policy. Profit before tax is currently derived from mapped balances excluding tax and has no normalization-adjustment workflow; do not treat it as normalized when adjustments are needed.</p>
         @if (p.latestCalculation; as c) {
+          @if (calculationContextMatches(p)) {
           <p><audit-status [value]="c.state" /> {{ c.route }}</p>
           <dl class="facts" aria-label="Materiality thresholds">
             <dt>Planning materiality (PM)</dt><dd>{{ c.planningMateriality | money }} {{ c.currency }}</dd>
@@ -164,7 +171,7 @@ interface WorkpaperContext { engagementId: string; generation: number; actorKey:
             <dt>SAD threshold</dt><dd>{{ c.sadThreshold | money }} {{ c.currency }}</dd>
           </dl>
           <p><small>{{ c.benchmarkKind }}{{ c.destinationCode ? ' (' + c.destinationCode + ')' : '' }} of {{ c.benchmarkAmount | money }} {{ c.currency }} from {{ c.sourceLineCount }} mapped line(s), mapping version {{ c.mappingVersionNumber }}; rate {{ c.ratePercent }}%, TE {{ c.performancePercent }}% of PM, SAD {{ c.trivialPercent }}% of PM ({{ c.policyVersion }}).</small></p>
-          @if (c.state === 'DRAFT' && p.canApproveMateriality) { <button matButton="outlined" (click)="approveMateriality(c.assessmentId)" [disabled]="cmd.busy() || !planning.canPrepare('APPROVE_MATERIALITY')">Preview materiality approval</button> }
+          @if (c.state === 'DRAFT' && p.canApproveMateriality && approvalContextMatches(p)) { <button matButton="outlined" (click)="approveMateriality(c.assessmentId)" [disabled]="cmd.busy() || !planning.canPrepare('APPROVE_MATERIALITY')">Preview materiality approval</button> }
           @if (c.rounding; as r) {
             <h3>Practical rounding (STE 3.2)</h3>
             <p><small>Recorded at <time>{{ r.decidedAt }}</time>. Rationale: {{ r.rationale }}</small></p>
@@ -178,7 +185,7 @@ interface WorkpaperContext { engagementId: string; generation: number; actorKey:
             </table>
             <p><small>Each effective threshold stays within ±5% of its computed value. The computed calculation is kept unchanged.</small></p>
           }
-          @if (p.canApplyPracticalRounding && c.state === 'DRAFT') {
+          @if (p.canApplyPracticalRounding && c.state === 'DRAFT' && calculationContextMatches(p)) {
             <h3>Apply practical rounding (STE 3.2)</h3>
             <p><small>Round each threshold within ±5% of its computed value, keeping SAD ≤ TE ≤ PM. Partner approval then applies to the rounded values. Leave a field blank to keep its computed value.</small></p>
             <div class="inline-form">
@@ -189,8 +196,24 @@ interface WorkpaperContext { engagementId: string; generation: number; actorKey:
             <label>Rationale for the rounding <textarea name="roundRationale" [(ngModel)]="round.rationale" maxlength="2000" rows="2"></textarea></label>
             <button matButton="outlined" (click)="applyRounding(c)" [disabled]="cmd.busy() || !planning.canPrepare('ROUND_MATERIALITY')">Preview practical rounding</button>
           }
+          } @else {
+            <p role="status">Materiality values from another reporting context are hidden. Select and review the exact context before continuing.</p>
+          }
         }
-        @if (p.materialitySource; as s) {
+        @if (p.materialityContexts.length > 0) {
+          <label>Reporting context
+            <select name="materialityContext" [ngModel]="selectedMappingId() ?? ''" (ngModelChange)="selectMaterialityContext($event, p)">
+              <option value="">Use the only unambiguous context</option>
+              @for (context of p.materialityContexts; track context.mappingId) {
+                <option [value]="context.mappingId" [disabled]="!context.eligible">
+                  {{ context.periodStart }} to {{ context.periodEnd }} · {{ context.bookId ?? 'no book' }} · {{ context.basis ?? 'basis unspecified' }} · {{ context.currency }} · {{ context.legalEntityKey }} · mapping v{{ context.mappingVersion }}
+                  {{ context.eligible ? '' : ' — unavailable' }}
+                </option>
+              }
+            </select>
+          </label>
+        }
+        @if (selectedMaterialitySource(p); as s) {
           <p>Source: mapping version {{ s.mappingVersion }} over trial balance <code>{{ s.datasetDigest.slice(0, 12) }}</code> ({{ s.currency }}).</p>
           <div class="inline-form">
             <label>Benchmark <select name="option" [(ngModel)]="calc.option">
@@ -202,23 +225,27 @@ interface WorkpaperContext { engagementId: string; generation: number; actorKey:
           @if (range(p); as r) { <p><small>Policy range for this benchmark: {{ r.minRatePercent }}%–{{ r.maxRatePercent }}%; TE {{ p.performanceMin }}–{{ p.performanceMax }}% of PM; SAD {{ p.trivialMin }}–{{ p.trivialMax }}% of PM.</small></p> }
           <label>Rationale for the benchmark <textarea name="calcRationale" [(ngModel)]="calc.rationale" maxlength="2000" rows="2"></textarea></label>
           <button matButton="filled" (click)="calculate(p)" [disabled]="cmd.busy() || !planning.canPrepare('CALCULATE_MATERIALITY') || !option(p)">Preview materiality calculation</button>
-        } @else { <p>{{ p.materialitySourceMessage ?? 'The mapped trial balance is unavailable.' }}</p> }
+        } @else { <p>{{ selectedMappingId() ? 'Refresh the selected reporting context before materiality planning.' : (p.materialitySourceMessage ?? 'Select an eligible reporting context when more than one is available.') }}</p> }
       </section>
 
       <section class="panel" aria-labelledby="materiality-heading">
         <h2 id="materiality-heading">Materiality (§19.2)</h2>
         @if (p.materiality; as m) {
+          @if (materialityContextMatches(p)) {
           <dl class="facts">
             <dt>Overall</dt><dd>{{ m.overallMateriality | money }}</dd><dt>Performance</dt><dd>{{ m.performanceMateriality | money }}</dd>
             <dt>Clearly trivial</dt><dd>{{ m.clearlyTrivialThreshold | money }}</dd><dt>Benchmark</dt><dd>{{ m.benchmarkSource }} ({{ m.benchmarkVersion }})</dd>
             <dt>Benchmark amount</dt><dd>{{ m.benchmarkAmount | money }} × {{ m.rateApplied }}</dd><dt>Rationale</dt><dd>{{ m.rationale }}</dd><dt>Status</dt><dd>{{ m.status }}</dd>
           </dl>
-          @if (p.canApproveMateriality) { <button matButton="filled" (click)="approveMateriality(m.id)" [disabled]="cmd.busy() || !planning.canPrepare('APPROVE_MATERIALITY')">Preview materiality approval</button> }
+          @if (p.canApproveMateriality && approvalContextMatches(p)) { <button matButton="filled" (click)="approveMateriality(m.id)" [disabled]="cmd.busy() || !planning.canPrepare('APPROVE_MATERIALITY')">Preview materiality approval</button> }
           @if (m.approvedAt) { <p><small>Approved by {{ m.approvedByUserId }} at {{ m.approvedAt.slice(0, 16).replace('T', ' ') }}.</small></p> }
           @if (m.status === 'RECALCULATION_REQUIRED') { <p class="warning-text">A prior approval is not a verified independent Partner approval under the current policy. Recalculate and obtain Partner approval.</p> }
           @if (m.qualitativeConsiderations) { <p>Qualitative considerations: {{ m.qualitativeConsiderations }}</p> }
+          } @else {
+            <p role="status">The retained materiality assessment is not for the selected reporting context and is hidden.</p>
+          }
         } @else { <p>No materiality assessment has been recorded for this engagement.</p> }
-        @if (p.materiality && !p.latestCalculation) {
+        @if (p.materiality && !p.latestCalculation && materialityContextMatches(p)) {
           <p class="muted">This historical/manual assessment is read-only and cannot receive a new approval. Recalculate materiality from the current approved mapping and sealed trial balance.</p>
         }
       </section>
@@ -369,10 +396,16 @@ interface WorkpaperContext { engagementId: string; generation: number; actorKey:
 export class AuditPlan {
   private readonly api = inject(Api);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly changeDetector = inject(ChangeDetectorRef);
   readonly session = inject(SessionService);
   readonly id = routeGuid();
-  readonly plan = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/audit-plan` : null), decodePlan,
+  readonly selectedMappingId = toSignal(this.route.queryParamMap.pipe(map(params => params.get('mappingId'))),
+    { initialValue: this.route.snapshot.queryParamMap.get('mappingId') });
+  readonly plan = this.api.resource(() => {
+    const id = this.id(), mappingId = this.selectedMappingId();
+    return id ? `/api/ui/engagements/${id}/audit-plan${mappingId ? `?mappingId=${encodeURIComponent(mappingId)}` : ''}` : null;
+  }, decodePlan,
     'Sign in with an authorized internal staff identity assigned to this engagement to view its audit plan.');
   readonly fieldwork = this.api.resource(() => (this.id() ? `/api/ui/engagements/${this.id()}/fieldwork` : null), workpaperFieldwork,
     'No authorized procedure context is available for this engagement.');
@@ -614,6 +647,40 @@ export class AuditPlan {
     const first = p.materialitySource?.options.find((o) => o.amount !== null && !o.amount.startsWith('-') && !/^0(\.0*)?$/.test(o.amount));
     return first ? first.kind + '|' + (first.destinationCode ?? '') : '';
   }
+  selectedMaterialitySource(p: Plan): ReturnType<typeof source> | null {
+    const selected = this.selectedMappingId(), current = p.materialitySource;
+    if (selected && current?.mappingVersionId.toLowerCase() !== selected.toLowerCase()) return null;
+    return current;
+  }
+  calculationContextMatches(p: Plan): boolean {
+    const selected = this.selectedMappingId(), calculation = p.latestCalculation;
+    if (!calculation?.mappingVersionId) return p.materialityContexts.length <= 1 && !selected;
+    const expected = selected ?? (p.materialityContexts.length === 1 ? p.materialityContexts[0].mappingId : null);
+    return expected !== null && calculation.mappingVersionId.toLowerCase() === expected.toLowerCase();
+  }
+  materialityContextMatches(p: Plan): boolean {
+    return p.latestCalculation
+      ? this.calculationContextMatches(p)
+      : p.materialityContexts.length <= 1 && !this.selectedMappingId();
+  }
+  approvalContextMatches(p: Plan): boolean {
+    return this.calculationContextMatches(p);
+  }
+  selectMaterialityContext(mappingId: string, p: Plan): void {
+    if (this.plan.data() !== p) return;
+    const selected = mappingId || null;
+    if (selected && !p.materialityContexts.some(context => context.mappingId.toLowerCase() === selected.toLowerCase() && context.eligible)) return;
+    if ((this.selectedMappingId() ?? '').toLowerCase() === (selected ?? '').toLowerCase()) return;
+    this.planning.invalidate();
+    this.calc.option = '';
+    this.calc.rationale = '';
+    this.round.pm = '';
+    this.round.te = '';
+    this.round.sad = '';
+    this.round.rationale = '';
+    this.roundPrefilledFor = '';
+    void this.router.navigate([], { relativeTo: this.route, queryParams: { mappingId: selected }, queryParamsHandling: 'merge', replaceUrl: true });
+  }
   range(p: Plan) { const kind = this.option(p).split('|')[0]; return p.rateRanges.find((r) => r.kind === kind) ?? null; }
   input(row: { riskId: string; assessmentId?: string | null; likelihood: number | null; magnitude: number | null; fraudRisk: boolean; criticalEstimate: boolean }): RowInput {
     const head = row.assessmentId ?? null;
@@ -630,11 +697,17 @@ export class AuditPlan {
   private base(): string { return `/api/ui/engagements/${this.id()}/audit-plan`; }
   async calculate(p: Plan): Promise<void> {
     if (this.plan.data() !== p || p.professionalWorkBlocked) return;
+    const selectedSource = this.selectedMaterialitySource(p);
+    if (!selectedSource) return this.invalid('Refresh and select an eligible reporting context before materiality calculation.');
     const [kind, destination] = this.option(p).split('|');
     if (!kind || !p.materialitySource?.options.some(o => o.kind === kind && (o.destinationCode ?? '') === (destination ?? '') && o.amount !== null)) return this.invalid('Choose a current materiality benchmark.');
     await this.planning.prepare(() => ({ action: 'CALCULATE_MATERIALITY', calculate: { benchmarkKind: this.option(p).split('|')[0].trim().toUpperCase(),
       destinationCode: this.option(p).split('|')[0] === 'MAPPED_LINE' ? this.option(p).split('|')[1]?.trim().toUpperCase() || null : null, ratePercent: decimalInput(this.calc.rate, 6), performancePercent: decimalInput(this.calc.performance, 6),
-      trivialPercent: decimalInput(this.calc.trivial, 6), rationale: this.calc.rationale.trim(), qualitativeConsiderations: null } }));
+      trivialPercent: decimalInput(this.calc.trivial, 6), rationale: this.calc.rationale.trim(), qualitativeConsiderations: null,
+      mappingId: this.selectedMappingId() ? selectedSource.mappingVersionId : null,
+      expectedDatasetId: this.selectedMappingId() ? selectedSource.datasetId : null,
+      expectedMappingVersion: this.selectedMappingId() ? String(selectedSource.mappingVersion) : null,
+      expectedDatasetDigest: this.selectedMappingId() ? selectedSource.datasetDigest : null } }));
   }
   private roundingInput(value: string): string | null {
     // Canonical source amounts use six places; remove only insignificant zeroes.

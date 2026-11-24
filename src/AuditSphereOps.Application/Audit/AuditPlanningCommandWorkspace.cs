@@ -71,10 +71,18 @@ public static class AuditPlanningCommandWorkspace
         if (!Text(c.BenchmarkKind, 50) || !Optional(c.DestinationCode, 100) || !Number(c.RatePercent, out var rate) ||
           !Number(c.PerformancePercent, out var performance) || !Number(c.TrivialPercent, out var trivial) || !Text(c.Rationale, 4000) || !Optional(c.QualitativeConsiderations, 4000)) return null;
         var kind = c.BenchmarkKind.Trim().ToUpperInvariant();
+        var hasContextPins = c.MappingId.HasValue || c.ExpectedDatasetId.HasValue || c.ExpectedMappingVersion is not null || c.ExpectedDatasetDigest is not null;
+        long? mappingVersion = null;
+        if (c.ExpectedMappingVersion is { } expectedVersion && long.TryParse(expectedVersion, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedVersion) && parsedVersion > 0)
+          mappingVersion = parsedVersion;
+        if (c.MappingId == Guid.Empty || hasContextPins && (c.MappingId is null || c.ExpectedDatasetId is null || c.ExpectedDatasetId == Guid.Empty ||
+            mappingVersion is null || !Hash(c.ExpectedDatasetDigest))) return null;
         if (decimal.Round(rate, 4) != rate || decimal.Round(performance, 4) != performance || decimal.Round(trivial, 4) != trivial ||
           (kind != MaterialityBenchmarks.MappedLine && !string.IsNullOrWhiteSpace(c.DestinationCode))) return null;
         return f with { Calculate = c with { BenchmarkKind = kind, DestinationCode = string.IsNullOrWhiteSpace(c.DestinationCode) ? null : c.DestinationCode.Trim().ToUpperInvariant(),
-          RatePercent = Exact(rate), PerformancePercent = Exact(performance), TrivialPercent = Exact(trivial), Rationale = c.Rationale.Trim(), QualitativeConsiderations = string.IsNullOrWhiteSpace(c.QualitativeConsiderations) ? null : c.QualitativeConsiderations.Trim() } };
+          RatePercent = Exact(rate), PerformancePercent = Exact(performance), TrivialPercent = Exact(trivial), Rationale = c.Rationale.Trim(),
+          QualitativeConsiderations = string.IsNullOrWhiteSpace(c.QualitativeConsiderations) ? null : c.QualitativeConsiderations.Trim(),
+          ExpectedMappingVersion = mappingVersion is null ? null : Long(mappingVersion.Value) } };
       case AuditPlanningActions.RoundMateriality when f.Round is { } r:
         if (r.AssessmentId == Guid.Empty || !Number(r.PlanningMateriality, out var pm) || !Number(r.TolerableError, out var te) || !Number(r.SadThreshold, out var sad) || !Text(r.Rationale, 4000)) return null;
         return f with { Round = r with { PlanningMateriality = Exact(pm), TolerableError = Exact(te), SadThreshold = Exact(sad), Rationale = r.Rationale.Trim() } };
@@ -126,9 +134,12 @@ public static class AuditPlanningCommandWorkspace
       band?.Rationale, band?.AssessedByUserId, clear?.Id, clear?.PartnerUserId, clear?.Note, owner?.Id, owner?.OwnerUserId, owner?.OwnerStaffingLevel);
   }
   public static async Task<CommandResult<AuditPlanningCommandState>> StateAsync(IAuditSphereDbContext db, ActorContext a, Guid engagementId,
-    string action, Guid? assessmentId = null, Guid? riskId = null, Guid? procedureId = null, CancellationToken ct = default)
+    string action, Guid? assessmentId = null, Guid? riskId = null, Guid? procedureId = null, CancellationToken ct = default,
+    Guid? mappingId = null, Guid? expectedDatasetId = null, string? expectedMappingVersion = null, string? expectedDatasetDigest = null)
   {
     if (!Action(action)) return Fail<AuditPlanningCommandState>(ErrorCodes.AuditPlanning.Invalid, "Choose a supported planning action.");
+    if (action != AuditPlanningActions.CalculateMateriality && (mappingId.HasValue || expectedDatasetId.HasValue || expectedMappingVersion is not null || expectedDatasetDigest is not null))
+      return Fail<AuditPlanningCommandState>(ErrorCodes.AuditPlanning.Invalid, "A reporting-context selection applies only to materiality calculation.");
     var auth = await AuthorizeAsync(db, a, engagementId, action, false, ct);
     if (!auth.Succeeded) return Fail<AuditPlanningCommandState>(auth.ErrorCode!, auth.Message!);
     var e = await db.Engagements.AsNoTracking().SingleAsync(x => x.FirmId == a.FirmId && x.Id == engagementId, ct);
@@ -137,9 +148,18 @@ public static class AuditPlanningCommandWorkspace
     var procedure = await db.AuditProcedures.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == a.FirmId && x.EngagementId == engagementId && x.Id == procedureId, ct);
     if (assessmentId.HasValue && materiality is null || riskId.HasValue && risk is null || procedureId.HasValue && procedure is null)
       return Fail<AuditPlanningCommandState>(ErrorCodes.ScopeDenied, "Access denied.");
-    var source = await MaterialityEngineService.GetSourceAsync(db, a, engagementId, ct);
+    var source = await MaterialityEngineService.GetSourceAsync(db, a, engagementId, ct, mappingId);
+    if (mappingId.HasValue && !source.Succeeded)
+      return Fail<AuditPlanningCommandState>(source.ErrorCode!, source.Message!);
     var sourceDetail = !source.Succeeded ? null : new PlanningSourceDetail(source.Value!.MappingVersionId, Long(source.Value.MappingVersion), source.Value.DatasetId,
-      source.Value.DatasetDigest, source.Value.Currency, source.Value.Options.Select(x => new PlanningBenchmark(x.Kind, x.DestinationCode, x.Label, x.Amount is { } n ? Exact(n) : null, x.LineCount)).ToArray());
+      source.Value.DatasetDigest, source.Value.Currency, source.Value.Options.Select(x => new PlanningBenchmark(x.Kind, x.DestinationCode, x.Label, x.Amount is { } n ? Exact(n) : null, x.LineCount)).ToArray(),
+      source.Value.DatasetRevision, source.Value.PeriodId, source.Value.BookId, source.Value.Basis, source.Value.LegalEntityKey,
+      source.Value.PeriodStart, source.Value.PeriodEnd);
+    var hasExpectedPins = expectedDatasetId.HasValue || expectedMappingVersion is not null || expectedDatasetDigest is not null;
+    if (mappingId.HasValue != hasExpectedPins || mappingId.HasValue &&
+        (sourceDetail is null || sourceDetail.DatasetId != expectedDatasetId || sourceDetail.MappingVersion != expectedMappingVersion || sourceDetail.DatasetDigest != expectedDatasetDigest))
+      return Fail<AuditPlanningCommandState>(mappingId.HasValue ? ErrorCodes.StaleRevision : ErrorCodes.AuditPlanning.Invalid,
+        mappingId.HasValue ? "The selected reporting context changed after review." : "Provide the exact reporting context for materiality calculation.");
     var owners = await (from staff in db.EngagementStaffAssignments.AsNoTracking()
       join user in db.Users.AsNoTracking() on new { staff.FirmId, Id = staff.UserId } equals new { user.FirmId, user.Id }
       where staff.FirmId == a.FirmId && staff.EngagementId == engagementId && staff.RevokedAt == null && !user.Disabled
@@ -149,7 +169,7 @@ public static class AuditPlanningCommandWorkspace
     var blockers = new List<string>();
     var write = await AuthorizeAsync(db, a, engagementId, action, true, ct);
     if (!write.Succeeded) blockers.Add(write.Message ?? "Current publishing authority is required.");
-    if (action == AuditPlanningActions.CalculateMateriality && sourceDetail is null) blockers.Add("An approved mapping over a sealed balanced trial balance is required.");
+    if (action == AuditPlanningActions.CalculateMateriality && sourceDetail is null) blockers.Add("An approved mapping over a sealed balanced trial balance is required; select an exact reporting context when more than one is available.");
     if (action is AuditPlanningActions.RoundMateriality or AuditPlanningActions.ApproveMateriality)
     {
       if (materiality is null || materiality.AssessmentId != head || materiality.State != "DRAFT" || materiality.CalculationId is null) blockers.Add("The current source-bound draft materiality is required.");
@@ -176,7 +196,9 @@ public static class AuditPlanningCommandWorkspace
     var f = Canonical(request?.Fields);
     if (request is null || request.RequestId == Guid.Empty || !Hash(request.ReviewBasis) || f is null || JsonSerializer.Serialize(f).Length > AuditPlanningCommandReceipt.MaximumInputJsonLength)
       return Fail<AuditPlanningCommandPreview>(ErrorCodes.AuditPlanning.Invalid, "Provide a bounded exact planning intent.");
-    var t = Targets(f); var read = await StateAsync(db, a, engagementId, f.Action, t.Assessment, t.Risk, t.Procedure, ct);
+    var t = Targets(f); var selectedContext = f.Calculate;
+    var read = await StateAsync(db, a, engagementId, f.Action, t.Assessment, t.Risk, t.Procedure, ct,
+      selectedContext?.MappingId, selectedContext?.ExpectedDatasetId, selectedContext?.ExpectedMappingVersion, selectedContext?.ExpectedDatasetDigest);
     if (!read.Succeeded) return Fail<AuditPlanningCommandPreview>(read.ErrorCode!, read.Message!);
     var s = read.Value!;
     if (s.ReviewBasis != request.ReviewBasis) return Fail<AuditPlanningCommandPreview>(ErrorCodes.StaleRevision, "The reviewed planning basis changed.");
@@ -209,7 +231,8 @@ public static class AuditPlanningCommandWorkspace
     }
     if (f.ClearRisk is { } clear && s.Risk?.AssessmentId != clear.ExpectedAssessmentId) blockers.Add("The selected risk assessment was superseded.");
     if (f.LinkProcedureRisk is { } link && s.Procedure?.RiskId != link.ExpectedRiskId) blockers.Add("The procedure risk link changed.");
-    var final = await StateAsync(db, a, engagementId, f.Action, t.Assessment, t.Risk, t.Procedure, ct);
+    var final = await StateAsync(db, a, engagementId, f.Action, t.Assessment, t.Risk, t.Procedure, ct,
+      selectedContext?.MappingId, selectedContext?.ExpectedDatasetId, selectedContext?.ExpectedMappingVersion, selectedContext?.ExpectedDatasetDigest);
     if (!final.Succeeded) return Fail<AuditPlanningCommandPreview>(final.ErrorCode!, final.Message!);
     if (final.Value!.ReviewBasis != s.ReviewBasis) return Fail<AuditPlanningCommandPreview>(ErrorCodes.StaleRevision, "The planning basis changed during preview.");
     var summary = f.Action switch {
@@ -291,7 +314,8 @@ public static class AuditPlanningCommandWorkspace
       var t = Targets(f);
       if (t.Risk is { } rid) await db.AuditRisks.FromSqlInterpolated($"SELECT * FROM audit_risks WHERE firm_id={a.FirmId} AND engagement_id={engagementId} AND id={rid} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
       if (t.Procedure is { } pid) await db.AuditProcedures.FromSqlInterpolated($"SELECT * FROM audit_procedures WHERE firm_id={a.FirmId} AND engagement_id={engagementId} AND id={pid} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
-      var source = await MaterialityEngineService.GetSourceAsync(db, a, engagementId, ct);
+      var selectedMappingId = f.Calculate?.MappingId;
+      var source = await MaterialityEngineService.GetSourceAsync(db, a, engagementId, ct, selectedMappingId);
       if (source.Succeeded)
       {
         var mappingId = source.Value!.MappingVersionId; var datasetId = source.Value.DatasetId;
@@ -313,7 +337,8 @@ public static class AuditPlanningCommandWorkspace
       {
         case AuditPlanningActions.CalculateMateriality:
           var c = f.Calculate!;
-          var calculated = await MaterialityEngineService.CalculateAsync(db, a, new(engagementId, c.BenchmarkKind, c.DestinationCode, Decimal(c.RatePercent), Decimal(c.PerformancePercent), Decimal(c.TrivialPercent), c.Rationale, c.QualitativeConsiderations), ct);
+          var calculated = await MaterialityEngineService.CalculateAsync(db, a, new(engagementId, c.BenchmarkKind, c.DestinationCode, Decimal(c.RatePercent), Decimal(c.PerformancePercent), Decimal(c.TrivialPercent), c.Rationale, c.QualitativeConsiderations,
+            c.MappingId, c.ExpectedDatasetId, c.ExpectedMappingVersion is null ? null : long.Parse(c.ExpectedMappingVersion, NumberStyles.None, CultureInfo.InvariantCulture), c.ExpectedDatasetDigest), ct);
           if (!calculated.Succeeded) return Fail<AuditPlanningCommandReceiptView>(calculated.ErrorCode!, calculated.Message!); resultId = calculated.Value!.AssessmentId; break;
         case AuditPlanningActions.RoundMateriality:
           var r = f.Round!; var rounded = await MaterialityEngineService.ApplyPracticalRoundingAsync(db, a, new(r.AssessmentId, Decimal(r.PlanningMateriality), Decimal(r.TolerableError), Decimal(r.SadThreshold), r.Rationale), ct);

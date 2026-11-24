@@ -14,7 +14,8 @@ public static class AuditPlanningActions
   public const string LinkProcedureRisk = "LINK_PROCEDURE_RISK";
 }
 public sealed record PlanningCalculateFields(string BenchmarkKind, string? DestinationCode, string RatePercent,
-  string PerformancePercent, string TrivialPercent, string Rationale, string? QualitativeConsiderations = null);
+  string PerformancePercent, string TrivialPercent, string Rationale, string? QualitativeConsiderations = null,
+  Guid? MappingId = null, Guid? ExpectedDatasetId = null, string? ExpectedMappingVersion = null, string? ExpectedDatasetDigest = null);
 public sealed record PlanningRoundFields(Guid AssessmentId, string PlanningMateriality, string TolerableError, string SadThreshold, string Rationale);
 public sealed record PlanningApproveFields(Guid AssessmentId);
 public sealed record PlanningCreateRiskFields(string Area, string Assertion, string Description, string Drivers,
@@ -32,7 +33,8 @@ public sealed record AuditPlanningCommandRequest(Guid RequestId, string ReviewBa
   string? ExpectedRequestHash = null, bool Reviewed = false);
 public sealed record PlanningBenchmark(string Kind, string? DestinationCode, string Label, string? Amount, int LineCount);
 public sealed record PlanningSourceDetail(Guid MappingId, string MappingVersion, Guid DatasetId, string DatasetDigest,
-  string Currency, IReadOnlyList<PlanningBenchmark> Benchmarks);
+  string Currency, IReadOnlyList<PlanningBenchmark> Benchmarks, long DatasetRevision, Guid? PeriodId,
+  Guid? BookId, string? Basis, string LegalEntityKey, string PeriodStart, string PeriodEnd);
 public sealed record PlanningMaterialityDetail(Guid AssessmentId, Guid? CalculationId, Guid? RoundingDecisionId,
   Guid PreparedByUserId, string State, string BenchmarkKind, string? DestinationCode, string Currency,
   string BenchmarkAmount, string RatePercent, string PerformancePercent, string TrivialPercent,

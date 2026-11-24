@@ -5,6 +5,7 @@ using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Engagements;
@@ -332,7 +333,7 @@ public static class EngagementLifecycleQuery
       .FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
     var trialBalance = activation is null
       ? null
-      : await AssessTrialBalanceAcceptanceAsync(db, actor, engagement, ct);
+      : await AssessTrialBalanceAcceptanceAsync(db, actor, engagement, materiality, ct);
 
     if (planApproved && procedures.Count > 0 && (activation is null || trialBalance!.Accepted))
     {
@@ -509,7 +510,7 @@ public static class EngagementLifecycleQuery
   /// An unresolved or ambiguous context is blocked rather than selecting the first dataset.
   /// </summary>
   private static async Task<TrialBalanceAcceptance> AssessTrialBalanceAcceptanceAsync(
-    IAuditSphereDbContext db, ActorContext actor, Engagement engagement, CancellationToken ct)
+    IAuditSphereDbContext db, ActorContext actor, Engagement engagement, MaterialityCalculationView? approvedMateriality, CancellationToken ct)
   {
     const string unresolved = "The exact accepted trial-balance context is unresolved; select the period, book and basis explicitly.";
     var periods = await db.ClientReportingPeriods.AsNoTracking()
@@ -517,6 +518,41 @@ public static class EngagementLifecycleQuery
     DateOnly.TryParse(engagement.PeriodStart, CultureInfo.InvariantCulture, out var start);
     DateOnly.TryParse(engagement.PeriodEnd, CultureInfo.InvariantCulture, out var end);
     var matchingPeriods = periods.Where(x => x.StartDate == start && x.EndDate == end).ToArray();
+    if (matchingPeriods.Length == 0)
+      return new(false, "The reporting period for trial-balance acceptance is not established.");
+    if (db is not IClientAccountingDbContext accounting)
+      return new(false, unresolved);
+
+    if (approvedMateriality is { State: MaterialityCalculationStates.Approved } &&
+        MaterialityCalculator.HasExplicitContextInputHash(approvedMateriality.Calculation))
+    {
+      var calculation = approvedMateriality.Calculation;
+      var assessment = await db.MaterialityAssessments.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.ClientId == engagement.PracticeClientId && x.EngagementId == engagement.Id && x.Id == approvedMateriality.AssessmentId, ct);
+      if (assessment is null || !await MaterialityEngineService.IsPartnerApprovedCurrentAsync(db, assessment, ct))
+        return new(false, "The explicitly selected planning context lacks current independent Partner approval.");
+      var source = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.ClientId == engagement.PracticeClientId && x.EngagementId == engagement.Id && x.Id == calculation.DatasetId, ct);
+      var mapping = await db.MappingVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.ClientId == engagement.PracticeClientId && x.EngagementId == engagement.Id && x.Id == calculation.MappingVersionId &&
+        x.DatasetId == calculation.DatasetId && x.Status == AccountingPackageStates.MappingApproved && x.Version == calculation.MappingVersionNumber, ct);
+      if (source is null || mapping is null || source.PeriodId is null || source.Id != calculation.DatasetId ||
+          source.Currency != calculation.Currency || !matchingPeriods.Any(x => x.Id == source.PeriodId))
+        return new(false, unresolved);
+      var selectedPeriod = matchingPeriods.Single(x => x.Id == source.PeriodId);
+      var selectedContext = await AccountingSourceAcceptanceService.GetSelectedTrialBalanceForPeriodAsync(accounting, actor,
+        engagement.PracticeClientId, engagement.Id, selectedPeriod.Id, source.BookId, source.Basis, source.Currency, source.LegalEntityKey, ct);
+      if (!selectedContext.Succeeded)
+        return new(false, selectedContext.ErrorCode == ErrorCodes.ScopeDenied
+          ? "The exact trial balance is unavailable in your current accounting authority."
+          : selectedContext.Message ?? unresolved);
+      if (selectedContext.Value is null || selectedContext.Value.TrialBalanceDatasetId != source.Id)
+        return new(false, "The independently accepted source does not match the Partner-approved planning context.");
+      if (!selectedContext.Value.IsCurrent)
+        return new(false, selectedContext.Value.CurrentnessBlocker ?? "The accepted trial balance is no longer current.");
+      return new(true, "The exact Partner-approved and independently accepted trial-balance context is current.");
+    }
+
     if (matchingPeriods.Length != 1)
       return new(false, matchingPeriods.Length == 0
         ? "The reporting period for trial-balance acceptance is not established."
@@ -530,8 +566,6 @@ public static class EngagementLifecycleQuery
       return new(false, contexts.Length == 0
         ? "No trial balance is present for the exact reporting period."
         : "Multiple trial-balance books, bases, currencies or entities exist for this period; the exact accepted context must be selected.");
-    if (db is not IClientAccountingDbContext accounting)
-      return new(false, unresolved);
     var context = contexts[0];
     var selected = await AccountingSourceAcceptanceService.GetSelectedTrialBalanceForPeriodAsync(accounting, actor,
       engagement.PracticeClientId, engagement.Id, period.Id, context.BookId, context.Basis, context.Currency,

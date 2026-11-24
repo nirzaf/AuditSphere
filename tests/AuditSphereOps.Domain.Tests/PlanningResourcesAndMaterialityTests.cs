@@ -229,6 +229,9 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     var statements = await FinancialStatementDrillDownQuery.GetAsync(db, manager, w.EngagementId);
     var materiality = await MaterialityEngineService.GetSourceAsync(db, manager, w.EngagementId);
     Assert.Equal((ErrorCodes.GateBlocked, ErrorCodes.GateBlocked), (statements.ErrorCode, materiality.ErrorCode));
+    var contexts = await MaterialityEngineService.GetContextsAsync(db, manager, w.EngagementId);
+    Assert.True(contexts.Succeeded, contexts.Message);
+    Assert.Equal(2, contexts.Value!.Count);
 
     var current = await MappedTrialBalanceSource.ResolveAsync(db, w.FirmId, w.EngagementId, default, currentPeriodMapping);
     var prior = await MappedTrialBalanceSource.ResolveAsync(db, w.FirmId, w.EngagementId, default, priorPeriodMapping);
@@ -238,6 +241,91 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     Assert.Null(await MappedTrialBalanceSource.ResolveAsync(db, w.FirmId, Guid.NewGuid(), default, currentPeriodMapping));
     Assert.Null(await MappedTrialBalanceSource.ResolveAsync(db, Guid.NewGuid(), w.EngagementId, default, currentPeriodMapping));
     Assert.Null(await MappedTrialBalanceSource.ResolveAsync(db, w.FirmId, w.EngagementId, default, Guid.Empty));
+
+    Assert.Equal(ErrorCodes.AuditPlanning.Invalid,
+      (await MaterialityEngineService.GetSourceAsync(db, manager, w.EngagementId, default, Guid.Empty)).ErrorCode);
+    Assert.Equal(ErrorCodes.ScopeDenied,
+      (await MaterialityEngineService.GetSourceAsync(db, manager, w.EngagementId, default, Guid.NewGuid())).ErrorCode);
+    var selected = await MaterialityEngineService.GetSourceAsync(db, manager, w.EngagementId, default, currentPeriodMapping);
+    Assert.True(selected.Succeeded, selected.Message);
+    var currentSource = current!.Value;
+    Assert.Equal((currentPeriodMapping, currentSource.Dataset.Id, currentSource.Mapping.Version, MappedTrialBalanceSource.Digest(currentSource.Dataset)),
+      (selected.Value!.MappingVersionId, selected.Value.DatasetId, selected.Value.MappingVersion, selected.Value.DatasetDigest));
+    var explicitCalculation = await MaterialityEngineService.CalculateAsync(db, manager,
+      new(w.EngagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Current-period exact planning basis",
+        MappingId: currentPeriodMapping, ExpectedDatasetId: selected.Value.DatasetId, ExpectedMappingVersion: selected.Value.MappingVersion,
+        ExpectedDatasetDigest: selected.Value.DatasetDigest));
+    Assert.True(explicitCalculation.Succeeded, explicitCalculation.Message);
+    Assert.Equal(currentPeriodMapping, explicitCalculation.Value!.Calculation.MappingVersionId);
+    Assert.True(await MaterialityEngineService.IsAssessmentCurrentAsync(db, w.FirmId, explicitCalculation.Value.AssessmentId));
+    var priorSelected = await MaterialityEngineService.GetSourceAsync(db, manager, w.EngagementId, default, priorPeriodMapping);
+    Assert.True(priorSelected.Succeeded, priorSelected.Message);
+    Assert.Equal(priorPeriodMapping, priorSelected.Value!.MappingVersionId);
+    Assert.NotEqual(selected.Value.DatasetId, priorSelected.Value.DatasetId);
+    var currentHead = await MaterialityEngineService.GetLatestAsync(db, w.FirmId, w.EngagementId);
+    Assert.Equal(MaterialityCalculationStates.Draft, currentHead!.State);
+    Assert.Equal(currentPeriodMapping, currentHead.Calculation.MappingVersionId);
+
+    var stalePins = await MaterialityEngineService.CalculateAsync(db, manager,
+      new(w.EngagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Stale reviewed source",
+        MappingId: currentPeriodMapping, ExpectedDatasetId: Guid.NewGuid(), ExpectedMappingVersion: selected.Value.MappingVersion,
+        ExpectedDatasetDigest: selected.Value.DatasetDigest));
+    Assert.Equal(ErrorCodes.StaleRevision, stalePins.ErrorCode);
+    Assert.Single(await db.MaterialityCalculations.Where(x => x.EngagementId == w.EngagementId).ToListAsync());
+  }
+
+  [Fact]
+  public async Task ReviewedMaterialityCommandRetainsTheExactSelectedSource()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var manager = w.Actor("manager", "Manager");
+    var mappingId = await SeedApprovedMappingAsync(pg, w);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var selected = await MaterialityEngineService.GetSourceAsync(db, manager, w.EngagementId, default, mappingId);
+    Assert.True(selected.Succeeded, selected.Message);
+
+    var fields = new AuditPlanningCommandFields(AuditPlanningActions.CalculateMateriality,
+      Calculate: new(MaterialityBenchmarks.Revenue, null, "1.0000", "75.0000", "5.0000", "Reviewed exact reporting context",
+        MappingId: mappingId, ExpectedDatasetId: selected.Value!.DatasetId,
+        ExpectedMappingVersion: selected.Value.MappingVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        ExpectedDatasetDigest: selected.Value.DatasetDigest));
+    var read = await AuditPlanningCommandWorkspace.StateAsync(db, manager, w.EngagementId, AuditPlanningActions.CalculateMateriality,
+      mappingId: mappingId, expectedDatasetId: selected.Value.DatasetId,
+      expectedMappingVersion: selected.Value.MappingVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+      expectedDatasetDigest: selected.Value.DatasetDigest);
+    Assert.True(read.Succeeded, read.Message);
+    Assert.Equal(mappingId, read.Value!.Source!.MappingId);
+    Assert.Equal(selected.Value.DatasetId, read.Value.Source.DatasetId);
+
+    var changedSource = await AuditPlanningCommandWorkspace.StateAsync(db, manager, w.EngagementId,
+      AuditPlanningActions.CalculateMateriality, mappingId: mappingId, expectedDatasetId: Guid.NewGuid(),
+      expectedMappingVersion: selected.Value.MappingVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+      expectedDatasetDigest: selected.Value.DatasetDigest);
+    Assert.Equal(ErrorCodes.StaleRevision, changedSource.ErrorCode);
+    var foreignMapping = await AuditPlanningCommandWorkspace.StateAsync(db, manager, w.EngagementId,
+      AuditPlanningActions.CalculateMateriality, mappingId: Guid.NewGuid(), expectedDatasetId: selected.Value.DatasetId,
+      expectedMappingVersion: selected.Value.MappingVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+      expectedDatasetDigest: selected.Value.DatasetDigest);
+    Assert.Equal(ErrorCodes.ScopeDenied, foreignMapping.ErrorCode);
+
+    var request = new AuditPlanningCommandRequest(Guid.NewGuid(), read.Value.ReviewBasis, fields);
+    var preview = await AuditPlanningCommandWorkspace.PreviewAsync(db, manager, w.EngagementId, request);
+    Assert.True(preview.Succeeded, preview.Message);
+    Assert.True(preview.Value!.State.CanProceed, string.Join(';', preview.Value.State.Blockers));
+    Assert.Equal(mappingId, preview.Value.State.Source!.MappingId);
+    var reviewed = request with { Fields = preview.Value.CanonicalInput, ExpectedRequestHash = preview.Value.RequestHash, Reviewed = true };
+    var executed = await AuditPlanningCommandWorkspace.ExecuteAsync(db, manager, w.EngagementId, reviewed);
+    Assert.True(executed.Succeeded, executed.Message);
+    Assert.Equal(mappingId, executed.Value!.Result.Materiality!.MappingId);
+    Assert.Equal(selected.Value.DatasetId, executed.Value.Result.Materiality.DatasetId);
+    Assert.Equal(selected.Value.DatasetDigest, executed.Value.Result.Materiality.DatasetDigest);
+    Assert.Equal(mappingId, executed.Value.Preview.State.Source!.MappingId);
+    Assert.Equal(mappingId, (await MaterialityEngineService.GetLatestAsync(db, w.FirmId, w.EngagementId))!.Calculation.MappingVersionId);
+    var receipt = await AuditPlanningCommandWorkspace.LookupAsync(db, manager, w.EngagementId, reviewed.RequestId, reviewed.ExpectedRequestHash);
+    Assert.True(receipt.Succeeded, receipt.Message);
+    Assert.True(receipt.Value!.Found);
+    Assert.Equal(selected.Value.DatasetId, receipt.Value.Receipt!.Result.Materiality!.DatasetId);
   }
 
   [Fact]

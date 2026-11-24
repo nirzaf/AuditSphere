@@ -83,10 +83,14 @@ internal static class ProcedureRiskBandEvaluator
   internal static async Task<string?> ReadinessBlockerAsync(
     IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
   {
-    var source = await MappedTrialBalanceSource.LoadAsync(db, firmId, engagementId, ct);
+    var calculation = await MaterialityEngineService.GetLatestAsync(db, firmId, engagementId, ct);
+    var source = calculation is null ? null : await MappedTrialBalanceSource.LoadAsync(db, firmId, engagementId, ct,
+      calculation.Calculation.MappingVersionId);
+    if (source is not null && (source.Mapping.Version != calculation!.Calculation.MappingVersionNumber ||
+        source.Dataset.Id != calculation.Calculation.DatasetId || MappedTrialBalanceSource.Digest(source.Dataset) != calculation.Calculation.DatasetDigest))
+      source = null;
     if (source is null)
       return "Planning is not approved: ingest and seal a balanced trial balance, approve its complete FSLI mapping, and keep it current before executing or reviewing substantive procedures.";
-    var calculation = await MaterialityEngineService.GetLatestAsync(db, firmId, engagementId, ct);
     var latestAssessmentId = await db.MaterialityAssessments.AsNoTracking()
       .Where(x => x.FirmId == firmId && x.EngagementId == engagementId)
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
@@ -117,8 +121,12 @@ internal static class ProcedureRiskBandEvaluator
       .OrderByDescending(x => x.AssessedAt).ThenByDescending(x => x.Id).ToListAsync(ct);
     var latestByRisk = assessments.GroupBy(x => x.RiskId).ToDictionary(x => x.Key, x => x.First());
 
-    var source = await MappedTrialBalanceSource.LoadAsync(db, firmId, engagementId, ct);
     var calculation = await MaterialityEngineService.GetLatestAsync(db, firmId, engagementId, ct);
+    var source = calculation is null ? null : await MappedTrialBalanceSource.LoadAsync(db, firmId, engagementId, ct,
+      calculation.Calculation.MappingVersionId);
+    if (source is not null && (source.Mapping.Version != calculation!.Calculation.MappingVersionNumber ||
+        source.Dataset.Id != calculation.Calculation.DatasetId || MappedTrialBalanceSource.Digest(source.Dataset) != calculation.Calculation.DatasetDigest))
+      source = null;
     var latestAssessmentId = await db.MaterialityAssessments.AsNoTracking()
       .Where(x => x.FirmId == firmId && x.EngagementId == engagementId)
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)

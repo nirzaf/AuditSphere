@@ -66,9 +66,19 @@ const planPayload = {
     datasetId: id1,
     datasetDigest: hash64,
     currency: 'QAR',
+    datasetRevision: 1,
+    periodId: id4,
+    bookId: null,
+    basis: 'ACCRUAL',
+    legalEntityKey: 'TEST',
+    periodStart: '2026-01-01',
+    periodEnd: '2026-12-31',
     options: [{ kind: 'REVENUE', destinationCode: 'REV', label: 'Total Revenue', amount: '10000000.00', lineCount: 45 }],
   },
   materialitySourceMessage: null,
+  materialityContexts: [{ mappingId: id3, mappingVersion: 1, datasetId: id1, datasetRevision: 1, periodId: id4, bookId: null,
+    periodStart: '2026-01-01', periodEnd: '2026-12-31', basis: 'ACCRUAL', currency: 'QAR', legalEntityKey: 'TEST', datasetDigest: hash64,
+    eligible: true, blocker: null }],
   latestCalculation: {
     assessmentId: id2,
     state: 'DRAFT',
@@ -86,6 +96,9 @@ const planPayload = {
     tolerableError: '75000.00',
     sadThreshold: '5000.00',
     policyVersion: '2026.1',
+    mappingVersionId: id3,
+    datasetId: id1,
+    datasetDigest: hash64,
     rounding: null,
   },
   rateRanges: [{ kind: 'REVENUE', minRatePercent: '0.50', maxRatePercent: '2.00' }],
@@ -228,22 +241,24 @@ describe('Practical rounding form (STE 3.2)', () => {
   });
 
   /** Renders the audit plan and answers its two scoped workspace reads. */
-  function render(payload: object, fieldwork: object = fieldworkPayload) {
+  function render(payload: object, fieldwork: object = fieldworkPayload, mappingId: string | null = null) {
     const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    const queryParams = new BehaviorSubject(convertToParamMap(mappingId ? { mappingId } : {}));
     TestBed.configureTestingModule({
       imports: [AuditPlan],
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
-        { provide: ActivatedRoute, useValue: { paramMap: params } },
+        { provide: ActivatedRoute, useValue: { paramMap: params, queryParamMap: queryParams,
+          snapshot: { queryParamMap: convertToParamMap(mappingId ? { mappingId } : {}) } } },
       ],
     });
     TestBed.inject(SessionService).current.set({ userId: id3, firmId: id2, generation: '1', staff: true });
     const http = TestBed.inject(HttpTestingController);
     const f = TestBed.createComponent(AuditPlan);
     f.detectChanges();
-    http.expectOne(`/api/ui/engagements/${id1}/audit-plan`).flush(payload);
+    http.expectOne(`/api/ui/engagements/${id1}/audit-plan${mappingId ? `?mappingId=${encodeURIComponent(mappingId)}` : ''}`).flush(payload);
     http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush(fieldwork);
     f.detectChanges();
     return f;
@@ -355,6 +370,50 @@ describe('Practical rounding form (STE 3.2)', () => {
     expect(text).toContain('-1.00%');
     expect(text).toContain('-1.33%');
     expect(text).toContain('Each effective threshold stays within ±5% of its computed value.');
+  });
+  it('binds reviewed materiality calculation to the selected mapping, dataset and digest', async () => {
+    const f = render(planPayload, fieldworkPayload, id3);
+    const page = f.componentInstance;
+    page.calc.rationale = 'Reviewed exact reporting context';
+    const prepare = vi.spyOn(page.planning, 'prepare').mockResolvedValue();
+    await page.calculate(page.plan.data()!);
+    const fields = prepare.mock.calls[0][0]() as { calculate: Record<string, unknown> };
+    expect(fields.calculate).toMatchObject({ mappingId: id3, expectedDatasetId: id1, expectedMappingVersion: '1', expectedDatasetDigest: hash64 });
+    expect(TestBed.inject(HttpTestingController).match(request => request.url.includes('/commands/state'))).toHaveLength(0);
+  });
+
+  it('hides prior materiality and clears review affordances when the selected reporting context changes', async () => {
+    const secondMappingId = '55555555-5555-4555-8555-555555555555';
+    const secondDatasetId = '66666666-6666-4666-8666-666666666666';
+    const payload = { ...planPayload, canApplyPracticalRounding: true, materialityContexts: [
+      ...planPayload.materialityContexts,
+      { ...planPayload.materialityContexts[0], mappingId: secondMappingId, mappingVersion: 2, datasetId: secondDatasetId,
+        periodId: id2, periodStart: '2025-01-01', periodEnd: '2025-12-31' },
+    ] };
+    const f = render(payload, fieldworkPayload, id3);
+    const page = f.componentInstance, host = f.nativeElement as HTMLElement;
+    expect(host.querySelector('dl[aria-label="Materiality thresholds"]')).not.toBeNull();
+    expect(host.querySelector('input[name="roundPm"]')).not.toBeNull();
+    expect(host.textContent).toContain('Standard commercial entity benchmark');
+    page.calc.option = 'REVENUE|REV'; page.calc.rationale = 'Discard this context draft';
+    page.round.pm = '99000'; page.round.te = '74000'; page.round.sad = '4950'; page.round.rationale = 'Discard stale rounding';
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    page.selectMaterialityContext(secondMappingId, page.plan.data()!);
+    expect(navigate).toHaveBeenCalled();
+    expect(page.calc.option).toBe(''); expect(page.calc.rationale).toBe('');
+    expect(page.round.pm).toBe(''); expect(page.round.rationale).toBe('');
+    (TestBed.inject(ActivatedRoute).queryParamMap as BehaviorSubject<ReturnType<typeof convertToParamMap>>)
+      .next(convertToParamMap({ mappingId: secondMappingId }));
+    f.detectChanges();
+    const changedContext = TestBed.inject(HttpTestingController).expectOne(`/api/ui/engagements/${id1}/audit-plan?mappingId=${secondMappingId}`);
+    expect(host.textContent).not.toContain('Standard commercial entity benchmark');
+    changedContext.flush({ ...payload, materialitySource: { ...planPayload.materialitySource, mappingVersionId: secondMappingId, datasetId: secondDatasetId } });
+    await f.whenStable(); f.detectChanges();
+    expect(host.querySelector('dl[aria-label="Materiality thresholds"]')).toBeNull();
+    expect(host.querySelector('input[name="roundPm"]')).toBeNull();
+    expect(host.textContent).not.toContain('Standard commercial entity benchmark');
+    expect(host.textContent).toContain('Materiality values from another reporting context are hidden.');
+    expect(host.textContent).toContain('The retained materiality assessment is not for the selected reporting context and is hidden.');
   });
   it('clears populated routing/team and local routing inputs while reauthorizing a refused state read', async () => {
     const f = render(planPayload); await f.whenStable(); const page = f.componentInstance, http = TestBed.inject(HttpTestingController);

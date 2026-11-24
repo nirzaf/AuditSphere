@@ -92,6 +92,29 @@ public static class MaterialityCalculator
       destinationCode?.Trim().ToUpperInvariant() ?? string.Empty,
       benchmark.ToString("0.000000", CultureInfo.InvariantCulture), ratePercent.ToString("0.0000", CultureInfo.InvariantCulture),
       performancePercent.ToString("0.0000", CultureInfo.InvariantCulture), trivialPercent.ToString("0.0000", CultureInfo.InvariantCulture)));
+
+  /// <summary>
+  /// A reviewed explicit context pins the mapping revision and dataset identity in addition to the immutable dataset
+  /// digest. The version marker distinguishes this reviewed selection from historical engagement-only calculations.
+  /// </summary>
+  public static string ExplicitContextInputHash(Guid mappingVersionId, long mappingVersion, Guid datasetId, string datasetDigest,
+    string kind, string? destinationCode, decimal benchmark, decimal ratePercent, decimal performancePercent, decimal trivialPercent) =>
+    Hashing.Sha256Hex(string.Join('|', "materiality.explicit-context.v1", PolicyVersion, mappingVersionId.ToString("D"),
+      mappingVersion.ToString(CultureInfo.InvariantCulture), datasetId.ToString("D"), datasetDigest, kind,
+      destinationCode?.Trim().ToUpperInvariant() ?? string.Empty,
+      benchmark.ToString("0.000000", CultureInfo.InvariantCulture), ratePercent.ToString("0.0000", CultureInfo.InvariantCulture),
+      performancePercent.ToString("0.0000", CultureInfo.InvariantCulture), trivialPercent.ToString("0.0000", CultureInfo.InvariantCulture)));
+
+  public static bool HasExplicitContextInputHash(MaterialityCalculation calculation) =>
+    calculation.InputHash == ExplicitContextInputHash(calculation.MappingVersionId, calculation.MappingVersionNumber,
+      calculation.DatasetId, calculation.DatasetDigest, calculation.BenchmarkKind, calculation.DestinationCode,
+      calculation.BenchmarkAmount, calculation.RatePercent, calculation.PerformancePercent, calculation.TrivialPercent);
+
+  public static bool HasValidInputHash(MaterialityCalculation calculation) =>
+    calculation.InputHash == InputHash(calculation.MappingVersionId, calculation.DatasetDigest,
+      calculation.BenchmarkKind, calculation.DestinationCode, calculation.BenchmarkAmount,
+      calculation.RatePercent, calculation.PerformancePercent, calculation.TrivialPercent) ||
+    HasExplicitContextInputHash(calculation);
 }
 
 /// <summary>

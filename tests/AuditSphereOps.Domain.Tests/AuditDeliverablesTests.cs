@@ -1455,8 +1455,14 @@ public sealed partial class AuditDeliverablesTests
     var resultId = w.ResultId;
     if (result.InputGeneration != inputGeneration)
     {
+      Guid? mappingId = w.PlanningMappingId == Guid.Empty ? null : w.PlanningMappingId;
+      var selectedSource = await MaterialityEngineService.GetSourceAsync(db, w.A("partner2", "Partner"), w.EngagementId, default, mappingId);
+      Assert.True(selectedSource.Succeeded, $"GetSourceAsync failed: {selectedSource.ErrorCode} - {selectedSource.Message}");
       var calculation = await MaterialityEngineService.CalculateAsync(db, w.A("partner2", "Partner"),
-        new(w.EngagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Revenue-driven trading entity"));
+        new(w.EngagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Revenue-driven trading entity",
+          MappingId: mappingId, ExpectedDatasetId: mappingId is null ? null : selectedSource.Value!.DatasetId,
+          ExpectedMappingVersion: mappingId is null ? null : selectedSource.Value!.MappingVersion,
+          ExpectedDatasetDigest: mappingId is null ? null : selectedSource.Value!.DatasetDigest));
       Assert.True(calculation.Succeeded, $"CalculateAsync failed: {calculation.ErrorCode} - {calculation.Message}");
       var approval = await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, partner, calculation.Value!.AssessmentId);
       Assert.True(approval.Succeeded, $"ApproveMaterialityAssessmentAsync failed: {approval.ErrorCode} - {approval.Message}");

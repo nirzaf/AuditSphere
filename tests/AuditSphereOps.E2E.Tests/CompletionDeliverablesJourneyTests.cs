@@ -84,8 +84,14 @@ public sealed class CompletionDeliverablesJourneyTests
     // New accepted package inputs require current independently approved planning and procedure evidence.
     await using (var db = host.CreateDbContext())
     {
+      Guid? mappingId = world.PlanningMappingId == Guid.Empty ? null : world.PlanningMappingId;
+      var source = await MaterialityEngineService.GetSourceAsync(db, world.A("partner2", "Partner"), f.EngagementId, default, mappingId);
+      Assert.True(source.Succeeded, source.Message);
       var materiality = await MaterialityEngineService.CalculateAsync(db, world.A("partner2", "Partner"),
-        new(f.EngagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Revenue-driven trading entity"));
+        new(f.EngagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Revenue-driven trading entity",
+          MappingId: mappingId, ExpectedDatasetId: mappingId is null ? null : source.Value!.DatasetId,
+          ExpectedMappingVersion: mappingId is null ? null : source.Value!.MappingVersion,
+          ExpectedDatasetDigest: mappingId is null ? null : source.Value!.DatasetDigest));
       Assert.True(materiality.Succeeded, materiality.Message);
       var approved = await AuditPlanningService.ApproveMaterialityAssessmentAsync(db, world.A("partner", "Partner"),
         materiality.Value!.AssessmentId);

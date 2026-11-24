@@ -33824,6 +33824,41 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "mappingId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "expectedDatasetId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "expectedMappingVersion",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "expectedDatasetDigest",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -34354,6 +34389,14 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "mappingId",
+            "in": "query",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -110390,6 +110433,15 @@
           "canApplyPracticalRounding": {
             "type": "boolean",
             "default": false
+          },
+          "materialityContexts": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/MaterialityContextOption"
+            }
           }
         }
       },
@@ -142868,6 +142920,35 @@
           },
           "rationale": {
             "type": "string"
+          },
+          "mappingId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "expectedDatasetId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "expectedMappingVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "expectedDatasetDigest": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -142901,6 +142982,95 @@
               {
                 "$ref": "#/components/schemas/MaterialityRoundingDecision"
               }
+            ]
+          }
+        }
+      },
+      "MaterialityContextOption": {
+        "required": [
+          "mappingId",
+          "mappingVersion",
+          "datasetId",
+          "datasetRevision",
+          "periodId",
+          "bookId",
+          "periodStart",
+          "periodEnd",
+          "basis",
+          "currency",
+          "legalEntityKey",
+          "datasetDigest",
+          "eligible",
+          "blocker"
+        ],
+        "type": "object",
+        "properties": {
+          "mappingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mappingVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "datasetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "datasetRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "periodId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "bookId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "periodStart": {
+            "type": "string"
+          },
+          "periodEnd": {
+            "type": "string"
+          },
+          "basis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "legalEntityKey": {
+            "type": "string"
+          },
+          "datasetDigest": {
+            "type": "string"
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "blocker": {
+            "type": [
+              "null",
+              "string"
             ]
           }
         }
@@ -143069,6 +143239,47 @@
             "items": {
               "$ref": "#/components/schemas/MaterialityBenchmarkOption"
             }
+          },
+          "datasetRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64",
+            "default": 1
+          },
+          "periodId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "bookId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "basis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "legalEntityKey": {
+            "type": "string",
+            "default": ""
+          },
+          "periodStart": {
+            "type": "string",
+            "default": ""
+          },
+          "periodEnd": {
+            "type": "string",
+            "default": ""
           }
         }
       },
@@ -149285,6 +149496,26 @@
                 "$ref": "#/components/schemas/PlanRounding"
               }
             ]
+          },
+          "mappingVersionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "datasetId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "datasetDigest": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -150063,6 +150294,32 @@
               "null",
               "string"
             ]
+          },
+          "mappingId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "expectedDatasetId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "expectedMappingVersion": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "expectedDatasetDigest": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -150647,7 +150904,14 @@
           "datasetId",
           "datasetDigest",
           "currency",
-          "benchmarks"
+          "benchmarks",
+          "datasetRevision",
+          "periodId",
+          "bookId",
+          "basis",
+          "legalEntityKey",
+          "periodStart",
+          "periodEnd"
         ],
         "type": "object",
         "properties": {
@@ -150673,6 +150937,43 @@
             "items": {
               "$ref": "#/components/schemas/PlanningBenchmark"
             }
+          },
+          "datasetRevision": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "periodId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "bookId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "basis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "legalEntityKey": {
+            "type": "string"
+          },
+          "periodStart": {
+            "type": "string"
+          },
+          "periodEnd": {
+            "type": "string"
           }
         }
       },

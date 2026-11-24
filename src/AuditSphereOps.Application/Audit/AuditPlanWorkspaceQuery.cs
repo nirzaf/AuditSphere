@@ -18,7 +18,8 @@ public sealed record PlanFinding(Guid Id, string FindingType, string Status, dec
 public sealed record PlanWorkpaper(Guid Id, string Index, string Title, string Status, long Revision);
 public sealed record PlanCalculation(Guid AssessmentId, string State, string Route, string BenchmarkKind, string? DestinationCode, decimal BenchmarkAmount, string Currency,
   int SourceLineCount, long MappingVersionNumber, decimal RatePercent, decimal PerformancePercent, decimal TrivialPercent, decimal PlanningMateriality,
-  decimal TolerableError, decimal SadThreshold, string PolicyVersion, PlanRounding? Rounding = null);
+  decimal TolerableError, decimal SadThreshold, string PolicyVersion, PlanRounding? Rounding = null,
+  Guid? MappingVersionId = null, Guid? DatasetId = null, string? DatasetDigest = null);
 /// <summary>The manager's practical rounding of the computed thresholds (STE 3.2), with server-computed deltas.</summary>
 public sealed record PlanRounding(DateTimeOffset DecidedAt, Guid DecidedByUserId, string Rationale, decimal AdjustedPlanningMateriality,
   decimal AdjustedTolerableError, decimal AdjustedSadThreshold, decimal PlanningDeltaPercent, decimal TolerableDeltaPercent, decimal SadDeltaPercent);
@@ -32,14 +33,16 @@ public sealed record AuditPlanWorkspace(Guid EngagementId, bool ProfessionalWork
   MaterialitySourceView? MaterialitySource, string? MaterialitySourceMessage, PlanCalculation? LatestCalculation, IReadOnlyList<PlanPolicyRange> RateRanges,
   decimal PerformanceMin, decimal PerformanceMax, decimal TrivialMin, decimal TrivialMax, string RiskRuleVersion, IReadOnlyList<RiskRoutingRow> Routing,
   IReadOnlyList<StaffAssignmentRow> Team, bool CanAssignOwners, bool IsPartner, IReadOnlyList<PlanFsliRiskRow> FsliStratification,
-  MilestonePlanView? MilestonePlan = null, bool CanApplyPracticalRounding = false);
+  MilestonePlanView? MilestonePlan = null, bool CanApplyPracticalRounding = false,
+  IReadOnlyList<MaterialityContextOption>? MaterialityContexts = null);
 
 /// <summary>Engagement-scoped audit plan projection: planning records, the materiality engine state and risk routing.</summary>
 public static class AuditPlanWorkspaceQuery
 {
   private static readonly string[] PlanningRoles = ["Partner", "Manager", "SeniorManager", "Senior", "Staff", "Auditor", "EngagementLeader", "Administrator"];
 
-  public static async Task<CommandResult<AuditPlanWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
+  public static async Task<CommandResult<AuditPlanWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId,
+    CancellationToken ct = default, Guid? mappingId = null)
   {
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, EngagementId: engagementId, RequiredRoles: PlanningRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<AuditPlanWorkspace>.Fail(auth.ErrorCode!, auth.Message!);
@@ -63,7 +66,8 @@ public static class AuditPlanWorkspaceQuery
       .Select(f => new PlanFinding(f.Id, f.FindingType, f.Status, f.MonetaryAmount)).ToListAsync(ct);
     var workpapers = await db.Workpapers.AsNoTracking().Where(w => w.FirmId == actor.FirmId && w.EngagementId == engagementId).OrderBy(w => w.Index)
       .Select(w => new PlanWorkpaper(w.Id, w.Index, w.Title, w.Status, w.Revision)).ToListAsync(ct);
-    var source = await MaterialityEngineService.GetSourceAsync(db, actor, engagementId, ct);
+    var source = await MaterialityEngineService.GetSourceAsync(db, actor, engagementId, ct, mappingId);
+    var contexts = await MaterialityEngineService.GetContextsAsync(db, actor, engagementId, ct);
     var latest = await MaterialityEngineService.GetLatestAsync(db, actor.FirmId, engagementId, ct);
     if (latest?.AssessmentId != materiality?.Id) latest = null;
     var routing = await RiskBandService.GetRoutingAsync(db, actor, engagementId, ct);
@@ -75,8 +79,9 @@ public static class AuditPlanWorkspaceQuery
     if (latest is { State: MaterialityCalculationStates.Draft or MaterialityCalculationStates.Approved, Calculation: { } calc } &&
         calc.PlanningMateriality > 0 && calc.TolerableError > 0)
     {
-      var rawSource = await MappedTrialBalanceSource.LoadAsync(db, actor.FirmId, engagementId, ct);
-      if (rawSource is not null)
+      var rawSource = await MappedTrialBalanceSource.LoadAsync(db, actor.FirmId, engagementId, ct, calc.MappingVersionId);
+      if (rawSource is not null && rawSource.Mapping.Id == calc.MappingVersionId && rawSource.Mapping.Version == calc.MappingVersionNumber &&
+          rawSource.Dataset.Id == calc.DatasetId && MappedTrialBalanceSource.Digest(rawSource.Dataset) == calc.DatasetDigest)
       {
         var risksForEngagement = await db.AuditRisks.AsNoTracking().Where(r => r.FirmId == actor.FirmId && r.EngagementId == engagementId).ToListAsync(ct);
         var assessmentsForEngagement = await db.RiskBandAssessments.AsNoTracking().Where(a => a.FirmId == actor.FirmId && a.EngagementId == engagementId).ToListAsync(ct);
@@ -145,11 +150,12 @@ public static class AuditPlanWorkspaceQuery
         c.SourceLineCount, c.MappingVersionNumber, c.RatePercent, c.PerformancePercent, c.TrivialPercent, c.PlanningMateriality, c.TolerableError, c.SadThreshold, c.PolicyVersion,
         latest.Rounding is { } rounding ? new PlanRounding(rounding.DecidedAt, rounding.DecidedByUserId, rounding.Rationale,
           rounding.AdjustedPlanningMateriality, rounding.AdjustedTolerableError, rounding.AdjustedSadThreshold,
-          rounding.PlanningDeltaPercent, rounding.TolerableDeltaPercent, rounding.SadDeltaPercent) : null),
+          rounding.PlanningDeltaPercent, rounding.TolerableDeltaPercent, rounding.SadDeltaPercent) : null,
+        c.MappingVersionId, c.DatasetId, c.DatasetDigest),
       MaterialityCalculator.RateRanges.Select(x => new PlanPolicyRange(x.Key, x.Value.MinRatePercent, x.Value.MaxRatePercent)).ToList(),
       MaterialityCalculator.PerformanceRange.Min, MaterialityCalculator.PerformanceRange.Max, MaterialityCalculator.TrivialRange.Min, MaterialityCalculator.TrivialRange.Max,
       RiskBandRules.RuleVersion, routing.Succeeded ? routing.Value! : [], team.Succeeded ? team.Value! : [],
       ownerAuthorized, partnerAuthorized, fsliRows,
-      milestonePlan.Succeeded ? milestonePlan.Value : null, canRound));
+      milestonePlan.Succeeded ? milestonePlan.Value : null, canRound, contexts.Succeeded ? contexts.Value : []));
   }
 }

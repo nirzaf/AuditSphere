@@ -87,6 +87,12 @@ export class PlanningCommandState {
     const query = new URLSearchParams({ action: fields.action });
     const assessment = fields.round?.assessmentId ?? fields.approve?.assessmentId, risk = fields.assessRisk?.riskId ?? fields.assignRiskOwner?.riskId ?? fields.clearRisk?.riskId ?? fields.linkProcedureRisk?.riskId;
     if (assessment) query.set('assessmentId', assessment); if (risk) query.set('riskId', risk); if (fields.linkProcedureRisk) query.set('procedureId', fields.linkProcedureRisk.procedureId);
+    if (fields.calculate?.mappingId) {
+      query.set('mappingId', fields.calculate.mappingId);
+      query.set('expectedDatasetId', fields.calculate.expectedDatasetId ?? '');
+      query.set('expectedMappingVersion', fields.calculate.expectedMappingVersion ?? '');
+      query.set('expectedDatasetDigest', fields.calculate.expectedDatasetDigest ?? '');
+    }
     try {
       const state = await this.api.get(this.base() + '/state?' + query, decodePlanningState);
       if (!valid()) return;

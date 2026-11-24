@@ -25,7 +25,8 @@ const materiality = { assessmentId: b, calculationId: c, roundingDecisionId: nul
 const risk = { riskId: c, area: 'CASH', assertion: 'Existence', description: 'Risk', drivers: 'Drivers', significanceDecision: 'SIGNIFICANT', response: 'Response', controlsConsidered: null, assessmentId: b, likelihood: 3, magnitude: 3, fraud: false, criticalEstimate: false, band: 'RED', assessmentRationale: 'assessment', assessedByUserId: c, clearanceId: null, clearedByUserId: null, clearanceNote: null, ownerAssignmentId: null, ownerUserId: null, ownerStaffingLevel: null };
 const state = (action: PlanningAction) => ({ engagementId: a, clientId: b, action, reviewBasis: basis, canProceed: true, blockers: [], materiality, risk,
   procedure: { procedureId: d, riskId: null, status: 'PLANNED', resultRevision: '0' }, owners: [{ userId: d, name: 'Owner', staffingLevel: 'AUDIT_MANAGER' }],
-  source: { mappingId: b, mappingVersion: '1', datasetId: c, datasetDigest: hash, currency: 'QAR', benchmarks: [{ kind: 'REVENUE', destinationCode: null, label: 'Revenue', amount: '10000', lineCount: 1 }] } });
+  source: { mappingId: b, mappingVersion: '1', datasetId: c, datasetDigest: hash, currency: 'QAR', benchmarks: [{ kind: 'REVENUE', destinationCode: null, label: 'Revenue', amount: '10000', lineCount: 1 }],
+    datasetRevision: 1, periodId: null, bookId: null, basis: null, legalEntityKey: 'TEST', periodStart: '2026-01-01', periodEnd: '2026-12-31' } });
 const preview = (request: { requestId: string; fields: unknown }) => {
   const canonicalInput = decodePlanningFields(request.fields, '');
   if (canonicalInput.calculate) canonicalInput.calculate = { ...canonicalInput.calculate, ratePercent: '1.000000', performancePercent: '75.000000', trivialPercent: '5.000000' };

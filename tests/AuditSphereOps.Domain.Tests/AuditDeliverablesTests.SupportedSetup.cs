@@ -21,6 +21,7 @@ public sealed partial class AuditDeliverablesTests
 {
   internal sealed record World(Guid FirmId, Guid ClientId, Guid EngagementId, Dictionary<string, AppUser> U, Guid ProcedureId, Guid ResultId, string ProcedureCode, long InputGeneration)
   {
+    public Guid PlanningMappingId { get; init; }
     public ActorContext A(string name, params string[] roles) => new(U[name].Id, FirmId, U[name].SessionEpoch, roles);
   }
   internal static async Task<World> SeedSupportedDeliverablesAsync(ITestPostgresDatabase pg, bool refreshPortalRisk = true, bool requireCommercialReview = false, bool prepareHoldingRecipient = false, string clientLegalName = "Synthetic R02 Audit Client")
@@ -103,7 +104,7 @@ public sealed partial class AuditDeliverablesTests
         new(clientId, "Client MD", "md@client.example.test", "Managing Director", Primary: true));
       Assert.True(recipient.Succeeded, recipient.Message);
     }
-    await EstablishSupportedDeliverablesPlanningAsync(pg, scope, partner2, partner);
+    var planningMappingId = await EstablishSupportedDeliverablesPlanningAsync(pg, scope, partner2, partner);
     if (refreshPortalRisk)
       await RefreshSupportedPortalRiskAsync(pg, new(firmId, clientId, engagementId, users, Guid.Empty, Guid.Empty, "", 0));
     var generation = await db.ClientSafetyStates.AsNoTracking().Where(x => x.Id == clientId && x.FirmId == firmId)
@@ -141,8 +142,8 @@ public sealed partial class AuditDeliverablesTests
       new(selected.Id, generation, "Selected 25 invoices around year end and agreed them to dispatch notes.",
         "{}", ["synthetic-evidence:revenue-cut-off"], "Revenue is recorded in the correct period."));
     Assert.True(submitted.Succeeded, submitted.Message);
-    return new(firmId, clientId, engagementId, users, selected.Id, submitted.Value!.AuditProcedureResultId,
-      selected.SourceProcedureId, generation);
+    return new World(firmId, clientId, engagementId, users, selected.Id, submitted.Value!.AuditProcedureResultId,
+      selected.SourceProcedureId, generation) { PlanningMappingId = planningMappingId };
   }
 
   private static async Task<Guid> CreateSupportedDispatchedConfirmationAsync(AuditSphereDbContext db, World w,
@@ -209,7 +210,7 @@ public sealed partial class AuditDeliverablesTests
       .Select(x => x.InputGeneration).SingleAsync());
   }
 
-  private static async Task EstablishSupportedDeliverablesPlanningAsync(ITestPostgresDatabase pg, SupportedAuditCompletionWorld world,
+  private static async Task<Guid> EstablishSupportedDeliverablesPlanningAsync(ITestPostgresDatabase pg, SupportedAuditCompletionWorld world,
     ActorContext preparer, ActorContext reviewer)
   {
     var accounting = await SupportedAuditCompletionWorldBuilder.ProvisionFirmRoleAsync(pg,
@@ -262,10 +263,15 @@ public sealed partial class AuditDeliverablesTests
     Assert.True(mappingReview.Succeeded, mappingReview.Message);
     Assert.True((await FinancialStatementService.ApproveMappingAsync(reviewDb, reviewer, mapping.Value, 1,
       reviewRevision: mappingReview.Value!.Revision, reviewed: true)).Succeeded);
+    var source = await MaterialityEngineService.GetSourceAsync(reviewDb, preparer, world.Primary.EngagementId, default, mapping.Value);
+    Assert.True(source.Succeeded, source.Message);
     var materiality = await MaterialityEngineService.CalculateAsync(reviewDb, preparer,
-      new(world.Primary.EngagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Revenue-driven trading entity"));
+      new(world.Primary.EngagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Revenue-driven trading entity",
+        MappingId: mapping.Value, ExpectedDatasetId: source.Value!.DatasetId, ExpectedMappingVersion: source.Value.MappingVersion,
+        ExpectedDatasetDigest: source.Value.DatasetDigest));
     Assert.True(materiality.Succeeded, materiality.Message);
     Assert.True((await AuditPlanningService.ApproveMaterialityAssessmentAsync(reviewDb, reviewer, materiality.Value!.AssessmentId)).Succeeded);
+    return mapping.Value;
   }
 
   private sealed class DeliverablesDbContextFactory(DbContextOptions<AuditSphereDbContext> options) : IDbContextFactory<AuditSphereDbContext>

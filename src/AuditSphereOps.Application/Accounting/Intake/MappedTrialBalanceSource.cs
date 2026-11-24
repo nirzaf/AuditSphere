@@ -62,9 +62,9 @@ internal static class MappedTrialBalanceSource
     dataset.SourceKind == NativeTrialBalanceSourceWorkspace.SourceKind ? dataset.Sha256Hex :
     string.IsNullOrEmpty(dataset.NormalizedDatasetDigest) ? dataset.Sha256Hex : dataset.NormalizedDatasetDigest;
 
-  internal static async Task<Source?> LoadAsync(IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
+  internal static async Task<Source?> LoadAsync(IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct, Guid? mappingId = null)
   {
-    var selected = await ResolveAsync(db, firmId, engagementId, ct);
+    var selected = await ResolveAsync(db, firmId, engagementId, ct, mappingId);
     if (selected is null) return null;
     var (mapping, dataset) = selected.Value;
     if (!(await NativeTrialBalanceSourceWorkspace.CheckReportingAsync(db, dataset, ct)).Succeeded) return null;

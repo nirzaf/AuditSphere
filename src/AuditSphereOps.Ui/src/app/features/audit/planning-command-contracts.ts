@@ -5,7 +5,8 @@ export type PlanningAction = ReturnType<typeof planningAction>;
 const score: Decoder<number> = (raw, path) => { const n = int(raw, path); if (n < 1 || n > 3) throw new Error(`${path}: expected score 1 to 3`); return n; };
 const exactEpoch: Decoder<string> = (raw, path) => { if (typeof raw !== 'string' || !/^(0|[1-9][0-9]{0,18})$/.test(raw)) throw new Error(`${path}: expected exact epoch`); return raw; };
 const fieldsShape = obj({ action: planningAction,
-  calculate: nullable(obj({ benchmarkKind: str(50), destinationCode: nullable(str(100)), ratePercent: dec, performancePercent: dec, trivialPercent: dec, rationale: str(4000), qualitativeConsiderations: nullable(str(4000)) })),
+  calculate: nullable(obj({ benchmarkKind: str(50), destinationCode: nullable(str(100)), ratePercent: dec, performancePercent: dec, trivialPercent: dec, rationale: str(4000), qualitativeConsiderations: nullable(str(4000)),
+    mappingId: nullable(guid), expectedDatasetId: nullable(guid), expectedMappingVersion: nullable(exactEpoch), expectedDatasetDigest: nullable(sha256) })),
   round: nullable(obj({ assessmentId: guid, planningMateriality: dec, tolerableError: dec, sadThreshold: dec, rationale: str(4000) })),
   approve: nullable(obj({ assessmentId: guid })),
   createRisk: nullable(obj({ area: str(200), assertion: str(100), description: str(4000), drivers: str(4000), significanceDecision: oneOf('NORMAL', 'SIGNIFICANT'), response: str(4000), controlsConsidered: nullable(str(4000)) })),
@@ -30,7 +31,9 @@ export const decodePlanningRisk = obj({ riskId: guid, area: str(200), assertion:
   clearanceId: nullable(guid), clearedByUserId: nullable(guid), clearanceNote: nullable(str(4000)), ownerAssignmentId: nullable(guid), ownerUserId: nullable(guid), ownerStaffingLevel: nullable(str(100)) });
 export const decodePlanningProcedure = obj({ procedureId: guid, riskId: nullable(guid), status: str(100), resultRevision: exactEpoch });
 export const decodePlanningState = obj({ engagementId: guid, clientId: guid, action: planningAction, reviewBasis: sha256, canProceed: bool, blockers: arr(str(2000), 100),
-  source: nullable(obj({ mappingId: guid, mappingVersion: exactEpoch, datasetId: guid, datasetDigest: sha256, currency: str(3), benchmarks: arr(obj({ kind: str(50), destinationCode: nullable(str(100)), label: str(200), amount: nullable(dec), lineCount: nat }), 500) })),
+  source: nullable(obj({ mappingId: guid, mappingVersion: exactEpoch, datasetId: guid, datasetDigest: sha256, currency: str(3),
+    benchmarks: arr(obj({ kind: str(50), destinationCode: nullable(str(100)), label: str(200), amount: nullable(dec), lineCount: nat }), 500),
+    datasetRevision: nat, periodId: nullable(guid), bookId: nullable(guid), basis: nullable(str(100)), legalEntityKey: str(200), periodStart: str(10), periodEnd: str(10) })),
   materiality: nullable(decodePlanningMateriality), risk: nullable(decodePlanningRisk), procedure: nullable(decodePlanningProcedure), owners: arr(obj({ userId: guid, name: str(300), staffingLevel: str(100) }), 500) });
 const previewShape = obj({ requestId: guid, requestHash: sha256, reviewBasis: sha256, canonicalInput: decodePlanningFields, state: decodePlanningState, summary: str(8000),
   materialityOutcome: nullable(obj({ benchmarkAmount: dec, planningMateriality: dec, tolerableError: dec, sadThreshold: dec, currency: str(3) })), riskBandOutcome: nullable(oneOf('GREEN', 'AMBER', 'RED')) });

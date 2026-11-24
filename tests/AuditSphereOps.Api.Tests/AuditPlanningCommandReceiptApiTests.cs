@@ -68,6 +68,50 @@ public sealed class AuditPlanningCommandReceiptApiTests
   }
 
   [Fact]
+  public async Task ExplicitMaterialityContextFlowsThroughAuditPlanAndLegacyCalculationApi()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-EXPLICIT-MATERIALITY-CONTEXT");
+    var w = await AuditPlanningReceiptSeed.SeedAsync(pg);
+    var f = w.Fixture;
+    var actor = PbcSeed.Actor(f.Staff, "Staff");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var source = await MaterialityEngineService.GetSourceAsync(db, actor, f.EngagementId);
+    Assert.True(source.Succeeded, source.Message);
+    var selected = source.Value!;
+
+    using var factory = Factory(pg, f.Staff);
+    using var client = factory.CreateClient();
+    var csrf = await SignIn(client);
+    var workspace = await Read(client, $"/api/ui/engagements/{f.EngagementId}/audit-plan?mappingId={selected.MappingVersionId}");
+    Assert.Equal(selected.MappingVersionId, workspace.GetProperty("materialitySource").GetProperty("mappingVersionId").GetGuid());
+    Assert.Contains(workspace.GetProperty("materialityContexts").EnumerateArray(), x =>
+      x.GetProperty("mappingId").GetGuid() == selected.MappingVersionId && x.GetProperty("datasetId").GetGuid() == selected.DatasetId);
+    var state = await Read(client, $"/api/ui/engagements/{f.EngagementId}/audit-plan/commands/state?action=CALCULATE_MATERIALITY&mappingId={selected.MappingVersionId}&expectedDatasetId={selected.DatasetId}&expectedMappingVersion={selected.MappingVersion}&expectedDatasetDigest={selected.DatasetDigest}");
+    Assert.True(state.GetProperty("canProceed").GetBoolean());
+    Assert.Equal(selected.MappingVersionId, state.GetProperty("source").GetProperty("mappingId").GetGuid());
+    Assert.Equal(selected.DatasetId, state.GetProperty("source").GetProperty("datasetId").GetGuid());
+
+    var path = $"/api/ui/engagements/{f.EngagementId}/audit-plan/materiality/calculate";
+    object Input(string digest) => new
+    {
+      benchmarkKind = "REVENUE", destinationCode = (string?)null, ratePercent = "1", performancePercent = "75", trivialPercent = "5",
+      rationale = "SYNTHETIC exact reporting-context API review", mappingId = selected.MappingVersionId,
+      expectedDatasetId = selected.DatasetId, expectedMappingVersion = selected.MappingVersion, expectedDatasetDigest = digest
+    };
+    using var response = await Post(client, csrf, path, Input(selected.DatasetDigest));
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+    var calculation = json.RootElement.GetProperty("value").GetProperty("calculation");
+    Assert.Equal(selected.MappingVersionId, calculation.GetProperty("mappingVersionId").GetGuid());
+    Assert.Equal(selected.DatasetId, calculation.GetProperty("datasetId").GetGuid());
+    Assert.Equal(selected.DatasetDigest, calculation.GetProperty("datasetDigest").GetString());
+
+    using var stale = await Post(client, csrf, path, Input(new string('0', 64)));
+    Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+    Assert.Equal(1, await db.MaterialityCalculations.CountAsync(x => x.EngagementId == f.EngagementId));
+  }
+
+  [Fact]
   public async Task ForeignGuessedAndRevokedScopesNeverExposeReceiptDetails()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-AUDIT-PLANNING-SCOPE"); var w = await AuditPlanningReceiptSeed.SeedAsync(pg); var f = w.Fixture;
