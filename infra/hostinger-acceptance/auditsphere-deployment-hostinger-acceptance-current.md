@@ -2,7 +2,13 @@
 
 For a new customer tenant, start with the [CLI setup runbook](../../docs/operations/auditsphere-operations-runbook-client-tenant-microsoft365-current.md) and [configuration inventory](../../docs/operations/auditsphere-operations-reference-microsoft365-configuration-current.md). They explain Entra registrations/consent, certificates, exact SharePoint grants, email authorization/DNS, worker activation and rotation. This guide's dated observations are acceptance history, not new-customer verification. Current base Compose narrows API credentials to six read-only capability mounts. Prepare protected empty capability directories before approved API recreation; inspect actual mounts before staging privileged keys, since older containers can retain the parent mount. The [isolation example](m365-isolation.override.example.yaml) remains available for older base revisions. Microsoft's current Exchange RBAC recommendation and AuditSphere's legacy mail-verifier compatibility limit are documented in the new runbook.
 
-## Release modes and current automation boundary (observed 2026-11-23)
+## GBS beta deployment readback (2026-11-24)
+
+The public beta at `https://audit.steaudit.com` was verified at source `fb0697b1f188d7d41c3ff16acc78ed245d53ebd1`. The `auditsphere-gbs-beta` Compose project used PostgreSQL 19.0 on its own volume with 329 applied migrations. HTTPS readiness and GBS Entra sign-in succeeded, and the initial firm-wide AuditSphere Administrator grant was read back. The previous AuditSphere database was retained. The deployment receipt is recorded in `.local/autonomous/evidence/hostinger-release-fb0697b1-gbs-beta/public-beta-admin-verified-receipt.json`.
+
+GitHub reported zero configured deployment environments during the 2026-11-24 review. A manual workflow for this beta needs a protected GitHub Environment, a verified target and host key, and the beta's reviewed Compose deployment procedure. The retained-data acceptance procedure below concerns a separate stack and volume.
+
+## Previous retained-data preflight and automation review (2026-11-23)
 
 - **FAST_ITERATION:** inactive until an explicitly authorized disposable Hostinger VM and resettable volume are identified. Gmail and the current account inventory did not map another VM to this task. The production VM's SSH identity and pinned host key were verified for read-only access; that does not establish a protected GitHub deployment environment or authorize a fast path.
 - **PROTECTED_RELEASE:** requires current-source fast/full/image gates, immutable images, fresh quiesced database/catalog and actual mutable-volume/configuration/credential/overlay backups, independent restore rehearsal, approved maintenance/recovery targets, least-privilege roles, runtime guards and authenticated acceptance. Green CI alone does not authorize deployment.
