@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { apiPath, catalog, originOf, searchCatalogue, workspacePath } from "./catalog.mjs";
 
 const contract = JSON.parse(await readFile(new URL("../../contracts/auditsphere-openapi.json", import.meta.url), "utf8"));
@@ -37,4 +40,35 @@ test("origin and workspace navigation reject external and unauthorized paths", (
   assert.equal(workspacePath(entries.workspaces, users), users);
   assert.throws(() => workspacePath(entries.workspaces, "/auth/sign-in"));
   assert.throws(() => workspacePath(entries.workspaces, "//example.test"));
+});
+
+test("the stdio server rejects unsupported requests before opening Chrome", { timeout: 10_000 }, async () => {
+  const client = new Client({ name: "auditsphere-test", version: "1.0.0" });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [fileURLToPath(new URL("server.mjs", import.meta.url)), "https://audit.example"],
+    stderr: "pipe"
+  });
+  try {
+    await client.connect(transport);
+    assert.deepEqual((await client.listTools()).tools.map(tool => tool.name).sort(),
+      ["describe_operation", "find_features", "open_sign_in", "open_workspace", "read_api"]);
+    const discovered = await client.callTool({ name: "find_features", arguments: { query: "administration access assign" } });
+    assert.equal(discovered.isError, undefined);
+    assert.ok(JSON.parse(discovered.content[0].text).operations.some(
+      operation => operation.method === "POST" && !operation.directRead));
+
+    for (const [name, args, message] of [
+      ["read_api", { path: "https://other.example/api/ui/session" }, /Only documented JSON GET/],
+      ["read_api", { path: "/api/ui/administration/access/assign" }, /Only documented JSON GET/],
+      ["read_api", { path: "/api/ui/session", query: { token: "unexpected" } }, /Unknown parameter/],
+      ["open_workspace", { path: "/ui/app/administration/unknown" }, /Select a documented workspace/]
+    ]) {
+      const denied = await client.callTool({ name, arguments: args });
+      assert.equal(denied.isError, true);
+      assert.match(JSON.parse(denied.content[0].text).error, message);
+    }
+  } finally {
+    await client.close();
+  }
 });

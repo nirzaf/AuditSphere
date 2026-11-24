@@ -16,6 +16,8 @@ codex mcp get auditsphere
 
 Open a new Codex session after registration. For another AuditSphere installation, pass its HTTPS origin when registering the process. The tool caller cannot change that origin. Keep the checkout aligned with the app’s deployed API contract. To remove the registration, run `codex mcp remove auditsphere`.
 
+The fast GitHub Actions workflow runs the catalogue and stdio tests in a separate job. These tests verify unsupported requests are rejected before Chrome starts. Microsoft sign-in and browser lifecycle checks use an installed Chrome session.
+
 ## Use from a Codex session
 
 1. Ask Codex to call `open_sign_in` and complete Microsoft sign-in in the dedicated Chrome window. Account credentials and MFA stay in Chrome.

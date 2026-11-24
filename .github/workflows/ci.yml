@@ -357,6 +357,25 @@ jobs:
             "$RESULT" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_STEP_SUMMARY"
           printf '\nFast CI includes database-free OpenAPI semantics; PostgreSQL integration and full API/browser suites remain in release-verification.yml. This gate is not full regression evidence.\n' >> "$GITHUB_STEP_SUMMARY"
 
+  mcp-test:
+    name: Test · AuditSphere MCP
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: src/AuditSphereOps.Ui/.nvmrc
+          cache: npm
+          cache-dependency-path: tools/auditsphere-mcp/package-lock.json
+      - name: Verify the MCP catalogue and stdio boundary
+        working-directory: tools/auditsphere-mcp
+        run: |
+          npm ci --ignore-scripts
+          npm test
+
   # Documentation health gate: canonical-link integrity, naming policy and
   # HISTORICAL_SOURCE banners. Pure stdlib Python; no .NET or database needed.
   docs-health:

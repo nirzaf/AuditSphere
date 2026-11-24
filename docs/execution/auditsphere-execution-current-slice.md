@@ -1,5 +1,7 @@
 # Current-slice handoff
 
+**F-08:** Four MCP tests passed. Chrome anonymous reads and profile cleanup verified locally. Candidate CI pending.
+
 ## PostgreSQL 19 exact-source verification and Hostinger release boundary (observed 2026-11-23; source `d59d6be05e30a6dc84f146ee3861cf0ec994d8e6`)
 
 - **Role bootstrap:** acceptance startup rejects non-PostgreSQL-19 before role DDL and validates runtime/migrator attributes, memberships, ownership, `PUBLIC` ACL and effective grants. Runtime and migration identities remain separate. No Hostinger role or data changed.
