@@ -7,10 +7,10 @@ public static partial class UiEndpoints
   private static void MapRouteResolutionEndpoints(RouteGroupBuilder group)
   {
     var assessment = group.MapGet("/clients/{id:guid}/assessment",
-      (Guid id, Guid? decisionId, Guid? engagementId, HttpContext http) =>
-        ReadAsync(http, (db, actor, ct) => AssessmentWorkspaceQuery.GetAsync(db, actor, id, decisionId, ct, engagementId)))
+      (Guid id, Guid? decisionId, Guid? engagementId, Guid? opportunityId, HttpContext http) =>
+        ReadAsync(http, (db, actor, ct) => AssessmentWorkspaceQuery.GetAsync(db, actor, id, decisionId, ct, engagementId, opportunityId)))
       .WithSummary("Read a client assessment workspace")
-      .WithDescription("Returns the scoped client assessment and optional exact decision or engagement context.");
+      .WithDescription("Returns the scoped client assessment and optional exact decision, engagement, or discovery-opportunity context.");
     WithUiDirectResponse<AssessmentWorkspace>(assessment, includeBadRequest: true);
 
     var route = group.MapGet("/assessments/{id:guid}",

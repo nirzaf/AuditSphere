@@ -72,6 +72,15 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("generation");
 
+                    b.Property<string>("OpportunityBasisSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("opportunity_basis_sha256");
+
+                    b.Property<Guid?>("OpportunityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("opportunity_id");
+
                     b.Property<string>("Path")
                         .IsRequired()
                         .HasColumnType("text")
@@ -102,12 +111,15 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasAlternateKey("FirmId", "Id")
                         .HasName("AK_acceptance_decisions_firm_id_id");
 
+                    b.HasIndex("FirmId", "OpportunityId", "Generation")
+                        .HasDatabaseName("ix_acceptance_opportunity_generation");
+
                     b.HasIndex("FirmId", "PracticeClientId", "Generation")
                         .HasDatabaseName("ix_acceptance_client_generation");
 
                     b.ToTable("acceptance_decisions", null, t =>
                         {
-                            t.HasCheckConstraint("ck_acceptance_decision_evidence", "((decision = 'Pending') OR (length(trim(rationale)) > 0 AND length(trim(evaluation_template_version)) > 0 AND evaluation_snapshot_digest ~ '^[0-9a-f]{64}$')) AND ((decision = 'AcceptedWithConditions' AND length(trim(conditions)) > 0) OR decision <> 'AcceptedWithConditions')");
+                            t.HasCheckConstraint("ck_acceptance_decision_evidence", "((decision = 'Pending') OR (length(trim(rationale)) > 0 AND length(trim(evaluation_template_version)) > 0 AND evaluation_snapshot_digest ~ '^[0-9a-f]{64}$')) AND ((decision = 'AcceptedWithConditions' AND length(trim(conditions)) > 0) OR decision <> 'AcceptedWithConditions') AND ((opportunity_id IS NULL AND opportunity_basis_sha256 IS NULL) OR (opportunity_id IS NOT NULL AND ((decision = 'Pending' AND opportunity_basis_sha256 IS NULL) OR (decision <> 'Pending' AND opportunity_basis_sha256 ~ '^[0-9a-f]{64}$'))))");
 
                             t.HasCheckConstraint("ck_acceptance_decision_path", "path IN ('NEW_CLIENT','CONTINUANCE') AND (path = 'CONTINUANCE' OR prior_decision_id IS NULL)");
 
@@ -27774,7 +27786,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_lead_activity_revision", "proposal_revision IS NULL OR proposal_revision >= 1");
 
-                            t.HasCheckConstraint("ck_lead_activity_shape", "(action <> 'LEAD_CREATED' OR (to_state = 'NEW' AND source_channel IS NOT NULL)) AND (action <> 'LEAD_QUALIFIED' OR (from_state = 'NEW' AND to_state = 'QUALIFIED')) AND (action <> 'OPPORTUNITY_CREATED' OR (opportunity_id IS NOT NULL AND service_route IS NOT NULL)) AND (action <> 'PROPOSAL_REVISION_CREATED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND to_state = 'DRAFT')) AND (action <> 'PROPOSAL_REVIEWED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'DRAFT' AND to_state = 'INTERNAL_REVIEW')) AND (action <> 'PROPOSAL_MARKED_SENT' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'INTERNAL_REVIEW' AND to_state = 'SENT')) AND (action NOT IN ('PROPOSAL_ACCEPTED','PROPOSAL_DECLINED') OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'SENT' AND ((action = 'PROPOSAL_ACCEPTED' AND to_state = 'ACCEPTED') OR (action = 'PROPOSAL_DECLINED' AND to_state = 'DECLINED')))) AND (action <> 'CLIENT_CONVERSION_LINKED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND client_id IS NOT NULL AND to_state = 'PROSPECT'))");
+                            t.HasCheckConstraint("ck_lead_activity_shape", "(action <> 'LEAD_CREATED' OR (to_state = 'NEW' AND source_channel IS NOT NULL)) AND (action <> 'LEAD_QUALIFIED' OR (from_state = 'NEW' AND to_state = 'QUALIFIED')) AND (action <> 'OPPORTUNITY_CREATED' OR (opportunity_id IS NOT NULL AND service_route IS NOT NULL)) AND (action <> 'PROPOSAL_REVISION_CREATED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND to_state = 'DRAFT')) AND (action <> 'PROPOSAL_REVIEWED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'DRAFT' AND to_state = 'INTERNAL_REVIEW')) AND (action <> 'PROPOSAL_MARKED_SENT' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'INTERNAL_REVIEW' AND to_state = 'SENT')) AND (action NOT IN ('PROPOSAL_ACCEPTED','PROPOSAL_DECLINED') OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'SENT' AND ((action = 'PROPOSAL_ACCEPTED' AND to_state = 'ACCEPTED') OR (action = 'PROPOSAL_DECLINED' AND to_state = 'DECLINED')))) AND (action <> 'CLIENT_CONVERSION_LINKED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND client_id IS NOT NULL AND to_state IS NOT NULL))");
                         });
                 });
 
@@ -27884,21 +27896,36 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("AcceptanceClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("acceptance_client_id");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
                     b.Property<string>("Currency")
-                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("currency");
+
+                    b.Property<string>("DiscoveryIdentitySha256")
+                        .HasColumnType("text")
+                        .HasColumnName("discovery_identity_sha256");
 
                     b.Property<string>("EntityScope")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("entity_scope");
 
-                    b.Property<decimal>("ExpectedFee")
+                    b.Property<DateTimeOffset?>("EntityScopeConfirmedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("entity_scope_confirmed_at");
+
+                    b.Property<Guid?>("EntityScopeConfirmedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entity_scope_confirmed_by_user_id");
+
+                    b.Property<decimal?>("ExpectedFee")
                         .HasColumnType("numeric(19,6)")
                         .HasColumnName("expected_fee");
 
@@ -27948,6 +27975,10 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("FirmId", "AcceptanceClientId");
+
+                    b.HasIndex("FirmId", "EntityScopeConfirmedByUserId");
+
                     b.HasIndex("FirmId", "OwnerUserId");
 
                     b.HasIndex("FirmId", "PracticeClientId");
@@ -27956,7 +27987,7 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
                     b.ToTable("opportunities", null, t =>
                         {
-                            t.HasCheckConstraint("ck_opportunity_state", "stage IN ('DISCOVERY','PROPOSAL','NEGOTIATION','WON','LOST') AND length(service_route) > 0 AND length(entity_scope) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND expected_fee >= 0 AND (probability IS NULL OR probability BETWEEN 0 AND 100) AND currency ~ '^[A-Z]{3}$'");
+                            t.HasCheckConstraint("ck_opportunity_state", "stage IN ('DISCOVERY','PROPOSAL','NEGOTIATION','WON','LOST') AND length(service_route) > 0 AND length(entity_scope) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND ((expected_fee IS NULL AND currency IS NULL) OR (expected_fee IS NOT NULL AND expected_fee >= 0 AND currency ~ '^[A-Z]{3}$')) AND ((entity_scope_confirmed_by_user_id IS NULL AND entity_scope_confirmed_at IS NULL) OR (entity_scope_confirmed_by_user_id IS NOT NULL AND entity_scope_confirmed_at IS NOT NULL)) AND (discovery_identity_sha256 IS NULL OR discovery_identity_sha256 ~ '^[a-f0-9]{64}$') AND (probability IS NULL OR probability BETWEEN 0 AND 100)");
                         });
                 });
 
@@ -33934,6 +33965,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AuditSphereOps.Domain.Acceptance.AcceptanceDecision", b =>
                 {
+                    b.HasOne("AuditSphereOps.Domain.Practice.Opportunity", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "OpportunityId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "PracticeClientId")
@@ -40060,6 +40097,18 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AuditSphereOps.Domain.Practice.Opportunity", b =>
                 {
+                    b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "AcceptanceClientId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "EntityScopeConfirmedByUserId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AuditSphereOps.Domain.Practice.Lead", null)
                         .WithMany()
                         .HasForeignKey("FirmId", "LeadId")

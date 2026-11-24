@@ -18,9 +18,14 @@ internal static class ClientConversionReviewSeed
     if(!lead.Succeeded)throw new InvalidOperationException(lead.ErrorCode);
     var qualified=await PracticeCrmService.QualifyLeadAsync(db,author,lead.Value);
     if(!qualified.Succeeded)throw new InvalidOperationException(qualified.ErrorCode);
-    var opportunity=await PracticeCrmService.CreateOpportunityAsync(db,author,new(lead.Value,"AccountingOnly","PROSPECT", "2026-01-01","2026-12-31",12000m,"QAR",60m));
+    var scope = "Audit of the standalone financial statements of Reviewed prospect.";
+    var opportunity=await PracticeCrmService.CreateOpportunityAsync(db,author,new(lead.Value,"FinancialStatementAudit",scope, "2026-01-01","2026-12-31",null,null,60m,
+      ProspectiveLegalName: "Reviewed prospect", EntityScopeConfirmed: true));
     if(!opportunity.Succeeded)throw new InvalidOperationException(opportunity.ErrorCode);
-    var proposal=await PracticeCrmService.ReviseProposalAsync(db,author,new(opportunity.Value,"ACCOUNTING-2026","Monthly accounting","Tax filing","Trial balance","Client source ledgers",12000m,"QAR","2026-01-01","2026-12-31"));
+    var professionalAcceptance = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db, PbcSeed.Actor(f.Staff, "Manager"),
+      PbcSeed.Actor(f.Admin, "Partner"), f.FirmId, opportunity.Value);
+    if(!professionalAcceptance.Succeeded)throw new InvalidOperationException(professionalAcceptance.ErrorCode);
+    var proposal=await PracticeCrmService.ReviseProposalAsync(db,author,new(opportunity.Value,"AUDIT-2026",scope,"Tax advisory","Independent auditor report","Client source ledgers",12000m,"QAR","2026-01-01","2026-12-31"));
     if(!proposal.Succeeded)throw new InvalidOperationException(proposal.ErrorCode);
     var approved=await PracticeCrmService.ApproveProposalAsync(db,reviewer,proposal.Value);
     if(!approved.Succeeded)throw new InvalidOperationException(approved.ErrorCode);

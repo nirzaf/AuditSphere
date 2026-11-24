@@ -62,8 +62,15 @@ public sealed class PracticeCrmTests
   }
 
   private static CreateOpportunityRequest Opportunity(Guid leadId) =>
-    new(leadId, "AccountingOnly", "DEMO-ENTITY", "2026-01-01", "2026-12-31", 12000m, "QAR", 60m,
-      NextAction: "Complete discovery");
+    new(leadId, "FinancialStatementAudit", "Audit of the standalone financial statements of the qualified lead.",
+      "2026-01-01", "2026-12-31", null, null, 60m, NextAction: "Complete discovery",
+      ProspectiveLegalName: null, EntityScopeConfirmed: true);
+
+  private static Task<AuditSphereOps.Domain.Shared.CommandResult<Guid>> AcceptOpportunityAsync(
+    AuditSphereDbContext db, Fixture fixture, Guid opportunityId) =>
+    CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db, PbcSeed.Actor(fixture.User, "Manager"),
+      new ActorContext(fixture.Reviewer.UserId, fixture.FirmId, fixture.Reviewer.SessionEpoch, ["Partner"]),
+      fixture.FirmId, opportunityId);
 
   private static async Task<Guid> CreateQualifiedLeadAsync(
     AuditSphereDbContext db, ActorContext actor, string name)
@@ -84,7 +91,7 @@ public sealed class PracticeCrmTests
   };
 
   private static ReviseProposalRequest Proposal(Guid opportunityId, long? expectedRevision = null) =>
-    new(opportunityId, "ACCOUNTING-2026", "Monthly accounting and year-end package", "Tax filing",
+    new(opportunityId, "FINANCIAL-STATEMENT-AUDIT", "Audit of the standalone financial statements of the qualified lead.", "Tax filing",
       "Trial balance, management accounts and year-end package", "Client supplies source ledgers",
       12000m, "QAR", "2026-01-01", "2026-12-31", expectedRevision);
 
@@ -283,6 +290,8 @@ public sealed class PracticeCrmTests
         var createdOpportunity = await PracticeCrmService.CreateOpportunityAsync(setup, fixture.Actor, Opportunity(leadId));
         Assert.True(createdOpportunity.Succeeded, createdOpportunity.Message);
         opportunityId = createdOpportunity.Value;
+        var accepted = await AcceptOpportunityAsync(setup, fixture, opportunityId);
+        Assert.True(accepted.Succeeded, accepted.Message);
       }
 
       if (action is "APPROVE_PROPOSAL" or "SEND_PROPOSAL" or "RECORD_RESPONSE")
@@ -443,6 +452,8 @@ public sealed class PracticeCrmTests
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, lead.Value)).Succeeded);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(lead.Value));
       Assert.True(opportunity.Succeeded, opportunity.Message);
+      var accepted = await AcceptOpportunityAsync(db, fixture, opportunity.Value);
+      Assert.True(accepted.Succeeded, accepted.Message);
       var created = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor,
         Proposal(opportunity.Value, expectedRevision: 0) with { RequestId = Guid.NewGuid(), Timeline = timeline });
       Assert.True(created.Succeeded, created.Message);
@@ -470,6 +481,8 @@ public sealed class PracticeCrmTests
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(setupDb, fixture.Actor,
         Opportunity(lead.Value));
       Assert.True(opportunity.Succeeded, opportunity.Message);
+      var accepted = await AcceptOpportunityAsync(setupDb, fixture, opportunity.Value);
+      Assert.True(accepted.Succeeded, accepted.Message);
       opportunityId = opportunity.Value;
     }
 
@@ -543,11 +556,11 @@ public sealed class PracticeCrmTests
   }
 
   [Fact]
-  public async Task CommercialWorkflow_ConvertsIdempotently_AndLeavesAcceptancePending()
+  public async Task AcceptanceFirstCommercialWorkflow_ReusesCanonicalProspectAndConvertsIdempotently()
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var fixture = await SeedAsync(pg);
-    Guid leadId, opportunityId, proposalId;
+    Guid leadId, opportunityId, proposalId, prospectId;
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -563,12 +576,24 @@ public sealed class PracticeCrmTests
       Assert.Equal(1, await db.LeadActivityEvents.CountAsync(x => x.FirmId == fixture.FirmId && x.LeadId == leadId));
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, leadId)).Succeeded);
       opportunityId = (await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(leadId))).Value;
+      prospectId = await db.Opportunities.Where(x => x.Id == opportunityId)
+        .Select(x => x.AcceptanceClientId!.Value).SingleAsync();
+      var prospect = await db.PracticeClients.SingleAsync(x => x.FirmId == fixture.FirmId && x.Id == prospectId);
+      Assert.Equal(CrmStates.ClientProspect, prospect.Status);
+      Assert.Null((await db.Opportunities.SingleAsync(x => x.Id == opportunityId)).PracticeClientId);
+      Assert.Null((await db.Opportunities.SingleAsync(x => x.Id == opportunityId)).ExpectedFee);
+      var prematureProposal = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunityId));
+      Assert.False(prematureProposal.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, prematureProposal.ErrorCode);
+      Assert.Empty(await db.Proposals.Where(x => x.FirmId == fixture.FirmId).ToListAsync());
+      var professionalAcceptance = await AcceptOpportunityAsync(db, fixture, opportunityId);
+      Assert.True(professionalAcceptance.Succeeded, professionalAcceptance.Message);
       proposalId = (await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunityId))).Value;
       var prematureConversion = await PracticeCrmService.ConvertToClientDraftAsync(db, fixture.Actor,
-        new ConvertToClientDraftRequest(proposalId, "Example Trading LLC", Jurisdiction: "QA"));
+        new ConvertToClientDraftRequest(proposalId, "Example Trading LLC"));
       Assert.False(prematureConversion.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, prematureConversion.ErrorCode);
-      Assert.Empty(await db.PracticeClients.Where(x => x.FirmId == fixture.FirmId).ToListAsync());
+      Assert.Single(await db.PracticeClients.Where(x => x.FirmId == fixture.FirmId && x.Id == prospectId).ToListAsync());
       Assert.True((await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, proposalId)).Succeeded);
       await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, fixture.Actor, proposalId);
       Assert.True((await PracticeCrmService.SendProposalAsync(db, fixture.Actor, proposalId)).Succeeded);
@@ -588,7 +613,7 @@ public sealed class PracticeCrmTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var conversion = await PracticeCrmService.ConvertToClientDraftAsync(db, fixture.Actor,
-        new ConvertToClientDraftRequest(proposalId, "Example Trading LLC", Jurisdiction: "QA"));
+        new ConvertToClientDraftRequest(proposalId, "Example Trading LLC"));
       Assert.True(conversion.Succeeded);
       clientId = conversion.Value;
     }
@@ -601,11 +626,11 @@ public sealed class PracticeCrmTests
       Assert.Equal(clientId, repeat.Value);
       Assert.Equal(1, await db.PracticeClients.CountAsync(c => c.FirmId == fixture.FirmId));
       Assert.Equal(0, await db.Engagements.CountAsync(e => e.FirmId == fixture.FirmId));
-      var acceptance = await db.AcceptanceDecisions.SingleAsync(a => a.PracticeClientId == clientId);
-      Assert.Equal("Pending", acceptance.Decision);
-      Assert.Null(acceptance.DecidedByUserId);
-      Assert.Null(acceptance.DecidedAt);
-      Assert.Equal(CrmStates.ClientProspect,
+      var acceptance = await db.AcceptanceDecisions.SingleAsync(a => a.PracticeClientId == clientId && a.OpportunityId == opportunityId);
+      Assert.Equal("Accepted", acceptance.Decision);
+      Assert.NotNull(acceptance.DecidedByUserId);
+      Assert.NotNull(acceptance.DecidedAt);
+      Assert.Equal(CrmStates.ClientAccepted,
         (await db.PracticeClients.SingleAsync(c => c.Id == clientId)).Status);
       Assert.True(await db.ClientSafetyStates.AnyAsync(c => c.Id == clientId && c.FirmId == fixture.FirmId));
       Assert.Equal(clientId, (await db.Proposals.SingleAsync(p => p.Id == proposalId)).PracticeClientId);
@@ -972,6 +997,8 @@ public sealed class PracticeCrmTests
         new CreateLeadRequest("Revision Client", "Referral", "R. Owner", "revision-owner@example.test"))).Value;
       await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, leadId);
       opportunityId = (await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(leadId))).Value;
+      var accepted = await AcceptOpportunityAsync(db, fixture, opportunityId);
+      Assert.True(accepted.Succeeded, accepted.Message);
       firstProposalId = (await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunityId))).Value;
       await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, firstProposalId);
       await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, fixture.Actor, firstProposalId);
@@ -1009,6 +1036,8 @@ public sealed class PracticeCrmTests
         new CreateLeadRequest("Offer Binding Client", "Referral"))).Value;
       await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, leadId);
       opportunityId = (await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(leadId))).Value;
+      var accepted = await AcceptOpportunityAsync(db, fixture, opportunityId);
+      Assert.True(accepted.Succeeded, accepted.Message);
       firstProposalId = (await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunityId))).Value;
       Assert.True((await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, firstProposalId)).Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, (await PracticeCrmService.SendProposalAsync(db, fixture.Actor, firstProposalId)).ErrorCode);
@@ -1025,6 +1054,8 @@ public sealed class PracticeCrmTests
         new CreateLeadRequest("Offer Bound Sender", "Web Form", "O. Owner", "offer-owner@example.test"))).Value;
       await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, secondLeadId);
       secondOpportunityId = (await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(secondLeadId))).Value;
+      var accepted = await AcceptOpportunityAsync(db, fixture, secondOpportunityId);
+      Assert.True(accepted.Succeeded, accepted.Message);
       sentProposalId = (await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(secondOpportunityId))).Value;
       Assert.True((await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, sentProposalId)).Succeeded);
       await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, fixture.Actor, sentProposalId);
@@ -1092,6 +1123,8 @@ public sealed class PracticeCrmTests
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(lead.Value));
       Assert.True(opportunity.Succeeded, opportunity.Message);
       opportunityId = opportunity.Value;
+      var accepted = await AcceptOpportunityAsync(db, fixture, opportunityId);
+      Assert.True(accepted.Succeeded, accepted.Message);
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunityId));
       Assert.True(proposal.Succeeded, proposal.Message);
       proposalId = proposal.Value;
@@ -1249,12 +1282,16 @@ public sealed class PracticeCrmTests
         RegistrationNumber = "QA-1", Jurisdiction = "QA", CreatedAt = DateTimeOffset.UtcNow
       };
       db.PracticeClients.Add(client);
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = client.Id, FirmId = fixture.FirmId });
       await db.SaveChangesAsync();
 
       var lead = await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
         new CreateLeadRequest("Candidate LLC", "Referral", "C. Owner", "candidate-owner@example.test"));
       await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, lead.Value);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(lead.Value));
+      Assert.True(opportunity.Succeeded, opportunity.Message);
+      var accepted = await AcceptOpportunityAsync(db, fixture, opportunity.Value);
+      Assert.True(accepted.Succeeded, accepted.Message);
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunity.Value));
       await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, proposal.Value);
       await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, fixture.Actor, proposal.Value);
@@ -1270,9 +1307,86 @@ public sealed class PracticeCrmTests
       var result = await PracticeCrmService.ConvertToClientDraftAsync(db, fixture.Actor,
         new ConvertToClientDraftRequest(proposalId, "Candidate LLC", RegistrationNumber: "QA-2", Jurisdiction: "QA"));
       Assert.False(result.Succeeded);
-      Assert.Equal("crm.duplicate", result.ErrorCode);
+      Assert.Equal(ErrorCodes.StaleRevision, result.ErrorCode);
       Assert.Null((await db.Proposals.SingleAsync(p => p.Id == proposalId)).PracticeClientId);
     }
+  }
+
+  [Fact]
+  public async Task CommercialProgressionRejectsConditionalAndStaleAcceptanceForExactDiscoveryScope()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var fixture = await SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    async Task<(Guid LeadId, Guid OpportunityId, Guid ClientId, string Scope)> OpenAsync(string legalName)
+    {
+      var lead = await PracticeCrmService.CreateLeadAsync(db, fixture.Actor,
+        new CreateLeadRequest(legalName, "Referral", "Primary contact", $"{Guid.NewGuid():N}@example.test"));
+      Assert.True(lead.Succeeded, lead.Message);
+      Assert.True((await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, lead.Value)).Succeeded);
+      var scope = $"Audit of the standalone financial statements of {legalName}.";
+      var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor,
+        new CreateOpportunityRequest(lead.Value, "FinancialStatementAudit", scope,
+          "2026-01-01", "2026-12-31", null, null, RequestId: Guid.NewGuid(),
+          ProspectiveLegalName: legalName, EntityScopeConfirmed: true));
+      Assert.True(opportunity.Succeeded, opportunity.Message);
+      var clientId = await db.Opportunities.Where(x => x.FirmId == fixture.FirmId && x.Id == opportunity.Value)
+        .Select(x => x.AcceptanceClientId!.Value).SingleAsync();
+      return (lead.Value, opportunity.Value, clientId, scope);
+    }
+
+    var conditional = await OpenAsync("Conditional Gate Client LLC");
+    var pendingProposal = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor,
+      new ReviseProposalRequest(conditional.OpportunityId, "AUDIT-2026", conditional.Scope, "", "Report", "",
+        12000m, "QAR", "2026-01-01", "2026-12-31"));
+    Assert.Equal(ErrorCodes.GateBlocked, pendingProposal.ErrorCode);
+    var conditionalDecision = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db,
+      PbcSeed.Actor(fixture.User, "Manager"),
+      new ActorContext(fixture.Reviewer.UserId, fixture.FirmId, fixture.Reviewer.SessionEpoch, ["Partner"]),
+      fixture.FirmId, conditional.OpportunityId, decision: "AcceptedWithConditions");
+    Assert.True(conditionalDecision.Succeeded, conditionalDecision.Message);
+    var conditionalProjection = await CommercialWorkspaceQuery.LeadAsync(db, fixture.Actor, conditional.LeadId);
+    Assert.Equal(("CONDITIONAL", false),
+      (Assert.Single(conditionalProjection.Value!.Opportunities).AcceptanceStatus,
+       Assert.Single(conditionalProjection.Value.Opportunities).CanPrepareCommercial));
+    var conditionalProposal = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor,
+      new ReviseProposalRequest(conditional.OpportunityId, "AUDIT-2026", conditional.Scope, "", "Report", "",
+        12000m, "QAR", "2026-01-01", "2026-12-31"));
+    Assert.Equal(ErrorCodes.GateBlocked, conditionalProposal.ErrorCode);
+
+    foreach (var outcome in new[] { "Declined", "Deferred" })
+    {
+      var notAccepted = await OpenAsync($"{outcome} Gate Client LLC");
+      var recorded = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db,
+        PbcSeed.Actor(fixture.User, "Manager"),
+        new ActorContext(fixture.Reviewer.UserId, fixture.FirmId, fixture.Reviewer.SessionEpoch, ["Partner"]),
+        fixture.FirmId, notAccepted.OpportunityId, decision: outcome);
+      Assert.True(recorded.Succeeded, recorded.Message);
+      var blocked = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor,
+        new ReviseProposalRequest(notAccepted.OpportunityId, "AUDIT-2026", notAccepted.Scope, "", "Report", "",
+          12000m, "QAR", "2026-01-01", "2026-12-31"));
+      Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
+    }
+
+    var stale = await OpenAsync("Stale Gate Client LLC");
+    var accepted = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db,
+      PbcSeed.Actor(fixture.User, "Manager"),
+      new ActorContext(fixture.Reviewer.UserId, fixture.FirmId, fixture.Reviewer.SessionEpoch, ["Partner"]),
+      fixture.FirmId, stale.OpportunityId);
+    Assert.True(accepted.Succeeded, accepted.Message);
+    await db.ClientSafetyStates.Where(x => x.FirmId == fixture.FirmId && x.Id == stale.ClientId)
+      .ExecuteUpdateAsync(s => s.SetProperty(x => x.InputGeneration, x => x.InputGeneration + 1));
+    var staleProjection = await CommercialWorkspaceQuery.LeadAsync(db, fixture.Actor, stale.LeadId);
+    Assert.Equal(("STALE_ACCEPTANCE", false),
+      (Assert.Single(staleProjection.Value!.Opportunities).AcceptanceStatus,
+       Assert.Single(staleProjection.Value.Opportunities).CanPrepareCommercial));
+    var staleProposal = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor,
+      new ReviseProposalRequest(stale.OpportunityId, "AUDIT-2026", stale.Scope, "", "Report", "",
+        12000m, "QAR", "2026-01-01", "2026-12-31"));
+    Assert.Equal(ErrorCodes.GateBlocked, staleProposal.ErrorCode);
+    Assert.Empty(await db.Proposals.Where(x => x.FirmId == fixture.FirmId &&
+      (x.OpportunityId == conditional.OpportunityId || x.OpportunityId == stale.OpportunityId)).ToListAsync());
   }
 
   [Fact]
@@ -1299,6 +1413,9 @@ public sealed class PracticeCrmTests
         new CreateLeadRequest("Existing Client", "Referral", "E. Owner", "existing-owner@example.test"));
       await PracticeCrmService.QualifyLeadAsync(db, fixture.Actor, lead.Value);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, fixture.Actor, Opportunity(lead.Value));
+      Assert.True(opportunity.Succeeded, opportunity.Message);
+      var accepted = await AcceptOpportunityAsync(db, fixture, opportunity.Value);
+      Assert.True(accepted.Succeeded, accepted.Message);
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, fixture.Actor, Proposal(opportunity.Value));
       await PracticeCrmService.ApproveProposalAsync(db, fixture.Reviewer, proposal.Value);
       await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db, fixture.Actor, proposal.Value);
@@ -1315,8 +1432,8 @@ public sealed class PracticeCrmTests
         new ConvertToClientDraftRequest(proposalId, "Existing Client"));
       Assert.True(result.Succeeded);
       Assert.Equal(clientId, result.Value);
-      Assert.Equal(5, (await db.ClientSafetyStates.SingleAsync(x => x.Id == clientId)).InputGeneration);
-      Assert.Equal(5, (await db.AcceptanceDecisions.SingleAsync(x => x.PracticeClientId == clientId)).Generation);
+      Assert.Equal(4, (await db.ClientSafetyStates.SingleAsync(x => x.Id == clientId)).InputGeneration);
+      Assert.Equal(4, (await db.AcceptanceDecisions.SingleAsync(x => x.PracticeClientId == clientId)).Generation);
     }
   }
 

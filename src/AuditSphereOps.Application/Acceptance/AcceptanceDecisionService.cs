@@ -5,6 +5,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Microsoft365;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,7 +18,8 @@ public sealed record RecordAcceptanceDecisionRequest(
   string Decision,
   string Rationale,
   string? Conditions,
-  long ExpectedGeneration);
+  long ExpectedGeneration,
+  Guid? OpportunityId = null);
 
 /// <summary>Persists professional acceptance evidence and the client workspace intent together.</summary>
 public static class AcceptanceDecisionService
@@ -66,10 +68,24 @@ public static class AcceptanceDecisionService
         return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     }
 
+    Opportunity? opportunity = null;
+    if (request.OpportunityId is { } opportunityId)
+    {
+      if (request.EngagementId.HasValue || opportunityId == Guid.Empty)
+        return CommandResult<Guid>.Fail("acceptance.invalid", "An opportunity assessment cannot also name an engagement.");
+      opportunity = await db.Opportunities.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.Id == opportunityId && x.AcceptanceClientId == client.Id &&
+        x.ServiceRoute == request.ServiceRoute.Trim() && x.EntityScopeConfirmedByUserId != null &&
+        x.EntityScopeConfirmedAt != null, ct);
+      if (opportunity is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Assessment unavailable.");
+    }
+
     var serviceRoute = request.ServiceRoute.Trim();
     var existing = await db.AcceptanceDecisions.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == client.Id &&
                   x.EngagementId == request.EngagementId && x.ServiceRoute == serviceRoute &&
+                  x.OpportunityId == request.OpportunityId &&
                   x.Generation == request.ExpectedGeneration && x.Decision != "Pending")
       .OrderByDescending(x => x.DecidedAt).FirstOrDefaultAsync(ct);
     if (existing is not null)
@@ -82,7 +98,11 @@ public static class AcceptanceDecisionService
 
     // The path (new client vs continuance), the questions, evidence rules and adverse-answer clearances all come from
     // stored records at the locked generation; the request carries no path and cannot choose an easier checklist.
-    var checklist = await AcceptanceChecklistService.LoadAsync(db, actor.FirmId, client.Id, request.EngagementId, clientGuard.InputGeneration, ct);
+    var checklist = await AcceptanceChecklistService.LoadAsync(db, actor.FirmId, client.Id, request.EngagementId,
+      clientGuard.InputGeneration, ct, serviceRoute, request.OpportunityId);
+    if (checklist.CurrentDecision is not null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState,
+        "A decision already exists for this client evaluation generation; start a new review before deciding another opportunity.");
     if (decision is "Accepted" or "AcceptedWithConditions" && !checklist.Ready)
     {
       var shown = string.Join(" ", checklist.Blockers.Take(3).Select(x => x.Message));
@@ -101,6 +121,8 @@ public static class AcceptanceDecisionService
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, PracticeClientId = client.Id,
       EngagementId = request.EngagementId, Decision = decision, ServiceRoute = serviceRoute,
+      OpportunityId = opportunity?.Id,
+      OpportunityBasisSha256 = opportunity is null ? null : OpportunityAcceptanceGate.BasisSha256(opportunity, client),
       Generation = clientGuard.InputGeneration, Rationale = request.Rationale.Trim(),
       Conditions = TrimOrNull(request.Conditions), Path = checklist.Path, PriorDecisionId = checklist.PriorDecision?.Id,
       EvaluationTemplateVersion = templateVersion,
@@ -110,7 +132,8 @@ public static class AcceptanceDecisionService
 
     if (decision == "Accepted")
     {
-      client.Status = "ACCEPTED";
+      // Acceptance records professional eligibility; it must not demote an already converted or active client.
+      if (client.Status == CrmStates.ClientProspect) client.Status = CrmStates.ClientAccepted;
       var workspace = await db.ClientWorkspaces.SingleOrDefaultAsync(x =>
         x.FirmId == actor.FirmId && x.PracticeClientId == client.Id && x.Purpose == "PRIMARY", ct);
       if (workspace is null)

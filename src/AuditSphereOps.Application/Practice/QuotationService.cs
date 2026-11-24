@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Completion;
@@ -130,9 +131,16 @@ public static class QuotationService
 
     if (request.ExpectedRevision.HasValue && request.ExpectedRevision != (latest?.Revision ?? 0))
       return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "Quotation revision changed.");
+    if (!await OpportunityAcceptanceGate.IsCurrentUnconditionalAsync(db, actor.FirmId, proposal.OpportunityId, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "A current unconditional Partner acceptance or continuance decision for this exact opportunity is required before quotation preparation.");
     var result = calculated;
     var rules = await db.CommercialApprovalRules.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Active).ToListAsync(ct);
     var required = CommercialApprovalMatrix.Required(rules, request.DiscountPercent, request.NonStandardTerms);
+    var opportunity = await db.Opportunities.SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == proposal.OpportunityId, ct);
+    if (opportunity is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     if (latest is not null && latest.Status != QuotationStates.Superseded) latest.Status = QuotationStates.Superseded;
     var version = new QuotationVersion
@@ -149,6 +157,8 @@ public static class QuotationService
     db.QuotationVersions.Add(version);
     // The proposal carries the calculated fee so it and the quotation can never disagree while the proposal is a draft.
     proposal.Fee = result.Fee;
+    opportunity.ExpectedFee = result.Fee;
+    opportunity.Currency = currency;
     try { await db.SaveChangesAsync(ct); }
     catch (DbUpdateException) { return CommandResult<Guid>.Fail("quotation.conflict", "The quotation changed; reload and retry."); }
     await tx.CommitAsync(ct);
@@ -171,6 +181,9 @@ public static class QuotationService
     if (version.Status is QuotationStates.PendingApproval or QuotationStates.Approved) return CommandResult.Ok();
     if (version.Status != QuotationStates.Draft)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a current draft quotation can be submitted.");
+    if (!await ProposalHasCurrentAcceptanceAsync(db, actor.FirmId, version.ProposalId, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "A current unconditional Partner acceptance or continuance decision is required before quotation approval.");
     var required = ReadRequired(version);
     if (required.Count == 0)
     {
@@ -195,6 +208,9 @@ public static class QuotationService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var version = await db.QuotationVersions.SingleOrDefaultAsync(x => x.Id == quotationVersionId && x.FirmId == actor.FirmId, ct);
     if (version is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (!await ProposalHasCurrentAcceptanceAsync(db, actor.FirmId, version.ProposalId, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "A current unconditional Partner acceptance or continuance decision is required before quotation approval.");
     var required = ReadRequired(version);
     var needed = required.SingleOrDefault(x => x.RuleKey == ruleKey);
     if (needed is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -429,6 +445,14 @@ public static class QuotationService
         !db.QuotationApprovalRevocations.Any(r => r.FirmId == firmId && r.QuotationApprovalId == x.Id))
       .Select(x => x.RuleKey).ToListAsync(ct);
     return required.All(r => activeKeys.Contains(r.RuleKey));
+  }
+
+  private static async Task<bool> ProposalHasCurrentAcceptanceAsync(IAuditSphereDbContext db, Guid firmId,
+    Guid proposalId, CancellationToken ct)
+  {
+    var opportunityId = await db.Proposals.AsNoTracking().Where(x => x.FirmId == firmId && x.Id == proposalId)
+      .Select(x => (Guid?)x.OpportunityId).SingleOrDefaultAsync(ct);
+    return opportunityId.HasValue && await OpportunityAcceptanceGate.IsCurrentUnconditionalAsync(db, firmId, opportunityId.Value, ct);
   }
 
   private static Task<CommandResult> AuthorizeAsync(IAuditSphereDbContext db, ActorContext actor, string[] roles, CancellationToken ct) =>

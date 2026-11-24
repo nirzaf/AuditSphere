@@ -31,11 +31,19 @@ public static class AcceptanceChecklistService
 
   /// <summary>Derives the path and reads the checklist from stored records only (no browser-supplied path).</summary>
   public static async Task<AcceptanceChecklist> LoadAsync(
-    IAuditSphereDbContext db, Guid firmId, Guid clientId, Guid? engagementId, long generation, CancellationToken ct)
+    IAuditSphereDbContext db, Guid firmId, Guid clientId, Guid? engagementId, long generation, CancellationToken ct,
+    string? serviceRoute = null, Guid? opportunityId = null)
   {
-    var prior = await db.AcceptanceDecisions.AsNoTracking()
-      .Where(x => x.FirmId == firmId && x.PracticeClientId == clientId && x.Generation < generation &&
-        (x.Decision == "Accepted" || x.Decision == "AcceptedWithConditions"))
+    var priorQuery = db.AcceptanceDecisions.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.PracticeClientId == clientId &&
+        (x.Decision == "Accepted" || x.Decision == "AcceptedWithConditions"));
+    if (opportunityId.HasValue)
+      priorQuery = priorQuery.Where(x => x.Generation < generation ||
+        (x.Generation == generation && (x.OpportunityId == null || x.OpportunityId != opportunityId)));
+    else
+      priorQuery = priorQuery.Where(x => x.Generation < generation);
+    if (!string.IsNullOrWhiteSpace(serviceRoute)) priorQuery = priorQuery.Where(x => x.ServiceRoute == serviceRoute);
+    var prior = await priorQuery
       .OrderByDescending(x => x.Generation).ThenByDescending(x => x.DecidedAt).FirstOrDefaultAsync(ct);
     var path = prior is null ? AcceptancePaths.NewClient : AcceptancePaths.Continuance;
     var bank = AcceptanceRules.BankFor(path);
@@ -73,27 +81,35 @@ public static class AcceptanceChecklistService
       return new ChecklistItem(q, answer, Map(old), AcceptanceRules.IsAdverse(q, answer),
         current.TryGetValue(q.Code, out var row) ? names.GetValueOrDefault(row.AnsweredByUserId) : null);
     }).ToList();
-    var currentDecision = await db.AcceptanceDecisions.AsNoTracking()
-      .Where(x => x.FirmId == firmId && x.PracticeClientId == clientId && x.Generation == generation && x.Decision != "Pending")
+    var currentQuery = db.AcceptanceDecisions.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.PracticeClientId == clientId && x.EngagementId == engagementId &&
+        x.OpportunityId == opportunityId && x.Generation == generation && x.Decision != "Pending");
+    if (!string.IsNullOrWhiteSpace(serviceRoute)) currentQuery = currentQuery.Where(x => x.ServiceRoute == serviceRoute);
+    var currentDecision = await currentQuery
       .OrderByDescending(x => x.DecidedAt).FirstOrDefaultAsync(ct);
     return new(clientId, generation, path, prior, currentDecision, items, effective, blockers);
   }
 
   public static async Task<CommandResult<AcceptanceChecklist>> GetAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid clientId, CancellationToken ct = default)
+    IAuditSphereDbContext db, ActorContext actor, Guid clientId, CancellationToken ct = default,
+    string? serviceRoute = null, Guid? opportunityId = null)
   {
     var auth = await AuthorizeAsync(db, actor, clientId, ReadRoles, ct);
     if (!auth.Succeeded) return CommandResult<AcceptanceChecklist>.Fail(auth.ErrorCode!, auth.Message!);
     var generation = await db.ClientSafetyStates.AsNoTracking().Where(x => x.Id == clientId && x.FirmId == actor.FirmId)
       .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct);
     if (generation is null) return CommandResult<AcceptanceChecklist>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
-    return CommandResult<AcceptanceChecklist>.Ok(await LoadAsync(db, actor.FirmId, clientId, null, generation.Value, ct));
+    return CommandResult<AcceptanceChecklist>.Ok(await LoadAsync(db, actor.FirmId, clientId, null,
+      generation.Value, ct, serviceRoute, opportunityId));
   }
 
   public static async Task<CommandResult> RecordAnswerAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid clientId, string questionCode, string answer, string? evidenceReference,
-    CancellationToken ct = default, long? expectedGeneration = null, long? expectedRevision = null)
+    CancellationToken ct = default, long? expectedGeneration = null, long? expectedRevision = null,
+    string? serviceRoute = null, Guid? opportunityId = null)
   {
+    if (opportunityId == Guid.Empty || (opportunityId.HasValue != !string.IsNullOrWhiteSpace(serviceRoute)))
+      return CommandResult.Fail("acceptance.invalid", "An exact opportunity and service route must be supplied together.");
     var auth = await AuthorizeAsync(db, actor, clientId, ProfessionalRoles, ct);
     if (!auth.Succeeded) return auth;
     var evidence = string.IsNullOrWhiteSpace(evidenceReference) ? null : evidenceReference.Trim();
@@ -110,7 +126,15 @@ public static class AcceptanceChecklistService
     if (!auth.Succeeded) return auth;
     if (expectedGeneration.HasValue && expectedGeneration.Value != guard.InputGeneration)
       return CommandResult.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation before saving.");
-    var checklist = await LoadAsync(db, actor.FirmId, clientId, null, guard.InputGeneration, ct);
+    var opportunity = opportunityId.HasValue
+      ? await db.Opportunities.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+          x.Id == opportunityId.Value && x.AcceptanceClientId == clientId && x.ServiceRoute == serviceRoute &&
+          x.EntityScopeConfirmedByUserId != null && x.EntityScopeConfirmedAt != null, ct)
+      : null;
+    if (opportunityId.HasValue && opportunity is null)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Assessment unavailable.");
+    var checklist = await LoadAsync(db, actor.FirmId, clientId, null, guard.InputGeneration, ct,
+      opportunity?.ServiceRoute, opportunity?.Id);
     if (checklist.CurrentDecision is not null)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "A decision is already recorded for this generation; its evaluation is immutable.");
     var item = checklist.Items.SingleOrDefault(x => string.Equals(x.Question.Code, questionCode?.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -229,7 +253,8 @@ public static class AcceptanceChecklistService
   /// longer current) and creates the pending decision that the continuance delta checklist answers.
   /// </summary>
   public static async Task<CommandResult<long>> StartContinuanceAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid clientId, CancellationToken ct = default, long? expectedGeneration = null)
+    IAuditSphereDbContext db, ActorContext actor, Guid clientId, CancellationToken ct = default, long? expectedGeneration = null,
+    Guid? opportunityId = null, string? serviceRoute = null)
   {
     var auth = await AuthorizeAsync(db, actor, clientId, ContinuanceRoles, ct);
     if (!auth.Succeeded) return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
@@ -245,8 +270,20 @@ public static class AcceptanceChecklistService
     if (!auth.Succeeded) return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
     if (expectedGeneration.HasValue && expectedGeneration.Value != guard.InputGeneration)
       return CommandResult<long>.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation.");
-    var accepted = await db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId &&
-      x.Generation == guard.InputGeneration && (x.Decision == "Accepted" || x.Decision == "AcceptedWithConditions"))
+    if (opportunityId.HasValue)
+    {
+      var opportunity = await db.Opportunities.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.Id == opportunityId.Value && x.AcceptanceClientId == clientId && x.ServiceRoute == serviceRoute &&
+        x.EntityScopeConfirmedAt != null && x.EntityScopeConfirmedByUserId != null, ct);
+      if (opportunity is null)
+        return CommandResult<long>.Fail(ErrorCodes.ScopeDenied, "Assessment unavailable.");
+    }
+    else if (!string.IsNullOrWhiteSpace(serviceRoute))
+      return CommandResult<long>.Fail("acceptance.invalid", "An opportunity identity is required for a scoped continuance.");
+    var acceptedQuery = db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId &&
+      x.Generation == guard.InputGeneration && (x.Decision == "Accepted" || x.Decision == "AcceptedWithConditions"));
+    if (!string.IsNullOrWhiteSpace(serviceRoute)) acceptedQuery = acceptedQuery.Where(x => x.ServiceRoute == serviceRoute);
+    var accepted = await acceptedQuery
       .OrderByDescending(x => x.DecidedAt).FirstOrDefaultAsync(ct);
     if (accepted is null)
       return CommandResult<long>.Fail(ErrorCodes.GateBlocked, "A continuance review starts from an accepted decision on the current evaluation.");
@@ -254,7 +291,8 @@ public static class AcceptanceChecklistService
     db.AcceptanceDecisions.Add(new AcceptanceDecision
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, PracticeClientId = clientId, Decision = "Pending",
-      ServiceRoute = accepted.ServiceRoute, Generation = guard.InputGeneration, Path = AcceptancePaths.Continuance, PriorDecisionId = accepted.Id
+      ServiceRoute = accepted.ServiceRoute, Generation = guard.InputGeneration, Path = AcceptancePaths.Continuance,
+      PriorDecisionId = accepted.Id, OpportunityId = opportunityId
     });
     await db.SaveChangesAsync(ct);
     auth = await AuthorizeAsync(db, actor, clientId, ContinuanceRoles, ct);

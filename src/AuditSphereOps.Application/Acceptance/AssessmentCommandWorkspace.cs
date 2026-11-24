@@ -14,7 +14,8 @@ public sealed record AssessmentCommandFields(string Kind, string Generation, str
   string? QuestionCode = null, string? Answer = null, string? Evidence = null, string? Area = null,
   string? Specialist = null, Guid? ReviewId = null, string? Status = null, string? ExpectedStatus = null,
   string? Conditions = null, string? ServiceRoute = null, string? Decision = null, string? Rationale = null,
-  [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? EngagementId = null);
+  [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? EngagementId = null,
+  [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? OpportunityId = null);
 public sealed record AssessmentCommandRequest(Guid RequestId, AssessmentCommandFields Fields,
   string? ReviewBasis = null, string? RequestHash = null, bool Reviewed = false);
 public sealed record AssessmentCommandBefore(string Generation, string Path, string? Decision, bool Ready,
@@ -55,8 +56,11 @@ public static class AssessmentCommandWorkspace
       Conditions = Trim(f.Conditions), ServiceRoute = Trim(f.ServiceRoute), Decision = Trim(f.Decision), Rationale = Trim(f.Rationale) };
     // Reject irrelevant fields rather than silently accepting a different action than the caller reviewed.
     AssessmentCommandFields? shaped = n.Kind switch {
-      "ANSWER" when n.QuestionCode is not null && n.Answer is not null && Counter(n.Revision, 0, out _) =>
-        new(n.Kind, n.Generation, n.Revision, n.QuestionCode, n.Answer, n.Evidence),
+      "ANSWER" when n.QuestionCode is not null && n.Answer is not null && Counter(n.Revision, 0, out _) &&
+        (n.OpportunityId is null && n.ServiceRoute is null ||
+         n.OpportunityId is Guid opportunity && opportunity != Guid.Empty && n.ServiceRoute is { Length: > 0 }) =>
+        new(n.Kind, n.Generation, n.Revision, n.QuestionCode, n.Answer, n.Evidence,
+          ServiceRoute:n.ServiceRoute, OpportunityId:n.OpportunityId),
       "REQUEST_REVIEW" when n.Area is {Length: >=2} && n.Specialist is {Length: >=2} =>
         new(n.Kind, n.Generation, Area:n.Area, Specialist:n.Specialist),
       "RECORD_REVIEW" when n.ReviewId is Guid review && review != Guid.Empty &&
@@ -65,9 +69,13 @@ public static class AssessmentCommandWorkspace
         new(n.Kind, n.Generation, Evidence:n.Evidence, ReviewId:n.ReviewId, Status:n.Status, ExpectedStatus:n.ExpectedStatus, Conditions:n.Conditions),
       "DECISION" when n.ServiceRoute is not null && n.Rationale is not null &&
         n.Decision is "Accepted" or "AcceptedWithConditions" or "Declined" or "Deferred" &&
-        n.EngagementId != Guid.Empty && (n.Decision != "AcceptedWithConditions" || n.Conditions is not null) && (n.Decision != "Accepted" || n.Conditions is null) =>
-        new(n.Kind, n.Generation, Conditions:n.Conditions, ServiceRoute:n.ServiceRoute, Decision:n.Decision, Rationale:n.Rationale, EngagementId:n.EngagementId),
-      "CONTINUANCE" => new(n.Kind, n.Generation), _ => null };
+        n.EngagementId != Guid.Empty && n.OpportunityId != Guid.Empty &&
+        !(n.EngagementId.HasValue && n.OpportunityId.HasValue) &&
+        (n.Decision != "AcceptedWithConditions" || n.Conditions is not null) && (n.Decision != "Accepted" || n.Conditions is null) =>
+        new(n.Kind, n.Generation, Conditions:n.Conditions, ServiceRoute:n.ServiceRoute, Decision:n.Decision,
+          Rationale:n.Rationale, EngagementId:n.EngagementId, OpportunityId:n.OpportunityId),
+      "CONTINUANCE" when n.OpportunityId != Guid.Empty && (n.OpportunityId is null || n.ServiceRoute is not null) =>
+        new(n.Kind, n.Generation, ServiceRoute:n.ServiceRoute, OpportunityId:n.OpportunityId), _ => null };
     return shaped == n ? shaped : null;
   }
   private static string RequestHash(ActorContext a, Guid id, Guid requestId, AssessmentCommandFields f) =>
@@ -99,7 +107,13 @@ public static class AssessmentCommandWorkspace
       $"SELECT * FROM engagements WHERE firm_id={a.FirmId} AND practice_client_id={id} AND id={engagementId} AND service_route={f.ServiceRoute} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct) : null;
     if (f.EngagementId.HasValue && engagement is null) return Unavailable<AssessmentCommandPreview>();
-    var checklist = await AcceptanceChecklistService.LoadAsync(db, a.FirmId, id, f.EngagementId, generation, ct);
+    var opportunity = f.OpportunityId is { } selectedOpportunityId ? await db.Opportunities.AsNoTracking()
+      .SingleOrDefaultAsync(x => x.FirmId == a.FirmId && x.Id == selectedOpportunityId &&
+        x.AcceptanceClientId == id && x.ServiceRoute == f.ServiceRoute &&
+        x.EntityScopeConfirmedByUserId != null && x.EntityScopeConfirmedAt != null, ct) : null;
+    if (f.OpportunityId.HasValue && opportunity is null) return Unavailable<AssessmentCommandPreview>();
+    var checklist = await AcceptanceChecklistService.LoadAsync(db, a.FirmId, id, f.EngagementId, generation, ct,
+      opportunity?.ServiceRoute, opportunity?.Id);
     if (f.Kind != "CONTINUANCE" && checklist.CurrentDecision is not null)
       return CommandResult<AssessmentCommandPreview>.Fail(ErrorCodes.ProtectedState, "This evaluation has a professional decision and is immutable.");
     var question = f.Kind == "ANSWER" ? checklist.Items.SingleOrDefault(x => x.Question.Code.Equals(f.QuestionCode, StringComparison.OrdinalIgnoreCase)) : null;
@@ -123,13 +137,24 @@ public static class AssessmentCommandWorkspace
         x.EngagementId == null && x.Area == f.Area && x.Status != "CLEARED").OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
     if (f.Kind == "DECISION" && f.Decision is "Accepted" or "AcceptedWithConditions" && !checklist.Ready)
       return CommandResult<AssessmentCommandPreview>.Fail(ErrorCodes.GateBlocked, "Resolve the checklist blockers before acceptance.");
-    if (f.Kind == "CONTINUANCE" && (generation == long.MaxValue || !await db.AcceptanceDecisions.AsNoTracking().AnyAsync(x =>
-        x.FirmId == a.FirmId && x.PracticeClientId == id && x.Generation == generation && (x.Decision == "Accepted" || x.Decision == "AcceptedWithConditions"), ct)))
-      return CommandResult<AssessmentCommandPreview>.Fail(ErrorCodes.GateBlocked, "A current accepted decision is required to begin another evaluation.");
+    if (f.Kind == "CONTINUANCE")
+    {
+      var accepted = db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == a.FirmId &&
+        x.PracticeClientId == id && x.Generation == generation &&
+        (x.Decision == "Accepted" || x.Decision == "AcceptedWithConditions"));
+      if (f.ServiceRoute is not null) accepted = accepted.Where(x => x.ServiceRoute == f.ServiceRoute);
+      if (generation == long.MaxValue || !await accepted.AnyAsync(ct))
+        return CommandResult<AssessmentCommandPreview>.Fail(ErrorCodes.GateBlocked,
+          "A current accepted decision for this service route is required to begin another evaluation.");
+    }
     // Include every effective answer, question definition and clearance: same status with changed evidence is still a new basis.
     var basis = Hashing.Sha256Hex(JsonSerializer.Serialize(new { a.FirmId, a.UserId, a.SessionEpoch, id, Fields=f,
-      client.LegalName, client.Status, checklist.Generation, checklist.Path, checklist.CurrentDecision, checklist.PriorDecision,
+      client.LegalName, client.RegistrationNumber, client.Jurisdiction, client.Status,
+      checklist.Generation, checklist.Path, checklist.CurrentDecision, checklist.PriorDecision,
       TargetEngagement = engagement is null ? null : new { engagement.Id, engagement.ServiceRoute, engagement.PeriodStart, engagement.PeriodEnd, engagement.Generation },
+      TargetOpportunity = opportunity is null ? null : new { opportunity.Id, opportunity.LeadId, opportunity.AcceptanceClientId,
+        opportunity.DiscoveryIdentitySha256, opportunity.ServiceRoute, opportunity.EntityScope, opportunity.PeriodStart, opportunity.PeriodEnd,
+        opportunity.EntityScopeConfirmedByUserId, opportunity.EntityScopeConfirmedAt },
       Items=checklist.Items.OrderBy(x => x.Question.Code, StringComparer.Ordinal),
       Clearances=checklist.Clearances.OrderBy(x => x.Id), TargetReview=review, checklist.Blockers }));
     var before = new AssessmentCommandBefore(Exact(generation), checklist.Path, checklist.CurrentDecision?.Decision, checklist.Ready,
@@ -203,9 +228,11 @@ public static class AssessmentCommandWorkspace
     switch (f.Kind) {
       case "ANSWER": {
         Counter(f.Revision, 0, out var revision);
-        var r = await AcceptanceChecklistService.RecordAnswerAsync(db, a, id, f.QuestionCode!, f.Answer!, f.Evidence, ct, generation, revision);
+        var r = await AcceptanceChecklistService.RecordAnswerAsync(db, a, id, f.QuestionCode!, f.Answer!, f.Evidence,
+          ct, generation, revision, f.ServiceRoute, f.OpportunityId);
         if (!r.Succeeded) return CommandResult<Result>.Fail(r.ErrorCode!, r.Message!);
-        var bank = AcceptanceRules.BankFor((await AcceptanceChecklistService.LoadAsync(db, a.FirmId, id, null, generation, ct)).Path);
+        var bank = AcceptanceRules.BankFor((await AcceptanceChecklistService.LoadAsync(db, a.FirmId, id, null, generation,
+          ct, f.ServiceRoute, f.OpportunityId)).Path);
         var answer = await db.EvaluationResponses.AsNoTracking().Where(x => x.FirmId == a.FirmId && x.PracticeClientId == id &&
           x.Bank == bank && x.QuestionId == f.QuestionCode && x.Generation == generation).OrderByDescending(x => x.Revision).FirstAsync(ct);
         return CommandResult<Result>.Ok(new(answer.Id, generation));
@@ -219,11 +246,12 @@ public static class AssessmentCommandWorkspace
         return r.Succeeded ? CommandResult<Result>.Ok(new(f.ReviewId.Value, generation)) : CommandResult<Result>.Fail(r.ErrorCode!, r.Message!);
       }
       case "DECISION": {
-        var r = await AcceptanceDecisionService.RecordAsync(db, a, new(id, f.EngagementId, f.ServiceRoute!, f.Decision!, f.Rationale!, f.Conditions, generation), ct);
+        var r = await AcceptanceDecisionService.RecordAsync(db, a, new(id, f.EngagementId, f.ServiceRoute!, f.Decision!,
+          f.Rationale!, f.Conditions, generation, f.OpportunityId), ct);
         return r.Succeeded ? CommandResult<Result>.Ok(new(r.Value, generation)) : CommandResult<Result>.Fail(r.ErrorCode!, r.Message!);
       }
       default: {
-        var r = await AcceptanceChecklistService.StartContinuanceAsync(db, a, id, ct, generation);
+        var r = await AcceptanceChecklistService.StartContinuanceAsync(db, a, id, ct, generation, f.OpportunityId, f.ServiceRoute);
         if (!r.Succeeded) return CommandResult<Result>.Fail(r.ErrorCode!, r.Message!);
         var pending = await db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == a.FirmId && x.PracticeClientId == id && x.Generation == r.Value && x.Decision == "Pending")
           .Select(x => x.Id).SingleAsync(ct);

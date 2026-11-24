@@ -1,6 +1,7 @@
 using System.Data;
 using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Practice;
@@ -27,8 +28,9 @@ public sealed record ProposalWorkspace(Guid Id, Guid OpportunityId, string LeadN
   ProposalDispatchPreview? DispatchPreview = null);
 
 public sealed record OpportunityItem(Guid Id, string ServiceRoute, string EntityScope, string Stage,
-  string ExpectedFee, string Currency, string PeriodStart, string PeriodEnd, Guid? ProposalId, string Revision,
-  DateTimeOffset CreatedAt);
+  string? ExpectedFee, string? Currency, string PeriodStart, string PeriodEnd, Guid? ProposalId, string Revision,
+  DateTimeOffset CreatedAt, Guid? AcceptanceClientId = null, string AcceptanceProcess = "CLIENT_ACCEPTANCE",
+  string AcceptanceStatus = "PENDING_ACCEPTANCE", bool CanPrepareCommercial = false);
 public sealed record LeadActivityItem(Guid Id, string Action, DateTimeOffset OccurredAt, string ActorName,
   Guid? ActorUserId, bool IsBackfill, string? FromState, string? ToState, string? SourceChannel,
   string? OwnerName, Guid? OwnerUserId, string? ServiceRoute, Guid? OpportunityId, Guid? ProposalId,
@@ -36,7 +38,7 @@ public sealed record LeadActivityItem(Guid Id, string Action, DateTimeOffset Occ
 public sealed record LeadWorkspace(Guid Id, string Name, string Status, string Source, Guid? OwnerUserId,
   string OwnerName, DateTimeOffset CreatedAt, IReadOnlyList<OpportunityItem> Opportunities,
   IReadOnlyList<LeadActivityItem> History, bool HistoryHasMore, bool HasLegacyHistoryGap,
-  bool OpportunitiesHasMore);
+  bool OpportunitiesHasMore, IReadOnlyList<EngagementLetterTemplate>? ServiceRoutes = null);
 
 public static class CommercialWorkspaceQuery
 {
@@ -75,6 +77,23 @@ public static class CommercialWorkspaceQuery
     var ids = opportunities.Select(x => x.Id).ToArray();
     var proposals = await db.Proposals.AsNoTracking().Where(x => x.FirmId == actor.FirmId && ids.Contains(x.OpportunityId))
       .GroupBy(x => x.OpportunityId).Select(g => g.OrderByDescending(x => x.Revision).First()).ToListAsync(ct);
+    var acceptanceClientIds = opportunities.Where(x => x.AcceptanceClientId.HasValue)
+      .Select(x => x.AcceptanceClientId!.Value).Distinct().ToArray();
+    var opportunityIds = opportunities.Select(x => x.Id).ToArray();
+    var clients = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      acceptanceClientIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+    var generations = await db.ClientSafetyStates.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      acceptanceClientIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.InputGeneration, ct);
+    var decisionRows = await db.AcceptanceDecisions.AsNoTracking().Where(d => d.FirmId == actor.FirmId &&
+      acceptanceClientIds.Contains(d.PracticeClientId) && opportunityIds.Contains(d.OpportunityId!.Value))
+      .ToListAsync(ct);
+    var routes = opportunities.Select(x => x.ServiceRoute).Distinct().ToArray();
+    var priorAcceptances = await db.AcceptanceDecisions.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && acceptanceClientIds.Contains(x.PracticeClientId) && routes.Contains(x.ServiceRoute) &&
+      (x.Decision == "Accepted" || x.Decision == "AcceptedWithConditions"))
+      .GroupBy(x => new { x.PracticeClientId, x.ServiceRoute })
+      .Select(g => new { g.Key.PracticeClientId, g.Key.ServiceRoute, Generation = g.Max(x => x.Generation) })
+      .ToListAsync(ct);
     var activityQuery = db.LeadActivityEvents.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.LeadId == id);
     if (historyBeforeOccurredAt is { } beforeAt && historyBeforeId is { } beforeId)
@@ -106,15 +125,39 @@ public static class CommercialWorkspaceQuery
     var rows = opportunities.Select(o =>
     {
       var latest = proposals.SingleOrDefault(p => p.OpportunityId == o.Id);
+      var scopedDecisions = decisionRows.Where(x => x.OpportunityId == o.Id &&
+        x.PracticeClientId == o.AcceptanceClientId);
+      var current = scopedDecisions.Where(x => generations.GetValueOrDefault(x.PracticeClientId) == x.Generation)
+        .OrderByDescending(x => x.DecidedAt).ThenByDescending(x => x.Id).FirstOrDefault();
+      var latestDecision = current ?? scopedDecisions.OrderByDescending(x => x.DecidedAt).ThenByDescending(x => x.Id).FirstOrDefault();
+      var stale = latestDecision is not null && (!generations.TryGetValue(latestDecision.PracticeClientId, out var decisionGeneration) ||
+        latestDecision.Generation != decisionGeneration);
+      var hasPrior = priorAcceptances.Any(x => x.PracticeClientId == o.AcceptanceClientId &&
+        x.ServiceRoute == o.ServiceRoute);
+      var canPrepare = o.AcceptanceClientId is { } clientId && clients.TryGetValue(clientId, out var client) &&
+        generations.TryGetValue(clientId, out var generation) && current is
+          { Decision: "Accepted", Conditions: null, DecidedByUserId: not null, DecidedAt: not null } &&
+        current.Generation == generation && string.Equals(current.OpportunityBasisSha256,
+          OpportunityAcceptanceGate.BasisSha256(o, client), StringComparison.Ordinal);
+      var acceptanceStatus = canPrepare ? "ACCEPTED" : stale ? "STALE_ACCEPTANCE" : latestDecision?.Decision switch
+      {
+        "Pending" => "PENDING_ACCEPTANCE",
+        "Declined" => "DECLINED",
+        "Deferred" => "DEFERRED",
+        "AcceptedWithConditions" => "CONDITIONAL",
+        "Accepted" => "STALE_ACCEPTANCE",
+        _ => hasPrior ? "CONTINUANCE_REQUIRED" : "PENDING_ACCEPTANCE"
+      };
       return new OpportunityItem(o.Id, o.ServiceRoute, o.EntityScope, o.Stage,
-        o.ExpectedFee.ToString(CultureInfo.InvariantCulture), o.Currency, o.PeriodStart, o.PeriodEnd,
-        latest?.Id, (latest?.Revision ?? 0).ToString(CultureInfo.InvariantCulture), o.CreatedAt);
+        o.ExpectedFee?.ToString(CultureInfo.InvariantCulture), o.Currency, o.PeriodStart, o.PeriodEnd,
+        latest?.Id, (latest?.Revision ?? 0).ToString(CultureInfo.InvariantCulture), o.CreatedAt,
+        o.AcceptanceClientId, hasPrior ? "CONTINUANCE" : "CLIENT_ACCEPTANCE", acceptanceStatus, canPrepare);
     }).ToArray();
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded)
       return CommandResult<LeadWorkspace>.Fail(ErrorCodes.ScopeDenied, "Lead unavailable.");
     return CommandResult<LeadWorkspace>.Ok(new(lead.Id, lead.Name, lead.Status, lead.Source,
       lead.OwnerUserId, UserName(lead.OwnerUserId, "Not assigned"), lead.CreatedAt, rows,
-      history, historyHasMore, hasLegacyHistoryGap, opportunitiesHasMore));
+      history, historyHasMore, hasLegacyHistoryGap, opportunitiesHasMore, EngagementLetterTemplates.All));
   }
 
   public static async Task<CommandResult<ProposalWorkspace>> ProposalAsync(IAuditSphereDbContext db,

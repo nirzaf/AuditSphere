@@ -25,13 +25,17 @@ interface Opportunity {
   serviceRoute: string;
   entityScope: string;
   stage: string;
-  expectedFee: string;
-  currency: string;
+  expectedFee: string | null;
+  currency: string | null;
   periodStart: string;
   periodEnd: string;
   createdAt: string;
   proposalId: string | null;
   revision: string;
+  acceptanceClientId: string | null;
+  acceptanceProcess: 'CLIENT_ACCEPTANCE' | 'CONTINUANCE';
+  acceptanceStatus: string;
+  canPrepareCommercial: boolean;
 }
 type LeadActivityAction =
   | 'LEAD_CREATED'
@@ -74,6 +78,7 @@ interface LeadWorkspace {
   history: LeadActivity[];
   historyHasMore: boolean;
   hasLegacyHistoryGap: boolean;
+  serviceRoutes: { id: string; serviceRoute: string; heading: string; entityScopeTemplate: string }[];
 }
 type HistoryFocusOrigin = { element: Element; interaction: number };
 type OpportunityFocusOrigin = { element: HTMLButtonElement; interaction: number; owner: string };
@@ -81,11 +86,14 @@ interface OpportunityCreateIntent {
   leadId: string;
   requestId: string;
   serviceRoute: string;
+  prospectiveLegalName: string;
+  prospectiveRegistrationNumber: string | null;
+  prospectiveJurisdiction: string | null;
   entityScope: string;
+  entityScopeConfirmed: boolean;
+  entityScopeManuallyEdited: boolean;
   periodStart: string;
   periodEnd: string;
-  expectedFee: string;
-  currency: string;
   submissionPending: true;
 }
 interface ProposalCreateIntent {
@@ -131,21 +139,31 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
   for (const o of v['opportunities']) {
     if (
       !o ||
-      typeof o.id !== 'string' ||
-      !guidPattern.test(o.id) ||
-      !['serviceRoute', 'entityScope', 'stage', 'currency', 'periodStart', 'periodEnd'].every(
+      typeof o['id'] !== 'string' ||
+      !guidPattern.test(o['id']) ||
+      !['serviceRoute', 'entityScope', 'stage', 'periodStart', 'periodEnd', 'acceptanceProcess', 'acceptanceStatus'].every(
         (k) => typeof o[k] === 'string',
       ) ||
-      typeof o.createdAt !== 'string' ||
-      !Number.isFinite(Date.parse(o.createdAt)) ||
-      !exactDecimal(o.expectedFee) ||
-      typeof o.revision !== 'string' ||
-      !/^\d{1,19}$/.test(o.revision) ||
-      (o.proposalId !== null &&
-        (typeof o.proposalId !== 'string' || !guidPattern.test(o.proposalId)))
+      typeof o['createdAt'] !== 'string' ||
+      !Number.isFinite(Date.parse(o['createdAt'])) ||
+      (o['expectedFee'] !== null && !exactDecimal(o['expectedFee'])) ||
+      (o['currency'] !== null && (typeof o['currency'] !== 'string' || !/^[A-Z]{3}$/.test(o['currency']))) ||
+      (o['expectedFee'] === null) !== (o['currency'] === null) ||
+      !['CLIENT_ACCEPTANCE', 'CONTINUANCE'].includes(o['acceptanceProcess']) ||
+      typeof o['canPrepareCommercial'] !== 'boolean' ||
+      (o['acceptanceClientId'] !== null && (typeof o['acceptanceClientId'] !== 'string' || !guidPattern.test(o['acceptanceClientId']))) ||
+      typeof o['revision'] !== 'string' ||
+      !/^\d{1,19}$/.test(o['revision']) ||
+      (o['proposalId'] !== null &&
+        (typeof o['proposalId'] !== 'string' || !guidPattern.test(o['proposalId'])))
     )
       throw new Error('Unsupported opportunity');
   }
+  if (!Array.isArray(v['serviceRoutes']) || v['serviceRoutes'].length > 20 ||
+      (v['serviceRoutes'] as Record<string, unknown>[]).some((r) => !r ||
+        typeof r['id'] !== 'string' || typeof r['serviceRoute'] !== 'string' || typeof r['heading'] !== 'string' ||
+        typeof r['entityScopeTemplate'] !== 'string' || !r['entityScopeTemplate'].includes('{clientName}')))
+    throw new Error('Unsupported service routes');
   const actions: readonly string[] = [
     'LEAD_CREATED',
     'LEAD_QUALIFIED',
@@ -260,25 +278,44 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
       </section>
       @if (lead.status === 'QUALIFIED') {
         <h2>Record discovery opportunity</h2>
-        <p>Commercial discovery does not accept a client or activate professional work.</p>
+        <p>Discovery records service scope and reporting period. Professional acceptance or continuance must be completed before proposal or quotation work.</p>
         <form (ngSubmit)="createOpportunity()">
-          <label
-            >Service route<input
-              name="route"
-              [(ngModel)]="draft.serviceRoute"
-              required
-              maxlength="100"
-              [disabled]="busy() || createPending()"
-          /></label>
+          <label>Prospective client legal name
+            <input name="prospectiveLegalName" [(ngModel)]="draft.prospectiveLegalName"
+              (ngModelChange)="identityChanged()" required maxlength="300"
+              [disabled]="busy() || createPending()" />
+          </label>
+          <label>Registration number (optional)
+            <input name="registration" [(ngModel)]="draft.prospectiveRegistrationNumber"
+              (ngModelChange)="identityChanged()" maxlength="64"
+              [disabled]="busy() || createPending()" />
+          </label>
+          <label>Jurisdiction (required with registration number)
+            <input name="jurisdiction" [(ngModel)]="draft.prospectiveJurisdiction"
+              (ngModelChange)="identityChanged()" maxlength="100"
+              [disabled]="busy() || createPending()" />
+          </label>
+          <label for="opportunity-service-route">Service route</label>
+          <select id="opportunity-service-route" name="route" [(ngModel)]="draft.serviceRoute" (ngModelChange)="serviceRouteChanged()"
+            required [disabled]="busy() || createPending()">
+            <option value="" disabled>Select a supported service</option>
+            @for (route of lead.serviceRoutes; track route.serviceRoute) {
+              <option [value]="route.serviceRoute">{{ route.heading }}</option>
+            }
+          </select>
           <label
             >Entity scope<textarea
               name="entity"
               [(ngModel)]="draft.entityScope"
+              (ngModelChange)="entityScopeChanged()"
               required
               maxlength="10000"
               [disabled]="busy() || createPending()"
             ></textarea>
           </label>
+          <label><input type="checkbox" name="scopeConfirmed" [(ngModel)]="draft.entityScopeConfirmed"
+              (ngModelChange)="reviewed = false" [disabled]="busy() || createPending()" required />
+            I verified the prospective client's identity and confirm this scope. Subsidiaries and additional entities are excluded unless explicitly listed above.</label>
           <label
             >Period start<input
               name="start"
@@ -295,27 +332,8 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
               required
               [disabled]="busy() || createPending()"
           /></label>
-          <label
-            >Expected fee<input
-              name="fee"
-              [(ngModel)]="draft.expectedFee"
-              inputmode="decimal"
-              required
-              [disabled]="busy() || createPending()"
-          /></label>
-          <label
-            >Currency<input
-              name="currency"
-              [(ngModel)]="draft.currency"
-              required
-              maxlength="3"
-              [disabled]="busy() || createPending()"
-          /></label>
-          <label
-            ><input type="checkbox" name="reviewed" [(ngModel)]="reviewed" [disabled]="busy()" />I
-            reviewed these discovery terms.</label
-          >
-          <button matButton type="submit" [disabled]="!reviewed || busy() || uncertain()">
+          <label><input type="checkbox" name="reviewed" [(ngModel)]="reviewed" [disabled]="busy()" />I reviewed the discovery details.</label>
+          <button matButton type="submit" [disabled]="!reviewed || !draft.entityScopeConfirmed || busy() || uncertain()">
             Record opportunity
           </button>
         </form>
@@ -339,15 +357,21 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
           <article>
             <h3 #opportunityHeading tabindex="-1">{{ o.serviceRoute }} · {{ o.stage }}</h3>
             <p>{{ o.entityScope }}</p>
-            <p>{{ o.periodStart }} to {{ o.periodEnd }} · {{ o.expectedFee }} {{ o.currency }}</p>
+            <p>{{ o.periodStart }} to {{ o.periodEnd }}@if (o.expectedFee !== null) { · Historical expected fee {{ o.expectedFee }} {{ o.currency }} }</p>
+            <p>Acceptance: {{ o.acceptanceProcess === 'CONTINUANCE' ? 'Continuance' : 'Client acceptance' }} · {{ o.acceptanceStatus }}</p>
             @if (o.proposalId) {
               <a [routerLink]="['/app/practice/proposals', o.proposalId]"
                 >Open proposal revision {{ o.revision }}</a
               >
             } @else if (o.stage !== 'WON' && o.stage !== 'LOST') {
-              <button matButton [disabled]="busy() || uncertain()" (click)="select(o)">
+              @if (o.canPrepareCommercial) {
+                <button matButton [disabled]="busy() || uncertain()" (click)="select(o)">
                 Prepare initial proposal
-              </button>
+                </button>
+              } @else if (o.acceptanceClientId) {
+                <a [routerLink]="['/app/clients', o.acceptanceClientId, 'assessment']"
+                  [queryParams]="{ opportunityId: o.id }">Complete {{ o.acceptanceProcess === 'CONTINUANCE' ? 'continuance' : 'client acceptance' }}</a>
+              }
             }
           </article>
         } @empty {
@@ -368,8 +392,7 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
       @if (selected(); as o) {
         <h2>Initial proposal for {{ o.serviceRoute }}</h2>
         <p>
-          Review the scope and fee above, plus the terms below. This creates a draft requiring
-          independent review.
+          Current unconditional Partner acceptance is recorded for this exact scope. Enter commercial terms below; this creates a draft requiring independent review.
         </p>
         <form (ngSubmit)="createProposal()">
           <label
@@ -419,6 +442,10 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
             ></textarea>
             <small>Offered to the client on the quotation. Changing it later needs a new proposal revision.</small>
           </label>
+          <label>Proposal fee<input name="proposalFee" [(ngModel)]="proposalFee" inputmode="decimal"
+              (ngModelChange)="proposalReviewed = false" required [disabled]="busy() || proposalCreatePending()" /></label>
+          <label>Currency<input name="proposalCurrency" [(ngModel)]="proposalCurrency" maxlength="3"
+              (ngModelChange)="proposalReviewed = false" required [disabled]="busy() || proposalCreatePending()" /></label>
           <label
             ><input
               type="checkbox"
@@ -428,7 +455,7 @@ export function decodeOpportunities(value: unknown): LeadWorkspace {
             />I
             reviewed the proposal terms.</label
           >
-          <button matButton type="submit" [disabled]="!proposalReviewed || busy() || uncertain()">
+          <button matButton type="submit" [disabled]="!proposalReviewed || !exactDecimal(proposalFee) || !validCurrency(proposalCurrency) || busy() || uncertain()">
             Create initial draft
           </button>
         </form>
@@ -487,12 +514,14 @@ export class Opportunities {
   readonly commandStatus = signal('');
   readonly selected = signal<Opportunity | null>(null);
   draft = {
+    prospectiveLegalName: '',
+    prospectiveRegistrationNumber: '',
+    prospectiveJurisdiction: '',
     serviceRoute: '',
     entityScope: '',
+    entityScopeConfirmed: false,
     periodStart: '',
     periodEnd: '',
-    expectedFee: '',
-    currency: 'QAR',
   };
   reviewed = false;
   proposalReviewed = false;
@@ -501,6 +530,9 @@ export class Opportunities {
   exclusions = '';
   dependencies = '';
   timeline = '';
+  proposalFee = '';
+  proposalCurrency = '';
+  private entityScopeManuallyEdited = false;
   recordFocusInteraction(): void { this.focusInteraction++; }
   private historyFocusOrigin(trigger?: EventTarget | null): HistoryFocusOrigin | null {
     const host = this.hostElement.nativeElement;
@@ -570,21 +602,49 @@ export class Opportunities {
     this.commandStatus.set('');
     this.reviewed = this.proposalReviewed = false;
     this.profile = this.deliverables = this.exclusions = this.dependencies = this.timeline = '';
+    this.proposalFee = this.proposalCurrency = '';
+    this.entityScopeManuallyEdited = false;
     this.draft = {
+      prospectiveLegalName: '',
+      prospectiveRegistrationNumber: '',
+      prospectiveJurisdiction: '',
       serviceRoute: '',
       entityScope: '',
+      entityScopeConfirmed: false,
       periodStart: '',
       periodEnd: '',
-      expectedFee: '',
-      currency: 'QAR',
     };
     this.requestId = crypto.randomUUID();
     this.proposalRequestId = crypto.randomUUID();
   }
   select(o: Opportunity): void {
-    if (this.proposalCreatePending()) return;
+    if (this.proposalCreatePending() || !o.canPrepareCommercial) return;
     this.selected.set(o);
     this.proposalReviewed = false;
+    this.proposalFee = '';
+    this.proposalCurrency = '';
+  }
+  validCurrency(value: string): boolean { return /^[A-Z]{3}$/.test(value); }
+  exactDecimal(value: string): boolean { return exactDecimal(value); }
+  private generatedScope(): string {
+    const route = this.data()?.serviceRoutes.find((x) => x.serviceRoute === this.draft.serviceRoute);
+    return route?.entityScopeTemplate.replaceAll('{clientName}', this.draft.prospectiveLegalName.trim()) ?? '';
+  }
+  private refreshGeneratedScope(): void {
+    if (!this.entityScopeManuallyEdited) this.draft.entityScope = this.generatedScope();
+    this.draft.entityScopeConfirmed = false;
+    this.reviewed = false;
+  }
+  serviceRouteChanged(): void {
+    this.refreshGeneratedScope();
+  }
+  identityChanged(): void {
+    this.refreshGeneratedScope();
+  }
+  entityScopeChanged(): void {
+    this.entityScopeManuallyEdited = true;
+    this.draft.entityScopeConfirmed = false;
+    this.reviewed = false;
   }
   activityLabel(action: LeadActivityAction): string {
     return {
@@ -603,18 +663,31 @@ export class Opportunities {
     if (
       !this.data() ||
       !this.reviewed ||
-      !exactDecimal(this.draft.expectedFee) ||
+      !this.draft.prospectiveLegalName.trim() ||
+      !this.draft.serviceRoute ||
+      !this.data()!.serviceRoutes.some((route) => route.serviceRoute === this.draft.serviceRoute) ||
+      !this.draft.entityScope.trim() ||
+      !this.draft.entityScopeConfirmed ||
+      (!!this.draft.prospectiveRegistrationNumber.trim() !== !!this.draft.prospectiveJurisdiction.trim()) ||
       this.busy() ||
       this.uncertain() ||
       this.createPending()
     ) {
-      this.commandStatus.set('Review terms and enter an exact decimal fee.');
+      this.commandStatus.set('Confirm the client identity, supported service, entity scope and reporting period. Pricing is recorded after acceptance.');
       return;
     }
     const intent: OpportunityCreateIntent = {
       leadId: this.id,
       requestId: this.requestId,
-      ...this.draft,
+      serviceRoute: this.draft.serviceRoute,
+      prospectiveLegalName: this.draft.prospectiveLegalName.trim(),
+      prospectiveRegistrationNumber: this.draft.prospectiveRegistrationNumber.trim() || null,
+      prospectiveJurisdiction: this.draft.prospectiveJurisdiction.trim() || null,
+      entityScope: this.draft.entityScope.trim(),
+      entityScopeConfirmed: true,
+      entityScopeManuallyEdited: this.entityScopeManuallyEdited,
+      periodStart: this.draft.periodStart,
+      periodEnd: this.draft.periodEnd,
       submissionPending: true,
     };
     if (!this.persistIntent(intent)) {
@@ -661,21 +734,24 @@ export class Opportunities {
       entityScope = text('entityScope', 10000);
     const periodStart = text('periodStart', 10),
       periodEnd = text('periodEnd', 10);
-    const expectedFee = text('expectedFee', 100),
-      currency = text('currency', 3);
+    const prospectiveLegalName = text('prospectiveLegalName', 300),
+      prospectiveRegistrationNumber = v['prospectiveRegistrationNumber'] === null ? null : text('prospectiveRegistrationNumber', 64),
+      prospectiveJurisdiction = v['prospectiveJurisdiction'] === null ? null : text('prospectiveJurisdiction', 100);
     if (
       !leadId ||
       !guidPattern.test(leadId) ||
       !requestId ||
       !guidPattern.test(requestId) ||
       serviceRoute === null ||
+      !prospectiveLegalName?.trim() ||
+      (prospectiveRegistrationNumber !== null && !prospectiveRegistrationNumber) ||
+      (prospectiveJurisdiction !== null && !prospectiveJurisdiction) ||
+      ((prospectiveRegistrationNumber === null) !== (prospectiveJurisdiction === null)) ||
       entityScope === null ||
+      v['entityScopeConfirmed'] !== true ||
+      typeof v['entityScopeManuallyEdited'] !== 'boolean' ||
       periodStart === null ||
       periodEnd === null ||
-      !expectedFee ||
-      !exactDecimal(expectedFee) ||
-      !currency ||
-      currency.length !== 3 ||
       v['submissionPending'] !== true
     )
       return null;
@@ -683,11 +759,14 @@ export class Opportunities {
       leadId,
       requestId,
       serviceRoute,
+      prospectiveLegalName,
+      prospectiveRegistrationNumber,
+      prospectiveJurisdiction,
       entityScope,
+      entityScopeConfirmed: true,
+      entityScopeManuallyEdited: v['entityScopeManuallyEdited'],
       periodStart,
       periodEnd,
-      expectedFee,
-      currency,
       submissionPending: true,
     };
   }
@@ -695,18 +774,34 @@ export class Opportunities {
     return 'commercial-opportunity-create:' + this.id;
   }
   private currentIntent(): OpportunityCreateIntent {
-    return { leadId: this.id, requestId: this.requestId, ...this.draft, submissionPending: true };
+    return {
+      leadId: this.id,
+      requestId: this.requestId,
+      serviceRoute: this.draft.serviceRoute,
+      prospectiveLegalName: this.draft.prospectiveLegalName.trim(),
+      prospectiveRegistrationNumber: this.draft.prospectiveRegistrationNumber.trim() || null,
+      prospectiveJurisdiction: this.draft.prospectiveJurisdiction.trim() || null,
+      entityScope: this.draft.entityScope.trim(),
+      entityScopeConfirmed: this.draft.entityScopeConfirmed,
+      entityScopeManuallyEdited: this.entityScopeManuallyEdited,
+      periodStart: this.draft.periodStart,
+      periodEnd: this.draft.periodEnd,
+      submissionPending: true,
+    };
   }
   private sameIntent(a: OpportunityCreateIntent, b: OpportunityCreateIntent): boolean {
     return (
       a.leadId === b.leadId &&
       a.requestId === b.requestId &&
       a.serviceRoute === b.serviceRoute &&
+      a.prospectiveLegalName === b.prospectiveLegalName &&
+      a.prospectiveRegistrationNumber === b.prospectiveRegistrationNumber &&
+      a.prospectiveJurisdiction === b.prospectiveJurisdiction &&
       a.entityScope === b.entityScope &&
+      a.entityScopeConfirmed === b.entityScopeConfirmed &&
+      a.entityScopeManuallyEdited === b.entityScopeManuallyEdited &&
       a.periodStart === b.periodStart &&
       a.periodEnd === b.periodEnd &&
-      a.expectedFee === b.expectedFee &&
-      a.currency === b.currency &&
       a.submissionPending === b.submissionPending
     );
   }
@@ -720,13 +815,16 @@ export class Opportunities {
     if (!saved || saved.leadId !== this.id) return;
     this.requestId = saved.requestId;
     this.draft = {
+      prospectiveLegalName: saved.prospectiveLegalName,
+      prospectiveRegistrationNumber: saved.prospectiveRegistrationNumber ?? '',
+      prospectiveJurisdiction: saved.prospectiveJurisdiction ?? '',
       serviceRoute: saved.serviceRoute,
       entityScope: saved.entityScope,
+      entityScopeConfirmed: saved.entityScopeConfirmed,
       periodStart: saved.periodStart,
       periodEnd: saved.periodEnd,
-      expectedFee: saved.expectedFee,
-      currency: saved.currency,
     };
+    this.entityScopeManuallyEdited = saved.entityScopeManuallyEdited;
     this.createPending.set(true);
     this.recoverableCreate.set(true);
     this.uncertain.set(true);
@@ -744,11 +842,13 @@ export class Opportunities {
       .post<unknown>('/api/ui/leads/' + intent.leadId + '/opportunities', {
         requestId: intent.requestId,
         serviceRoute: intent.serviceRoute,
+        prospectiveLegalName: intent.prospectiveLegalName,
+        prospectiveRegistrationNumber: intent.prospectiveRegistrationNumber,
+        prospectiveJurisdiction: intent.prospectiveJurisdiction,
         entityScope: intent.entityScope,
+        entityScopeConfirmed: intent.entityScopeConfirmed,
         periodStart: intent.periodStart,
         periodEnd: intent.periodEnd,
-        expectedFee: intent.expectedFee,
-        currency: intent.currency,
       })
       .pipe(timeout(15000))
       .subscribe({
@@ -801,7 +901,8 @@ export class Opportunities {
   }
   createProposal(): void {
     const o = this.selected();
-    if (!o || !this.proposalReviewed || o.proposalId || this.busy() || this.uncertain()) return;
+    if (!o || !o.canPrepareCommercial || !this.proposalReviewed || o.proposalId ||
+        !exactDecimal(this.proposalFee) || !this.validCurrency(this.proposalCurrency) || this.busy() || this.uncertain()) return;
     const intent = this.currentProposalIntent(o);
     if (!this.persistProposalIntent(intent)) {
       this.commandStatus.set(
@@ -893,8 +994,8 @@ export class Opportunities {
       deliverables: this.deliverables,
       dependencies: this.dependencies,
       timeline: this.timeline,
-      fee: opportunity.expectedFee,
-      currency: opportunity.currency,
+      fee: this.proposalFee,
+      currency: this.proposalCurrency,
       periodStart: opportunity.periodStart,
       periodEnd: opportunity.periodEnd,
       submissionPending: true,
@@ -965,6 +1066,8 @@ export class Opportunities {
     this.deliverables = intent.deliverables;
     this.dependencies = intent.dependencies;
     this.timeline = intent.timeline;
+    this.proposalFee = intent.fee;
+    this.proposalCurrency = intent.currency;
     this.proposalCreatePending.set(true);
     this.recoverableProposalCreate.set(true);
     this.uncertain.set(true);
@@ -978,6 +1081,7 @@ export class Opportunities {
     this.proposalCreatePending.set(false);
     this.recoverableProposalCreate.set(false);
     this.proposalReviewed = false;
+    this.proposalFee = this.proposalCurrency = '';
     this.proposalRequestId = crypto.randomUUID();
   }
   private sendProposalIntent(intent: ProposalCreateIntent): void {
@@ -1067,6 +1171,10 @@ export class Opportunities {
           try {
             const v = decodeOpportunities(value);
             this.data.set(v);
+            if (!this.draft.prospectiveLegalName.trim() && !this.createPending()) {
+              this.draft.prospectiveLegalName = v.name.trim();
+              this.refreshGeneratedScope();
+            }
             const creationWasPersisted = v.opportunities.some((o) => o.id === this.requestId);
             if (
               this.uncertain() &&

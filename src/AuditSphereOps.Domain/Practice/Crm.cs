@@ -20,6 +20,7 @@ public static class CrmStates
   public const string ProposalDeclined = "DECLINED";
   public const string ProposalSuperseded = "SUPERSEDED";
   public const string ClientProspect = "PROSPECT";
+  public const string ClientAccepted = "ACCEPTED";
 }
 
 public sealed class Lead
@@ -79,13 +80,22 @@ public sealed class Opportunity
   public Guid Id { get; set; }
   public Guid FirmId { get; set; }
   public Guid LeadId { get; set; }
+  /// <summary>Canonical prospect under professional evaluation; distinct from the later commercial conversion marker.</summary>
+  public Guid? AcceptanceClientId { get; set; }
+  /// <summary>Exact normalized client-identity inputs bound to the discovery request for safe retry recovery.</summary>
+  public string? DiscoveryIdentitySha256 { get; set; }
+  /// <summary>Set only after client terms are accepted and the opportunity is commercially converted.</summary>
   public Guid? PracticeClientId { get; set; }
   public string ServiceRoute { get; set; } = string.Empty; // AccountingOnly | FinancialStatementAudit | ...
   public string EntityScope { get; set; } = string.Empty;
   public string PeriodStart { get; set; } = string.Empty;
   public string PeriodEnd { get; set; } = string.Empty;
-  public decimal ExpectedFee { get; set; }
-  public string Currency { get; set; } = string.Empty;
+  /// <summary>Not collected during discovery. Existing historical estimates remain readable.</summary>
+  public decimal? ExpectedFee { get; set; }
+  /// <summary>Not collected during discovery. Existing historical currencies remain readable.</summary>
+  public string? Currency { get; set; }
+  public Guid? EntityScopeConfirmedByUserId { get; set; }
+  public DateTimeOffset? EntityScopeConfirmedAt { get; set; }
   public decimal? Probability { get; set; }
   public Guid? OwnerUserId { get; set; }
   public string? NextAction { get; set; }

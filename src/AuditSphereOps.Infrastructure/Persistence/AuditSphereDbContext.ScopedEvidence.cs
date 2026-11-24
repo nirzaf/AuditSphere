@@ -554,7 +554,9 @@ public sealed partial class AuditSphereDbContext
     acceptance.Property(x => x.Conditions).HasMaxLength(4000);
     acceptance.Property(x => x.EvaluationTemplateVersion).HasMaxLength(100);
     acceptance.Property(x => x.EvaluationSnapshotDigest).HasMaxLength(64);
+    acceptance.Property(x => x.OpportunityBasisSha256).HasMaxLength(64);
     acceptance.HasIndex(x => new { x.FirmId, x.PracticeClientId, x.Generation }).HasDatabaseName("ix_acceptance_client_generation");
+    acceptance.HasIndex(x => new { x.FirmId, x.OpportunityId, x.Generation }).HasDatabaseName("ix_acceptance_opportunity_generation");
     acceptance.HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
@@ -569,7 +571,8 @@ public sealed partial class AuditSphereDbContext
         "path IN ('NEW_CLIENT','CONTINUANCE') AND (path = 'CONTINUANCE' OR prior_decision_id IS NULL)");
       t.HasCheckConstraint("ck_acceptance_decision_evidence",
         "((decision = 'Pending') OR (length(trim(rationale)) > 0 AND length(trim(evaluation_template_version)) > 0 AND evaluation_snapshot_digest ~ '^[0-9a-f]{64}$'))" +
-        " AND ((decision = 'AcceptedWithConditions' AND length(trim(conditions)) > 0) OR decision <> 'AcceptedWithConditions')");
+        " AND ((decision = 'AcceptedWithConditions' AND length(trim(conditions)) > 0) OR decision <> 'AcceptedWithConditions')" +
+        " AND ((opportunity_id IS NULL AND opportunity_basis_sha256 IS NULL) OR (opportunity_id IS NOT NULL AND ((decision = 'Pending' AND opportunity_basis_sha256 IS NULL) OR (decision <> 'Pending' AND opportunity_basis_sha256 ~ '^[0-9a-f]{64}$'))))");
     });
 
     var evaluation = b.Entity<EvaluationResponse>();

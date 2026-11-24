@@ -10,17 +10,21 @@ namespace AuditSphereOps.Application.Acceptance;
 
 public sealed record AssessmentClientView(Guid Id, string LegalName, string? RegistrationNumber, string Status);
 public sealed record AssessmentDecisionView(Guid Id, Guid? EngagementId, string Generation, string Decision, string ServiceRoute,
-  string Rationale, string? Conditions, string Path, Guid? PriorDecisionId, string? DecidedBy, DateTimeOffset? DecidedAt);
+  string Rationale, string? Conditions, string Path, Guid? PriorDecisionId, string? DecidedBy, DateTimeOffset? DecidedAt,
+  Guid? OpportunityId = null);
 public sealed record AssessmentRepositoryView(string LogicalKey, string State, DateTimeOffset? LastVerifiedAt);
 public sealed record AssessmentSectionProgress(string Section, int Answered, int Total);
 public sealed record AssessmentSpecialistEvent(Guid Id, Guid ReviewId, string Action, string Area, string Specialist,
   string? Status, string? Evidence, string? Conditions, string Actor, DateTimeOffset OccurredAt);
 public sealed record AssessmentEngagementContext(Guid Id, string ServiceRoute, string PeriodStart, string PeriodEnd,
   string State);
+public sealed record AssessmentOpportunityContext(Guid Id, string ServiceRoute, string EntityScope, string PeriodStart,
+  string PeriodEnd, string Process, string State);
 public sealed record AssessmentWorkspace(AcceptanceWorkspace Checklist, AssessmentClientView Client,
   AssessmentDecisionView? SelectedDecision, bool Historical, AssessmentRepositoryView? Repository,
   int Answered, int Total, int ClearedReviews, int TotalReviews, IReadOnlyList<AssessmentSectionProgress> Sections,
-  IReadOnlyList<AssessmentSpecialistEvent> SpecialistTimeline, AssessmentEngagementContext? TargetEngagement = null);
+  IReadOnlyList<AssessmentSpecialistEvent> SpecialistTimeline, AssessmentEngagementContext? TargetEngagement = null,
+  AssessmentOpportunityContext? TargetOpportunity = null);
 
 /// <summary>A scope checked read projection; exact decision selection never substitutes another client's or newer record.</summary>
 public static class AssessmentWorkspaceQuery
@@ -28,8 +32,10 @@ public static class AssessmentWorkspaceQuery
   private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "Staff", "EngagementLeader", "Auditor"];
 
   public static async Task<CommandResult<AssessmentWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor,
-    Guid clientId, Guid? decisionId = null, CancellationToken ct = default, Guid? engagementId = null)
+    Guid clientId, Guid? decisionId = null, CancellationToken ct = default, Guid? engagementId = null,
+    Guid? opportunityId = null)
   {
+    if (engagementId.HasValue && opportunityId.HasValue) return Denied();
     var request = new AuthorizationRequest(actor.FirmId, ClientId: clientId, RequiredRoles: Roles, InternalOnly: true);
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded) return Denied();
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
@@ -47,7 +53,15 @@ public static class AssessmentWorkspaceQuery
     if (engagementId.HasValue && (target is null || string.IsNullOrWhiteSpace(target.ServiceRoute) ||
       !DateOnly.TryParseExact(target.PeriodStart, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) ||
       !DateOnly.TryParseExact(target.PeriodEnd, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end) || start > end)) return Denied();
-    var current = await AcceptanceWorkspaceQuery.GetAsync(db, actor, clientId, ct);
+    var targetOpportunity = opportunityId.HasValue ? await db.Opportunities.FromSqlInterpolated(
+      $"SELECT * FROM opportunities WHERE firm_id={actor.FirmId} AND acceptance_client_id={clientId} AND id={opportunityId.Value} FOR SHARE")
+      .AsNoTracking().SingleOrDefaultAsync(ct) : null;
+    if (opportunityId.HasValue && (targetOpportunity is null || targetOpportunity.EntityScopeConfirmedByUserId is null ||
+      targetOpportunity.EntityScopeConfirmedAt is null || string.IsNullOrWhiteSpace(targetOpportunity.ServiceRoute) ||
+      !DateOnly.TryParseExact(targetOpportunity.PeriodStart, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var opportunityStart) ||
+      !DateOnly.TryParseExact(targetOpportunity.PeriodEnd, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var opportunityEnd) || opportunityStart > opportunityEnd)) return Denied();
+    var current = await AcceptanceWorkspaceQuery.GetAsync(db, actor, clientId, ct,
+      targetOpportunity?.ServiceRoute, targetOpportunity?.Id);
     if (!current.Succeeded) return CommandResult<AssessmentWorkspace>.Fail(current.ErrorCode!, "Assessment unavailable.");
     var checklist = current.Value!;
     if (checklist.Questions.Count > 1000 || checklist.Clearances.Count > 1000 || checklist.Blockers.Count > 1000)
@@ -59,19 +73,34 @@ public static class AssessmentWorkspaceQuery
     var currentGeneration = long.Parse(checklist.Generation, CultureInfo.InvariantCulture);
     var targetDecision = target is null ? null : await decisions.Where(d => d.EngagementId == target.Id &&
       d.Generation == currentGeneration && d.Decision != "Pending").OrderByDescending(d => d.DecidedAt).ThenByDescending(d => d.Id).FirstOrDefaultAsync(ct);
+    var targetOpportunityDecision = targetOpportunity is null ? null : await decisions.Where(d => d.OpportunityId == targetOpportunity.Id &&
+      d.Generation == currentGeneration && d.Decision != "Pending").OrderByDescending(d => d.DecidedAt).ThenByDescending(d => d.Id).FirstOrDefaultAsync(ct);
     var selected = decisionId.HasValue ? await decisions.SingleOrDefaultAsync(d => d.Id == decisionId.Value, ct)
-      : targetDecision ?? await decisions.Where(d => d.EngagementId == null && d.Generation == currentGeneration && d.Decision != "Pending").OrderByDescending(d => d.Generation).ThenByDescending(d => d.DecidedAt).ThenBy(d => d.Id).FirstOrDefaultAsync(ct);
+      : targetOpportunityDecision ?? targetDecision ?? await decisions.Where(d => d.EngagementId == null && d.OpportunityId == null &&
+        d.Generation == currentGeneration && d.Decision != "Pending").OrderByDescending(d => d.Generation).ThenByDescending(d => d.DecidedAt).ThenBy(d => d.Id).FirstOrDefaultAsync(ct);
     if (decisionId.HasValue && selected is null) return Denied();
     if (decisionId.HasValue && target is not null && selected?.EngagementId != target.Id) return Denied();
+    if (decisionId.HasValue && targetOpportunity is not null && selected?.OpportunityId != targetOpportunity.Id) return Denied();
     var targetContext = target is null ? null : new AssessmentEngagementContext(target.Id, target.ServiceRoute,
       target.PeriodStart, target.PeriodEnd, targetDecision is not null ? "DECISION_RECORDED" :
       checklist.CurrentDecision is null ? "EVALUATION_OPEN" : checklist.CurrentDecision is "Accepted" or "AcceptedWithConditions" ? "FRESH_EVALUATION_REQUIRED" : "EVALUATION_CLOSED");
+    var hasPriorForRoute = targetOpportunity is not null && await decisions.AnyAsync(d => d.ServiceRoute == targetOpportunity.ServiceRoute &&
+      (d.Decision == "Accepted" || d.Decision == "AcceptedWithConditions") &&
+      (d.Generation < currentGeneration || (d.Generation == currentGeneration &&
+        (d.OpportunityId == null || d.OpportunityId != targetOpportunity.Id))), ct);
+    var targetOpportunityContext = targetOpportunity is null ? null : new AssessmentOpportunityContext(targetOpportunity.Id,
+      targetOpportunity.ServiceRoute, targetOpportunity.EntityScope, targetOpportunity.PeriodStart, targetOpportunity.PeriodEnd,
+      hasPriorForRoute ? "CLIENT_CONTINUANCE" : "CLIENT_ACCEPTANCE",
+      targetOpportunityDecision?.Decision == "Accepted" ? "DECISION_RECORDED" :
+        targetOpportunityDecision?.Decision == "AcceptedWithConditions" ? "CONDITIONAL_DECISION" :
+        targetOpportunityDecision?.Decision ?? (hasPriorForRoute ? "CONTINUANCE_REQUIRED" : "EVALUATION_OPEN"));
     string? decider = null;
     if (selected?.DecidedByUserId is { } userId)
       decider = await db.Users.AsNoTracking().Where(u => u.Id == userId && u.FirmId == actor.FirmId).Select(u => u.DisplayName).SingleOrDefaultAsync(ct);
     if (selected?.PriorDecisionId is { } priorId && !await decisions.AnyAsync(d => d.Id == priorId, ct)) return Denied();
     var decision = selected is null ? null : new AssessmentDecisionView(selected.Id, selected.EngagementId, selected.Generation.ToString(CultureInfo.InvariantCulture),
-      selected.Decision, selected.ServiceRoute, selected.Rationale, selected.Conditions, selected.Path, selected.PriorDecisionId, decider, selected.DecidedAt);
+      selected.Decision, selected.ServiceRoute, selected.Rationale, selected.Conditions, selected.Path, selected.PriorDecisionId, decider, selected.DecidedAt,
+      selected.OpportunityId);
     // Repository locations, signed URLs and raw provider diagnostics are deliberately absent from this projection.
     var repositories = await db.ClientWorkspaces.AsNoTracking().Where(w => w.FirmId == actor.FirmId && w.PracticeClientId == clientId && w.Purpose == "PRIMARY")
       .Select(w => new AssessmentRepositoryView(w.LogicalKey, w.State, w.LastVerifiedAt)).Take(2).ToArrayAsync(ct);
@@ -123,7 +152,8 @@ public static class AssessmentWorkspaceQuery
     }
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded) return Denied();
     var result = new AssessmentWorkspace(checklist, client, decision, historical, repositories.SingleOrDefault(),
-      sections.Sum(s => s.Answered), sections.Sum(s => s.Total), checklist.Clearances.Count(c => c.Status == "CLEARED"), checklist.Clearances.Count, sections, timeline, targetContext);
+      sections.Sum(s => s.Answered), sections.Sum(s => s.Total), checklist.Clearances.Count(c => c.Status == "CLEARED"), checklist.Clearances.Count, sections, timeline, targetContext,
+      targetOpportunityContext);
     if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<AssessmentWorkspace>.Ok(result);
   }

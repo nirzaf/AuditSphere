@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Acceptance;
@@ -29,12 +30,16 @@ public sealed record CreateOpportunityRequest(
   string EntityScope,
   string PeriodStart,
   string PeriodEnd,
-  decimal ExpectedFee,
-  string Currency,
+  decimal? ExpectedFee,
+  string? Currency,
   decimal? Probability = null,
   Guid? OwnerUserId = null,
   string? NextAction = null,
-  Guid? RequestId = null);
+  Guid? RequestId = null,
+  string? ProspectiveLegalName = null,
+  bool EntityScopeConfirmed = false,
+  string? ProspectiveRegistrationNumber = null,
+  string? ProspectiveJurisdiction = null);
 
 public sealed record ReviseProposalRequest(
   Guid OpportunityId,
@@ -206,6 +211,24 @@ public static partial class PracticeCrmService
 
     if (request.RequestId == Guid.Empty)
       return CommandResult<Guid>.Fail("crm.invalid", "A nonempty operation identity is required.");
+    var lead = await db.Leads.SingleOrDefaultAsync(x => x.Id == request.LeadId && x.FirmId == actor.FirmId, ct);
+    if (lead is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (lead.Status != CrmStates.LeadQualified)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The lead must be qualified before discovery.");
+    var legalName = TrimOrNull(request.ProspectiveLegalName) ?? lead.Name.Trim();
+    if (legalName.Length is 0 or > 300)
+      return CommandResult<Guid>.Fail("crm.invalid", "A prospective legal entity name is required and must be at most 300 characters.");
+    var registrationNumber = TrimOrNull(request.ProspectiveRegistrationNumber);
+    var jurisdiction = TrimOrNull(request.ProspectiveJurisdiction);
+    if (registrationNumber?.Length > 64 || jurisdiction?.Length > 100 ||
+        (registrationNumber is null) != (jurisdiction is null))
+      return CommandResult<Guid>.Fail("crm.invalid", "Registration number and jurisdiction must be supplied together within their supported lengths.");
+    var discoveryIdentitySha256 = Hashing.Sha256Hex(JsonSerializer.Serialize(new
+    {
+      LegalName = legalName,
+      RegistrationNumber = registrationNumber,
+      Jurisdiction = jurisdiction
+    }));
     if (request.RequestId.HasValue)
     {
       var prior = await db.Opportunities.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.RequestId.Value, ct);
@@ -214,7 +237,9 @@ public static partial class PracticeCrmService
         if (prior.FirmId != actor.FirmId || prior.LeadId != request.LeadId
           || prior.ServiceRoute != request.ServiceRoute.Trim() || prior.EntityScope != request.EntityScope.Trim()
           || prior.PeriodStart != request.PeriodStart.Trim() || prior.PeriodEnd != request.PeriodEnd.Trim()
-          || prior.ExpectedFee != request.ExpectedFee || prior.Currency != request.Currency.Trim().ToUpperInvariant()
+          || prior.ExpectedFee is not null || prior.Currency is not null
+          || prior.EntityScopeConfirmedByUserId != actor.UserId || prior.EntityScopeConfirmedAt is null
+          || prior.AcceptanceClientId is null || prior.DiscoveryIdentitySha256 != discoveryIdentitySha256
           || prior.Probability != request.Probability || prior.OwnerUserId != request.OwnerUserId
           || prior.NextAction != TrimOrNull(request.NextAction))
           return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Operation identity unavailable or terms changed.");
@@ -222,17 +247,72 @@ public static partial class PracticeCrmService
       }
     }
 
-    var lead = await db.Leads.SingleOrDefaultAsync(x => x.Id == request.LeadId && x.FirmId == actor.FirmId, ct);
-    if (lead is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    if (lead.Status != CrmStates.LeadQualified)
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The lead must be qualified before discovery.");
+    if (!request.EntityScopeConfirmed)
+      return CommandResult<Guid>.Fail("crm.invalid", "Confirm that this scope explicitly lists any included subsidiaries or additional entities.");
+    if (request.ExpectedFee.HasValue || request.Currency is not null)
+      return CommandResult<Guid>.Fail("crm.invalid", "Commercial pricing is entered after professional acceptance.");
+
+    var normalizedLegalName = legalName.ToUpperInvariant();
+    var normalizedRegistration = registrationNumber?.ToUpperInvariant();
+    var normalizedJurisdiction = jurisdiction?.ToUpperInvariant();
+    var candidates = await db.PracticeClients.Where(x => x.FirmId == actor.FirmId &&
+      (x.LegalName.ToUpper() == normalizedLegalName || (normalizedRegistration != null && normalizedJurisdiction != null &&
+       x.RegistrationNumber != null && x.Jurisdiction != null && x.RegistrationNumber.ToUpper() == normalizedRegistration &&
+       x.Jurisdiction.ToUpper() == normalizedJurisdiction))).Take(2).ToListAsync(ct);
+    if (candidates.Count > 1)
+      return CommandResult<Guid>.Fail("crm.duplicate", "More than one canonical client matches this prospect; reviewed resolution is required.");
+    var prospect = candidates.SingleOrDefault();
+    if (prospect is not null && (!string.Equals(prospect.LegalName.Trim(), legalName, StringComparison.OrdinalIgnoreCase) ||
+        (registrationNumber is not null && prospect.RegistrationNumber is not null &&
+         !string.Equals(prospect.RegistrationNumber, registrationNumber, StringComparison.OrdinalIgnoreCase)) ||
+        (jurisdiction is not null && prospect.Jurisdiction is not null &&
+         !string.Equals(prospect.Jurisdiction, jurisdiction, StringComparison.OrdinalIgnoreCase))))
+      return CommandResult<Guid>.Fail("crm.duplicate", "The canonical prospect conflicts with the supplied legal identity details.");
+    PracticeClient canonicalClient;
+    if (prospect is null)
+    {
+      canonicalClient = new PracticeClient
+      {
+        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, LegalName = legalName,
+        RegistrationNumber = registrationNumber, Jurisdiction = jurisdiction,
+        Status = CrmStates.ClientProspect, CreatedAt = DateTimeOffset.UtcNow
+      };
+      db.PracticeClients.Add(canonicalClient);
+      db.ClientSafetyStates.Add(new ClientSafetyState { Id = canonicalClient.Id, FirmId = actor.FirmId, InputGeneration = 1 });
+    }
+    else
+    {
+      canonicalClient = prospect;
+      if (await db.ClientSafetyStates.FromSqlInterpolated(
+          $"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={canonicalClient.Id} FOR UPDATE")
+          .AsNoTracking().SingleOrDefaultAsync(ct) is null)
+        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client evaluation state is unavailable.");
+    }
+    if ((registrationNumber is not null &&
+         !string.Equals(canonicalClient.RegistrationNumber, registrationNumber, StringComparison.OrdinalIgnoreCase)) ||
+        (jurisdiction is not null && !string.Equals(canonicalClient.Jurisdiction, jurisdiction, StringComparison.OrdinalIgnoreCase)))
+      return CommandResult<Guid>.Fail("crm.duplicate", "The supplied registration identity conflicts with the canonical client record.");
+
+    if (System.Net.Mail.MailAddress.TryCreate(lead.PrimaryContactEmail, out var contactEmail) &&
+        !await db.ClientContacts.AnyAsync(x => x.FirmId == actor.FirmId && x.PracticeClientId == canonicalClient.Id && x.Primary && x.IsActive, ct))
+    {
+      db.ClientContacts.Add(new ClientContact
+      {
+        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, PracticeClientId = canonicalClient.Id,
+        FullName = TrimOrNull(lead.PrimaryContactName) ?? legalName, Email = contactEmail.Address,
+        Role = "Primary contact", Primary = true, IsActive = true
+      });
+    }
 
     var opportunity = new Opportunity
     {
       Id = request.RequestId ?? Guid.CreateVersion7(), FirmId = actor.FirmId, LeadId = lead.Id,
+      AcceptanceClientId = canonicalClient.Id,
+      DiscoveryIdentitySha256 = discoveryIdentitySha256,
       ServiceRoute = request.ServiceRoute.Trim(), EntityScope = request.EntityScope.Trim(),
       PeriodStart = request.PeriodStart.Trim(), PeriodEnd = request.PeriodEnd.Trim(),
-      ExpectedFee = request.ExpectedFee, Currency = request.Currency.Trim().ToUpperInvariant(),
+      ExpectedFee = null, Currency = null,
+      EntityScopeConfirmedByUserId = actor.UserId, EntityScopeConfirmedAt = DateTimeOffset.UtcNow,
       Probability = request.Probability, OwnerUserId = request.OwnerUserId,
       NextAction = TrimOrNull(request.NextAction), Stage = CrmStates.OpportunityDiscovery,
       CreatedAt = DateTimeOffset.UtcNow
@@ -240,7 +320,7 @@ public static partial class PracticeCrmService
     db.Opportunities.Add(opportunity);
     RecordLeadActivity(db, actor, lead.Id, LeadActivityActions.OpportunityCreated, opportunity.CreatedAt,
       toState: opportunity.Stage, ownerUserId: opportunity.OwnerUserId, opportunityId: opportunity.Id,
-      serviceRoute: opportunity.ServiceRoute);
+      serviceRoute: opportunity.ServiceRoute, clientId: canonicalClient.Id);
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(opportunity.Id);
@@ -289,6 +369,13 @@ public static partial class PracticeCrmService
     if (opportunity is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (opportunity.Stage is CrmStates.OpportunityLost or CrmStates.OpportunityWon)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A closed opportunity cannot receive a proposal revision.");
+    if (!await OpportunityAcceptanceGate.IsCurrentUnconditionalAsync(db, actor.FirmId, opportunity.Id, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "A current unconditional Partner acceptance or continuance decision for this exact opportunity is required before proposal preparation.");
+    if (!string.Equals(request.Scope.Trim(), opportunity.EntityScope, StringComparison.Ordinal) ||
+        request.PeriodStart.Trim() != opportunity.PeriodStart || request.PeriodEnd.Trim() != opportunity.PeriodEnd)
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
+        "Proposal scope and reporting period must match the exact opportunity scope accepted by the Partner.");
 
     var previous = await db.Proposals
       .Where(x => x.FirmId == actor.FirmId && x.OpportunityId == opportunity.Id)
@@ -313,6 +400,9 @@ public static partial class PracticeCrmService
       CreateRequestHash = createRequestHash, CreatedAt = DateTimeOffset.UtcNow
     };
     opportunity.Stage = CrmStates.OpportunityProposal;
+    // Pricing first becomes part of the opportunity projection after professional acceptance.
+    opportunity.ExpectedFee = proposal.Fee;
+    opportunity.Currency = proposal.Currency;
     db.Proposals.Add(proposal);
     RecordLeadActivity(db, actor, opportunity.LeadId, LeadActivityActions.ProposalRevisionCreated,
       proposal.CreatedAt, fromState: previous?.Status, toState: proposal.Status,
@@ -338,6 +428,9 @@ public static partial class PracticeCrmService
     if (proposal.Status == CrmStates.ProposalInternalReview) return CommandResult.Ok();
     if (proposal.Status != CrmStates.ProposalDraft)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft proposal can enter internal review.");
+    if (!await OpportunityAcceptanceGate.IsCurrentUnconditionalAsync(db, actor.FirmId, proposal.OpportunityId, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "A current unconditional Partner acceptance or continuance decision for this exact opportunity is required.");
     if (!proposal.PreparedByUserId.HasValue)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "A proposal without recorded authorship cannot enter internal review.");
     if (proposal.PreparedByUserId == actor.UserId)
@@ -399,6 +492,9 @@ public static partial class PracticeCrmService
     if (proposal.Status != CrmStates.ProposalInternalReview)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only an internally reviewed proposal can be sent.");
     var opportunity = await db.Opportunities.SingleAsync(x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
+    if (!await OpportunityAcceptanceGate.IsCurrentUnconditionalAsync(db, actor.FirmId, opportunity.Id, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "A current unconditional Partner acceptance or continuance decision for this exact opportunity is required before dispatch.");
     var lead = await db.Leads.AsNoTracking().SingleOrDefaultAsync(x => x.Id == opportunity.LeadId && x.FirmId == actor.FirmId, ct);
     if (lead is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     // Existing clients use the effective designated COMMERCIAL contact. A prospect has no client-contact
@@ -553,6 +649,10 @@ public static partial class PracticeCrmService
     }
     if (proposal.Status != CrmStates.ProposalSent)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a sent proposal can receive a response.");
+    if (decision == CrmStates.ProposalAccepted &&
+        !await OpportunityAcceptanceGate.IsCurrentUnconditionalAsync(db, actor.FirmId, proposal.OpportunityId, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "A current unconditional Partner acceptance or continuance decision for this exact opportunity is required to accept commercial terms.");
     var dispatch = await db.CommercialNotifications.AsNoTracking()
       .SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ProposalId == proposal.Id &&
         x.Kind == CommercialNotificationKinds.Proposal, ct);
@@ -662,78 +762,36 @@ public static partial class PracticeCrmService
       x => x.Id == proposal.OpportunityId && x.FirmId == actor.FirmId, ct);
     if (opportunity is null || opportunity.Stage != CrmStates.OpportunityWon)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The commercial opportunity is not won.");
-
-    var legalName = request.LegalName.Trim();
+    if (!await OpportunityAcceptanceGate.IsCurrentUnconditionalAsync(db, actor.FirmId, opportunity.Id, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "Current unconditional Partner acceptance for this exact opportunity is required before commercial conversion.");
+    if (opportunity.AcceptanceClientId is not { } clientId)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The opportunity has no canonical prospect for acceptance.");
+    var client = await db.PracticeClients.SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == clientId, ct);
+    if (client is null || !string.Equals(client.LegalName.Trim(), request.LegalName.Trim(), StringComparison.OrdinalIgnoreCase))
+      return CommandResult<Guid>.Fail("crm.duplicate", "The commercial conversion identity differs from the prospect evaluated by the Partner.");
     var registrationNumber = TrimOrNull(request.RegistrationNumber);
     var jurisdiction = TrimOrNull(request.Jurisdiction);
-    var normalizedName = legalName.ToUpperInvariant();
-    var normalizedRegistration = registrationNumber?.ToUpperInvariant();
-    var normalizedJurisdiction = jurisdiction?.ToUpperInvariant();
-    var candidates = await db.PracticeClients
-      .Where(x => x.FirmId == actor.FirmId &&
-        (x.LegalName.ToUpper() == normalizedName ||
-          (normalizedRegistration != null && normalizedJurisdiction != null &&
-           x.RegistrationNumber != null && x.Jurisdiction != null &&
-           x.RegistrationNumber.ToUpper() == normalizedRegistration &&
-           x.Jurisdiction.ToUpper() == normalizedJurisdiction)))
+    if ((registrationNumber is not null && !string.Equals(client.RegistrationNumber, registrationNumber, StringComparison.OrdinalIgnoreCase)) ||
+        (jurisdiction is not null && !string.Equals(client.Jurisdiction, jurisdiction, StringComparison.OrdinalIgnoreCase)))
+      return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
+        "Legal identity details differ from the prospect evaluated by the Partner; record and reassess those details before conversion.");
+    var candidates = await db.PracticeClients.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      (x.LegalName.ToUpper() == client.LegalName.ToUpper() ||
+       (registrationNumber != null && jurisdiction != null && x.RegistrationNumber != null && x.Jurisdiction != null &&
+        x.RegistrationNumber.ToUpper() == registrationNumber.ToUpper() && x.Jurisdiction.ToUpper() == jurisdiction.ToUpper())))
       .Take(2).ToListAsync(ct);
-    if (candidates.Count > 1)
-      return CommandResult<Guid>.Fail("crm.duplicate", "More than one canonical client matches this identity; reviewed resolution is required.");
-    var existingClient = candidates.SingleOrDefault();
-    if (existingClient is not null && !string.Equals(existingClient.LegalName.Trim(), legalName, StringComparison.OrdinalIgnoreCase))
-      return CommandResult<Guid>.Fail("crm.duplicate", "A matching registration candidate has a different legal name; reviewed resolution is required.");
-    if (existingClient is not null &&
-        ((registrationNumber is not null && existingClient.RegistrationNumber is not null &&
-          !string.Equals(existingClient.RegistrationNumber, registrationNumber, StringComparison.OrdinalIgnoreCase)) ||
-         (jurisdiction is not null && existingClient.Jurisdiction is not null &&
-          !string.Equals(existingClient.Jurisdiction, jurisdiction, StringComparison.OrdinalIgnoreCase))))
-      return CommandResult<Guid>.Fail("crm.duplicate", "The canonical client identity conflicts with the supplied registration details.");
-    PracticeClient client;
-    long clientGeneration = 1;
-    var createdClient = existingClient is null;
-    if (createdClient)
-    {
-      var lead = await db.Leads.AsNoTracking().SingleAsync(x => x.FirmId == actor.FirmId && x.Id == opportunity.LeadId, ct);
-      if (!System.Net.Mail.MailAddress.TryCreate(lead.PrimaryContactEmail, out _))
-        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Add a valid primary client contact email before client conversion and portal onboarding.");
-      client = new PracticeClient
-      {
-        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, LegalName = legalName,
-        CommercialName = TrimOrNull(request.CommercialName),
-        RegistrationNumber = registrationNumber,
-        Jurisdiction = jurisdiction,
-        RestrictedProfile = TrimOrNull(request.RestrictedProfile),
-        Status = CrmStates.ClientProspect, CreatedAt = DateTimeOffset.UtcNow
-      };
-      db.PracticeClients.Add(client);
-      db.ClientSafetyStates.Add(new ClientSafetyState
-      {
-        Id = client.Id, FirmId = actor.FirmId, InputGeneration = 1
-      });
-    }
-    else
-    {
-      client = existingClient!;
-      var clientGuard = await db.ClientSafetyStates.FromSqlInterpolated(
-        $"SELECT * FROM client_safety_states WHERE id = {client.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
-        .SingleOrDefaultAsync(ct);
-      if (clientGuard is null)
-        return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
-      clientGuard.InputGeneration++;
-      clientGeneration = clientGuard.InputGeneration;
-    }
+    if (candidates.Count != 1 || candidates[0].Id != client.Id)
+      return CommandResult<Guid>.Fail("crm.duplicate", "Canonical client identity is ambiguous; reviewed resolution is required.");
+    var leadForConversion = await db.Leads.AsNoTracking().SingleAsync(x => x.FirmId == actor.FirmId && x.Id == opportunity.LeadId, ct);
+    if (!System.Net.Mail.MailAddress.TryCreate(leadForConversion.PrimaryContactEmail, out _))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Add a valid primary client contact before commercial conversion and portal onboarding.");
+    if (!await db.ClientContacts.AnyAsync(x => x.FirmId == actor.FirmId && x.PracticeClientId == client.Id && x.Primary && x.IsActive, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "A primary client contact must be established before professional acceptance and commercial conversion.");
 
     proposal.PracticeClientId = client.Id;
     opportunity.PracticeClientId = client.Id;
-    var pending = await db.AcceptanceDecisions.AnyAsync(x =>
-      x.FirmId == actor.FirmId && x.PracticeClientId == client.Id &&
-      x.EngagementId == null && x.ServiceRoute == opportunity.ServiceRoute && x.Decision == "Pending", ct);
-    if (!pending)
-      db.AcceptanceDecisions.Add(new AcceptanceDecision
-      {
-        Id = Guid.CreateVersion7(), FirmId = actor.FirmId, PracticeClientId = client.Id,
-        Decision = "Pending", ServiceRoute = opportunity.ServiceRoute, Generation = clientGeneration
-      });
     RecordLeadActivity(db, actor, opportunity.LeadId, LeadActivityActions.ClientConversionLinked,
       DateTimeOffset.UtcNow, fromState: proposal.Status, toState: client.Status, opportunityId: opportunity.Id,
       serviceRoute: opportunity.ServiceRoute, proposalId: proposal.Id, proposalRevision: proposal.Revision,
@@ -878,10 +936,14 @@ public static partial class PracticeCrmService
     var error = Required(request.ServiceRoute, "Service route")
       ?? Required(request.EntityScope, "Entity scope")
       ?? Required(request.PeriodStart, "Period start")
-      ?? Required(request.PeriodEnd, "Period end")
-      ?? CurrencyError(request.Currency)
-      ?? ExactMoneyError(request.ExpectedFee, "Expected fee");
+      ?? Required(request.PeriodEnd, "Period end");
     if (error is not null) return error;
+    if (EngagementLetterTemplates.Resolve(request.ServiceRoute.Trim()) is null)
+      return "Select a currently supported service route.";
+    if (request.ExpectedFee.HasValue || request.Currency is not null)
+      return "Commercial pricing is entered after professional acceptance.";
+    if (!request.EntityScopeConfirmed)
+      return "Confirm that this scope explicitly lists any included subsidiaries or additional entities.";
     error = PeriodError(request.PeriodStart, request.PeriodEnd);
     if (error is not null) return error;
     if (request.Probability is < 0 or > 100 ||

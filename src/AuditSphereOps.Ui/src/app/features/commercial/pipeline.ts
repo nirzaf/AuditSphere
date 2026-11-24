@@ -20,10 +20,11 @@ const currencyCode: Decoder<string> = (v, p) => {
 };
 const card = obj({
   id: guid, leadId: guid, leadName: str(200), clientId: nullable(guid), clientName: nullable(str(300)), serviceRoute: str(100),
-  periodStart: date, periodEnd: date, expectedFee: dec, currency: currencyCode, probability: nullable(dec),
+  periodStart: date, periodEnd: date, expectedFee: nullable(dec), currency: nullable(currencyCode), probability: nullable(dec),
   ownerUserId: nullable(guid), ownerName: nullable(str(200)), ownerState: oneOf('UNASSIGNED', 'ACTIVE', 'DISABLED', 'MISSING'),
   nextAction: nullable(text), createdAt: instant, proposalId: nullable(guid), proposalRevision: nullable(str(20)),
   proposalStatus: nullable(oneOf('DRAFT', 'INTERNAL_REVIEW', 'SENT', 'ACCEPTED', 'DECLINED', 'SUPERSEDED')), proposalRevisions: nat,
+  acceptanceProcess: oneOf('CLIENT_ACCEPTANCE', 'CONTINUANCE'), acceptanceStatus: str(40), canPrepareCommercial: bool,
 });
 export type PipelineCard = ReturnType<typeof card>;
 const stage = obj({
@@ -87,8 +88,7 @@ const NO_FILTERS: Filters = { owner: '', service: '', currency: '', clientId: ''
       <label>Display <select aria-label="Pipeline display" [value]="display()" (change)="display.set($any($event.target).value)"><option value="board">Board</option><option value="table">Table</option></select></label>
       <label>Stages <select aria-label="Pipeline stage display" [value]="stageScope()" (change)="stageScope.set($any($event.target).value)"><option value="all">All stages</option><option value="open">Open stages</option><option value="closed">Won and lost</option></select></label>
     </div>
-    <p class="pipeline-scope">Counts and expected-fee totals cover every opportunity matching the filters. Each currency is totalled
-      separately; nothing is converted or weighted by probability. Cards load one page at a time.</p>
+    <p class="pipeline-scope">Counts cover every matching opportunity. Only explicitly priced opportunities are totalled by currency; unpriced or invalid-currency items are counted separately. Nothing is converted or weighted by probability.</p>
     <audit-state [loading]="board.loading()" [error]="board.error()" label="opportunity pipeline" />
     @if (moreError()) { <p role="alert">{{ moreError() }}</p> }
     @if (columns(); as stages) {
@@ -109,7 +109,9 @@ const NO_FILTERS: Filters = { owner: '', service: '', currency: '', clientId: ''
                 <tbody>@for (item of column.items; track item.id) { <tr [attr.data-opportunity-id]="item.id">
                   <td><a [routerLink]="['/app/practice/leads', item.leadId]">{{ item.leadName }}</a><small>{{ item.clientName ?? 'No converted client' }} · {{ item.id }}</small></td>
                   <td>{{ item.serviceRoute }} · {{ item.periodStart }} to {{ item.periodEnd }}</td><td>{{ ownerLabel(item) }}</td>
-                  <td>{{ item.expectedFee | money }} {{ item.currency }}</td><td>@if (item.proposalId) { <a [routerLink]="['/app/practice/proposals', item.proposalId]">Proposal revision {{ item.proposalRevision }}</a> · {{ proposalLabel(item.proposalStatus) }} } @else { No proposal yet }
+                  <td>@if (item.expectedFee !== null) { {{ item.expectedFee | money }} {{ item.currency }} } @else { Not priced }</td><td>@if (item.proposalId) { <a [routerLink]="['/app/practice/proposals', item.proposalId]">Proposal revision {{ item.proposalRevision }}</a> · {{ proposalLabel(item.proposalStatus) }} } @else { No proposal yet }
+                    · Acceptance: {{ item.acceptanceStatus }}
+                    @if (!item.canPrepareCommercial && item.clientId) { · <a [routerLink]="['/app/clients', item.clientId, 'assessment']" [queryParams]="{ opportunityId: item.id }">Open {{ item.acceptanceProcess === 'CONTINUANCE' ? 'continuance' : 'acceptance' }}</a> }
                     @if (item.nextAction) { <p>{{ item.nextAction }}</p> }</td>
                 </tr> } @empty { <tr><td colspan="5">No opportunities in this stage.</td></tr> }</tbody>
               </table></div>
@@ -120,7 +122,9 @@ const NO_FILTERS: Filters = { owner: '', service: '', currency: '', clientId: ''
                   <h3><a [routerLink]="['/app/practice/leads', item.leadId]">{{ item.leadName }}</a></h3>
                   <p>{{ item.serviceRoute }} · {{ item.periodStart }} to {{ item.periodEnd }}</p>
                   @if (item.clientName) { <p>Client: {{ item.clientName }}</p> }
-                  <p>Expected fee {{ item.expectedFee | money }} {{ item.currency }}@if (item.probability !== null) { · recorded probability {{ plain(item.probability) }}% }</p>
+                  @if (item.expectedFee !== null) { <p>Expected fee {{ item.expectedFee | money }} {{ item.currency }}@if (item.probability !== null) { · recorded probability {{ plain(item.probability) }}% }</p> } @else { <p>Not priced during discovery</p> }
+                  <p>Acceptance: {{ item.acceptanceStatus }}</p>
+                  @if (!item.canPrepareCommercial && item.clientId) { <a [routerLink]="['/app/clients', item.clientId, 'assessment']" [queryParams]="{ opportunityId: item.id }">Open {{ item.acceptanceProcess === 'CONTINUANCE' ? 'continuance' : 'acceptance' }}</a> }
                   <p>Owner: {{ ownerLabel(item) }}</p>
                   @if (item.nextAction) { <p>Next action: {{ item.nextAction }}</p> }
                   @if (item.proposalId) {

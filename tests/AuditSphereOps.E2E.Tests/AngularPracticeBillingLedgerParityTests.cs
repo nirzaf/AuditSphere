@@ -284,7 +284,7 @@ public sealed class AngularPracticeBillingLedgerParityTests
     var f = host.Fixture;
     var admin = PbcSeed.Actor(f.Admin, "Administrator");
     const string leadName = "SYN-PAR-009-REAL-LEAD";
-    const string latestScope = "SYN-PAR-009-REVISION-TWO-SCOPE";
+    const string latestScope = "Audit of the standalone financial statements of SYN-PAR-009-REAL-LEAD.";
     const decimal fee = 1234.56m;
     Guid proposalId, firstProposalId;
     var restricted = PbcSeed.User(f.FirmId, "Staff");
@@ -296,11 +296,14 @@ public sealed class AngularPracticeBillingLedgerParityTests
       Assert.True(lead.Succeeded, lead.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, admin, lead.Value)).Succeeded);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, admin,
-        new CreateOpportunityRequest(lead.Value, "SYNTHETIC-AUDIT", "SYN-PAR-009-ENTITY",
-          "2026-01-01", "2026-12-31", fee, "QAR", OwnerUserId: admin.UserId));
+        CommercialAcceptanceTestSupport.DiscoveryRequest(lead.Value, "FinancialStatementAudit", leadName,
+          "2026-01-01", "2026-12-31", ownerUserId: admin.UserId));
       Assert.True(opportunity.Succeeded, opportunity.Message);
+      var acceptance = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db,
+        PbcSeed.Actor(f.Admin, "Manager"), PbcSeed.Actor(f.Reviewer, "Partner"), f.FirmId, opportunity.Value);
+      Assert.True(acceptance.Succeeded, acceptance.Message);
       var first = await PracticeCrmService.ReviseProposalAsync(db, admin,
-        new ReviseProposalRequest(opportunity.Value, "SYN-PAR-009-PROFILE-V1", "Revision one scope",
+        new ReviseProposalRequest(opportunity.Value, "SYN-PAR-009-PROFILE-V1", latestScope,
           "Revision one exclusions", "Revision one deliverables", "Revision one dependencies",
           1000m, "QAR", "2026-01-01", "2026-12-31"));
       Assert.True(first.Succeeded, first.Message);

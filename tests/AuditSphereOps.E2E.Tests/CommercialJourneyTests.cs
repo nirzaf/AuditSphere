@@ -36,9 +36,15 @@ public sealed class CommercialJourneyTests
       var lead = await PracticeCrmService.CreateLeadAsync(db, admin, new CreateLeadRequest("Journey Prospect LLC", "Referral", "J. Contact", "j@prospect.example.test"));
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, admin, lead.Value)).Succeeded);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, admin,
-        new CreateOpportunityRequest(lead.Value, "FinancialStatementAudit", "JOURNEY", "2026-01-01", "2026-12-31", 10000m, "QAR"));
+        new CreateOpportunityRequest(lead.Value, "FinancialStatementAudit",
+          "Audit of the standalone financial statements of Journey Prospect LLC.", "2026-01-01", "2026-12-31", null, null,
+          ProspectiveLegalName: "Journey Prospect LLC", EntityScopeConfirmed: true));
+      Assert.True(opportunity.Succeeded, opportunity.Message);
+      var acceptance = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Manager"), PbcSeed.Actor(partner, "Partner"), host.Fixture.FirmId, opportunity.Value);
+      Assert.True(acceptance.Succeeded, acceptance.Message);
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, admin, new ReviseProposalRequest(opportunity.Value, "AUDIT-2026",
-        "Statutory audit", "Tax advisory", "Independent auditor's report", "Trial balance supplied by the client", 1m, "QAR", "2026-01-01", "2026-12-31",
+        "Audit of the standalone financial statements of Journey Prospect LLC.", "Tax advisory", "Independent auditor's report", "Trial balance supplied by the client", 1m, "QAR", "2026-01-01", "2026-12-31",
         Timeline: "Synthetic fieldwork in March; report by April"));
       Assert.True(proposal.Succeeded, proposal.Message);
       proposalId = proposal.Value;
@@ -134,10 +140,14 @@ public sealed class CommercialJourneyTests
       var original = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId);
       var originalOpportunity = await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == original.OpportunityId);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, actor,
-        new(originalOpportunity.LeadId, "FinancialStatementAudit", "TIMELINE-CASE", "2027-01-01", "2027-12-31", 10000m, "QAR"));
+        new(originalOpportunity.LeadId, "FinancialStatementAudit", originalOpportunity.EntityScope,
+          "2027-01-01", "2027-12-31", null, null, ProspectiveLegalName: "Journey Prospect LLC", EntityScopeConfirmed: true));
       Assert.True(opportunity.Succeeded, opportunity.Message);
+      var acceptance = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Manager"), PbcSeed.Actor(partner, "Partner"), host.Fixture.FirmId, opportunity.Value);
+      Assert.True(acceptance.Succeeded, acceptance.Message);
       var draft = await PracticeCrmService.ReviseProposalAsync(db, actor,
-        new(opportunity.Value, "AUDIT-2027", "Synthetic timeline refusal", "", "Report", "", 10000m, "QAR", "2027-01-01", "2027-12-31"));
+        new(opportunity.Value, "AUDIT-2027", originalOpportunity.EntityScope, "", "Report", "", 10000m, "QAR", "2027-01-01", "2027-12-31"));
       Assert.True(draft.Succeeded, draft.Message); missingTimelineProposalId = draft.Value;
       var saved = await QuotationService.SaveAsync(db, actor,
         new(draft.Value, [new("Partner", "Audit", 10m)], 1m, 0m, 0m, false, null));

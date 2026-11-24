@@ -12,7 +12,9 @@ namespace AuditSphereOps.Api.Ui;
 public static partial class UiEndpoints
 {
   public sealed record OpportunityInput(Guid RequestId, string ServiceRoute, string EntityScope,
-    string PeriodStart, string PeriodEnd, string ExpectedFee, string Currency);
+    string PeriodStart, string PeriodEnd, string? ExpectedFee = null, string? Currency = null,
+    string? ProspectiveLegalName = null, bool EntityScopeConfirmed = false,
+    string? ProspectiveRegistrationNumber = null, string? ProspectiveJurisdiction = null);
   public sealed record LeadInput(Guid RequestId, string Name, string Source, string? ContactName, string? ContactEmail);
   public sealed record ProposalResponseInput(string Decision, string? Reason, string? OfferSha256 = null,
     string? RespondentName = null, string? RespondentEmail = null, string? EvidenceReference = null, string? Channel = null);
@@ -55,13 +57,18 @@ public static partial class UiEndpoints
       if (input.RequestId == Guid.Empty || string.IsNullOrWhiteSpace(input.ServiceRoute) || input.ServiceRoute.Length > 100
         || string.IsNullOrWhiteSpace(input.EntityScope) || input.EntityScope.Length > 10000
         || input.PeriodStart is null || input.PeriodStart.Length != 10 || input.PeriodEnd is null || input.PeriodEnd.Length != 10
-        || input.Currency is null || input.Currency.Length != 3
-        || !decimal.TryParse(input.ExpectedFee, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var fee))
+        || input.ExpectedFee is not null || input.Currency is not null ||
+        string.IsNullOrWhiteSpace(input.ProspectiveLegalName) || input.ProspectiveLegalName.Length > 300 ||
+        (input.ProspectiveRegistrationNumber?.Length > 64) || (input.ProspectiveJurisdiction?.Length > 100) ||
+        (string.IsNullOrWhiteSpace(input.ProspectiveRegistrationNumber) != string.IsNullOrWhiteSpace(input.ProspectiveJurisdiction)) ||
+        !input.EntityScopeConfirmed)
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await PracticeCrmService.CreateOpportunityAsync(db, actor,
-        new(id, input.ServiceRoute, input.EntityScope, input.PeriodStart, input.PeriodEnd, fee, input.Currency,
-          OwnerUserId: actor.UserId, RequestId: input.RequestId), http.RequestAborted);
+        new(id, input.ServiceRoute, input.EntityScope, input.PeriodStart, input.PeriodEnd, null, null,
+          OwnerUserId: actor.UserId, RequestId: input.RequestId, ProspectiveLegalName: input.ProspectiveLegalName,
+          EntityScopeConfirmed: input.EntityScopeConfirmed, ProspectiveRegistrationNumber: input.ProspectiveRegistrationNumber,
+          ProspectiveJurisdiction: input.ProspectiveJurisdiction), http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value }) : Results.Json(new { code = result.ErrorCode }, statusCode: result.ErrorCode == "scope.denied" ? 403 : 400);
     })
       .Produces<UiIdentifierResponse>(StatusCodes.Status200OK, "application/json")

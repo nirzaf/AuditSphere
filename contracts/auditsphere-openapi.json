@@ -85845,7 +85845,7 @@
           "AuditSphereOps.Api"
         ],
         "summary": "Read a client assessment workspace",
-        "description": "Returns the scoped client assessment and optional exact decision or engagement context.",
+        "description": "Returns the scoped client assessment and optional exact decision, engagement, or discovery-opportunity context.",
         "parameters": [
           {
             "name": "id",
@@ -85866,6 +85866,14 @@
           },
           {
             "name": "engagementId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "opportunityId",
             "in": "query",
             "schema": {
               "type": "string",
@@ -109140,6 +109148,13 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "opportunityId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -109279,6 +109294,13 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "opportunityId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -109303,6 +109325,42 @@
             "type": "string"
           },
           "periodEnd": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      },
+      "AssessmentOpportunityContext": {
+        "required": [
+          "id",
+          "serviceRoute",
+          "entityScope",
+          "periodStart",
+          "periodEnd",
+          "process",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "serviceRoute": {
+            "type": "string"
+          },
+          "entityScope": {
+            "type": "string"
+          },
+          "periodStart": {
+            "type": "string"
+          },
+          "periodEnd": {
+            "type": "string"
+          },
+          "process": {
             "type": "string"
           },
           "state": {
@@ -109620,6 +109678,16 @@
               },
               {
                 "$ref": "#/components/schemas/AssessmentEngagementContext"
+              }
+            ]
+          },
+          "targetOpportunity": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AssessmentOpportunityContext"
               }
             ]
           }
@@ -121673,7 +121741,10 @@
           "proposalId",
           "proposalRevision",
           "proposalStatus",
-          "proposalRevisions"
+          "proposalRevisions",
+          "acceptanceProcess",
+          "acceptanceStatus",
+          "canPrepareCommercial"
         ],
         "type": "object",
         "properties": {
@@ -121711,10 +121782,16 @@
             "type": "string"
           },
           "expectedFee": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "currency": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "probability": {
             "type": [
@@ -121774,6 +121851,15 @@
               "string"
             ],
             "format": "int32"
+          },
+          "acceptanceProcess": {
+            "type": "string"
+          },
+          "acceptanceStatus": {
+            "type": "string"
+          },
+          "canPrepareCommercial": {
+            "type": "boolean"
           }
         }
       },
@@ -129474,6 +129560,29 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "EngagementLetterTemplate": {
+        "required": [
+          "id",
+          "serviceRoute",
+          "heading",
+          "entityScopeTemplate"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "serviceRoute": {
+            "type": "string"
+          },
+          "heading": {
+            "type": "string"
+          },
+          "entityScopeTemplate": {
+            "type": "string"
           }
         }
       },
@@ -140812,6 +140921,15 @@
           },
           "opportunitiesHasMore": {
             "type": "boolean"
+          },
+          "serviceRoutes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/EngagementLetterTemplate"
+            }
           }
         }
       },
@@ -146076,9 +146194,7 @@
           "serviceRoute",
           "entityScope",
           "periodStart",
-          "periodEnd",
-          "expectedFee",
-          "currency"
+          "periodEnd"
         ],
         "type": "object",
         "properties": {
@@ -146099,10 +146215,38 @@
             "type": "string"
           },
           "expectedFee": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "currency": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "prospectiveLegalName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "entityScopeConfirmed": {
+            "type": "boolean",
+            "default": false
+          },
+          "prospectiveRegistrationNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "prospectiveJurisdiction": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -146136,10 +146280,16 @@
             "type": "string"
           },
           "expectedFee": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "currency": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "periodStart": {
             "type": "string"
@@ -146160,6 +146310,25 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "acceptanceClientId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "acceptanceProcess": {
+            "type": "string",
+            "default": "CLIENT_ACCEPTANCE"
+          },
+          "acceptanceStatus": {
+            "type": "string",
+            "default": "PENDING_ACCEPTANCE"
+          },
+          "canPrepareCommercial": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

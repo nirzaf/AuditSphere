@@ -103,7 +103,7 @@ public sealed partial class AuditDeliverablesTests
     var relationship = await SupportedAuditCompletionWorldBuilder.ProvisionFirmRoleAsync(pg, (w.FirmId, admin), "RelationshipManager");
     var manager = await SupportedAuditCompletionWorldBuilder.ProvisionFirmRoleAsync(pg, (w.FirmId, admin), "Manager");
     var proposal = await SupportedAuditCompletionWorldBuilder.CreateAcceptedProposalAsync(pg, relationship.Actor, partner,
-      manager.Actor, "archive-sibling", "2027-01-01", "2027-12-31", _ => Task.CompletedTask);
+      manager.Actor, "archive-sibling", "Synthetic second archive-copy client", "2027-01-01", "2027-12-31", _ => Task.CompletedTask);
     await using var db = new AuditSphereDbContext(pg.Options);
     var converted = await PracticeCrmService.ConvertToClientDraftAsync(db, relationship.Actor,
       new(proposal, "Synthetic second archive-copy client", "Archive sibling"));

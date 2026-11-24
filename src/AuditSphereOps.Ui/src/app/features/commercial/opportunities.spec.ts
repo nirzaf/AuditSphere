@@ -21,6 +21,10 @@ const opportunity = {
   createdAt: '2026-10-18T09:00:00.1234567+03:00',
   proposalId: null,
   revision: '0',
+  acceptanceClientId: id,
+  acceptanceProcess: 'CLIENT_ACCEPTANCE' as const,
+  acceptanceStatus: 'PENDING_ACCEPTANCE',
+  canPrepareCommercial: true,
 };
 const history = {
   id,
@@ -53,6 +57,11 @@ const lead = {
   history: [history],
   historyHasMore: false,
   hasLegacyHistoryGap: false,
+  serviceRoutes: [
+    { id: 'EL-STATUTORY-AUDIT-ISA210-v1', serviceRoute: 'FinancialStatementAudit',
+      heading: 'Statutory audit engagement — ISA 210',
+      entityScopeTemplate: 'Audit of the standalone financial statements of {clientName}.' },
+  ],
 };
 describe('Opportunity contract', () => {
   it('preserves exact fee and initial revision', () => {

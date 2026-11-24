@@ -32,6 +32,10 @@ public sealed class AcceptanceDecision
   public Guid FirmId { get; set; }
   public Guid PracticeClientId { get; set; }
   public Guid? EngagementId { get; set; }
+  /// <summary>Exact CRM opportunity whose prospective client and scope were reviewed.</summary>
+  public Guid? OpportunityId { get; set; }
+  /// <summary>Digest of prospect identity, route, entity scope and period approved for this opportunity.</summary>
+  public string? OpportunityBasisSha256 { get; set; }
   public string Decision { get; set; } = "Pending"; // Pending|Accepted|AcceptedWithConditions|Declined|Deferred
   public string ServiceRoute { get; set; } = string.Empty;
   public long Generation { get; set; } = 1;         // §22: approvals bind to generation

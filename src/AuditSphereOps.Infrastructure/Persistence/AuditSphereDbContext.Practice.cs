@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
@@ -90,7 +91,7 @@ public sealed partial class AuditSphereDbContext
           "(action <> 'PROPOSAL_REVIEWED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'DRAFT' AND to_state = 'INTERNAL_REVIEW')) AND " +
           "(action <> 'PROPOSAL_MARKED_SENT' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'INTERNAL_REVIEW' AND to_state = 'SENT')) AND " +
           "(action NOT IN ('PROPOSAL_ACCEPTED','PROPOSAL_DECLINED') OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND from_state = 'SENT' AND ((action = 'PROPOSAL_ACCEPTED' AND to_state = 'ACCEPTED') OR (action = 'PROPOSAL_DECLINED' AND to_state = 'DECLINED')))) AND " +
-          "(action <> 'CLIENT_CONVERSION_LINKED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND client_id IS NOT NULL AND to_state = 'PROSPECT'))");
+          "(action <> 'CLIENT_CONVERSION_LINKED' OR (opportunity_id IS NOT NULL AND proposal_id IS NOT NULL AND proposal_revision IS NOT NULL AND client_id IS NOT NULL AND to_state IS NOT NULL))");
       });
     });
     b.Entity<Opportunity>().HasIndex(x => new { x.FirmId, x.LeadId, x.Stage });
@@ -129,7 +130,7 @@ public sealed partial class AuditSphereDbContext
     b.Entity<Lead>().ToTable("leads", t => t.HasCheckConstraint("ck_lead_status",
       "status IN ('NEW','QUALIFIED','UNQUALIFIED','LOST') AND length(name) > 0 AND length(source) > 0"));
     b.Entity<Opportunity>().ToTable("opportunities", t => t.HasCheckConstraint("ck_opportunity_state",
-      "stage IN ('DISCOVERY','PROPOSAL','NEGOTIATION','WON','LOST') AND length(service_route) > 0 AND length(entity_scope) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND expected_fee >= 0 AND (probability IS NULL OR probability BETWEEN 0 AND 100) AND currency ~ '^[A-Z]{3}$'"));
+      "stage IN ('DISCOVERY','PROPOSAL','NEGOTIATION','WON','LOST') AND length(service_route) > 0 AND length(entity_scope) > 0 AND length(period_start) = 10 AND length(period_end) = 10 AND period_start <= period_end AND ((expected_fee IS NULL AND currency IS NULL) OR (expected_fee IS NOT NULL AND expected_fee >= 0 AND currency ~ '^[A-Z]{3}$')) AND ((entity_scope_confirmed_by_user_id IS NULL AND entity_scope_confirmed_at IS NULL) OR (entity_scope_confirmed_by_user_id IS NOT NULL AND entity_scope_confirmed_at IS NOT NULL)) AND (discovery_identity_sha256 IS NULL OR discovery_identity_sha256 ~ '^[a-f0-9]{64}$') AND (probability IS NULL OR probability BETWEEN 0 AND 100)"));
     b.Entity<Proposal>().Property(x => x.CreateRequestHash).HasMaxLength(64);
     b.Entity<Proposal>().Property(x => x.Timeline).HasMaxLength(4000).HasDefaultValue(string.Empty);
     b.Entity<Proposal>().ToTable("proposals", t =>
@@ -338,6 +339,15 @@ public sealed partial class AuditSphereDbContext
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<Opportunity>().HasOne<PracticeClient>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.PracticeClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<Opportunity>().HasOne<PracticeClient>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.AcceptanceClientId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<Opportunity>().HasOne<AppUser>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.EntityScopeConfirmedByUserId })
+      .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    b.Entity<AcceptanceDecision>().HasOne<Opportunity>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.OpportunityId })
       .HasPrincipalKey(x => new { x.FirmId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     b.Entity<Proposal>().HasOne<Opportunity>().WithMany()
       .HasForeignKey(x => new { x.FirmId, x.OpportunityId })

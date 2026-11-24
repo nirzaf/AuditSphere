@@ -66,7 +66,7 @@ internal static class SupportedAuditCompletionWorldBuilder
     }
     var commercialProfileSaved = false;
     var primaryProposal = await CreateAcceptedProposalAsync(pg, relationship.Actor, partner.Actor, manager.Actor,
-      "Primary", "2026-01-01", "2026-12-31", async db =>
+      "Primary", clientLegalName, "2026-01-01", "2026-12-31", async db =>
       {
         if (commercialProfileSaved) return;
         var saved = await CommercialDocumentService.SaveProfileAsync(db, partner.Actor,
@@ -87,7 +87,7 @@ internal static class SupportedAuditCompletionWorldBuilder
     if (includeSibling)
     {
       siblingProposal = await CreateAcceptedProposalAsync(pg, relationship.Actor, partner.Actor, manager.Actor,
-      "Sibling", "2025-01-01", "2025-12-31", async db =>
+      "Sibling", clientLegalName, "2025-01-01", "2025-12-31", async db =>
       {
         if (commercialProfileSaved) return;
         var saved = await CommercialDocumentService.SaveProfileAsync(db, partner.Actor,
@@ -154,7 +154,7 @@ internal static class SupportedAuditCompletionWorldBuilder
     }
     var relationship = await Actor("RelationshipManager");
     var proposal = await CreateAcceptedProposalAsync(pg, relationship, await Actor("Partner"), await Actor("Manager"),
-      "OtherClient", "2024-01-01", "2024-12-31", _ => Task.CompletedTask);
+      "OtherClient", "Synthetic R06 separate client", "2024-01-01", "2024-12-31", _ => Task.CompletedTask);
     await using var db = new AuditSphereDbContext(pg.Options);
     var result = await PracticeCrmService.ConvertToClientDraftAsync(db, relationship,
       new(proposal, "Synthetic R06 separate client", "Separate R06 client"));
@@ -180,7 +180,7 @@ internal static class SupportedAuditCompletionWorldBuilder
     Assert.True(rate.Succeeded, rate.Message);
     Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, manager.Actor, rate.Value)).Succeeded);
     var proposal = await CreateAcceptedProposalAsync(pg, relationship.Actor, partner.Actor, manager.Actor,
-      "Acceptance", "2026-01-01", "2026-12-31", async profileDb =>
+      "Acceptance", "Synthetic acceptance client", "2026-01-01", "2026-12-31", async profileDb =>
       {
         var saved = await CommercialDocumentService.SaveProfileAsync(profileDb, partner.Actor,
           new("Synthetic Audit Firm", "Test address", "firm@example.test", "", "#0F766E", "Synthetic test terms"));
@@ -193,7 +193,7 @@ internal static class SupportedAuditCompletionWorldBuilder
   }
 
   internal static async Task<Guid> CreateAcceptedProposalAsync(ITestPostgresDatabase pg, ActorContext relationship,
-    ActorContext partner, ActorContext manager, string suffix, string periodStart, string periodEnd,
+    ActorContext partner, ActorContext manager, string suffix, string clientLegalName, string periodStart, string periodEnd,
     Func<AuditSphereDbContext, Task> ensureCommercialProfile, decimal fee = 20000m, bool nonStandardTerms = false)
   {
     Guid proposalId;
@@ -204,11 +204,16 @@ internal static class SupportedAuditCompletionWorldBuilder
       Assert.True(lead.Succeeded, lead.Message);
       var qualified = await PracticeCrmService.QualifyLeadAsync(db, relationship, lead.Value);
       Assert.True(qualified.Succeeded, qualified.Message);
+      var scope = $"Audit of the standalone financial statements of {clientLegalName}.";
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, relationship,
-        new(lead.Value, "FinancialStatementAudit", "SYNTHETIC-ENTITY", periodStart, periodEnd, fee, "QAR", 60m));
+        new(lead.Value, "FinancialStatementAudit", scope, periodStart, periodEnd, null, null, 60m,
+          ProspectiveLegalName: clientLegalName, EntityScopeConfirmed: true));
       Assert.True(opportunity.Succeeded, opportunity.Message);
+      var accepted = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db, manager, partner,
+        relationship.FirmId, opportunity.Value);
+      Assert.True(accepted.Succeeded, accepted.Message);
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, relationship,
-        new(opportunity.Value, $"Synthetic R02 {suffix} audit", "Statutory audit", "Tax advisory",
+        new(opportunity.Value, $"Synthetic R02 {suffix} audit", scope, "Tax advisory",
           "Independent auditor report", "Client supplies source records", fee, "QAR", periodStart, periodEnd,
           Timeline: "Synthetic test fieldwork and reporting timeline."));
       Assert.True(proposal.Succeeded, proposal.Message);

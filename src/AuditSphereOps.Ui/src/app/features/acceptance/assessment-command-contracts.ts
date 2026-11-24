@@ -19,6 +19,7 @@ export interface AssessmentCommandFields {
   decision: string | null;
   rationale: string | null;
   engagementId: string | null;
+  opportunityId: string | null;
 }
 export const assessmentFields = (
   kind: AssessmentCommandKind,
@@ -40,6 +41,7 @@ export const assessmentFields = (
   decision: null,
   rationale: null,
   engagementId: null,
+  opportunityId: null,
 });
 const maximum = 9223372036854775807n;
 const counter = (v: string, min = 1n) =>
@@ -65,12 +67,15 @@ const fieldDecoder = obj({
   decision: nullable(str(40)),
   rationale: nullable(str(2000)),
   engagementId: nullable(guid),
+  opportunityId: nullable(guid),
 });
 /** Canonical, bounded action shape. Irrelevant fields cannot silently change the reviewed action. */
 export function decodeAssessmentFields(raw: unknown): AssessmentCommandFields {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Invalid assessment fields');
-  const f = decode(fieldDecoder, { ...raw, engagementId: (raw as { engagementId?: unknown }).engagementId ?? null });
-  if (f.engagementId === '00000000-0000-0000-0000-000000000000') throw new Error('Invalid engagement target');
+  const input = raw as { engagementId?: unknown; opportunityId?: unknown };
+  const f = decode(fieldDecoder, { ...raw, engagementId: input.engagementId ?? null, opportunityId: input.opportunityId ?? null });
+  if (f.engagementId === '00000000-0000-0000-0000-000000000000' ||
+      f.opportunityId === '00000000-0000-0000-0000-000000000000') throw new Error('Invalid assessment target');
   if (!counter(f.generation) || Object.values(f).some((v) => !text(v)))
     throw new Error('Invalid assessment fields');
   const shaped = assessmentFields(f.kind as AssessmentCommandKind, f.generation);
@@ -131,9 +136,12 @@ export function decodeAssessmentFields(raw: unknown): AssessmentCommandFields {
         rationale: f.rationale,
         conditions: f.conditions,
         engagementId: f.engagementId,
+        opportunityId: f.opportunityId,
       });
       break;
     case 'CONTINUANCE':
+      if (f.opportunityId !== null && !f.serviceRoute) throw new Error('Invalid continuance target');
+      Object.assign(shaped, { serviceRoute: f.serviceRoute, opportunityId: f.opportunityId });
       break;
     default:
       throw new Error('Unsupported assessment action');

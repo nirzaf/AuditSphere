@@ -150,6 +150,8 @@ export function decodeChecklist(value: unknown): Checklist {
 const decodeAssessmentMetadata = obj({
   targetEngagement: nullable(obj({ id: decodeGuid, serviceRoute: str(50), periodStart: date, periodEnd: date,
     state: oneOf('DECISION_RECORDED', 'FRESH_EVALUATION_REQUIRED', 'EVALUATION_OPEN', 'EVALUATION_CLOSED') })),
+  targetOpportunity: nullable(obj({ id: decodeGuid, serviceRoute: str(100), entityScope: str(10000),
+    periodStart: date, periodEnd: date, process: oneOf('CLIENT_ACCEPTANCE', 'CONTINUANCE'), state: str(50) })),
   client: obj({
     id: decodeGuid,
     legalName: str(300),
@@ -160,6 +162,7 @@ const decodeAssessmentMetadata = obj({
     obj({
       id: decodeGuid,
       engagementId: nullable(decodeGuid),
+      opportunityId: nullable(decodeGuid),
       generation: str(19),
       decision: str(40),
       serviceRoute: str(100),
@@ -201,10 +204,16 @@ export function decodeAssessment(value: unknown) {
     (metadata.targetEngagement.state === 'EVALUATION_OPEN' && checklist.currentDecision !== null) ||
     (metadata.targetEngagement.state === 'DECISION_RECORDED' && metadata.selectedDecision?.engagementId !== metadata.targetEngagement.id)))
     throw new Error('Invalid target engagement');
+  if (metadata.targetOpportunity && (metadata.targetOpportunity.id === '00000000-0000-0000-0000-000000000000' ||
+    metadata.targetOpportunity.periodStart > metadata.targetOpportunity.periodEnd ||
+    !metadata.targetOpportunity.entityScope.trim()))
+    throw new Error('Invalid target opportunity');
   if (
     metadata.selectedDecision &&
     (!exactCounter(metadata.selectedDecision.generation, 1n) ||
-      !decisions.includes(metadata.selectedDecision.decision))
+      !decisions.includes(metadata.selectedDecision.decision) ||
+      (metadata.selectedDecision.opportunityId !== null &&
+        metadata.selectedDecision.opportunityId !== metadata.targetOpportunity?.id))
   )
     throw new Error('Invalid recorded decision');
   if (

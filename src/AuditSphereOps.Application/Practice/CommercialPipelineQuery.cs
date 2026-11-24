@@ -1,5 +1,6 @@
 using System.Data;
 using System.Globalization;
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
@@ -24,9 +25,10 @@ public sealed record CommercialPipelineCurrencyTotal(string Currency, int Count,
 /// opportunity); <see cref="ProposalRevisions"/> counts every revision without counting the opportunity again.
 /// </summary>
 public sealed record CommercialPipelineCard(Guid Id, Guid LeadId, string LeadName, Guid? ClientId, string? ClientName,
-  string ServiceRoute, string PeriodStart, string PeriodEnd, string ExpectedFee, string Currency, string? Probability,
+  string ServiceRoute, string PeriodStart, string PeriodEnd, string? ExpectedFee, string? Currency, string? Probability,
   Guid? OwnerUserId, string? OwnerName, string OwnerState, string? NextAction, DateTimeOffset CreatedAt,
-  Guid? ProposalId, string? ProposalRevision, string? ProposalStatus, int ProposalRevisions);
+  Guid? ProposalId, string? ProposalRevision, string? ProposalStatus, int ProposalRevisions,
+  string AcceptanceProcess, string AcceptanceStatus, bool CanPrepareCommercial);
 
 /// <summary>A stage column: complete count and totals for the filtered cohort, plus one bounded page of cards.</summary>
 public sealed record CommercialPipelineStage(string Stage, int Count, IReadOnlyList<CommercialPipelineCurrencyTotal> Totals,
@@ -76,7 +78,7 @@ public static class CommercialPipelineQuery
     if (unassigned) query = query.Where(o => o.OwnerUserId == null);
     else if (ownerId is { } owner) query = query.Where(o => o.OwnerUserId == owner);
     var clientOptionsQuery = query;
-    if (filter.ClientId is { } clientId) query = query.Where(o => o.PracticeClientId == clientId);
+    if (filter.ClientId is { } clientId) query = query.Where(o => (o.AcceptanceClientId ?? o.PracticeClientId) == clientId);
     var stages = cursor is null ? Stages : [cursor.Stage];
 
     // Counts, totals and cards come from one observation, so a column never describes a different cohort.
@@ -87,13 +89,15 @@ public static class CommercialPipelineQuery
     try
     {
       clientOptions = await db.PracticeClients.AsNoTracking().Where(c => c.FirmId == actor.FirmId &&
-          clientOptionsQuery.Any(o => o.PracticeClientId == c.Id))
+          clientOptionsQuery.Any(o => (o.AcceptanceClientId ?? o.PracticeClientId) == c.Id))
         .OrderBy(c => c.CommercialName ?? c.LegalName).ThenBy(c => c.Id)
         .Select(c => new CommercialPipelineClient(c.Id, c.CommercialName ?? c.LegalName)).Take(101).ToListAsync(ct);
-      var groups = await query.Where(o => stages.Contains(o.Stage))
+      var groups = await query.Where(o => stages.Contains(o.Stage) && o.ExpectedFee != null && o.Currency != null)
         .GroupBy(o => new { o.Stage, o.Currency })
-        .Select(g => new { g.Key.Stage, g.Key.Currency, Count = g.Count(), Total = g.Sum(o => o.ExpectedFee) })
+        .Select(g => new { g.Key.Stage, g.Key.Currency, Count = g.Count(), Total = g.Sum(o => o.ExpectedFee!.Value) })
         .ToListAsync(ct);
+      var stageCounts = await query.Where(o => stages.Contains(o.Stage)).GroupBy(o => o.Stage)
+        .Select(g => new { Stage = g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Stage, x => x.Count, ct);
       var pages = new Dictionary<string, List<Opportunity>>();
       foreach (var stage in stages)
       {
@@ -111,7 +115,8 @@ public static class CommercialPipelineQuery
       var shown = pages.Values.SelectMany(x => x.Take(pageSize)).ToList();
       var ids = shown.Select(o => o.Id).ToList();
       var leadIds = shown.Select(o => o.LeadId).Distinct().ToList();
-      var clientIds = shown.Where(o => o.PracticeClientId.HasValue).Select(o => o.PracticeClientId!.Value).Distinct().ToList();
+      var clientIds = shown.Select(o => o.AcceptanceClientId ?? o.PracticeClientId).Where(x => x.HasValue)
+        .Select(x => x!.Value).Distinct().ToList();
       var userIds = shown.Where(o => o.OwnerUserId.HasValue).Select(o => o.OwnerUserId!.Value).Distinct().ToList();
       var leads = await db.Leads.AsNoTracking().Where(l => l.FirmId == actor.FirmId && leadIds.Contains(l.Id))
         .ToDictionaryAsync(l => l.Id, l => l.Name, ct);
@@ -119,6 +124,17 @@ public static class CommercialPipelineQuery
         .ToDictionaryAsync(c => c.Id, c => c.CommercialName ?? c.LegalName, ct);
       var owners = await db.Users.AsNoTracking().Where(u => u.FirmId == actor.FirmId && userIds.Contains(u.Id))
         .Select(u => new { u.Id, u.DisplayName, u.Disabled }).ToDictionaryAsync(u => u.Id, ct);
+      var generations = await db.ClientSafetyStates.AsNoTracking().Where(s => s.FirmId == actor.FirmId && clientIds.Contains(s.Id))
+        .ToDictionaryAsync(s => s.Id, s => s.InputGeneration, ct);
+      var clientsById = await db.PracticeClients.AsNoTracking().Where(c => c.FirmId == actor.FirmId && clientIds.Contains(c.Id))
+        .ToDictionaryAsync(c => c.Id, ct);
+      var acceptanceDecisions = await db.AcceptanceDecisions.AsNoTracking().Where(d => d.FirmId == actor.FirmId &&
+          ids.Contains(d.OpportunityId!.Value) && clientIds.Contains(d.PracticeClientId))
+        .ToListAsync(ct);
+      var priorAccepted = await db.AcceptanceDecisions.AsNoTracking().Where(d => d.FirmId == actor.FirmId &&
+          clientIds.Contains(d.PracticeClientId) &&
+          (d.Decision == "Accepted" || d.Decision == "AcceptedWithConditions"))
+        .Select(d => new { d.PracticeClientId, d.ServiceRoute }).Distinct().ToListAsync(ct);
       var proposals = await db.Proposals.AsNoTracking().Where(p => p.FirmId == actor.FirmId && ids.Contains(p.OpportunityId))
         .Select(p => new { p.Id, p.OpportunityId, p.Revision, p.Status }).ToListAsync(ct);
       var proposalsByOpportunity = proposals.GroupBy(p => p.OpportunityId).ToDictionary(g => g.Key, g => g.ToList());
@@ -128,23 +144,46 @@ public static class CommercialPipelineQuery
         var revisions = proposalsByOpportunity.GetValueOrDefault(o.Id) ?? [];
         var latest = revisions.OrderByDescending(p => p.Revision).FirstOrDefault();
         var known = o.OwnerUserId is { } key && owners.TryGetValue(key, out var found) ? found : null;
-        return new(o.Id, o.LeadId, leads.GetValueOrDefault(o.LeadId, "Lead"), o.PracticeClientId,
-          o.PracticeClientId is { } client ? clients.GetValueOrDefault(client) : null, o.ServiceRoute, o.PeriodStart, o.PeriodEnd,
-          o.ExpectedFee.ToString(CultureInfo.InvariantCulture), o.Currency, o.Probability?.ToString(CultureInfo.InvariantCulture),
+        var clientId = o.AcceptanceClientId ?? o.PracticeClientId;
+        var currentDecision = acceptanceDecisions.Where(d => d.OpportunityId == o.Id && d.PracticeClientId == clientId &&
+            generations.GetValueOrDefault(d.PracticeClientId) == d.Generation)
+          .OrderByDescending(d => d.DecidedAt).ThenByDescending(d => d.Id).FirstOrDefault();
+        var latestDecision = currentDecision ?? acceptanceDecisions.Where(d => d.OpportunityId == o.Id && d.PracticeClientId == clientId)
+          .OrderByDescending(d => d.DecidedAt).ThenByDescending(d => d.Id).FirstOrDefault();
+        var hasStaleDecision = latestDecision is not null &&
+          (!generations.TryGetValue(latestDecision.PracticeClientId, out var decisionGeneration) ||
+           latestDecision.Generation != decisionGeneration);
+        var hasPrior = clientId is { } prospectiveClient && priorAccepted.Any(d => d.PracticeClientId == prospectiveClient && d.ServiceRoute == o.ServiceRoute);
+        var canPrepare = clientId is { } acceptedClientId && clientsById.TryGetValue(acceptedClientId, out var client) &&
+          generations.TryGetValue(acceptedClientId, out var currentGeneration) && currentDecision is
+            { Decision: "Accepted", Conditions: null, DecidedByUserId: not null, DecidedAt: not null } &&
+          currentDecision.Generation == currentGeneration && string.Equals(currentDecision.OpportunityBasisSha256,
+            OpportunityAcceptanceGate.BasisSha256(o, client), StringComparison.Ordinal);
+        var acceptanceStatus = canPrepare ? "ACCEPTED" : hasStaleDecision ? "STALE_ACCEPTANCE" : latestDecision?.Decision switch
+        {
+          "Pending" => "PENDING_ACCEPTANCE", "Declined" => "DECLINED", "Deferred" => "DEFERRED",
+          "AcceptedWithConditions" => "CONDITIONAL", "Accepted" => "STALE_ACCEPTANCE",
+          _ => hasPrior ? "CONTINUANCE_REQUIRED" : "PENDING_ACCEPTANCE"
+        };
+        return new(o.Id, o.LeadId, leads.GetValueOrDefault(o.LeadId, "Lead"), clientId,
+          clientId is { } clientKey ? clients.GetValueOrDefault(clientKey) : null, o.ServiceRoute, o.PeriodStart, o.PeriodEnd,
+          o.ExpectedFee?.ToString(CultureInfo.InvariantCulture), o.Currency, o.Probability?.ToString(CultureInfo.InvariantCulture),
           o.OwnerUserId, known?.DisplayName,
           o.OwnerUserId is null ? PracticeLeadOwnerStates.Unassigned : known is null ? PracticeLeadOwnerStates.Missing
             : known.Disabled ? PracticeLeadOwnerStates.Disabled : PracticeLeadOwnerStates.Active,
-          o.NextAction, o.CreatedAt, latest?.Id, latest?.Revision.ToString(CultureInfo.InvariantCulture), latest?.Status, revisions.Count);
+          o.NextAction, o.CreatedAt, latest?.Id, latest?.Revision.ToString(CultureInfo.InvariantCulture), latest?.Status,
+          revisions.Count, hasPrior ? "CONTINUANCE" : "CLIENT_ACCEPTANCE", acceptanceStatus, canPrepare);
       }
 
       foreach (var stage in stages)
       {
         var stageGroups = groups.Where(g => g.Stage == stage).ToList();
-        var valid = stageGroups.Where(g => g.Currency.Length == 3 && g.Currency.All(char.IsAsciiLetterUpper))
+        var valid = stageGroups.Where(g => g.Currency is { Length: 3 } code && code.All(char.IsAsciiLetterUpper))
           .OrderBy(g => g.Currency, StringComparer.Ordinal).ToList();
-        columns.Add(new(stage, stageGroups.Sum(g => g.Count),
-          valid.Select(g => new CommercialPipelineCurrencyTotal(g.Currency, g.Count, g.Total.ToString(CultureInfo.InvariantCulture))).ToList(),
-          stageGroups.Except(valid).Sum(g => g.Count), pages[stage].Take(pageSize).Select(Card).ToList(), pages[stage].Count > pageSize));
+        var count = stageCounts.GetValueOrDefault(stage);
+        columns.Add(new(stage, count,
+          valid.Select(g => new CommercialPipelineCurrencyTotal(g.Currency!, g.Count, g.Total.ToString(CultureInfo.InvariantCulture))).ToList(),
+          count - valid.Sum(g => g.Count), pages[stage].Take(pageSize).Select(Card).ToList(), pages[stage].Count > pageSize));
       }
       if (snapshot is not null) await snapshot.CommitAsync(ct);
     }

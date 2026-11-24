@@ -157,8 +157,10 @@ public sealed class AngularCommercialJourneyTests
       var actor = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
       for (var index = 0; index < 201; index++)
       {
+        var legalName = $"Synthetic history prospect {index:D3}";
         var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, actor,
-          new(leadId, "AccountingOnly", $"Synthetic history entity {index:D3}", "2026-01-01", "2026-12-31", 1000m, "QAR"));
+          CommercialAcceptanceTestSupport.DiscoveryRequest(leadId, "FinancialStatementAudit", legalName,
+            "2026-01-01", "2026-12-31"));
         Assert.True(opportunity.Succeeded, opportunity.Message);
       }
       Assert.Equal(203, await db.LeadActivityEvents.CountAsync(x => x.LeadId == leadId));
@@ -167,7 +169,8 @@ public sealed class AngularCommercialJourneyTests
       Assert.True(foreignLead.Succeeded, foreignLead.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, foreignLead.Value)).Succeeded);
       var foreignOpportunity = await PracticeCrmService.CreateOpportunityAsync(db, actor,
-        new(foreignLead.Value, "AccountingOnly", "Separate-lead entity", "2026-01-01", "2026-12-31", 1000m, "QAR"));
+        CommercialAcceptanceTestSupport.DiscoveryRequest(foreignLead.Value, "FinancialStatementAudit",
+          "Synthetic separate-lead cursor", "2026-01-01", "2026-12-31"));
       Assert.True(foreignOpportunity.Succeeded, foreignOpportunity.Message);
       foreignOpportunityId = foreignOpportunity.Value;
       foreignOpportunityCreatedAt = await db.Opportunities.AsNoTracking()
@@ -286,13 +289,25 @@ public sealed class AngularCommercialJourneyTests
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(routePath));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Opportunities", Exact = true, Level = 1 })).ToBeVisibleAsync();
-    await page.GetByLabel("Service route", new() { Exact = true }).FillAsync("AccountingOnly");
-    await page.GetByLabel("Entity scope", new() { Exact = true }).FillAsync("Synthetic entity");
+    await using (var leadResponse = await context.APIRequest.GetAsync(origin + $"/api/ui/leads/{leadId:D}"))
+    {
+      var leadJson = await leadResponse.TextAsync();
+      Assert.True(leadResponse.Ok, $"The qualified lead workspace should load for discovery. HTTP {leadResponse.Status}: {leadJson}");
+      using var leadBody = JsonDocument.Parse(leadJson);
+      Assert.Equal("QUALIFIED", leadBody.RootElement.GetProperty("status").GetString());
+      Assert.NotEmpty(leadBody.RootElement.GetProperty("serviceRoutes").EnumerateArray());
+    }
+    await Assertions.Expect(page.GetByText("Synthetic opportunity recovery lead", new() { Exact = true })).ToBeVisibleAsync();
+    await page.GetByLabel("Prospective client legal name", new() { Exact = true }).FillAsync("Synthetic opportunity recovery prospect");
+    await page.GetByLabel("Service route", new() { Exact = true }).SelectOptionAsync("FinancialStatementAudit");
+    await Assertions.Expect(page.GetByLabel("Entity scope", new() { Exact = true }))
+      .ToHaveValueAsync("Audit of the standalone financial statements of Synthetic opportunity recovery prospect.");
+    await page.GetByLabel("Entity scope", new() { Exact = true })
+      .FillAsync("Audit of the standalone financial statements of Synthetic opportunity recovery prospect.");
     await page.GetByLabel("Period start", new() { Exact = true }).FillAsync("2026-01-01");
     await page.GetByLabel("Period end", new() { Exact = true }).FillAsync("2026-12-31");
-    await page.GetByLabel("Expected fee", new() { Exact = true }).FillAsync("1500.25");
-    await page.GetByLabel("Currency", new() { Exact = true }).FillAsync("QAR");
-    await page.GetByLabel("I reviewed these discovery terms.", new() { Exact = true }).CheckAsync();
+    await page.GetByLabel("I verified the prospective client's identity and confirm this scope. Subsidiaries and additional entities are excluded unless explicitly listed above.", new() { Exact = true }).CheckAsync();
+    await page.GetByLabel("I reviewed the discovery details.", new() { Exact = true }).CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Record opportunity", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("Opportunity outcome unconfirmed", new() { Exact = false })).ToBeVisibleAsync();
     Assert.NotEqual(Guid.Empty, requestIdentity);
@@ -306,10 +321,13 @@ public sealed class AngularCommercialJourneyTests
     await Assertions.Expect(recovery).ToHaveCountAsync(0);
     Assert.Equal(1, postCount);
 
-    await page.GetByLabel("Service route", new() { Exact = true }).FillAsync("FinancialStatementAudit");
-    await page.GetByLabel("Entity scope", new() { Exact = true }).FillAsync("Second synthetic entity");
-    await page.GetByLabel("Expected fee", new() { Exact = true }).FillAsync("2000.00");
-    await page.GetByLabel("I reviewed these discovery terms.", new() { Exact = true }).CheckAsync();
+    await page.GetByLabel("Prospective client legal name", new() { Exact = true }).FillAsync("Synthetic opportunity recovery prospect");
+    await page.GetByLabel("Service route", new() { Exact = true }).SelectOptionAsync("InternalAudit");
+    await page.GetByLabel("Entity scope", new() { Exact = true }).FillAsync("Internal audit services for Synthetic opportunity recovery prospect, limited to the approved operations scope.");
+    await page.GetByLabel("Period start", new() { Exact = true }).FillAsync("2026-01-01");
+    await page.GetByLabel("Period end", new() { Exact = true }).FillAsync("2026-12-31");
+    await page.GetByLabel("I verified the prospective client's identity and confirm this scope. Subsidiaries and additional entities are excluded unless explicitly listed above.", new() { Exact = true }).CheckAsync();
+    await page.GetByLabel("I reviewed the discovery details.", new() { Exact = true }).CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Record opportunity", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("Opportunity outcome unconfirmed", new() { Exact = false })).ToBeVisibleAsync();
     Assert.NotEqual(Guid.Empty, retryIdentity);
@@ -321,22 +339,45 @@ public sealed class AngularCommercialJourneyTests
       new() { Name = "Resolve saved opportunity request", Exact = true });
     await Assertions.Expect(recovery).ToBeVisibleAsync();
     await Assertions.Expect(recovery).ToBeDisabledAsync();
-    await Assertions.Expect(page.GetByLabel("Entity scope", new() { Exact = true })).ToHaveValueAsync("Second synthetic entity");
-    await page.GetByLabel("I reviewed these discovery terms.", new() { Exact = true }).CheckAsync();
+    await Assertions.Expect(page.GetByLabel("Entity scope", new() { Exact = true })).ToHaveValueAsync("Internal audit services for Synthetic opportunity recovery prospect, limited to the approved operations scope.");
+    await page.GetByLabel("I verified the prospective client's identity and confirm this scope. Subsidiaries and additional entities are excluded unless explicitly listed above.", new() { Exact = true }).CheckAsync();
+    await page.GetByLabel("I reviewed the discovery details.", new() { Exact = true }).CheckAsync();
     await recovery.ClickAsync();
     await Assertions.Expect(page.GetByText("Opportunity recorded.", new() { Exact = false })).ToBeVisibleAsync();
     Assert.Equal(3, postCount);
+    var acceptanceLinks = page.GetByRole(AriaRole.Link,
+      new() { Name = "Complete client acceptance", Exact = true });
+    await Assertions.Expect(acceptanceLinks).ToHaveCountAsync(2);
+    await Assertions.Expect(page.GetByRole(AriaRole.Button,
+      new() { Name = "Prepare initial proposal", Exact = true })).ToHaveCountAsync(0);
+    var scopedAcceptanceLink = page.Locator($"a[href*='{requestIdentity:D}']");
+    await Assertions.Expect(scopedAcceptanceLink).ToHaveCountAsync(1);
+    var acceptanceHref = await scopedAcceptanceLink.GetAttributeAsync("href");
+    Assert.False(string.IsNullOrWhiteSpace(acceptanceHref));
+    await page.GotoAsync(origin + acceptanceHref);
+    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+      new() { Name = "Client acceptance checklist", Exact = true })).ToBeVisibleAsync();
+    var opportunityScope = page.GetByRole(AriaRole.Region,
+      new() { Name = "Opportunity acceptance scope", Exact = true });
+    await Assertions.Expect(opportunityScope).ToContainTextAsync("FinancialStatementAudit · 2026-01-01 to 2026-12-31");
+    await Assertions.Expect(opportunityScope).ToContainTextAsync(
+      "Audit of the standalone financial statements of Synthetic opportunity recovery prospect.");
+    await Assertions.Expect(opportunityScope).ToContainTextAsync("Additional entities are not included unless expressly named in its scope.");
 
     await using (var db = host.CreateDbContext())
     {
       var opportunity = await db.Opportunities.SingleAsync(x => x.Id == requestIdentity);
       Assert.Equal(leadId, opportunity.LeadId);
-      Assert.Equal("Synthetic entity", opportunity.EntityScope);
-      Assert.Equal(1500.25m, opportunity.ExpectedFee);
+      Assert.Equal("Audit of the standalone financial statements of Synthetic opportunity recovery prospect.", opportunity.EntityScope);
+      Assert.Null(opportunity.ExpectedFee);
+      Assert.Null(opportunity.Currency);
       var retry = await db.Opportunities.SingleAsync(x => x.Id == retryIdentity);
-      Assert.Equal("Second synthetic entity", retry.EntityScope);
-      Assert.Equal(2000m, retry.ExpectedFee);
+      Assert.Equal("Internal audit services for Synthetic opportunity recovery prospect, limited to the approved operations scope.", retry.EntityScope);
+      Assert.Null(retry.ExpectedFee);
+      Assert.Null(retry.Currency);
       Assert.Equal(2, await db.Opportunities.CountAsync(x => x.LeadId == leadId));
+      Assert.Empty(await db.Proposals.Where(x => x.FirmId == host.Fixture.FirmId &&
+        (x.OpportunityId == requestIdentity || x.OpportunityId == retryIdentity)).ToListAsync());
     }
     Assert.Empty(errors);
   }
@@ -361,9 +402,11 @@ public sealed class AngularCommercialJourneyTests
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, lead.Value)).Succeeded);
       leadId = lead.Value;
       var committed = await PracticeCrmService.CreateOpportunityAsync(db, actor,
-        new(leadId, "AccountingOnly", "Committed synthetic entity", "2026-01-01", "2026-12-31", 1000m, "QAR"));
+        CommercialAcceptanceTestSupport.DiscoveryRequest(leadId, "FinancialStatementAudit", "Committed synthetic prospect",
+          "2026-01-01", "2026-12-31"));
       var retry = await PracticeCrmService.CreateOpportunityAsync(db, actor,
-        new(leadId, "FinancialStatementAudit", "Retry synthetic entity", "2026-01-01", "2026-12-31", 2000m, "QAR"));
+        CommercialAcceptanceTestSupport.DiscoveryRequest(leadId, "FinancialStatementAudit", "Retry synthetic prospect",
+          "2026-01-01", "2026-12-31"));
       Assert.True(committed.Succeeded, committed.Message);
       Assert.True(retry.Succeeded, retry.Message);
       committedOpportunityId = committed.Value;
@@ -491,11 +534,16 @@ public sealed class AngularCommercialJourneyTests
       Assert.True(lead.Succeeded, lead.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, lead.Value)).Succeeded);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, actor,
-        new(lead.Value, "AccountingOnly", "Synthetic entity", "2026-01-01", "2026-12-31", 1000m, "QAR"));
+        CommercialAcceptanceTestSupport.DiscoveryRequest(lead.Value, "FinancialStatementAudit", "Synthetic proposal revision recovery lead",
+          "2026-01-01", "2026-12-31"));
       Assert.True(opportunity.Succeeded, opportunity.Message);
       opportunityId = opportunity.Value;
+      var acceptance = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Manager"), PbcSeed.Actor(host.Fixture.Reviewer, "Partner"), host.Fixture.FirmId, opportunityId);
+      Assert.True(acceptance.Succeeded, acceptance.Message);
+      var scope = (await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == opportunityId)).EntityScope;
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, actor,
-        new(opportunityId, "Standard", "Original scope", "", "Original report", "", 1000m,
+        new(opportunityId, "Standard", scope, "", "Original report", "", 1000m,
           "QAR", "2026-01-01", "2026-12-31", 0));
       Assert.True(proposal.Succeeded, proposal.Message);
       proposalId = proposal.Value;
@@ -630,10 +678,15 @@ public sealed class AngularCommercialJourneyTests
       Assert.True(lead.Succeeded, lead.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, lead.Value)).Succeeded);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, actor,
-        new(lead.Value, "FinancialStatementAudit", "Entity", "2026-01-01", "2026-12-31", 1m, "QAR"));
+        CommercialAcceptanceTestSupport.DiscoveryRequest(lead.Value, "FinancialStatementAudit", "Angular quotation client",
+          "2026-01-01", "2026-12-31"));
       Assert.True(opportunity.Succeeded, opportunity.Message);
+      var acceptance = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Manager"), PbcSeed.Actor(host.Fixture.Reviewer, "Partner"), host.Fixture.FirmId, opportunity.Value);
+      Assert.True(acceptance.Succeeded, acceptance.Message);
+      var scope = (await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == opportunity.Value)).EntityScope;
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, actor,
-        new(opportunity.Value, "Standard", "Scope", "", "Report", "", 1m, "QAR", "2026-01-01", "2026-12-31", 0,
+        new(opportunity.Value, "Standard", scope, "", "Report", "", 1m, "QAR", "2026-01-01", "2026-12-31", 0,
           Timeline: "Synthetic fieldwork in March; report by April"));
       Assert.True(proposal.Succeeded, proposal.Message);
       proposalId = proposal.Value;
@@ -770,7 +823,7 @@ public sealed class AngularCommercialJourneyTests
       var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, author, proposalId,
         new("ACCEPTED", null, offerSha, "Synthetic contact", "contact@example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
-      var converted = await PracticeCrmService.ConvertToClientDraftAsync(db, author, new(proposalId, "Angular fee client"));
+      var converted = await PracticeCrmService.ConvertToClientDraftAsync(db, author, new(proposalId, "Angular quotation client"));
       Assert.True(converted.Succeeded, converted.Message);
     }
     await page.ReloadAsync();
@@ -920,10 +973,15 @@ public sealed class AngularCommercialJourneyTests
       Assert.True(lead.Succeeded, lead.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, lead.Value)).Succeeded);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, actor,
-        new(lead.Value, "FinancialStatementAudit", "Entity", "2026-01-01", "2026-12-31", 1m, "QAR"));
+        CommercialAcceptanceTestSupport.DiscoveryRequest(lead.Value, "FinancialStatementAudit", "Angular quotation client",
+          "2026-01-01", "2026-12-31"));
       Assert.True(opportunity.Succeeded, opportunity.Message);
+      var acceptance = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Manager"), PbcSeed.Actor(host.Fixture.Reviewer, "Partner"), host.Fixture.FirmId, opportunity.Value);
+      Assert.True(acceptance.Succeeded, acceptance.Message);
+      var scope = (await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == opportunity.Value)).EntityScope;
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, actor,
-        new(opportunity.Value, "Standard", "Scope", "", "Report", "", 1m, "QAR", "2026-01-01", "2026-12-31", 0));
+        new(opportunity.Value, "Standard", scope, "", "Report", "", 1m, "QAR", "2026-01-01", "2026-12-31", 0));
       Assert.True(proposal.Succeeded, proposal.Message);
       proposalId = proposal.Value;
       db.RateCardVersions.Add(new RateCardVersion
@@ -1036,10 +1094,15 @@ public sealed class AngularCommercialJourneyTests
       Assert.True(lead.Succeeded, lead.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, actor, lead.Value)).Succeeded);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, actor,
-        new(lead.Value, "AccountingOnly", "Synthetic accounting entity", "2026-01-01", "2026-12-31", 1200m, "QAR"));
+        CommercialAcceptanceTestSupport.DiscoveryRequest(lead.Value, "FinancialStatementAudit", "Synthetic tender input client",
+          "2026-01-01", "2026-12-31"));
       Assert.True(opportunity.Succeeded, opportunity.Message);
+      var acceptance = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db,
+        PbcSeed.Actor(host.Fixture.Admin, "Manager"), PbcSeed.Actor(host.Fixture.Reviewer, "Partner"), host.Fixture.FirmId, opportunity.Value);
+      Assert.True(acceptance.Succeeded, acceptance.Message);
+      var scope = (await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == opportunity.Value)).EntityScope;
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, actor,
-        new(opportunity.Value, "Standard", "Synthetic accounting-only proposal scope", "", "Synthetic annual accounts workplan",
+        new(opportunity.Value, "Standard", scope, "", "Synthetic annual accounts workplan",
           "Client supplies accounting records", 1200m, "QAR", "2026-01-01", "2026-12-31", ExpectedRevision: 0,
           Timeline: "Synthetic fieldwork after year end"));
       Assert.True(proposal.Succeeded, proposal.Message);

@@ -74,10 +74,14 @@ public sealed class CommercialPricingPolicyTests
     Assert.True(lead.Succeeded, lead.Message);
     Assert.True((await PracticeCrmService.QualifyLeadAsync(db, w.Prep, lead.Value)).Succeeded);
     var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, w.Prep, new CreateOpportunityRequest(lead.Value, "FinancialStatementAudit",
-      "GULF-TRADING", "2026-01-01", "2026-12-31", 30000m, currency, 60m));
+      $"Audit of the standalone financial statements of {clientName}.", "2026-01-01", "2026-12-31", null, null, 60m,
+      RequestId: Guid.NewGuid(), ProspectiveLegalName: clientName, EntityScopeConfirmed: true));
     Assert.True(opportunity.Succeeded, opportunity.Message);
+    var acceptance = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db, w.Manager, w.Partner,
+      w.FirmId, opportunity.Value);
+    Assert.True(acceptance.Succeeded, acceptance.Message);
     var proposal = await PracticeCrmService.ReviseProposalAsync(db, w.Prep, new ReviseProposalRequest(opportunity.Value, "AUDIT-2026",
-      "Statutory audit of the 2026 financial statements", "Tax advisory", "Independent auditor's report and management letter",
+      $"Audit of the standalone financial statements of {clientName}.", "Tax advisory", "Independent auditor's report and management letter",
       "Client supplies the trial balance", 1m, currency, "2026-01-01", "2026-12-31"));
     Assert.True(proposal.Succeeded, proposal.Message);
     return proposal.Value;

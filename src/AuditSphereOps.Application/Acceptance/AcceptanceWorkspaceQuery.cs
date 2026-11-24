@@ -19,15 +19,15 @@ public sealed record AcceptanceWorkspace(Guid ClientId, string Generation, strin
 public static class AcceptanceWorkspaceQuery
 {
   public static async Task<CommandResult<AcceptanceWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor,
-    Guid clientId, CancellationToken ct = default)
+    Guid clientId, CancellationToken ct = default, string? serviceRoute = null, Guid? opportunityId = null)
   {
-    var result = await AcceptanceChecklistService.GetAsync(db, actor, clientId, ct);
+    var result = await AcceptanceChecklistService.GetAsync(db, actor, clientId, ct, serviceRoute, opportunityId);
     if (!result.Succeeded) return CommandResult<AcceptanceWorkspace>.Fail(result.ErrorCode!, "Acceptance unavailable.");
     var c = result.Value!;
     var canEdit = c.CurrentDecision is null && (await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, ClientId: clientId,
         RequiredRoles: ["Partner", "Manager", "Senior", "Staff", "EngagementLeader", "Auditor"], InternalOnly: true), ct)).Succeeded;
-    var final = await AcceptanceChecklistService.GetAsync(db, actor, clientId, ct);
+    var final = await AcceptanceChecklistService.GetAsync(db, actor, clientId, ct, serviceRoute, opportunityId);
     if (!final.Succeeded)
       return CommandResult<AcceptanceWorkspace>.Fail(ErrorCodes.ScopeDenied, "Acceptance unavailable.");
     if (final.Value!.Generation != c.Generation)
@@ -38,7 +38,9 @@ public static class AcceptanceWorkspaceQuery
       new AuthorizationRequest(actor.FirmId, ClientId: clientId, RequiredRoles: ["Partner"], InternalOnly: true), ct)).Succeeded;
     return CommandResult<AcceptanceWorkspace>.Ok(new(clientId, c.Generation.ToString(CultureInfo.InvariantCulture), c.Path,
       c.CurrentDecision?.Decision, c.PriorDecision?.Decision, c.Ready, canEdit, reviewer && c.CurrentDecision is null,
-      partner && c.CurrentDecision is null, reviewer && c.CurrentDecision?.Decision is "Accepted" or "AcceptedWithConditions",
+      partner && c.CurrentDecision is null && c.PriorDecision is { Decision: "Accepted" or "AcceptedWithConditions" }, reviewer &&
+        c.CurrentDecision is { Decision: "Accepted" or "AcceptedWithConditions" } current &&
+        (serviceRoute is null || current.ServiceRoute == serviceRoute),
       c.Items.Select(i => new AcceptanceQuestionView(i.Question.Code, i.Question.Section, i.Question.Prompt,
         i.Question.Category, i.Question.AnswerType, i.Question.RequiresEvidence, i.Question.EscalatesOnChange, i.Adverse, i.Answer?.Answer,
         i.Answer?.EvidenceReference, (i.Answer?.Revision ?? 0).ToString(CultureInfo.InvariantCulture),

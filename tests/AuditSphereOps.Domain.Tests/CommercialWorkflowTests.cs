@@ -79,10 +79,14 @@ public sealed class CommercialWorkflowTests
     Assert.True(lead.Succeeded, lead.Message);
     Assert.True((await PracticeCrmService.QualifyLeadAsync(db, w.Prep, lead.Value)).Succeeded);
     var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, w.Prep, new CreateOpportunityRequest(lead.Value, "FinancialStatementAudit",
-      "GULF-TRADING", "2026-01-01", "2026-12-31", 30000m, "QAR", 60m));
+      "Audit of the standalone financial statements of Gulf Trading LLC.", "2026-01-01", "2026-12-31", null, null, 60m,
+      RequestId: Guid.NewGuid(), ProspectiveLegalName: "Gulf Trading LLC", EntityScopeConfirmed: true));
     Assert.True(opportunity.Succeeded, opportunity.Message);
+    var accepted = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db, w.Manager, w.Partner,
+      w.FirmId, opportunity.Value);
+    Assert.True(accepted.Succeeded, accepted.Message);
     var proposal = await PracticeCrmService.ReviseProposalAsync(db, w.Prep, new ReviseProposalRequest(opportunity.Value, "AUDIT-2026",
-      "Statutory audit of the 2026 financial statements", "Tax advisory", "Independent auditor's report and management letter",
+      "Audit of the standalone financial statements of Gulf Trading LLC.", "Tax advisory", "Independent auditor's report and management letter",
       "Client supplies the trial balance", 1m, "QAR", "2026-01-01", "2026-12-31",
       Timeline: timeline));
     Assert.True(proposal.Succeeded, proposal.Message);
@@ -650,7 +654,7 @@ public sealed class CommercialWorkflowTests
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
       new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
-    var client = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Fee workspace client"));
+    var client = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Gulf Trading LLC"));
     var eligible = await FeeAgreementWorkspaceQuery.GetAsync(db, w.Prep, proposalId);
     Assert.True(eligible.Value!.CanCreate);
     Assert.False(eligible.Value.CanFinance);
@@ -975,8 +979,14 @@ public sealed class CommercialWorkflowTests
     await using var db = new AuditSphereDbContext(pg.Options);
     var lead = await PracticeCrmService.CreateLeadAsync(db, w.Prep, new CreateLeadRequest("Second Client WLL", "Web Form", "B. Owner", "b@second.example.test"));
     Assert.True((await PracticeCrmService.QualifyLeadAsync(db, w.Prep, lead.Value)).Succeeded);
-    var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, w.Prep, new CreateOpportunityRequest(lead.Value, "AccountingOnly", "SECOND", "2026-01-01", "2026-12-31", 9000m, "QAR"));
-    var proposal = await PracticeCrmService.ReviseProposalAsync(db, w.Prep, new ReviseProposalRequest(opportunity.Value, "ACC-2026", "Monthly accounting", "", "Management accounts", "", 1m, "QAR", "2026-01-01", "2026-12-31"));
+    var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, w.Prep, new CreateOpportunityRequest(lead.Value, "FinancialStatementAudit",
+      "Audit of the standalone financial statements of Second Client WLL.", "2026-01-01", "2026-12-31", null, null,
+      RequestId: Guid.NewGuid(), ProspectiveLegalName: "Second Client WLL", EntityScopeConfirmed: true));
+    Assert.True(opportunity.Succeeded, opportunity.Message);
+    var accepted = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db, w.Manager, w.Partner,
+      w.FirmId, opportunity.Value);
+    Assert.True(accepted.Succeeded, accepted.Message);
+    var proposal = await PracticeCrmService.ReviseProposalAsync(db, w.Prep, new ReviseProposalRequest(opportunity.Value, "ACC-2026", "Audit of the standalone financial statements of Second Client WLL.", "", "Management accounts", "", 1m, "QAR", "2026-01-01", "2026-12-31"));
     return (lead.Value, opportunity.Value, proposal.Value);
   }
 
@@ -1132,7 +1142,7 @@ public sealed class CommercialWorkflowTests
     Assert.Contains("Complexity factor × 1.2", quoteText);
     Assert.Contains("16,500.00", quoteText);              // 50% advance stated in the payment terms
     Assert.Contains("Gulf Trading LLC (attention A. Owner)", quoteText);
-    Assert.Contains("Statutory audit of the 2026 financial statements", quoteText);
+    Assert.Contains("Audit of the standalone financial statements of Gulf Trading LLC.", quoteText);
     Assert.Contains("Period: 2026-01-01 to 2026-12-31", quoteText);
     Assert.DoesNotContain(privateStaffCost.ToString(CultureInfo.InvariantCulture), quoteText);
     Assert.DoesNotContain(privateStaffCost.ToString("N2", CultureInfo.InvariantCulture), quoteText);
@@ -2386,10 +2396,15 @@ public sealed class CommercialWorkflowTests
       Assert.True(lead2.Succeeded, lead2.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db2, w.Prep, lead2.Value)).Succeeded);
       var opportunity2 = await PracticeCrmService.CreateOpportunityAsync(db2, w.Prep,
-        new CreateOpportunityRequest(lead2.Value, "FinancialStatementAudit", "BINDING-CLIENT", "2026-01-01", "2026-12-31", 30000m, "QAR", 60m));
+        new CreateOpportunityRequest(lead2.Value, "FinancialStatementAudit", "Audit of the standalone financial statements of Binding Client LLC.",
+          "2026-01-01", "2026-12-31", null, null, 60m, RequestId: Guid.NewGuid(),
+          ProspectiveLegalName: "Binding Client LLC", EntityScopeConfirmed: true));
       Assert.True(opportunity2.Succeeded, opportunity2.Message);
+      var accepted2 = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db2, w.Manager, w.Partner,
+        w.FirmId, opportunity2.Value);
+      Assert.True(accepted2.Succeeded, accepted2.Message);
       var revised2 = await PracticeCrmService.ReviseProposalAsync(db2, w.Prep,
-        new ReviseProposalRequest(opportunity2.Value, "AUDIT-2026", "Statutory audit of the 2026 financial statements",
+        new ReviseProposalRequest(opportunity2.Value, "AUDIT-2026", "Audit of the standalone financial statements of Binding Client LLC.",
           "Tax advisory", "Independent auditor's report and management letter", "Client supplies the trial balance",
           25000m, "QAR", "2026-01-01", "2026-12-31",
           Timeline: "Fieldwork in March 2027; report by 30 April 2027"));
@@ -2440,7 +2455,7 @@ public sealed class CommercialWorkflowTests
     var proposal = await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId);
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
       new("ACCEPTED", null, proposal.SentOfferSha256, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
-    Assert.True((await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Binding Client LLC"))).Succeeded);
+    Assert.True((await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Gulf Trading LLC"))).Succeeded);
 
     // A recorded acceptance that does not cite the dispatched offer identity (a stale, replayed, or
     // tampered citation) can never underwrite the fee agreement: the agreement must carry the exact
@@ -2487,7 +2502,7 @@ public sealed class CommercialWorkflowTests
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(setup, w.Prep, proposalId,
         new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter",
           Channel: ProposalResponseChannels.Email))).Succeeded);
-      var client = await PracticeCrmService.ConvertToClientDraftAsync(setup, w.Prep, new(proposalId, "Fee authority client"));
+      var client = await PracticeCrmService.ConvertToClientDraftAsync(setup, w.Prep, new(proposalId, "Gulf Trading LLC"));
       Assert.True(client.Succeeded, client.Message);
       setup.Engagements.Add(new Engagement
       {
@@ -2837,7 +2852,7 @@ public sealed class CommercialWorkflowTests
     var offerA = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalA)).SentOfferSha256;
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalA,
       new("ACCEPTED", null, offerA, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
-    var converted = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalA, "Scoped Group Client"));
+    var converted = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalA, "Gulf Trading LLC"));
     Assert.True(converted.Succeeded, converted.Message);
     var clientId = converted.Value;
     var agreementA = await FeeAgreementService.CreateAgreementAsync(db, w.Prep, proposalA);
@@ -2848,10 +2863,14 @@ public sealed class CommercialWorkflowTests
     Assert.True(leadB.Succeeded, leadB.Message);
     Assert.True((await PracticeCrmService.QualifyLeadAsync(db, w.Prep, leadB.Value)).Succeeded);
     var opportunityB = await PracticeCrmService.CreateOpportunityAsync(db, w.Prep, new CreateOpportunityRequest(leadB.Value, "FinancialStatementAudit",
-      "SCOPED-SIBLING", "2026-01-01", "2026-12-31", 30000m, "QAR", 60m));
+      "Audit of the standalone financial statements of Scoped Sibling Lead.", "2026-01-01", "2026-12-31", null, null, 60m,
+      RequestId: Guid.NewGuid(), ProspectiveLegalName: "Scoped Sibling Lead", EntityScopeConfirmed: true));
     Assert.True(opportunityB.Succeeded, opportunityB.Message);
+    var acceptedB = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db, w.Manager, w.Partner,
+      w.FirmId, opportunityB.Value);
+    Assert.True(acceptedB.Succeeded, acceptedB.Message);
     var proposalB = await PracticeCrmService.ReviseProposalAsync(db, w.Prep, new ReviseProposalRequest(opportunityB.Value, "AUDIT-2026-B",
-      "Statutory audit of the sibling engagement", "Tax advisory", "Independent auditor's report and management letter",
+      "Audit of the standalone financial statements of Scoped Sibling Lead.", "Tax advisory", "Independent auditor's report and management letter",
       "Client supplies the trial balance", 1m, "QAR", "2026-01-01", "2026-12-31"));
     Assert.True(proposalB.Succeeded, proposalB.Message);
     // This synthetic sibling source is already paired with the existing client below; keep both persisted lineage links consistent.
@@ -3388,7 +3407,7 @@ public sealed class CommercialWorkflowTests
     var offerSha = (await db.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).SentOfferSha256;
     Assert.True((await PracticeCrmService.RecordProposalResponseAsync(db, w.Prep, proposalId,
       new("ACCEPTED", null, offerSha, "A. Owner", "owner@gulf.example.test", "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
-    var client = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Readiness client"));
+    var client = await PracticeCrmService.ConvertToClientDraftAsync(db, w.Prep, new(proposalId, "Gulf Trading LLC"));
     Assert.True(client.Succeeded, client.Message);
     var engagementId = Guid.NewGuid();
     db.Engagements.Add(new Engagement { Id = engagementId, FirmId = w.FirmId, PracticeClientId = client.Value, ServiceRoute = "FinancialStatementAudit",
@@ -3401,12 +3420,18 @@ public sealed class CommercialWorkflowTests
     Assert.True(unrelatedLead.Succeeded, unrelatedLead.Message);
     Assert.True((await PracticeCrmService.QualifyLeadAsync(db, w.Prep, unrelatedLead.Value)).Succeeded);
     var unrelatedOpportunity = await PracticeCrmService.CreateOpportunityAsync(db, w.Prep,
-      new CreateOpportunityRequest(unrelatedLead.Value, "Accounting", "READINESS-ACCOUNTING", "2026-01-01", "2026-12-31", 12000m, "QAR", 50m));
+      new CreateOpportunityRequest(unrelatedLead.Value, "InternalAudit", "Internal audit of the operations of Readiness accounting prospect.",
+        "2026-01-01", "2026-12-31", null, null, 50m, RequestId: Guid.NewGuid(),
+        ProspectiveLegalName: "Readiness accounting prospect", EntityScopeConfirmed: true));
     Assert.True(unrelatedOpportunity.Succeeded, unrelatedOpportunity.Message);
+    var acceptedUnrelated = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db, w.Manager, w.Partner,
+      w.FirmId, unrelatedOpportunity.Value);
+    Assert.True(acceptedUnrelated.Succeeded, acceptedUnrelated.Message);
     await db.Opportunities.Where(x => x.Id == unrelatedOpportunity.Value)
       .ExecuteUpdateAsync(s => s.SetProperty(x => x.PracticeClientId, client.Value));
     var unrelatedProposal = await PracticeCrmService.ReviseProposalAsync(db, w.Prep,
-      new ReviseProposalRequest(unrelatedOpportunity.Value, "ACCOUNTING-2026", "Accounting preparation", "Tax", "Statements",
+      new ReviseProposalRequest(unrelatedOpportunity.Value, "ACCOUNTING-2026",
+        "Internal audit of the operations of Readiness accounting prospect.", "Tax", "Statements",
         "Client supplies records", 1m, "QAR", "2026-01-01", "2026-12-31"));
     Assert.True(unrelatedProposal.Succeeded, unrelatedProposal.Message);
     var unlinkedReadiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, engagementId);
@@ -3420,30 +3445,31 @@ public sealed class CommercialWorkflowTests
     var linked = await FeeAgreementService.LinkEngagementAsync(db, w.Prep, created.Value, engagementId);
     Assert.True(linked.Succeeded, linked.Message);
 
-    // Client accepted the exact offer; no Partner clearance yet. The client card is current, the Partner card is missing, and
-    // the advance is not yet invoiced, so activation stays blocked.
+    // The pre-commercial Partner acceptance is current. Engagement-letter and advance requirements remain separate,
+    // so commercial acceptance alone does not activate professional work.
     var readiness = await ClientOnboardingReadinessQuery.GetAsync(db, w.Prep, engagementId);
     Assert.True(readiness.Succeeded, readiness.Message);
     Assert.Equal(OnboardingReadinessStatuses.Current, readiness.Value!.ClientApproval.Status);
     Assert.Equal(OnboardingDisplayStatus.Approved, readiness.Value.ClientApproval.DisplayStatus);
     Assert.Equal("A. Owner", readiness.Value.ClientApproval.Owner);
     Assert.StartsWith("/app/practice/proposals/", readiness.Value.ClientApproval.EvidenceHref, StringComparison.Ordinal);
-    Assert.Equal(OnboardingReadinessStatuses.Missing, readiness.Value.PartnerRisk.Status);
-    Assert.Equal(OnboardingDisplayStatus.Pending, readiness.Value.PartnerRisk.DisplayStatus);
+    Assert.Equal(OnboardingReadinessStatuses.Current, readiness.Value.PartnerRisk.Status);
+    Assert.Equal(OnboardingDisplayStatus.Approved, readiness.Value.PartnerRisk.DisplayStatus);
     Assert.Equal($"/app/clients/{client.Value}/assessment", readiness.Value.PartnerRisk.EvidenceHref);
     Assert.Equal(OnboardingReadinessStatuses.NotEligible, readiness.Value.EngagementLetter.Status);
     Assert.Equal(OnboardingReadinessStatuses.NotInvoiced, readiness.Value.AdvancePayment.Status);
     Assert.Equal(OnboardingReadinessStatuses.Blocked, readiness.Value.Activation.Status);
-    Assert.Contains(readiness.Value.Blockers, b => b.Code == "PARTNER_ACCEPTANCE_REQUIRED");
+    Assert.DoesNotContain(readiness.Value.Blockers, b => b.Code == "PARTNER_ACCEPTANCE_REQUIRED");
     Assert.DoesNotContain(readiness.Value.Blockers, b => b.Code == "CLIENT_ACCEPTANCE_REQUIRED");
 
-    // A conditional Partner decision never clears its key, even when it is the newest decision.
+    // A newer conditional Partner decision supersedes the acceptance clearance for engagement readiness.
     var partnerId = w.PartnerUser.Id;
+    var partnerReviewAt = DateTimeOffset.UtcNow;
     db.AcceptanceDecisions.Add(new AcceptanceDecision
     {
       Id = Guid.NewGuid(), FirmId = w.FirmId, PracticeClientId = client.Value, ServiceRoute = "FinancialStatementAudit",
       Decision = "AcceptedWithConditions", Conditions = "Obtain bank confirmation", DecidedByUserId = partnerId,
-      DecidedAt = DateTimeOffset.UtcNow.AddMinutes(-2), Path = "NEW_CLIENT", Generation = 1, Rationale = "Conditional",
+      DecidedAt = partnerReviewAt.AddSeconds(1), Path = "NEW_CLIENT", Generation = 1, Rationale = "Conditional",
       EvaluationTemplateVersion = "V2", EvaluationSnapshotDigest = new string('a', 64)
     });
     await db.SaveChangesAsync();
@@ -3455,7 +3481,7 @@ public sealed class CommercialWorkflowTests
     db.AcceptanceDecisions.Add(new AcceptanceDecision
     {
       Id = Guid.NewGuid(), FirmId = w.FirmId, PracticeClientId = client.Value, ServiceRoute = "FinancialStatementAudit",
-      Decision = "Accepted", DecidedByUserId = partnerId, DecidedAt = DateTimeOffset.UtcNow, Path = "NEW_CLIENT", Generation = 1,
+      Decision = "Accepted", DecidedByUserId = partnerId, DecidedAt = partnerReviewAt.AddSeconds(2), Path = "NEW_CLIENT", Generation = 1,
       Rationale = "Unconditional", EvaluationTemplateVersion = "V2", EvaluationSnapshotDigest = new string('b', 64)
     });
     await db.SaveChangesAsync();
@@ -3572,7 +3598,7 @@ public sealed class CommercialWorkflowTests
       Assert.True((await PracticeCrmService.RecordProposalResponseAsync(setup, w.Prep, proposalId,
         new(CrmStates.ProposalAccepted, null, offerSha, "A. Owner", "owner@gulf.example.test",
           "Signed acceptance letter", Channel: ProposalResponseChannels.Email))).Succeeded);
-      var client = await PracticeCrmService.ConvertToClientDraftAsync(setup, w.Prep, new(proposalId, "Snapshot readiness client"));
+      var client = await PracticeCrmService.ConvertToClientDraftAsync(setup, w.Prep, new(proposalId, "Gulf Trading LLC"));
       Assert.True(client.Succeeded, client.Message);
       clientId = client.Value;
       engagementId = Guid.NewGuid();

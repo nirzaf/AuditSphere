@@ -53,6 +53,7 @@ export class AcceptanceChecklist implements NavigationProtected {
   private id = '';
   private decisionId: string | null = null;
   private engagementId: string | null = null;
+  private opportunityId: string | null = null;
   private visit = 0;
   private editRevision = 0;
   private destroyed = false;
@@ -88,6 +89,7 @@ export class AcceptanceChecklist implements NavigationProtected {
         this.id = p.get('id') ?? '';
         this.decisionId = q.get('decisionId');
         this.engagementId = q.get('engagementId')?.toLowerCase() ?? null;
+        this.opportunityId = q.get('opportunityId')?.toLowerCase() ?? null;
         this.load();
       },
     );
@@ -118,6 +120,7 @@ export class AcceptanceChecklist implements NavigationProtected {
           this.id,
           this.decisionId,
           this.engagementId,
+          this.opportunityId,
           this.visit,
         ])
       : '';
@@ -130,7 +133,7 @@ export class AcceptanceChecklist implements NavigationProtected {
   }
   private scope() {
     return {
-      entity: 'assessment-request/' + this.id,
+      entity: 'assessment-request/' + this.id + (this.opportunityId ? '/opportunity/' + this.opportunityId : ''),
       baseRevision: this.preview()?.reviewBasis ?? '0'.repeat(64),
     };
   }
@@ -205,10 +208,15 @@ export class AcceptanceChecklist implements NavigationProtected {
           c.clearances.some((r) => r.id === f.reviewId && r.status === f.expectedStatus)
         );
       case 'DECISION':
-        return c.canDecide && (!this.engagementId ||
-          (f.engagementId === this.engagementId && f.serviceRoute === this.assessment()?.targetEngagement?.serviceRoute));
+        return c.canDecide && (this.opportunityId
+          ? f.engagementId === null && f.opportunityId === this.opportunityId &&
+            f.serviceRoute === this.assessment()?.targetOpportunity?.serviceRoute
+          : f.opportunityId === null && (!this.engagementId ||
+            (f.engagementId === this.engagementId && f.serviceRoute === this.assessment()?.targetEngagement?.serviceRoute)));
       case 'CONTINUANCE':
-        return c.canStartContinuance;
+        return c.canStartContinuance && (this.opportunityId
+          ? f.opportunityId === this.opportunityId && f.serviceRoute === this.assessment()?.targetOpportunity?.serviceRoute
+          : f.opportunityId === null);
     }
   }
   async prepare(raw: AssessmentCommandFields) {
@@ -374,7 +382,8 @@ export class AcceptanceChecklist implements NavigationProtected {
     this.acknowledge();
     if (this.pending() || this.receipt() || this.uncertain()) return;
     await this.router.navigate(['/app/clients', receipt.clientId, 'assessment'],
-      { queryParams: { decisionId: receipt.resourceId } });
+      { queryParams: { decisionId: receipt.resourceId,
+        ...(receipt.preview.fields.opportunityId ? { opportunityId: receipt.preview.fields.opportunityId } : {}) } });
   }
   acknowledgeAbsent() {
     if (this.absent() && !this.busy())
@@ -436,16 +445,21 @@ export class AcceptanceChecklist implements NavigationProtected {
       e.returnValue = '';
     }
   }
-  private buildSeeds(c: Checklist, target: Assessment['targetEngagement']) {
+  private buildSeeds(c: Checklist, target: Assessment['targetEngagement'], opportunity: Assessment['targetOpportunity']) {
     const seeds: Record<string, AssessmentCommandFields> = {
       request: assessmentFields('REQUEST_REVIEW', c.generation),
       decision: assessmentFields('DECISION', c.generation),
       continuance: assessmentFields('CONTINUANCE', c.generation),
     };
     if (target) seeds['decision'] = { ...seeds['decision'], engagementId: target.id, serviceRoute: target.serviceRoute };
+    if (opportunity) {
+      seeds['decision'] = { ...seeds['decision'], serviceRoute: opportunity.serviceRoute, opportunityId: opportunity.id };
+      seeds['continuance'] = { ...seeds['continuance'], serviceRoute: opportunity.serviceRoute, opportunityId: opportunity.id };
+    }
     for (const q of c.questions)
       seeds['answer-' + q.code] = {
         ...assessmentFields('ANSWER', c.generation),
+        ...(opportunity ? { serviceRoute: opportunity.serviceRoute, opportunityId: opportunity.id } : {}),
         questionCode: q.code.toUpperCase(),
         revision: q.revision,
         answer: q.answer,
@@ -471,6 +485,8 @@ export class AcceptanceChecklist implements NavigationProtected {
       !guid.test(this.id) ||
       (this.decisionId !== null && !guid.test(this.decisionId)) ||
       (this.engagementId !== null && (!guid.test(this.engagementId) || this.engagementId === '00000000-0000-0000-0000-000000000000')) ||
+      (this.opportunityId !== null && (!guid.test(this.opportunityId) || this.opportunityId === '00000000-0000-0000-0000-000000000000')) ||
+      (this.engagementId !== null && this.opportunityId !== null) ||
       !this.session.current()?.staff
     ) {
       this.error.set(this.session.current()?.staff
@@ -482,10 +498,12 @@ export class AcceptanceChecklist implements NavigationProtected {
     const owner = this.owner(),
       id = this.id,
       decisionId = this.decisionId,
-      engagementId = this.engagementId;
+      engagementId = this.engagementId,
+      opportunityId = this.opportunityId;
     const parameters = new URLSearchParams();
     if (decisionId) parameters.set('decisionId', decisionId);
     if (engagementId) parameters.set('engagementId', engagementId);
+    if (opportunityId) parameters.set('opportunityId', opportunityId);
     this.request = this.http
       .get<unknown>(
         this.base() + (parameters.size ? '?' + parameters.toString() : ''),
@@ -498,9 +516,10 @@ export class AcceptanceChecklist implements NavigationProtected {
             const workspace = decodeAssessment(raw),
               c = workspace.checklist;
             if (c.clientId !== id || (decisionId && workspace.selectedDecision?.id !== decisionId) ||
-              (workspace.targetEngagement?.id ?? null) !== engagementId)
+              (workspace.targetEngagement?.id ?? null) !== engagementId ||
+              (workspace.targetOpportunity?.id ?? null) !== opportunityId)
               throw new Error('Wrong assessment');
-            this.buildSeeds(c, workspace.targetEngagement);
+            this.buildSeeds(c, workspace.targetEngagement, workspace.targetOpportunity);
             this.assessment.set(workspace);
             this.data.set(c);
             const recovered = this.drafts.readPendingRequest(this.scope());

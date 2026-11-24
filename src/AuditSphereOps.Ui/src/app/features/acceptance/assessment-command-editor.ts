@@ -263,7 +263,11 @@ export class AssessmentCommandEditor {
           rationale: opt(m.rationale),
           conditions: opt(m.conditions),
           engagementId: opt(m.engagementId)?.toLowerCase() ?? null,
+          opportunityId: s.opportunityId,
         });
+        break;
+      case 'CONTINUANCE':
+        Object.assign(f, { serviceRoute: s.serviceRoute, opportunityId: s.opportunityId });
         break;
     }
     return decodeAssessmentFields(f);

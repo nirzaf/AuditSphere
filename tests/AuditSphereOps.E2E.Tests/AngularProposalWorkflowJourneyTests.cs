@@ -219,10 +219,15 @@ public sealed class AngularProposalWorkflowJourneyTests
       Assert.True(lead.Succeeded, lead.Message);
       Assert.True((await PracticeCrmService.QualifyLeadAsync(db, author, lead.Value)).Succeeded);
       var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, author,
-        new(lead.Value, "FinancialStatementAudit", "Synthetic entity", "2026-01-01", "2026-12-31", 1200m, "QAR"));
+        CommercialAcceptanceTestSupport.DiscoveryRequest(lead.Value, "FinancialStatementAudit", "Synthetic proposal workflow",
+          "2026-01-01", "2026-12-31"));
       Assert.True(opportunity.Succeeded, opportunity.Message);
+      var acceptance = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db,
+        PbcSeed.Actor(fixture.Admin, "Manager"), PbcSeed.Actor(fixture.Reviewer, "Partner"), fixture.FirmId, opportunity.Value);
+      Assert.True(acceptance.Succeeded, acceptance.Message);
+      var scope = (await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == opportunity.Value)).EntityScope;
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, author,
-        new(opportunity.Value, "Standard", "Synthetic scope", "", "Synthetic deliverables", "", 1200m,
+        new(opportunity.Value, "Standard", scope, "", "Synthetic deliverables", "", 1200m,
           "QAR", "2026-01-01", "2026-12-31", 0));
       Assert.True(proposal.Succeeded, proposal.Message);
       proposalId = proposal.Value;

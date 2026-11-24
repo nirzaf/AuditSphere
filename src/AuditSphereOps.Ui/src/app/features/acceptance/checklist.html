@@ -1,5 +1,5 @@
 <a routerLink="/app">Portfolio</a>
-<h1>Client acceptance checklist</h1>
+<h1>{{ assessment()?.targetOpportunity?.process === 'CONTINUANCE' ? 'Client continuance checklist' : 'Client acceptance checklist' }}</h1>
 @if (loading()) {
   <mat-progress-bar mode="indeterminate" aria-label="Loading acceptance" />
 }
@@ -9,6 +9,15 @@
 }
 <p role="status">{{ commandStatus() }}</p>
 @if (data(); as checklist) {
+  @if (assessment()?.targetOpportunity; as opportunity) {
+    <section aria-label="Opportunity acceptance scope">
+      <h2>{{ opportunity.process === 'CONTINUANCE' ? 'Continuance for this opportunity' : 'Acceptance for this opportunity' }}</h2>
+      <p>{{ opportunity.serviceRoute }} · {{ opportunity.periodStart }} to {{ opportunity.periodEnd }}</p>
+      <p>{{ opportunity.entityScope }}</p>
+      <p>This professional evaluation is linked to the exact opportunity. Additional entities are not included unless expressly named in its scope.</p>
+      <p>Process state: {{ opportunity.state }}</p>
+    </section>
+  }
   @if (assessment()?.targetEngagement; as target) {
     <section aria-label="Current-period assessment target">
       <h2>Current-period professional review</h2>
@@ -309,7 +318,7 @@
       </p>
       <audit-assessment-command-editor
         [seed]="seed('decision')"
-        [fixedDecisionScope]="!!assessment()?.targetEngagement"
+        [fixedDecisionScope]="!!assessment()?.targetEngagement || !!assessment()?.targetOpportunity"
         editorKey="decision"
         label="Review Partner decision"
         [locked]="locked()"
