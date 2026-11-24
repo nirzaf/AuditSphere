@@ -57,6 +57,7 @@ public sealed class TrialBalanceUploadApiTests
     await using var proof = new AuditSphereDbContext(pg.Options); Assert.Equal(2, await proof.TrialBalanceDatasets.CountAsync());
   }
   [Fact]
+  [Trait("CompletionUnit", "WU-015")]
   public async Task ForeignAndGuessedEngagements_ClientUsers_Revocation_AndDisabledUsersExposeNoReceipts()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-TB-SCOPE"); var f = await Seed(pg); var other = await Seed(pg);
@@ -70,6 +71,7 @@ public sealed class TrialBalanceUploadApiTests
     Assert.Equal(HttpStatusCode.Unauthorized, (await Upload(admin, ac, Root(f) + "/preview", Csv)).StatusCode);
   }
   [Fact]
+  [Trait("CompletionUnit", "WU-015")]
   public async Task MappingMemoryDoesNotRevealSiblingEngagementHistoryOrExpiredWiderGrants()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-TB-MEMORY-SCOPE"); var f = await PbcSeed.SeedAsync(pg);

@@ -1,6 +1,19 @@
 # Keep the build context lean; secrets never enter images.
 .git
 .github
+.agents/
+.codex/
+.dotnet/
+.local/
+artifacts/
+**/.env
+**/.env.*
+**/.npmrc
+**/.netrc
+**/*.pem
+**/*.p12
+**/*.pfx
+**/*.key
 **/bin/
 **/obj/
 **/node_modules/

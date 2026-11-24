@@ -91,7 +91,7 @@ jobs:
         shell: bash
     steps:
       - name: Check out the exact release source for CI artifact discovery
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -140,7 +140,7 @@ jobs:
         shell: bash
     steps:
       - name: Check out the exact release source
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -218,7 +218,7 @@ jobs:
         shell: bash
     steps:
       - name: Check out the exact fast-CI-qualified source
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -392,7 +392,7 @@ jobs:
         shell: bash
     steps:
       # Check out the exact commit the precondition verified, not the branch tip at checkout time.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -450,7 +450,7 @@ jobs:
       # OIDC stays on this protected-environment job, and the credential is requested only after
       # all three artifacts have passed their exact-run/source/hash checks.
       - name: Azure login (OIDC, no stored secrets)
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ inputs.azure_client_id }}
           tenant-id: ${{ inputs.azure_tenant_id }}
@@ -507,16 +507,19 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run the migration job (blocking)
+        env:
+          NAME_PREFIX: ${{ inputs.name_prefix }}
+          RESOURCE_GROUP: ${{ inputs.azure_resource_group }}
         run: |
           set -euo pipefail
-          job="${{ inputs.name_prefix }}-migrations"
+          job="${NAME_PREFIX}-migrations"
           az containerapp job start --name "$job" \
-            --resource-group "${{ inputs.azure_resource_group }}"
+            --resource-group "$RESOURCE_GROUP"
           # The job exits non-zero on failed migrations; poll until it terminates.
           # Keep the 15-minute wait budget while observing completion more frequently.
           for _attempt in $(seq 1 180); do
             status="$(az containerapp job execution list --name "$job" \
-              --resource-group "${{ inputs.azure_resource_group }}" \
+              --resource-group "$RESOURCE_GROUP" \
               --query '[0].properties.status' -o tsv || true)"
             case "$status" in
               Succeeded) echo "Migrations succeeded."; exit 0 ;;
@@ -527,34 +530,50 @@ jobs:
           echo "Migration job did not complete in time."; exit 1
 
       - name: Deploy API and worker revisions
+        env:
+          RESOURCE_GROUP: ${{ inputs.azure_resource_group }}
+          RELEASE_ENVIRONMENT: ${{ inputs.environment }}
+          SUBSCRIPTION_ID: ${{ inputs.azure_subscription_id }}
+          ACR_NAME: ${{ inputs.acr_name }}
+          API_IMAGE: ${{ steps.publish.outputs.api_image }}
+          WORKER_IMAGE: ${{ steps.publish.outputs.worker_image }}
+          MIGRATION_IMAGE: ${{ steps.publish.outputs.migration_image }}
         run: |
           set -euo pipefail
+          case "$RELEASE_ENVIRONMENT" in
+            production|acceptance) ;;
+            *) echo "Unsupported release environment." >&2; exit 1 ;;
+          esac
           az deployment group create \
-            --resource-group "${{ inputs.azure_resource_group }}" \
-            --template-file infra/environments/${{ inputs.environment }}/main.bicep \
-            --parameters deploymentEpoch="${{ github.run_number }}" \
-              apiImage="${{ steps.publish.outputs.api_image }}" \
-              workerImage="${{ steps.publish.outputs.worker_image }}" \
-              migrationImage="${{ steps.publish.outputs.migration_image }}" \
-              registryServer="${{ inputs.acr_name }}.azurecr.io" \
-              registryId="/subscriptions/${{ inputs.azure_subscription_id }}/resourceGroups/${{ inputs.azure_resource_group }}/providers/Microsoft.ContainerRegistry/registries/${{ inputs.acr_name }}"
+            --resource-group "$RESOURCE_GROUP" \
+            --template-file "infra/environments/$RELEASE_ENVIRONMENT/main.bicep" \
+            --parameters deploymentEpoch="$GITHUB_RUN_NUMBER" \
+              apiImage="$API_IMAGE" \
+              workerImage="$WORKER_IMAGE" \
+              migrationImage="$MIGRATION_IMAGE" \
+              registryServer="$ACR_NAME.azurecr.io" \
+              registryId="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ContainerRegistry/registries/$ACR_NAME"
 
       - name: Canary 10% of API traffic to the new revision
+        env:
+          RESOURCE_GROUP: ${{ inputs.azure_resource_group }}
         run: |
           set -euo pipefail
           app="auditsphere-prod-api"
           revision="$(az containerapp revision list --name "$app" \
-            --resource-group "${{ inputs.azure_resource_group }}" \
+            --resource-group "$RESOURCE_GROUP" \
             --query '[0].name' -o tsv)"
           az containerapp ingress traffic update --name "$app" \
-            --resource-group "${{ inputs.azure_resource_group }}" \
+            --resource-group "$RESOURCE_GROUP" \
             --revision-weight "$revision=10"
 
       - name: Canary smoke checks (read-only)
+        env:
+          RESOURCE_GROUP: ${{ inputs.azure_resource_group }}
         run: |
           set -euo pipefail
           fqdn="$(az containerapp show --name auditsphere-prod-api \
-            --resource-group "${{ inputs.azure_resource_group }}" \
+            --resource-group "$RESOURCE_GROUP" \
             --query 'properties.configuration.ingress.fqdn' -o tsv)"
           # Keep the 200-second readiness budget while reducing detection latency.
           for _attempt in $(seq 1 40); do

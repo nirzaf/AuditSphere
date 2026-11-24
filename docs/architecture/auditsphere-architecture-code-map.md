@@ -36,7 +36,7 @@ against a disposable PG19 service; `scripts/db/tests/test_postgres_role_bootstra
 PG18 fail-closed guard. The full release workflow runs the integration in its isolated API-matrix
 database. These checks do not qualify production restore or cutover.
 
-The root `.dockerignore` excludes Angular `src/**/*.spec.ts` files from the production image context. The Angular CI test job still runs them from its Git checkout. The production TypeScript configuration excludes the same files, so test-only edits leave the Docker source copy cache eligible for reuse.
+The root `.dockerignore` excludes local SDKs, agent skills, test artifacts, autonomous evidence, and common credential files from the image build context. Live credentials are supplied through the deployment's protected environment and mounts. The context also excludes Angular `src/**/*.spec.ts` files. The Angular CI test job runs them from its Git checkout. The production TypeScript configuration excludes the same files, so test-only edits leave the Docker source copy cache eligible for reuse.
 
 Image builds emit compact memory snapshots during compilation. The fast .NET Release build uses the existing fixed-field runner sampler for live host and cgroup observations. These samples remain available in the Actions log if final build diagnostics are interrupted.
 
