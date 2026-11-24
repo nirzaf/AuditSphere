@@ -20,8 +20,9 @@ internal static class MappedTrialBalanceSource
   }
 
   internal static async Task<(MappingVersion Mapping, TrialBalanceDataset Dataset)?> ResolveAsync(
-    IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct)
+    IAuditSphereDbContext db, Guid firmId, Guid engagementId, CancellationToken ct, Guid? mappingId = null)
   {
+    if (mappingId == Guid.Empty) return null;
     var candidates = from mapping in db.MappingVersions.AsNoTracking()
       join dataset in db.TrialBalanceDatasets.AsNoTracking()
         on new { mapping.FirmId, mapping.ClientId, mapping.EngagementId, mapping.DatasetId }
@@ -32,18 +33,29 @@ internal static class MappedTrialBalanceSource
         dataset.Balanced && dataset.ControlTotal == 0m
       select new { Mapping = mapping, Dataset = dataset };
 
-    // These callers have only an engagement ID. Recency can choose a revision within
-    // one context; it cannot choose a period, book, basis, currency or entity for the caller.
-    var selected = await candidates.Where(candidate => !candidates.Any(other =>
+    // Without an explicit selection, every candidate must share one context.
+    // A supplied mapping anchors the context, but must still be its latest revision.
+    var context = mappingId is { } id
+      ? candidates.Where(candidate => candidates.Any(anchor => anchor.Mapping.Id == id &&
+        anchor.Dataset.PeriodId == candidate.Dataset.PeriodId &&
+        anchor.Dataset.BookId == candidate.Dataset.BookId &&
+        anchor.Dataset.Basis == candidate.Dataset.Basis &&
+        anchor.Dataset.Currency == candidate.Dataset.Currency &&
+        anchor.Dataset.LegalEntityKey == candidate.Dataset.LegalEntityKey &&
+        anchor.Mapping.PeriodStart == candidate.Mapping.PeriodStart && anchor.Mapping.PeriodEnd == candidate.Mapping.PeriodEnd))
+      : candidates.Where(candidate => !candidates.Any(other =>
         other.Dataset.PeriodId != candidate.Dataset.PeriodId ||
         other.Dataset.BookId != candidate.Dataset.BookId ||
         other.Dataset.Basis != candidate.Dataset.Basis ||
         other.Dataset.Currency != candidate.Dataset.Currency ||
         other.Dataset.LegalEntityKey != candidate.Dataset.LegalEntityKey ||
-        other.Mapping.PeriodStart != candidate.Mapping.PeriodStart || other.Mapping.PeriodEnd != candidate.Mapping.PeriodEnd))
+        other.Mapping.PeriodStart != candidate.Mapping.PeriodStart || other.Mapping.PeriodEnd != candidate.Mapping.PeriodEnd));
+    var selected = await context
       .OrderByDescending(x => x.Mapping.ApprovedAt).ThenByDescending(x => x.Mapping.Version)
+      .ThenByDescending(x => x.Mapping.Id)
       .FirstOrDefaultAsync(ct);
-    return selected is null ? null : (selected.Mapping, selected.Dataset);
+    return selected is null || mappingId.HasValue && selected.Mapping.Id != mappingId.Value
+      ? null : (selected.Mapping, selected.Dataset);
   }
 
   internal static string Digest(TrialBalanceDataset dataset) =>

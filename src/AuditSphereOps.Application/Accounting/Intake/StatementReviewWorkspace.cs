@@ -140,15 +140,17 @@ public static class StatementReviewWorkspace
     return map;
   }
 
-  private static async Task<CommandResult<Snapshot>> ReadAsync(IClientAccountingDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
+  private static async Task<CommandResult<Snapshot>> ReadAsync(IClientAccountingDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct, Guid? mappingId)
   {
     var e = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
     if (e is null) return Fail<Snapshot>(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await Authorize(db, actor, e.PracticeClientId, engagementId, ct);
     if (!auth.Succeeded) return Fail<Snapshot>(auth.ErrorCode!, auth.Message!);
-    var basisSelection = await MappedTrialBalanceSource.ResolveAsync(db, actor.FirmId, engagementId, ct);
+    var basisSelection = await MappedTrialBalanceSource.ResolveAsync(db, actor.FirmId, engagementId, ct, mappingId);
     if (basisSelection is null)
-      return Fail<Snapshot>(ErrorCodes.GateBlocked, "Statements require an approved mapping in a single eligible reporting context.");
+      return mappingId.HasValue
+        ? Fail<Snapshot>(ErrorCodes.StaleRevision, "The selected statement mapping is unavailable or has changed.")
+        : Fail<Snapshot>(ErrorCodes.GateBlocked, "Statements require an approved mapping in a single eligible reporting context.");
     var (m, d) = basisSelection.Value;
     if (!NativeTrialBalanceSourceWorkspace.IsBaseSource(d))
       return Fail<Snapshot>(ErrorCodes.GateBlocked, "The exact mapped raw trial balance must be sealed, balanced and validated.");
@@ -200,10 +202,10 @@ public static class StatementReviewWorkspace
     return CommandResult<Snapshot>.Ok(new(basis, projected, source, accounts.ToDictionary(x => x.AccountCode, x => x.AccountName, StringComparer.Ordinal), procedures, riskAreas, priorBalances, calculation, assessments, risks));
   }
 
-  private static async Task<CommandResult<Snapshot>> StableAsync(IClientAccountingDbContext db, ActorContext actor, Guid id, string? revision, CancellationToken ct)
+  private static async Task<CommandResult<Snapshot>> StableAsync(IClientAccountingDbContext db, ActorContext actor, Guid id, string? revision, CancellationToken ct, Guid? mappingId)
   {
-    var first = await ReadAsync(db, actor, id, ct); if (!first.Succeeded) return first;
-    var final = await ReadAsync(db, actor, id, ct); if (!final.Succeeded) return final;
+    var first = await ReadAsync(db, actor, id, ct, mappingId); if (!first.Succeeded) return first;
+    var final = await ReadAsync(db, actor, id, ct, mappingId); if (!final.Succeeded) return final;
     if (first.Value!.Basis.Revision != final.Value!.Basis.Revision || revision is not null && (!SourceAcceptanceWorkspace.ValidHash(revision) || revision != final.Value.Basis.Revision))
       return Fail<Snapshot>(ErrorCodes.StaleRevision, "Statement or supporting evidence changed. Refresh the approved basis before continuing.");
     return final;
@@ -381,10 +383,10 @@ public static class StatementReviewWorkspace
     );
   }
 
-  public static async Task<CommandResult<StatementReviewPage>> GetAsync(IClientAccountingDbContext db, ActorContext actor, Guid id, string section = "profit", string? filter = null, int page = 1, CancellationToken ct = default)
+  public static async Task<CommandResult<StatementReviewPage>> GetAsync(IClientAccountingDbContext db, ActorContext actor, Guid id, string section = "profit", string? filter = null, int page = 1, CancellationToken ct = default, Guid? mappingId = null)
   {
     if (!Section(section) || (filter?.Length ?? 0) > 80 || page < 1 || page > 1_000) return Fail<StatementReviewPage>(ErrorCodes.Accounting.MappingInvalid, "Choose a statement section, bounded filter and valid page.");
-    var stable = await StableAsync(db, actor, id, null, ct); if (!stable.Succeeded) return Fail<StatementReviewPage>(stable.ErrorCode!, stable.Message!);
+    var stable = await StableAsync(db, actor, id, null, ct, mappingId); if (!stable.Succeeded) return Fail<StatementReviewPage>(stable.ErrorCode!, stable.Message!);
     var s = stable.Value!;
     var profitSummary = BuildSectionSummary(s, s.View.ProfitOrLoss, "profit", filter);
     var positionSummary = BuildSectionSummary(s, s.View.FinancialPosition, "position", filter);
@@ -434,14 +436,14 @@ public static class StatementReviewWorkspace
     ));
   }
 
-  public static Task<CommandResult<StatementReviewPage>> GetSplitDashboardAsync(IClientAccountingDbContext db, ActorContext actor, Guid id, string? filter = null, CancellationToken ct = default) =>
-    GetAsync(db, actor, id, "split", filter, 1, ct);
+  public static Task<CommandResult<StatementReviewPage>> GetSplitDashboardAsync(IClientAccountingDbContext db, ActorContext actor, Guid id, string? filter = null, CancellationToken ct = default, Guid? mappingId = null) =>
+    GetAsync(db, actor, id, "split", filter, 1, ct, mappingId);
 
-  public static async Task<CommandResult<StatementContributionPage>> ContributionsAsync(IClientAccountingDbContext db, ActorContext actor, Guid id, string section, string destination, string statementSection, string revision, int page = 1, int procedurePage = 1, CancellationToken ct = default)
+  public static async Task<CommandResult<StatementContributionPage>> ContributionsAsync(IClientAccountingDbContext db, ActorContext actor, Guid id, string section, string destination, string statementSection, string revision, int page = 1, int procedurePage = 1, CancellationToken ct = default, Guid? mappingId = null)
   {
     if (!Section(section) || destination is not { Length: > 0 and <= 100 } || statementSection is not { Length: > 0 and <= 100 } || page < 1 || procedurePage < 1 || page > 1_000 || procedurePage > 1_000)
       return Fail<StatementContributionPage>(ErrorCodes.Accounting.MappingInvalid, "Choose an exact statement line and bounded pages.");
-    var stable = await StableAsync(db, actor, id, revision, ct); if (!stable.Succeeded) return Fail<StatementContributionPage>(stable.ErrorCode!, stable.Message!);
+    var stable = await StableAsync(db, actor, id, revision, ct, mappingId); if (!stable.Succeeded) return Fail<StatementContributionPage>(stable.ErrorCode!, stable.Message!);
     var s = stable.Value!; var line = View(s, section).Lines.SingleOrDefault(x => x.DestinationCode == destination && x.StatementSection == statementSection);
     if (line is null) return Fail<StatementContributionPage>(ErrorCodes.ScopeDenied, "The line is unavailable in this statement basis.");
     var accounts = Contributions(s, line); var procedures = Procedures(s, line);
@@ -454,9 +456,9 @@ public static class StatementReviewWorkspace
   private static IReadOnlyList<StatementContribution> Contributions(Snapshot s, StatementLineView line) => s.Source.Lines.Where(x => x.DestinationCode == line.DestinationCode && x.StatementSection.Trim().ToUpperInvariant() == line.StatementSection)
     .GroupBy(x => x.SourceAccountCode, StringComparer.Ordinal).OrderBy(x => x.Key, StringComparer.Ordinal).Select(x => new StatementContribution(x.Key, s.Names[x.Key], MoneyPolicy.Normalize(x.Sum(y => y.Amount * FinancialStatementDrillDownQuery.DisplaySign(y.StatementSection))))).ToArray();
 
-  public static async Task<CommandResult<StatementReviewExport>> ExportAsync(IClientAccountingDbContext db, ActorContext actor, Guid id, string revision, CancellationToken ct = default)
+  public static async Task<CommandResult<StatementReviewExport>> ExportAsync(IClientAccountingDbContext db, ActorContext actor, Guid id, string revision, CancellationToken ct = default, Guid? mappingId = null)
   {
-    var stable = await StableAsync(db, actor, id, revision, ct); if (!stable.Succeeded) return Fail<StatementReviewExport>(stable.ErrorCode!, stable.Message!);
+    var stable = await StableAsync(db, actor, id, revision, ct, mappingId); if (!stable.Succeeded) return Fail<StatementReviewExport>(stable.ErrorCode!, stable.Message!);
     var s = stable.Value!;
     static string Text(string v) => "\"" + ((v.TrimStart().StartsWith('=') || v.TrimStart().StartsWith('+') || v.TrimStart().StartsWith('-') || v.TrimStart().StartsWith('@') || v.Contains('\t') || v.Contains('\r') || v.Contains('\n')) ? "'" : "") + v.Replace("\"", "\"\"") + "\"";
     var b = new StringBuilder("engagement_id,mapping_id,mapping_version,dataset_id,dataset_digest,basis_revision,period_start,period_end,currency,statement,line,section,account_code,account_name,contribution,line_total,statement_total\r\n");

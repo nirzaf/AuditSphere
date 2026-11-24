@@ -175,7 +175,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     Assert.True(await db.RoleGrantChangeEvidences.AnyAsync(x => x.RoleGrantId == expired.Id && x.Source == "EXPIRY"));
   }
 
-  private static async Task SeedApprovedMappingAsync(PgTestSchema pg, World w, int year = 2026)
+  private static async Task<Guid> SeedApprovedMappingAsync(PgTestSchema pg, World w, int year = 2026)
   {
     await using var db = new AuditSphereDbContext(pg.Options);
     var datasetId = Guid.NewGuid();
@@ -211,6 +211,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       SourceAccountCode = a.Code, DestinationCode = a.Destination, StatementSection = a.Section, Fraction = 1m, Rationale = "Mapped", CreatedAt = DateTimeOffset.UtcNow
     }));
     await db.SaveChangesAsync();
+    return mappingId;
   }
 
   [Fact]
@@ -219,15 +220,24 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
     var manager = w.Actor("manager", "Manager");
-    await SeedApprovedMappingAsync(pg, w);
+    var currentPeriodMapping = await SeedApprovedMappingAsync(pg, w);
     await using var db = new AuditSphereDbContext(pg.Options);
     Assert.True((await FinancialStatementDrillDownQuery.GetAsync(db, manager, w.EngagementId)).Succeeded);
     Assert.True((await MaterialityEngineService.GetSourceAsync(db, manager, w.EngagementId)).Succeeded);
 
-    await SeedApprovedMappingAsync(pg, w, year: 2025);
+    var priorPeriodMapping = await SeedApprovedMappingAsync(pg, w, year: 2025);
     var statements = await FinancialStatementDrillDownQuery.GetAsync(db, manager, w.EngagementId);
     var materiality = await MaterialityEngineService.GetSourceAsync(db, manager, w.EngagementId);
     Assert.Equal((ErrorCodes.GateBlocked, ErrorCodes.GateBlocked), (statements.ErrorCode, materiality.ErrorCode));
+
+    var current = await MappedTrialBalanceSource.ResolveAsync(db, w.FirmId, w.EngagementId, default, currentPeriodMapping);
+    var prior = await MappedTrialBalanceSource.ResolveAsync(db, w.FirmId, w.EngagementId, default, priorPeriodMapping);
+    Assert.Equal(currentPeriodMapping, current?.Mapping.Id);
+    Assert.Equal(priorPeriodMapping, prior?.Mapping.Id);
+    Assert.NotEqual(current?.Dataset.Id, prior?.Dataset.Id);
+    Assert.Null(await MappedTrialBalanceSource.ResolveAsync(db, w.FirmId, Guid.NewGuid(), default, currentPeriodMapping));
+    Assert.Null(await MappedTrialBalanceSource.ResolveAsync(db, Guid.NewGuid(), w.EngagementId, default, currentPeriodMapping));
+    Assert.Null(await MappedTrialBalanceSource.ResolveAsync(db, w.FirmId, w.EngagementId, default, Guid.Empty));
   }
 
   [Fact]
