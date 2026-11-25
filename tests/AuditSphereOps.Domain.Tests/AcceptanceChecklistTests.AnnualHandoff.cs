@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,7 +28,12 @@ public sealed partial class AcceptanceChecklistTests
     var closed = await AssessmentWorkspaceQuery.GetAsync(db, w.Manager, w.ClientId, engagementId: target.Value);
     Assert.True(closed.Succeeded, closed.Message);
     Assert.Equal("FRESH_EVALUATION_REQUIRED", closed.Value!.TargetEngagement!.State);
+    Assert.Equal(AcceptancePaths.Continuance, closed.Value.Checklist.Path);
+    Assert.Equal("Accepted", closed.Value.Checklist.PriorDecision);
+    Assert.Null(closed.Value.SelectedDecision);
     Assert.True(closed.Value.Checklist.CanStartContinuance); Assert.False(closed.Value.Checklist.CanEdit);
+    Assert.False((await AssessmentWorkspaceQuery.GetAsync(db, w.Partner, w.ClientId,
+      engagementId: target.Value)).Value!.Checklist.CanDecide);
     Assert.False((await AssessmentWorkspaceQuery.GetAsync(db, w.Manager, foreign.ClientId, engagementId: target.Value)).Succeeded);
     Assert.False((await AssessmentWorkspaceQuery.GetAsync(db, w.Manager, w.ClientId, engagementId: Guid.NewGuid())).Succeeded);
     Assert.False((await AssessmentWorkspaceQuery.GetAsync(db, w.Partner, w.ClientId, prior.Value, engagementId: target.Value)).Succeeded);
@@ -39,6 +45,9 @@ public sealed partial class AcceptanceChecklistTests
     Assert.True(fresh.Succeeded, fresh.Message);
     Assert.Equal(("EVALUATION_OPEN", "2", "CONTINUANCE"),
       (fresh.Value!.TargetEngagement!.State, fresh.Value.Checklist.Generation, fresh.Value.Checklist.Path));
+    Assert.True(fresh.Value.Checklist.CanEdit);
+    Assert.True(fresh.Value.Checklist.CanDecide);
+    Assert.False(fresh.Value.Checklist.CanStartContinuance);
     Assert.All(fresh.Value.Checklist.Questions, x => Assert.Null(x.Answer));
     Assert.False(fresh.Value.Checklist.Ready);
     await AnswerAllAsync(pg, w);

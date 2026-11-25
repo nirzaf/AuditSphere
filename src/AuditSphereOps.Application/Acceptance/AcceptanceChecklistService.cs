@@ -40,6 +40,9 @@ public static class AcceptanceChecklistService
     if (opportunityId.HasValue)
       priorQuery = priorQuery.Where(x => x.Generation < generation ||
         (x.Generation == generation && (x.OpportunityId == null || x.OpportunityId != opportunityId)));
+    else if (engagementId.HasValue)
+      priorQuery = priorQuery.Where(x => x.Generation < generation ||
+        (x.Generation == generation && x.EngagementId != engagementId));
     else
       priorQuery = priorQuery.Where(x => x.Generation < generation);
     if (!string.IsNullOrWhiteSpace(serviceRoute)) priorQuery = priorQuery.Where(x => x.ServiceRoute == serviceRoute);
@@ -90,16 +93,74 @@ public static class AcceptanceChecklistService
     return new(clientId, generation, path, prior, currentDecision, items, effective, blockers);
   }
 
+  internal static async Task<bool> HasCurrentContinuanceAsync(IAuditSphereDbContext db, Guid firmId, Guid clientId,
+    long generation, string? serviceRoute, Guid? opportunityId = null, Guid? engagementId = null,
+    CancellationToken ct = default)
+  {
+    if (firmId == Guid.Empty || clientId == Guid.Empty || generation < 1 || opportunityId == Guid.Empty ||
+        engagementId == Guid.Empty || opportunityId.HasValue && engagementId.HasValue) return false;
+    var query = db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == firmId &&
+      x.PracticeClientId == clientId && x.Generation == generation && x.Decision == "Pending");
+    if (!string.IsNullOrWhiteSpace(serviceRoute)) query = query.Where(x => x.ServiceRoute == serviceRoute);
+    if (opportunityId.HasValue)
+      query = query.Where(x => x.OpportunityId == opportunityId && x.EngagementId == null);
+    else if (engagementId.HasValue)
+      query = query.Where(x => x.OpportunityId == null &&
+        (x.EngagementId == engagementId || x.EngagementId == null));
+    else
+      query = query.Where(x => x.OpportunityId == null && x.EngagementId == null);
+    var pending = await query.Take(3).ToListAsync(ct);
+    if (pending.Count > 2) return false;
+    var open = 0;
+    foreach (var row in pending)
+      if (!await IsContinuanceDecisionRecordedAsync(db, row, ct)) open++;
+    return open == 1;
+  }
+
+  internal static async Task<bool> HasOpenContinuanceAsync(IAuditSphereDbContext db, Guid firmId, Guid clientId,
+    long generation, CancellationToken ct = default)
+  {
+    if (firmId == Guid.Empty || clientId == Guid.Empty || generation < 1) return true;
+    var pending = await db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == firmId &&
+      x.PracticeClientId == clientId && x.Generation == generation && x.Decision == "Pending").Take(3).ToListAsync(ct);
+    if (pending.Count > 2) return true;
+    foreach (var row in pending)
+      if (!await IsContinuanceDecisionRecordedAsync(db, row, ct)) return true;
+    return false;
+  }
+
+  private static Task<bool> IsContinuanceDecisionRecordedAsync(IAuditSphereDbContext db,
+    AcceptanceDecision pending, CancellationToken ct)
+  {
+    var query = db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == pending.FirmId &&
+      x.PracticeClientId == pending.PracticeClientId && x.Generation == pending.Generation &&
+      x.ServiceRoute == pending.ServiceRoute && x.Decision != "Pending");
+    if (pending.OpportunityId.HasValue)
+      query = query.Where(x => x.OpportunityId == pending.OpportunityId);
+    else if (pending.EngagementId.HasValue)
+      query = query.Where(x => x.EngagementId == pending.EngagementId);
+    return query.AnyAsync(ct);
+  }
+
   public static async Task<CommandResult<AcceptanceChecklist>> GetAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid clientId, CancellationToken ct = default,
-    string? serviceRoute = null, Guid? opportunityId = null)
+    string? serviceRoute = null, Guid? opportunityId = null, Guid? engagementId = null)
   {
-    var auth = await AuthorizeAsync(db, actor, clientId, ReadRoles, ct);
+    if (clientId == Guid.Empty || opportunityId == Guid.Empty || engagementId == Guid.Empty ||
+        opportunityId.HasValue && engagementId.HasValue ||
+        (opportunityId.HasValue || engagementId.HasValue) && string.IsNullOrWhiteSpace(serviceRoute))
+      return CommandResult<AcceptanceChecklist>.Fail("acceptance.invalid", "Select one exact engagement or opportunity context.");
+    if (engagementId.HasValue && !await db.Engagements.AsNoTracking().AnyAsync(x =>
+        x.FirmId == actor.FirmId && x.PracticeClientId == clientId && x.Id == engagementId &&
+        x.ServiceRoute == serviceRoute, ct))
+      return CommandResult<AcceptanceChecklist>.Fail(ErrorCodes.ScopeDenied, "Assessment unavailable.");
+    var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, clientId, engagementId, RequiredRoles: ReadRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<AcceptanceChecklist>.Fail(auth.ErrorCode!, auth.Message!);
     var generation = await db.ClientSafetyStates.AsNoTracking().Where(x => x.Id == clientId && x.FirmId == actor.FirmId)
       .Select(x => (long?)x.InputGeneration).SingleOrDefaultAsync(ct);
     if (generation is null) return CommandResult<AcceptanceChecklist>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
-    return CommandResult<AcceptanceChecklist>.Ok(await LoadAsync(db, actor.FirmId, clientId, null,
+    return CommandResult<AcceptanceChecklist>.Ok(await LoadAsync(db, actor.FirmId, clientId, engagementId,
       generation.Value, ct, serviceRoute, opportunityId));
   }
 
@@ -135,6 +196,10 @@ public static class AcceptanceChecklistService
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Assessment unavailable.");
     var checklist = await LoadAsync(db, actor.FirmId, clientId, null, guard.InputGeneration, ct,
       opportunity?.ServiceRoute, opportunity?.Id);
+    if (checklist.Path == AcceptancePaths.Continuance &&
+        !await HasCurrentContinuanceAsync(db, actor.FirmId, clientId, guard.InputGeneration,
+          opportunity?.ServiceRoute, opportunity?.Id, ct: ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Start the current continuance review before recording answers.");
     if (checklist.CurrentDecision is not null)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "A decision is already recorded for this generation; its evaluation is immutable.");
     var item = checklist.Items.SingleOrDefault(x => string.Equals(x.Question.Code, questionCode?.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -265,11 +330,16 @@ public static class AcceptanceChecklistService
     var guard = await db.ClientSafetyStates.FromSqlInterpolated(
       $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult<long>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
+    // A caller may have loaded this entity before an external input advanced its generation.
+    // The row lock is held, so refresh the tracked instance before comparing or incrementing it.
+    await db.ClientSafetyStates.Attach(guard).ReloadAsync(ct);
     auth = await AcceptanceCommandAuthority.CheckAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, clientId, RequiredRoles: ContinuanceRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
     if (expectedGeneration.HasValue && expectedGeneration.Value != guard.InputGeneration)
       return CommandResult<long>.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation.");
+    if (await HasOpenContinuanceAsync(db, actor.FirmId, clientId, guard.InputGeneration, ct))
+      return CommandResult<long>.Fail(ErrorCodes.ProtectedState, "A continuance review is already open for this client generation.");
     if (opportunityId.HasValue)
     {
       var opportunity = await db.Opportunities.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
@@ -281,12 +351,13 @@ public static class AcceptanceChecklistService
     else if (!string.IsNullOrWhiteSpace(serviceRoute))
       return CommandResult<long>.Fail("acceptance.invalid", "An opportunity identity is required for a scoped continuance.");
     var acceptedQuery = db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId &&
-      x.Generation == guard.InputGeneration && (x.Decision == "Accepted" || x.Decision == "AcceptedWithConditions"));
+      x.Generation <= guard.InputGeneration && (x.Decision == "Accepted" || x.Decision == "AcceptedWithConditions"));
     if (!string.IsNullOrWhiteSpace(serviceRoute)) acceptedQuery = acceptedQuery.Where(x => x.ServiceRoute == serviceRoute);
     var accepted = await acceptedQuery
-      .OrderByDescending(x => x.DecidedAt).FirstOrDefaultAsync(ct);
+      .OrderByDescending(x => x.Generation).ThenByDescending(x => x.DecidedAt).ThenByDescending(x => x.Id)
+      .FirstOrDefaultAsync(ct);
     if (accepted is null)
-      return CommandResult<long>.Fail(ErrorCodes.GateBlocked, "A continuance review starts from an accepted decision on the current evaluation.");
+      return CommandResult<long>.Fail(ErrorCodes.GateBlocked, "A continuance review starts from retained accepted evidence for this service route.");
     guard.InputGeneration++;
     db.AcceptanceDecisions.Add(new AcceptanceDecision
     {

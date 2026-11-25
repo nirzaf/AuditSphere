@@ -189,8 +189,9 @@ public sealed class AngularCommercialJourneyTests
     await Assertions.Expect(history).ToContainTextAsync("Lead qualified");
 
     var opportunities = page.GetByRole(AriaRole.Region, new() { Name = "Opportunities", Exact = true });
+    var oldestScope = "Audit of the standalone financial statements of Synthetic history prospect 000.";
     await Assertions.Expect(opportunities.Locator("h3")).ToHaveCountAsync(100);
-    await Assertions.Expect(opportunities.GetByText("Synthetic history entity 000", new() { Exact = true })).ToHaveCountAsync(0);
+    await Assertions.Expect(opportunities.GetByText(oldestScope, new() { Exact = true })).ToHaveCountAsync(0);
     var olderOpportunities = opportunities.GetByRole(AriaRole.Button, new() { Name = "Load older opportunities", Exact = true });
     await olderOpportunities.PressAsync("Enter");
     await Assertions.Expect(opportunities.Locator("h3")).ToHaveCountAsync(200);
@@ -200,7 +201,7 @@ public sealed class AngularCommercialJourneyTests
     await Assertions.Expect(opportunities.Locator("h3")).ToHaveCountAsync(201);
     await Assertions.Expect(opportunities.Locator("h3").Nth(200)).ToBeFocusedAsync();
     await Assertions.Expect(olderOpportunities).ToHaveCountAsync(0);
-    await Assertions.Expect(opportunities.GetByText("Synthetic history entity 000", new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(opportunities.GetByText(oldestScope, new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(history.Locator("li")).ToHaveCountAsync(203);
 
     // Cursor shapes and row ownership are enforced by the real HTTP boundary, not inferred from hidden controls.

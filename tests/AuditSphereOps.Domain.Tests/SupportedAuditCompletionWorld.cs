@@ -175,21 +175,21 @@ internal static class SupportedAuditCompletionWorldBuilder
     var partner = await ProvisionFirmRoleAsync(pg, admin, "Partner");
     var manager = await ProvisionFirmRoleAsync(pg, admin, "Manager");
     await using var db = new AuditSphereDbContext(pg.Options);
-    var rate = await PracticeTimeService.ReviseRateCardAsync(db, partner.Actor,
-      new RateCardDraftRequest("Partner", "Audit", "QAR", 1000m));
-    Assert.True(rate.Succeeded, rate.Message);
-    Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, manager.Actor, rate.Value)).Succeeded);
-    var proposal = await CreateAcceptedProposalAsync(pg, relationship.Actor, partner.Actor, manager.Actor,
-      "Acceptance", "Synthetic acceptance client", "2026-01-01", "2026-12-31", async profileDb =>
-      {
-        var saved = await CommercialDocumentService.SaveProfileAsync(profileDb, partner.Actor,
-          new("Synthetic Audit Firm", "Test address", "firm@example.test", "", "#0F766E", "Synthetic test terms"));
-        Assert.True(saved.Succeeded, saved.Message);
-      });
-    var client = await PracticeCrmService.ConvertToClientDraftAsync(db, relationship.Actor,
-      new(proposal, "Synthetic acceptance client", "Acceptance client"));
-    Assert.True(client.Succeeded, client.Message);
-    return (admin.FirmId, client.Value, role == "Partner" ? partner.Actor : manager.Actor);
+    var lead = await PracticeCrmService.CreateLeadAsync(db, relationship.Actor,
+      new("Synthetic acceptance client", "Referral", "Synthetic owner", "acceptance@example.test"));
+    Assert.True(lead.Succeeded, lead.Message);
+    var qualified = await PracticeCrmService.QualifyLeadAsync(db, relationship.Actor, lead.Value);
+    Assert.True(qualified.Succeeded, qualified.Message);
+    var opportunity = await PracticeCrmService.CreateOpportunityAsync(db, relationship.Actor,
+      CommercialAcceptanceTestSupport.DiscoveryRequest(lead.Value, "FinancialStatementAudit",
+        "Synthetic acceptance client", "2026-01-01", "2026-12-31"));
+    Assert.True(opportunity.Succeeded, opportunity.Message);
+    if (!await db.QuestionnaireTemplates.AnyAsync(x => x.Id == QuestionnaireSeed.CeTemplateId))
+      await QuestionnaireSeed.SeedTemplatesAndDefinitionsAsync(db);
+    var clientId = await db.Opportunities.AsNoTracking().Where(x => x.FirmId == admin.FirmId && x.Id == opportunity.Value)
+      .Select(x => x.AcceptanceClientId).SingleAsync();
+    Assert.NotNull(clientId);
+    return (admin.FirmId, clientId!.Value, role == "Partner" ? partner.Actor : manager.Actor);
   }
 
   internal static async Task<Guid> CreateAcceptedProposalAsync(ITestPostgresDatabase pg, ActorContext relationship,

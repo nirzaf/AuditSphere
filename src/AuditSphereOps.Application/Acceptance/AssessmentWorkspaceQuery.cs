@@ -36,7 +36,8 @@ public static class AssessmentWorkspaceQuery
     Guid? opportunityId = null)
   {
     if (engagementId.HasValue && opportunityId.HasValue) return Denied();
-    var request = new AuthorizationRequest(actor.FirmId, ClientId: clientId, RequiredRoles: Roles, InternalOnly: true);
+    var request = new AuthorizationRequest(actor.FirmId, ClientId: clientId, EngagementId: engagementId,
+      RequiredRoles: Roles, InternalOnly: true);
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded) return Denied();
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     // Use the same firm -> client -> actor order as reviewed administration commands.
@@ -61,7 +62,7 @@ public static class AssessmentWorkspaceQuery
       !DateOnly.TryParseExact(targetOpportunity.PeriodStart, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var opportunityStart) ||
       !DateOnly.TryParseExact(targetOpportunity.PeriodEnd, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var opportunityEnd) || opportunityStart > opportunityEnd)) return Denied();
     var current = await AcceptanceWorkspaceQuery.GetAsync(db, actor, clientId, ct,
-      targetOpportunity?.ServiceRoute, targetOpportunity?.Id);
+      targetOpportunity?.ServiceRoute ?? target?.ServiceRoute, targetOpportunity?.Id, target?.Id);
     if (!current.Succeeded) return CommandResult<AssessmentWorkspace>.Fail(current.ErrorCode!, "Assessment unavailable.");
     var checklist = current.Value!;
     if (checklist.Questions.Count > 1000 || checklist.Clearances.Count > 1000 || checklist.Blockers.Count > 1000)
@@ -76,24 +77,29 @@ public static class AssessmentWorkspaceQuery
     var targetOpportunityDecision = targetOpportunity is null ? null : await decisions.Where(d => d.OpportunityId == targetOpportunity.Id &&
       d.Generation == currentGeneration && d.Decision != "Pending").OrderByDescending(d => d.DecidedAt).ThenByDescending(d => d.Id).FirstOrDefaultAsync(ct);
     var selected = decisionId.HasValue ? await decisions.SingleOrDefaultAsync(d => d.Id == decisionId.Value, ct)
-      : targetOpportunityDecision ?? targetDecision ?? await decisions.Where(d => d.EngagementId == null && d.OpportunityId == null &&
+      : targetOpportunity is not null ? targetOpportunityDecision
+      : target is not null ? targetDecision
+      : await decisions.Where(d => d.EngagementId == null && d.OpportunityId == null &&
         d.Generation == currentGeneration && d.Decision != "Pending").OrderByDescending(d => d.Generation).ThenByDescending(d => d.DecidedAt).ThenBy(d => d.Id).FirstOrDefaultAsync(ct);
     if (decisionId.HasValue && selected is null) return Denied();
     if (decisionId.HasValue && target is not null && selected?.EngagementId != target.Id) return Denied();
     if (decisionId.HasValue && targetOpportunity is not null && selected?.OpportunityId != targetOpportunity.Id) return Denied();
+    var engagementContinuanceOpen = target is not null && await AcceptanceChecklistService.HasCurrentContinuanceAsync(
+      db, actor.FirmId, clientId, currentGeneration, target.ServiceRoute, engagementId: target.Id, ct: ct);
     var targetContext = target is null ? null : new AssessmentEngagementContext(target.Id, target.ServiceRoute,
       target.PeriodStart, target.PeriodEnd, targetDecision is not null ? "DECISION_RECORDED" :
-      checklist.CurrentDecision is null ? "EVALUATION_OPEN" : checklist.CurrentDecision is "Accepted" or "AcceptedWithConditions" ? "FRESH_EVALUATION_REQUIRED" : "EVALUATION_CLOSED");
-    var hasPriorForRoute = targetOpportunity is not null && await decisions.AnyAsync(d => d.ServiceRoute == targetOpportunity.ServiceRoute &&
-      (d.Decision == "Accepted" || d.Decision == "AcceptedWithConditions") &&
-      (d.Generation < currentGeneration || (d.Generation == currentGeneration &&
-        (d.OpportunityId == null || d.OpportunityId != targetOpportunity.Id))), ct);
+      engagementContinuanceOpen ? "EVALUATION_OPEN" : checklist.PriorDecision is not null
+        ? "FRESH_EVALUATION_REQUIRED" : checklist.CurrentDecision is null ? "EVALUATION_OPEN" : "EVALUATION_CLOSED");
+    var opportunityContinuanceOpen = targetOpportunity is not null && await AcceptanceChecklistService.HasCurrentContinuanceAsync(
+      db, actor.FirmId, clientId, currentGeneration, targetOpportunity.ServiceRoute, targetOpportunity.Id, ct: ct);
+    var hasPriorForRoute = targetOpportunity is not null && checklist.PriorDecision is not null;
     var targetOpportunityContext = targetOpportunity is null ? null : new AssessmentOpportunityContext(targetOpportunity.Id,
       targetOpportunity.ServiceRoute, targetOpportunity.EntityScope, targetOpportunity.PeriodStart, targetOpportunity.PeriodEnd,
       hasPriorForRoute ? "CLIENT_CONTINUANCE" : "CLIENT_ACCEPTANCE",
       targetOpportunityDecision?.Decision == "Accepted" ? "DECISION_RECORDED" :
         targetOpportunityDecision?.Decision == "AcceptedWithConditions" ? "CONDITIONAL_DECISION" :
-        targetOpportunityDecision?.Decision ?? (hasPriorForRoute ? "CONTINUANCE_REQUIRED" : "EVALUATION_OPEN"));
+        targetOpportunityDecision?.Decision ?? (opportunityContinuanceOpen ? "EVALUATION_OPEN" :
+          hasPriorForRoute ? "CONTINUANCE_REQUIRED" : "EVALUATION_OPEN"));
     string? decider = null;
     if (selected?.DecidedByUserId is { } userId)
       decider = await db.Users.AsNoTracking().Where(u => u.Id == userId && u.FirmId == actor.FirmId).Select(u => u.DisplayName).SingleOrDefaultAsync(ct);

@@ -2,6 +2,7 @@ using System.Globalization;
 using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,28 +20,41 @@ public sealed record AcceptanceWorkspace(Guid ClientId, string Generation, strin
 public static class AcceptanceWorkspaceQuery
 {
   public static async Task<CommandResult<AcceptanceWorkspace>> GetAsync(IAuditSphereDbContext db, ActorContext actor,
-    Guid clientId, CancellationToken ct = default, string? serviceRoute = null, Guid? opportunityId = null)
+    Guid clientId, CancellationToken ct = default, string? serviceRoute = null, Guid? opportunityId = null,
+    Guid? engagementId = null)
   {
-    var result = await AcceptanceChecklistService.GetAsync(db, actor, clientId, ct, serviceRoute, opportunityId);
+    var result = await AcceptanceChecklistService.GetAsync(db, actor, clientId, ct, serviceRoute, opportunityId, engagementId);
     if (!result.Succeeded) return CommandResult<AcceptanceWorkspace>.Fail(result.ErrorCode!, "Acceptance unavailable.");
     var c = result.Value!;
-    var canEdit = c.CurrentDecision is null && (await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, ClientId: clientId,
+    var currentContinuance = c.Path != AcceptancePaths.Continuance ||
+      await AcceptanceChecklistService.HasCurrentContinuanceAsync(db, actor.FirmId, clientId, c.Generation,
+        serviceRoute, opportunityId, engagementId, ct);
+    var canEdit = c.CurrentDecision is null && currentContinuance && (await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, ClientId: clientId, EngagementId: engagementId,
         RequiredRoles: ["Partner", "Manager", "Senior", "Staff", "EngagementLeader", "Auditor"], InternalOnly: true), ct)).Succeeded;
-    var final = await AcceptanceChecklistService.GetAsync(db, actor, clientId, ct, serviceRoute, opportunityId);
+    var final = await AcceptanceChecklistService.GetAsync(db, actor, clientId, ct, serviceRoute, opportunityId, engagementId);
     if (!final.Succeeded)
       return CommandResult<AcceptanceWorkspace>.Fail(ErrorCodes.ScopeDenied, "Acceptance unavailable.");
     if (final.Value!.Generation != c.Generation)
       return CommandResult<AcceptanceWorkspace>.Fail(ErrorCodes.GenerationStale, "Acceptance changed. Reload the current evaluation.");
     var reviewer = (await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, ClientId: clientId, RequiredRoles: ["Partner", "Manager"], InternalOnly: true), ct)).Succeeded;
+      new AuthorizationRequest(actor.FirmId, ClientId: clientId, EngagementId: engagementId,
+        RequiredRoles: ["Partner", "Manager"], InternalOnly: true), ct)).Succeeded;
     var partner = (await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, ClientId: clientId, RequiredRoles: ["Partner"], InternalOnly: true), ct)).Succeeded;
+      new AuthorizationRequest(actor.FirmId, ClientId: clientId, EngagementId: engagementId,
+        RequiredRoles: ["Partner"], InternalOnly: true), ct)).Succeeded;
+    var canStartContinuance = reviewer &&
+      !await AcceptanceChecklistService.HasOpenContinuanceAsync(db, actor.FirmId, clientId, c.Generation, ct) &&
+      (c.CurrentDecision is { Decision: "Accepted" or "AcceptedWithConditions" } current &&
+        (serviceRoute is null || current.ServiceRoute == serviceRoute) &&
+        (!opportunityId.HasValue || current.OpportunityId != opportunityId) &&
+        (!engagementId.HasValue || current.EngagementId != engagementId) ||
+       c.CurrentDecision is null && c.PriorDecision is { Decision: "Accepted" or "AcceptedWithConditions" } prior &&
+        (serviceRoute is null || prior.ServiceRoute == serviceRoute));
     return CommandResult<AcceptanceWorkspace>.Ok(new(clientId, c.Generation.ToString(CultureInfo.InvariantCulture), c.Path,
-      c.CurrentDecision?.Decision, c.PriorDecision?.Decision, c.Ready, canEdit, reviewer && c.CurrentDecision is null,
-      partner && c.CurrentDecision is null && c.PriorDecision is { Decision: "Accepted" or "AcceptedWithConditions" }, reviewer &&
-        c.CurrentDecision is { Decision: "Accepted" or "AcceptedWithConditions" } current &&
-        (serviceRoute is null || current.ServiceRoute == serviceRoute),
+      c.CurrentDecision?.Decision, c.PriorDecision?.Decision, c.Ready, canEdit,
+      reviewer && c.CurrentDecision is null && currentContinuance,
+      partner && c.CurrentDecision is null && currentContinuance, canStartContinuance,
       c.Items.Select(i => new AcceptanceQuestionView(i.Question.Code, i.Question.Section, i.Question.Prompt,
         i.Question.Category, i.Question.AnswerType, i.Question.RequiresEvidence, i.Question.EscalatesOnChange, i.Adverse, i.Answer?.Answer,
         i.Answer?.EvidenceReference, (i.Answer?.Revision ?? 0).ToString(CultureInfo.InvariantCulture),

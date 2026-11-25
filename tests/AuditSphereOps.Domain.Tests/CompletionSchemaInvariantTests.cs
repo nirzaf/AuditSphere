@@ -7,6 +7,7 @@ using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Completion;
+using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Engagements;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -388,12 +389,18 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       await using var db = new AuditSphereDbContext(pg.Options);
       var proposalId = await ClientConversionReviewSeed.PopulateAsync(db, own);
       var foreignProposalId = await ClientConversionReviewSeed.PopulateAsync(db, foreign);
+      var ownOpportunityId = await db.Proposals.AsNoTracking().Where(x => x.Id == proposalId).Select(x => x.OpportunityId).SingleAsync();
+      var ownProspectId = await db.Opportunities.AsNoTracking().Where(x => x.Id == ownOpportunityId).Select(x => x.AcceptanceClientId).SingleAsync()
+        ?? throw new InvalidOperationException("The accepted opportunity must retain its canonical prospect.");
+      var foreignOpportunityId = await db.Proposals.AsNoTracking().Where(x => x.Id == foreignProposalId).Select(x => x.OpportunityId).SingleAsync();
+      var foreignProspectId = await db.Opportunities.AsNoTracking().Where(x => x.Id == foreignOpportunityId).Select(x => x.AcceptanceClientId).SingleAsync()
+        ?? throw new InvalidOperationException("The foreign accepted opportunity must retain its canonical prospect.");
       var actor = PbcSeed.Actor(own.Admin, "Administrator");
       var request = new ClientConversionRequest(Guid.CreateVersion7(),
-        new ClientConversionFields("PBC TEST CLIENT"));
+        new ClientConversionFields("Reviewed prospect"));
       var preview = await ClientConversionWorkspace.PreviewAsync(db, actor, proposalId, request);
       Assert.True(preview.Succeeded, preview.Message);
-      Assert.Equal(own.ClientId, preview.Value!.ExistingClientId);
+      Assert.Equal(ownProspectId, preview.Value!.ExistingClientId);
 
       await using var transaction = await db.Database.BeginTransactionAsync();
       var linked = await PracticeCrmService.ConvertToClientDraftAsync(db, actor,
@@ -401,7 +408,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
           request.Fields.CommercialName, request.Fields.RegistrationNumber,
           request.Fields.Jurisdiction, request.Fields.RestrictedProfile));
       Assert.True(linked.Succeeded, linked.Message);
-      Assert.Equal(own.ClientId, linked.Value);
+      Assert.Equal(ownProspectId, linked.Value);
 
       var receipt = new ClientConversion
       {
@@ -409,7 +416,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
         FirmId = own.FirmId,
         // Change only one parent at a time so each scoped foreign key is exercised independently.
         ProposalId = foreignProposalReference ? foreignProposalId : proposalId,
-        ClientId = foreignProposalReference ? own.ClientId : foreign.ClientId,
+        ClientId = foreignProposalReference ? ownProspectId : foreignProspectId,
         ActorId = actor.UserId,
         ActorEpoch = actor.SessionEpoch,
         RequestId = request.RequestId,
@@ -429,8 +436,9 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       await using var persisted = new AuditSphereDbContext(pg.Options);
       Assert.False(await persisted.ClientConversions.AnyAsync(x => x.Id == receipt.Id));
       Assert.Null((await persisted.Proposals.AsNoTracking().SingleAsync(x => x.Id == proposalId)).PracticeClientId);
-      Assert.Empty(await persisted.AcceptanceDecisions.Where(x => x.PracticeClientId == own.ClientId).ToListAsync());
-      Assert.Empty(await persisted.ClientPortalIntents.Where(x => x.PracticeClientId == own.ClientId).ToListAsync());
+      Assert.Single(await persisted.AcceptanceDecisions.Where(x => x.PracticeClientId == ownProspectId &&
+        x.OpportunityId == ownOpportunityId && x.Decision == "Accepted").ToListAsync());
+      Assert.Empty(await persisted.ClientPortalIntents.Where(x => x.PracticeClientId == ownProspectId).ToListAsync());
     }
 
     foreach (var foreignProposalReference in new[] { false, true })
@@ -447,19 +455,24 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     var own = await PbcSeed.SeedAsync(pg);
     await using var db = new AuditSphereDbContext(pg.Options);
     var proposalId = await ClientConversionReviewSeed.PopulateAsync(db, own);
+    var opportunityId = await db.Proposals.AsNoTracking().Where(x => x.Id == proposalId)
+      .Select(x => x.OpportunityId).SingleAsync();
+    var prospectiveClientId = await db.Opportunities.AsNoTracking().Where(x => x.Id == opportunityId)
+      .Select(x => x.AcceptanceClientId).SingleAsync();
+    Assert.NotNull(prospectiveClientId);
     var actor = PbcSeed.Actor(own.Admin, "Administrator");
     var request = new ClientConversionRequest(Guid.CreateVersion7(),
-      new ClientConversionFields("PBC TEST CLIENT"));
+      new ClientConversionFields("Reviewed prospect"));
     var preview = await ClientConversionWorkspace.PreviewAsync(db, actor, proposalId, request);
     Assert.True(preview.Succeeded, preview.Message);
-    Assert.Equal(own.ClientId, preview.Value!.ExistingClientId);
+    Assert.Equal(prospectiveClientId, preview.Value!.ExistingClientId);
 
     var linked = await PracticeCrmService.ConvertToClientDraftAsync(db, actor,
       new ConvertToClientDraftRequest(proposalId, request.Fields.LegalName,
         request.Fields.CommercialName, request.Fields.RegistrationNumber,
         request.Fields.Jurisdiction, request.Fields.RestrictedProfile));
     Assert.True(linked.Succeeded, linked.Message);
-    Assert.Equal(own.ClientId, linked.Value);
+    Assert.Equal(prospectiveClientId, linked.Value);
 
     var mismatchedHash = new string('0', 64);
     Assert.NotEqual(preview.Value.RequestHash, mismatchedHash);
@@ -468,7 +481,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       Id = Guid.CreateVersion7(),
       FirmId = own.FirmId,
       ProposalId = proposalId,
-      ClientId = own.ClientId,
+      ClientId = prospectiveClientId!.Value,
       ActorId = actor.UserId,
       ActorEpoch = actor.SessionEpoch,
       RequestId = request.RequestId,
@@ -483,7 +496,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     await db.SaveChangesAsync();
     var refusal = await Assert.ThrowsAsync<PostgresException>(() => transaction.CommitAsync());
     Assert.Equal("23514", refusal.SqlState);
-    Assert.Equal("Conversion requires exact authorized committed commercial handover", refusal.MessageText);
+    Assert.Equal("Conversion requires exact current opportunity acceptance and authorized committed commercial handover", refusal.MessageText);
 
     await using var persisted = new AuditSphereDbContext(pg.Options);
     Assert.False(await persisted.ClientConversions.AnyAsync(x => x.Id == receipt.Id));
@@ -729,14 +742,17 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
   public async Task ClientPortalIntentRequiresItsExactFirmAndClientContact(string foreignParent)
   {
     static async Task<(Guid ClientId, Guid IntentId, Guid ContactId, string RecipientEmail)> ConvertAsync(
-      AuditSphereDbContext db, PbcSeed.Fixture fixture, string legalName)
+      AuditSphereDbContext db, PbcSeed.Fixture fixture)
     {
       var proposalId = await ClientConversionReviewSeed.PopulateAsync(db, fixture);
       var actor = PbcSeed.Actor(fixture.Admin, "Administrator");
-      var request = new ClientConversionRequest(Guid.CreateVersion7(), new ClientConversionFields(legalName));
+      var request = new ClientConversionRequest(Guid.CreateVersion7(), new ClientConversionFields("Reviewed prospect"));
       var preview = await ClientConversionWorkspace.PreviewAsync(db, actor, proposalId, request);
       Assert.True(preview.Succeeded, preview.Message);
-      Assert.Null(preview.Value!.ExistingClientId);
+      var opportunityId = await db.Proposals.AsNoTracking().Where(x => x.Id == proposalId).Select(x => x.OpportunityId).SingleAsync();
+      var canonicalClientId = await db.Opportunities.AsNoTracking().Where(x => x.Id == opportunityId)
+        .Select(x => x.AcceptanceClientId).SingleAsync();
+      Assert.Equal(canonicalClientId, preview.Value!.ExistingClientId);
       request = request with { Reviewed = true, RequestHash = preview.Value.RequestHash, ReviewBasis = preview.Value.ReviewBasis };
       var converted = await ClientConversionWorkspace.ExecuteAsync(db, actor, proposalId, request);
       Assert.True(converted.Succeeded, converted.Message);
@@ -759,8 +775,8 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     string foreignRecipientEmail;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      (ownClientId, ownIntentId, ownContactId, ownRecipientEmail) = await ConvertAsync(db, own, "PORTAL SCOPE OWN CLIENT");
-      (foreignClientId, _, foreignContactId, foreignRecipientEmail) = await ConvertAsync(db, foreign, "PORTAL SCOPE FOREIGN CLIENT");
+      (ownClientId, ownIntentId, ownContactId, ownRecipientEmail) = await ConvertAsync(db, own);
+      (foreignClientId, _, foreignContactId, foreignRecipientEmail) = await ConvertAsync(db, foreign);
       Assert.NotEqual(own.FirmId, foreign.FirmId);
       Assert.NotEqual(ownClientId, foreignClientId);
       Assert.Equal(own.FirmId, await db.ClientContacts.Where(x => x.Id == ownContactId).Select(x => x.FirmId).SingleAsync());
@@ -841,18 +857,26 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     static async Task<(Guid ClientId, Guid IntentId, Guid ContactId, string RecipientEmail)> ConvertAsync(
       AuditSphereDbContext db, PbcSeed.Fixture fixture, string legalName)
     {
-      var proposalId = await ClientConversionReviewSeed.PopulateAsync(db, fixture);
-      var actor = PbcSeed.Actor(fixture.Admin, "Administrator");
-      var request = new ClientConversionRequest(Guid.CreateVersion7(), new ClientConversionFields(legalName));
-      var preview = await ClientConversionWorkspace.PreviewAsync(db, actor, proposalId, request);
-      Assert.True(preview.Succeeded, preview.Message);
-      request = request with { Reviewed = true, RequestHash = preview.Value!.RequestHash, ReviewBasis = preview.Value.ReviewBasis };
-      var converted = await ClientConversionWorkspace.ExecuteAsync(db, actor, proposalId, request);
-      Assert.True(converted.Succeeded, converted.Message);
-      var receipt = converted.Value!;
-      var intent = await db.ClientPortalIntents.AsNoTracking().SingleAsync(x =>
-        x.FirmId == fixture.FirmId && x.PracticeClientId == receipt.ClientId);
-      return (receipt.ClientId, intent.Id, intent.ClientContactId, intent.RecipientEmail);
+      // This test deliberately stops at the historical schema immediately before the scoped-FK migration.
+      // Seed only its retained rows; the current Opportunity model contains columns that do not exist yet there.
+      var contactId = Guid.CreateVersion7();
+      var intentId = Guid.CreateVersion7();
+      var email = $"{legalName.Replace(' ', '.').ToLowerInvariant()}@example.test";
+      db.ClientContacts.Add(new ClientContact
+      {
+        Id = contactId, FirmId = fixture.FirmId, PracticeClientId = fixture.ClientId,
+        FullName = legalName, Email = email, Role = "Primary contact", Primary = true, IsActive = true
+      });
+      await db.SaveChangesAsync();
+      db.ClientPortalIntents.Add(new ClientPortalIntent
+      {
+        Id = intentId, FirmId = fixture.FirmId, PracticeClientId = fixture.ClientId,
+        ClientContactId = contactId, RecipientEmail = email, SourceProposalId = Guid.CreateVersion7(),
+        State = ClientPortalIntentStates.AwaitingAcceptance, CreatedAt = DateTimeOffset.UtcNow,
+        UpdatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      return (fixture.ClientId, intentId, contactId, email);
     }
 
     static async Task<string[]> ReadColumnAsync(PgTestSchema pg, string sql)

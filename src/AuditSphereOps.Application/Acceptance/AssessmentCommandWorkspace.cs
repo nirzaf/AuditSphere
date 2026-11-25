@@ -114,6 +114,12 @@ public static class AssessmentCommandWorkspace
     if (f.OpportunityId.HasValue && opportunity is null) return Unavailable<AssessmentCommandPreview>();
     var checklist = await AcceptanceChecklistService.LoadAsync(db, a.FirmId, id, f.EngagementId, generation, ct,
       opportunity?.ServiceRoute, opportunity?.Id);
+    if (checklist.Path == AcceptancePaths.Continuance && (f.Kind is "ANSWER" or "DECISION") &&
+        !await AcceptanceChecklistService.HasCurrentContinuanceAsync(db, a.FirmId, id, generation,
+          opportunity?.ServiceRoute ?? engagement?.ServiceRoute ?? f.ServiceRoute, opportunity?.Id,
+          f.EngagementId, ct))
+      return CommandResult<AssessmentCommandPreview>.Fail(ErrorCodes.GateBlocked,
+        "Start the current continuance review before answering its checklist or recording a decision.");
     if (f.Kind != "CONTINUANCE" && checklist.CurrentDecision is not null)
       return CommandResult<AssessmentCommandPreview>.Fail(ErrorCodes.ProtectedState, "This evaluation has a professional decision and is immutable.");
     var question = f.Kind == "ANSWER" ? checklist.Items.SingleOrDefault(x => x.Question.Code.Equals(f.QuestionCode, StringComparison.OrdinalIgnoreCase)) : null;
@@ -140,7 +146,7 @@ public static class AssessmentCommandWorkspace
     if (f.Kind == "CONTINUANCE")
     {
       var accepted = db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == a.FirmId &&
-        x.PracticeClientId == id && x.Generation == generation &&
+        x.PracticeClientId == id && x.Generation <= generation &&
         (x.Decision == "Accepted" || x.Decision == "AcceptedWithConditions"));
       if (f.ServiceRoute is not null) accepted = accepted.Where(x => x.ServiceRoute == f.ServiceRoute);
       if (generation == long.MaxValue || !await accepted.AnyAsync(ct))

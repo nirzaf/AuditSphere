@@ -49,7 +49,7 @@ public sealed class AngularAnnualContinuanceJourneyTests
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(path));
     var targetPanel = page.GetByRole(AriaRole.Region, new() { Name = "Current-period assessment target", Exact = true });
     await Assertions.Expect(targetPanel).ToContainTextAsync("2027-01-01 to 2027-12-31");
-    await Assertions.Expect(targetPanel).ToContainTextAsync("prior professional decision closes");
+    await Assertions.Expect(targetPanel).ToContainTextAsync("Opening a continuance review advances the client evaluation generation.");
     await page.GetByRole(AriaRole.Button, new() { Name = "Review continuance", Exact = true }).ClickAsync();
     var confirm = page.GetByRole(AriaRole.Button, new() { Name = "Confirm reviewed assessment action", Exact = true });
     await Assertions.Expect(confirm).ToBeDisabledAsync();

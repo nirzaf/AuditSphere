@@ -32,7 +32,8 @@ public sealed class ClientConversionReviewApiTests
       ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false" });
     using var c = factory.CreateClient(new() { AllowAutoRedirect = false });
     var url = "/api/ui/proposals/" + proposalId + "/client-conversion";
-    var r = new ClientConversionRequest(Guid.NewGuid(), new("API reviewed synthetic client"));
+    // Conversion must reuse the canonical prospect whose identity the Partner evaluated.
+    var r = new ClientConversionRequest(Guid.NewGuid(), new("Reviewed prospect"));
     Assert.Equal(HttpStatusCode.Unauthorized, (await Post(c, "forged", url + "/preview", r)).StatusCode);
     await c.GetAsync("/auth/sign-in"); using var session = await c.GetAsync("/api/ui/session");
     var csrf = Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie").Single(x => x.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal)).Split(';')[0]["XSRF-TOKEN=".Length..]);

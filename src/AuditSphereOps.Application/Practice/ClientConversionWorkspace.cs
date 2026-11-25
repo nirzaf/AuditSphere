@@ -101,7 +101,7 @@ public static class ClientConversionWorkspace
       p.Revision.ToString(CultureInfo.InvariantCulture),o.ServiceRoute,existing?.Id,existing?.LegalName,existing?.Status,
       lead.PrimaryContactName??lead.PrimaryContactEmail!,lead.PrimaryContactEmail!,
       "Records primary contact and pending portal intent only. No invitation or portal access is granted.",
-      "Creates a prospect or reuses the reviewed canonical client. Professional acceptance remains a separate Partner decision; no engagement is activated."));
+      "Links the already evaluated canonical prospect after commercial acceptance. No new client or engagement is created, and no work is activated."));
   }
 
   public static async Task<CommandResult<ClientConversionReceipt>> ExecuteAsync(IAuditSphereDbContext db,ActorContext a,

@@ -100,6 +100,11 @@ public static class AcceptanceDecisionService
     // stored records at the locked generation; the request carries no path and cannot choose an easier checklist.
     var checklist = await AcceptanceChecklistService.LoadAsync(db, actor.FirmId, client.Id, request.EngagementId,
       clientGuard.InputGeneration, ct, serviceRoute, request.OpportunityId);
+    if (checklist.Path == AcceptancePaths.Continuance &&
+        !await AcceptanceChecklistService.HasCurrentContinuanceAsync(db, actor.FirmId, client.Id,
+          clientGuard.InputGeneration, serviceRoute, request.OpportunityId, request.EngagementId, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+        "Start the current continuance review before recording its professional decision.");
     if (checklist.CurrentDecision is not null)
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState,
         "A decision already exists for this client evaluation generation; start a new review before deciding another opportunity.");

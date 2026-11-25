@@ -753,7 +753,7 @@ public static partial class PracticeCrmService
     if (proposal is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (proposal.PracticeClientId.HasValue) return CommandResult<Guid>.Ok(proposal.PracticeClientId.Value);
     if (proposal.Status != CrmStates.ProposalAccepted)
-      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Only an accepted commercial proposal can open client acceptance.");
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Only an accepted commercial proposal can complete canonical prospect conversion.");
     if (!await ProposalResponseEvidence.IsCurrentAcceptedAsync(db, actor.FirmId, proposal, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
         "Client conversion requires an immutable acceptance record tied to the exact current rendered quotation.");

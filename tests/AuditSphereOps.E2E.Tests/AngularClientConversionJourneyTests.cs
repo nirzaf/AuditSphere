@@ -1,4 +1,5 @@
 using AuditSphereOps.Domain.Tests;
+using AuditSphereOps.Domain.Practice;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 namespace AuditSphereOps.E2E.Tests;
@@ -13,21 +14,26 @@ public sealed class AngularClientConversionJourneyTests
   var origin=await host.StartApiForIdentityAsync(f.Admin,new Dictionary<string,string>{["AngularUi__Enabled"]="true",["AngularUi__CanonicalRoutes"]=canonical.ToString()});
   using var playwright=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(playwright);await using var context=await browser.NewContextAsync();var page=await context.NewPageAsync();var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);
   var path=(canonical?"":"/ui")+"/app/practice/proposals/"+id+"/client-conversion";await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(path));
-  await page.GetByLabel("Legal name",new(){Exact=true}).FillAsync("Reviewed browser synthetic client");await page.GetByRole(AriaRole.Button,new(){Name="Review client conversion",Exact=true}).ClickAsync();
+  await page.GetByLabel("Legal name",new(){Exact=true}).FillAsync("Reviewed prospect");await page.GetByRole(AriaRole.Button,new(){Name="Review client conversion",Exact=true}).ClickAsync();
   var review=page.GetByRole(AriaRole.Region,new(){Name="Client conversion review",Exact=true});await Assertions.Expect(review).ToContainTextAsync("No invitation or portal access is granted");
+  await Assertions.Expect(review.GetByRole(AriaRole.Heading,new(){Name="Reuse existing canonical client",Exact=true})).ToBeVisibleAsync();
+  await Assertions.Expect(review).ToContainTextAsync("Reviewed prospect · ACCEPTED");
   await Assertions.Expect(page.GetByRole(AriaRole.Button,new(){Name="Confirm client conversion",Exact=true})).ToBeDisabledAsync();
   var calls=0;await page.RouteAsync("**/client-conversion",async route=>{if(route.Request.Method!="POST"){await route.ContinueAsync();return;}Interlocked.Increment(ref calls);var response=await route.FetchAsync();Assert.Equal(200,response.Status);await route.AbortAsync();});
   await review.GetByLabel("I reviewed this exact legal identity, client match and access effects.",new(){Exact=true}).CheckAsync();await review.GetByRole(AriaRole.Button,new(){Name="Confirm client conversion",Exact=true}).ClickAsync();
   await Assertions.Expect(page.GetByRole(AriaRole.Button,new(){Name="Verify conversion receipt",Exact=true})).ToBeVisibleAsync();await page.ReloadAsync();await page.GetByRole(AriaRole.Button,new(){Name="Verify conversion receipt",Exact=true}).ClickAsync();
-  var receipt=page.GetByRole(AriaRole.Region,new(){Name="Client conversion receipt",Exact=true});await Assertions.Expect(receipt).ToContainTextAsync("Professional acceptance remains");await receipt.GetByRole(AriaRole.Button,new(){Name="Acknowledge client conversion",Exact=true}).ClickAsync();
+  var receipt=page.GetByRole(AriaRole.Region,new(){Name="Client conversion receipt",Exact=true});await Assertions.Expect(receipt).ToContainTextAsync("Links the already evaluated canonical prospect after commercial acceptance.");await receipt.GetByRole(AriaRole.Button,new(){Name="Acknowledge client conversion",Exact=true}).ClickAsync();
   await Assertions.Expect(page.GetByRole(AriaRole.Region,new(){Name="Converted client",Exact=true})).ToBeVisibleAsync();Assert.Equal(1,calls);
   await using(var db=host.CreateDbContext())
   {
    var retained=await db.ClientConversions.SingleAsync();Assert.Equal(id,retained.ProposalId);Assert.Equal(f.Admin.Id,retained.ActorId);
-   Assert.Equal("PROSPECT",(await db.PracticeClients.SingleAsync(x=>x.Id==retained.ClientId)).Status);
+   Assert.Equal(CrmStates.ClientAccepted,(await db.PracticeClients.SingleAsync(x=>x.Id==retained.ClientId)).Status);
+   var proposal=await db.Proposals.SingleAsync(x=>x.Id==retained.ProposalId);
+   var opportunity=await db.Opportunities.SingleAsync(x=>x.Id==proposal.OpportunityId);
+   Assert.Equal(retained.ClientId,opportunity.AcceptanceClientId);Assert.Equal(retained.ClientId,opportunity.PracticeClientId);
    Assert.Single(await db.ClientPortalIntents.Where(x=>x.PracticeClientId==retained.ClientId).ToListAsync());
-   var acceptance=await db.AcceptanceDecisions.AsNoTracking().SingleAsync(x=>x.PracticeClientId==retained.ClientId);
-   Assert.Equal("Pending",acceptance.Decision);Assert.Null(acceptance.DecidedByUserId);
+   var acceptance=await db.AcceptanceDecisions.AsNoTracking().SingleAsync(x=>x.PracticeClientId==retained.ClientId && x.OpportunityId==opportunity.Id && x.Decision=="Accepted");
+   Assert.NotNull(acceptance.DecidedByUserId);Assert.NotNull(acceptance.DecidedAt);
    Assert.False(await db.Engagements.AnyAsync(x=>x.PracticeClientId==retained.ClientId));
   }
   await page.SetViewportSizeAsync(390,844);Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= innerWidth + 1"));Assert.Empty(errors);

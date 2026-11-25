@@ -1,11 +1,11 @@
 # Current-slice handoff
 
-## Acceptance-first client onboarding (2026-11-25; local candidate based on `b3b30c9f03210e2e811117a89deb1c1d87b435cc`)
+## Acceptance-first client onboarding follow-up (2026-11-25; based on `244ac2ec74ae1de3d94e049599288fac136f4795`)
 
-- Discovery selects a canonical service route, generates an editable scope, requires explicit scope confirmation, and creates/resolves the canonical prospect without pricing or conversion markers. Acceptance/continuance remains bound to the opportunity, identity, route, scope and review generation.
-- Proposal, proposal revision/review/dispatch, quotation and conversion commands require a current unconditional Partner decision for that exact basis. Pending, conditional, declined, deferred and stale decisions fail closed; historical client records remain intact.
-- Local: focused Domain 102/102 plus the conditional/stale regression 1/1; affected Angular specs 47/47; Chrome discovery E2E 1/1; production build passed with two existing CSS budget warnings; OpenAPI and EF model-drift checks passed. Documentation validators and diff check passed.
-- The Chrome journey covers unpriced discovery and pending-state commercial gating, not the complete CE/RV questionnaire UI. Exact-source GitHub CI is pending commit. No Hostinger or production data, permissions or services changed; deployment was not performed.
+- Discovery creates or resolves the canonical prospective client before evaluation. Retained accepted evidence can seed a fresh continuance after input-generation change, but only a new exact-scope unconditional Partner decision reopens commercial commands. One open continuance is allowed per client generation.
+- A locked continuance command refreshes its tracked client generation before comparing and incrementing it. After material input changes, reviewed command preview and the database receipt guard now accept the exact retained prior decision from an earlier generation; commercial eligibility still requires a new unconditional Partner decision. Exact prospect/conversion tests use the opportunity-linked client; historical approvals and client records remain unchanged.
+- Focused results: Domain 9/9, commercial-gate regression 1/1 and API 1/1 passed. E2E: initial selected run 5/6; the corrected proposal-dispatch case passed 1/1 on rerun, and annual continuance passed 1/1 after the receipt-trigger migration. Docs validators and diff check pass. Earlier Angular/build/OpenAPI/EF checks predate this follow-up.
+- Exact-source GitHub CI is pending this follow-up commit. The browser journey still does not submit the full CE/RV questionnaire end-to-end. No Hostinger or production data, permissions or services changed; deployment was not performed.
 
 
 **F-03/REG-01 (parent `162c4f5`):** exact context selection flows through materiality, lifecycle and risk routing; fixtures pin the source. Local: Domain 13/13, Chrome E2E 1/1, focused Domain 2/2, API 1/1, Angular 66/66, build and OpenAPI pass. CI pending; not deployed. Evidence `.local/autonomous/evidence/materiality-context-20261124/local-review.json`.

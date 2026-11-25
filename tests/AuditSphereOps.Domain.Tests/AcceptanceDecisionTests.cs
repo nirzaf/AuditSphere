@@ -22,6 +22,9 @@ public sealed class AcceptanceDecisionTests
     Guid decisionId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      var workspace = await AcceptanceWorkspaceQuery.GetAsync(db, scope.Actor, scope.ClientId);
+      Assert.True(workspace.Succeeded, workspace.Message);
+      Assert.True(workspace.Value!.CanDecide);
       var result = await AcceptanceDecisionService.RecordAsync(db, scope.Actor, request);
       Assert.True(result.Succeeded);
       decisionId = result.Value;
@@ -69,6 +72,9 @@ public sealed class AcceptanceDecisionTests
     var manager = await SeedAsync(pg, "Manager", withResponse: true);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      var managerWorkspace = await AcceptanceWorkspaceQuery.GetAsync(db, manager.Actor, manager.ClientId);
+      Assert.True(managerWorkspace.Succeeded, managerWorkspace.Message);
+      Assert.False(managerWorkspace.Value!.CanDecide);
       var denied = await AcceptanceDecisionService.RecordAsync(db, manager.Actor,
         new(manager.ClientId, null, "AccountingOnly", "DECLINED", "Not accepted.", null, manager.Generation));
       Assert.False(denied.Succeeded);

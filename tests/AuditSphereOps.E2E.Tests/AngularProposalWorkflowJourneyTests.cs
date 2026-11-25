@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
@@ -22,7 +23,7 @@ public sealed class AngularProposalWorkflowJourneyTests
     var now = DateTimeOffset.UtcNow;
     var leadId = Guid.NewGuid();
     var opportunityId = Guid.NewGuid();
-    var proposalId = Guid.NewGuid();
+    Guid proposalId;
     await using (var db = host.CreateDbContext())
     {
       var engagement = await db.Engagements.SingleAsync(x => x.Id == fixture.EngagementId);
@@ -40,13 +41,26 @@ public sealed class AngularProposalWorkflowJourneyTests
         PrimaryContactName = "Synthetic contact", PrimaryContactEmail = "lifecycle@example.test",
         Status = CrmStates.LeadQualified, CreatedAt = now
       });
-      db.Opportunities.Add(new Opportunity
-      {
-        Id = opportunityId, FirmId = fixture.FirmId, LeadId = leadId,
-        PracticeClientId = fixture.ClientId, ServiceRoute = "FinancialStatementAudit",
-        EntityScope = "Synthetic lifecycle entity", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
-        ExpectedFee = 1200m, Currency = "QAR", Stage = CrmStates.OpportunityNegotiation, CreatedAt = now
-      });
+      await db.SaveChangesAsync();
+      var discovery = await PracticeCrmService.CreateOpportunityAsync(db,
+        PbcSeed.Actor(fixture.Admin, "Administrator"),
+        CommercialAcceptanceTestSupport.DiscoveryRequest(leadId, "FinancialStatementAudit",
+          "Synthetic lifecycle proposal", "2026-01-01", "2026-12-31",
+          entityScope: "Synthetic lifecycle entity", requestId: opportunityId));
+      Assert.True(discovery.Succeeded, discovery.Message);
+    }
+
+    await using (var db = host.CreateDbContext())
+    {
+      var acceptance = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db,
+        PbcSeed.Actor(fixture.Admin, "Manager"), PbcSeed.Actor(partner, "Partner"), fixture.FirmId, opportunityId);
+      Assert.True(acceptance.Succeeded, acceptance.Message);
+      Assert.True(await OpportunityAcceptanceGate.IsCurrentUnconditionalAsync(db, fixture.FirmId, opportunityId));
+    }
+
+    await using (var db = host.CreateDbContext())
+    {
+      proposalId = Guid.NewGuid();
       db.Proposals.Add(new Proposal
       {
         Id = proposalId, FirmId = fixture.FirmId, OpportunityId = opportunityId, PracticeClientId = fixture.ClientId,
@@ -54,23 +68,6 @@ public sealed class AngularProposalWorkflowJourneyTests
         Scope = "Synthetic scope", Exclusions = "", Deliverables = "Synthetic report", Dependencies = "",
         Fee = 1200m, Currency = "QAR", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
         PreparedByUserId = fixture.Admin.Id, ApprovedByUserId = partner.Id, ApprovedAt = now, CreatedAt = now
-      });
-      var quotationId = Guid.NewGuid();
-      db.QuotationVersions.Add(new QuotationVersion
-      {
-        Id = quotationId, FirmId = fixture.FirmId, ProposalId = proposalId, Revision = 1, Currency = "QAR",
-        LinesJson = "[]", ComplexityFactor = 1m, BaseAmount = 1200m, Fee = 1200m,
-        InputHash = Hashing.Sha256Hex("synthetic-quotation-workflow-1"),
-        Status = QuotationStates.Approved, RequiredApprovalsJson = "[]", CreatedByUserId = fixture.Admin.Id,
-        CreatedAt = now, ApprovedAt = now
-      });
-      var bytes = System.Text.Encoding.UTF8.GetBytes("Synthetic quotation artifact 1");
-      db.CommercialDocuments.Add(new CommercialDocument
-      {
-        Id = Guid.NewGuid(), FirmId = fixture.FirmId, ProposalId = proposalId, QuotationVersionId = quotationId,
-        Kind = CommercialDocumentKinds.Quotation, FileName = "Quotation.txt", ContentType = "text/plain",
-        TemplateVersion = "v1", Bytes = bytes, Sha256Hex = Hashing.Sha256Hex(bytes),
-        CreatedByUserId = fixture.Admin.Id, CreatedAt = now
       });
       var contactId = Guid.NewGuid();
       db.ClientContacts.Add(new ClientContact
@@ -86,6 +83,8 @@ public sealed class AngularProposalWorkflowJourneyTests
         IsPrimaryForPurpose = true, CreatedByUserId = fixture.Admin.Id, CreatedAt = now
       });
       await db.SaveChangesAsync();
+      await ProposalDispatchTestSetup.EnsureCurrentQuotationArtifactAsync(db,
+        PbcSeed.Actor(fixture.Admin, "Administrator"), proposalId);
     }
 
     var origin = await host.StartApiForIdentityAsync(partner, new Dictionary<string, string>
