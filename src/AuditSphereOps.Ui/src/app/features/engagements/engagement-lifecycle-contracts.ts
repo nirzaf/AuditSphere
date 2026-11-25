@@ -1,7 +1,7 @@
 import { arr, bool, decode, guid, instant, int, nullable, obj, oneOf, str } from '../../core/decode';
 
 export const CANONICAL_STAGES = [
-  { index: 1, key: 'LEAD_INGESTION', label: 'Lead Ingestion' },
+  { index: 1, key: 'LEAD_INGESTION', label: 'Discovery & Client Acceptance' },
   { index: 2, key: 'PROPOSAL_GENERATION', label: 'Proposal Generation' },
   { index: 3, key: 'DUAL_KEY_PENDING', label: 'Dual-Key Acceptance' },
   { index: 4, key: 'ADVANCE_BILLING', label: 'Advance Billing & Payment' },

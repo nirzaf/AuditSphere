@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Acceptance;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -26,6 +27,14 @@ public sealed partial class AuditDeliverablesTests
     var preparer = w.A("partner2", "Partner");
     var checklist = await AcceptanceChecklistService.GetAsync(db, preparer, w.ClientId);
     Assert.True(checklist.Succeeded, checklist.Message);
+    if (checklist.Value!.Path == AcceptancePaths.Continuance)
+    {
+      var started = await AcceptanceChecklistService.StartContinuanceAsync(db, preparer, w.ClientId,
+        expectedGeneration: checklist.Value.Generation);
+      Assert.True(started.Succeeded, started.Message);
+      checklist = await AcceptanceChecklistService.GetAsync(db, preparer, w.ClientId);
+      Assert.True(checklist.Succeeded, checklist.Message);
+    }
     foreach (var item in checklist.Value!.Items)
     {
       var answer = item.Question.AdverseAnswer == "YES" ? "No" : "Yes";

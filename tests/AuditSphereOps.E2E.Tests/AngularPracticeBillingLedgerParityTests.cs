@@ -337,7 +337,10 @@ public sealed class AngularPracticeBillingLedgerParityTests
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" +
       Uri.EscapeDataString($"/app/practice/proposals/{proposalId:D}"));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = leadName, Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByText(latestScope, new() { Exact = true })).ToBeVisibleAsync();
+    var acceptedScope = page.Locator("audit-proposal > dl").GetByText(latestScope, new() { Exact = true });
+    await Assertions.Expect(acceptedScope).ToHaveCountAsync(2);
+    await Assertions.Expect(acceptedScope.First).ToBeVisibleAsync();
+    await Assertions.Expect(acceptedScope.Nth(1)).ToBeVisibleAsync();
     var quotationPlaceholder = page.GetByText("Quotation pricing and approvals", new() { Exact = true });
     if (await quotationPlaceholder.CountAsync() > 0) await quotationPlaceholder.ScrollIntoViewIfNeededAsync();
     await Assertions.Expect(page.Locator("audit-quotation").GetByRole(AriaRole.Heading,
@@ -386,7 +389,7 @@ public sealed class AngularPracticeBillingLedgerParityTests
       Assert.Equal(discoveryPostings, await db.FirmPostings.CountAsync());
     }
     await page.GotoAsync(origin + $"/app/practice/proposals/{proposalId:D}");
-    await Assertions.Expect(page.GetByText(latestScope, new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(acceptedScope).ToHaveCountAsync(2);
 
     await OwnedBrowserFixtureHandoff.WaitAsync(origin,
       $"/app/practice/proposals/{proposalId:D}", "ux-commercial-firm-role");
@@ -403,7 +406,7 @@ public sealed class AngularPracticeBillingLedgerParityTests
     Assert.Equal(token, await page.EvaluateAsync<string>("window.__proposalParityToken"));
 
     await PushRouteAsync(page, $"/app/practice/proposals/{proposalId:D}");
-    await Assertions.Expect(page.GetByText(latestScope, new() { Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(acceptedScope).ToHaveCountAsync(2);
     await using (var db = host.CreateDbContext())
     {
       var grant = await db.RoleGrants.SingleAsync(x => x.FirmId == f.FirmId && x.UserId == f.Staff.Id &&

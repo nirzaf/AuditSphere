@@ -19,18 +19,22 @@ public sealed partial class ClientAccountingTests
     var preparer = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
     var legacyProfileId = Guid.CreateVersion7();
+    var legacyAcceptanceDecisionId = Guid.CreateVersion7();
+    var legacyAcceptanceAt = DateTimeOffset.UtcNow;
     Guid periodId;
     Guid chartId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      db.AcceptanceDecisions.Add(new AcceptanceDecision
-      {
-        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, PracticeClientId = scope.ClientA,
-        ServiceRoute = "BOOKKEEPING", Decision = "Accepted", Generation = 1,
-        Rationale = "Approved migration fixture", EvaluationTemplateVersion = "TEST-1",
-        EvaluationSnapshotDigest = new string('a', 64), DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow
-      });
-      await db.SaveChangesAsync();
+      // This fixture deliberately stops before later acceptance columns were introduced;
+      // seed its historical shape instead of asking the current EF model to write future fields.
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO acceptance_decisions
+          (id,firm_id,practice_client_id,engagement_id,decision,service_route,generation,decided_by_user_id,decided_at,
+           conditions,evaluation_snapshot_digest,evaluation_template_version,rationale,path,prior_decision_id)
+        VALUES ({legacyAcceptanceDecisionId},{scope.FirmId},{scope.ClientA},{(Guid?)null},{"Accepted"},{"BOOKKEEPING"},{1L},
+          {scope.Reviewer.Id},{legacyAcceptanceAt},{(string?)null},{new string('a', 64)},{"TEST-1"},{"Approved migration fixture"},
+          {"NEW_CLIENT"},{(Guid?)null})
+        """);
       // This is a pre-history schema: current profile commands also write the later immutable
       // revision table. Seed the actual legacy head without inventing historical snapshots.
       db.ClientAccountingProfiles.Add(new ClientAccountingProfile
@@ -112,6 +116,10 @@ public sealed partial class ClientAccountingTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      var retainedAcceptance = await db.AcceptanceDecisions.AsNoTracking()
+        .SingleAsync(x => x.Id == legacyAcceptanceDecisionId);
+      Assert.Equal(("Accepted", "BOOKKEEPING", "NEW_CLIENT", (string?)null),
+        (retainedAcceptance.Decision, retainedAcceptance.ServiceRoute, retainedAcceptance.Path, retainedAcceptance.OpportunityBasisSha256));
       var journal = await db.ClientOperationalJournals.AsNoTracking().SingleAsync(x => x.Id == journalId);
       Assert.Equal("POSTED", journal.Status);
       Assert.True(journal.PostingSequence > 0);

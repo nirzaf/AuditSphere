@@ -412,6 +412,13 @@ public sealed class AngularCommercialJourneyTests
       Assert.True(retry.Succeeded, retry.Message);
       committedOpportunityId = committed.Value;
       retryOpportunityId = retry.Value;
+      foreach (var opportunityId in new[] { committedOpportunityId, retryOpportunityId })
+      {
+        var acceptance = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db,
+          PbcSeed.Actor(host.Fixture.Admin, "Manager"), PbcSeed.Actor(host.Fixture.Reviewer, "Partner"),
+          host.Fixture.FirmId, opportunityId);
+        Assert.True(acceptance.Succeeded, acceptance.Message);
+      }
     }
 
     using var playwright = await Playwright.CreateAsync();
@@ -464,6 +471,8 @@ public sealed class AngularCommercialJourneyTests
     await page.GetByRole(AriaRole.Button, new() { Name = "Prepare initial proposal", Exact = true }).First.ClickAsync();
     await page.GetByRole(AriaRole.Textbox, new() { Name = "Service profile", Exact = true }).FillAsync("Committed recovery profile");
     await page.GetByRole(AriaRole.Textbox, new() { Name = "Deliverables", Exact = true }).FillAsync("Committed recovery report");
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Proposal fee", Exact = true }).FillAsync("1000.00");
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Currency", Exact = true }).FillAsync("QAR");
     await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the proposal terms.", Exact = true }).CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Create initial draft", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("Proposal outcome unconfirmed", new() { Exact = false })).ToBeVisibleAsync();
@@ -488,6 +497,8 @@ public sealed class AngularCommercialJourneyTests
     await page.GetByRole(AriaRole.Button, new() { Name = "Prepare initial proposal", Exact = true }).ClickAsync();
     await page.GetByRole(AriaRole.Textbox, new() { Name = "Service profile", Exact = true }).FillAsync("Retry recovery profile");
     await page.GetByRole(AriaRole.Textbox, new() { Name = "Deliverables", Exact = true }).FillAsync("Retry recovery report");
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Proposal fee", Exact = true }).FillAsync("1200.00");
+    await page.GetByRole(AriaRole.Textbox, new() { Name = "Currency", Exact = true }).FillAsync("QAR");
     await page.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed the proposal terms.", Exact = true }).CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Create initial draft", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("Proposal outcome unconfirmed", new() { Exact = false })).ToBeVisibleAsync();
@@ -527,6 +538,7 @@ public sealed class AngularCommercialJourneyTests
     if (!string.IsNullOrWhiteSpace(buildPath)) settings["AngularUi__BuildPath"] = buildPath;
     var origin = await host.StartApiForIdentityAsync(host.Fixture.Admin, settings);
     Guid proposalId, opportunityId;
+    string acceptedScope;
     await using (var db = host.CreateDbContext())
     {
       var actor = PbcSeed.Actor(host.Fixture.Admin, "Administrator");
@@ -542,9 +554,9 @@ public sealed class AngularCommercialJourneyTests
       var acceptance = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db,
         PbcSeed.Actor(host.Fixture.Admin, "Manager"), PbcSeed.Actor(host.Fixture.Reviewer, "Partner"), host.Fixture.FirmId, opportunityId);
       Assert.True(acceptance.Succeeded, acceptance.Message);
-      var scope = (await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == opportunityId)).EntityScope;
+      acceptedScope = (await db.Opportunities.AsNoTracking().SingleAsync(x => x.Id == opportunityId)).EntityScope;
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, actor,
-        new(opportunityId, "Standard", scope, "", "Original report", "", 1000m,
+        new(opportunityId, "Standard", acceptedScope, "", "Original report", "", 1000m,
           "QAR", "2026-01-01", "2026-12-31", 0));
       Assert.True(proposal.Succeeded, proposal.Message);
       proposalId = proposal.Value;
@@ -560,6 +572,9 @@ public sealed class AngularCommercialJourneyTests
     var retryRequestId = Guid.Empty;
     var committedBody = "";
     var retryBody = "";
+    var committedHttpStatus = 0;
+    var committedResponseBody = "";
+    var committedResponseObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     var revisionPosts = 0;
     await page.RouteAsync($"**/api/ui/opportunities/{opportunityId:D}/proposals", async route =>
     {
@@ -572,7 +587,12 @@ public sealed class AngularCommercialJourneyTests
         case 1:
           committedBody = body;
           committedRequestId = seenIdentity;
-          await using (var accepted = await route.FetchAsync()) Assert.Equal(200, accepted.Status);
+          await using (var accepted = await route.FetchAsync())
+          {
+            committedHttpStatus = accepted.Status;
+            committedResponseBody = await accepted.TextAsync();
+            committedResponseObserved.TrySetResult();
+          }
           await route.AbortAsync("failed");
           break;
         case 2:
@@ -592,37 +612,50 @@ public sealed class AngularCommercialJourneyTests
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(routePath));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,
       new() { Name = "Proposal", Exact = true })).ToBeVisibleAsync();
-    await page.GetByLabel("Scope", new() { Exact = true }).FillAsync("Committed revision scope");
+    await page.GetByLabel("Scope", new() { Exact = true }).FillAsync(acceptedScope);
     await page.GetByLabel("Deliverables", new() { Exact = true }).FillAsync("Committed revision report");
     await page.GetByLabel("Fee", new() { Exact = true }).FillAsync("1100.25");
     await page.GetByRole(AriaRole.Checkbox,
       new() { Name = "I reviewed this revision and confirm the selected commercial action.", Exact = true }).CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Create reviewed revision", Exact = true }).ClickAsync();
+    await committedResponseObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    Assert.True(committedHttpStatus == 200, $"Expected proposal revision success, received {committedHttpStatus}: {committedResponseBody}");
+    using (var response = JsonDocument.Parse(committedResponseBody))
+      Assert.Equal(committedRequestId, response.RootElement.GetProperty("id").GetGuid());
     await Assertions.Expect(page.GetByText("Outcome unconfirmed. Check persisted proposal revisions before retrying.",
-      new() { Exact = true })).ToBeVisibleAsync();
+      new() { Exact = true })).ToBeVisibleAsync(new() { Timeout = 20000 });
     Assert.NotEqual(Guid.Empty, committedRequestId);
     await page.GetByRole(AriaRole.Button,
       new() { Name = "Check saved proposal revision", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByLabel("Scope", new() { Exact = true }))
-      .ToHaveValueAsync("Committed revision scope");
+      .ToHaveValueAsync(acceptedScope);
+    await Assertions.Expect(page.GetByLabel("Deliverables", new() { Exact = true }))
+      .ToHaveValueAsync("Committed revision report");
+    await using (var proof = host.CreateDbContext())
+    {
+      var committed = await proof.Proposals.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == host.Fixture.FirmId &&
+        x.Id == committedRequestId);
+      Assert.NotNull(committed);
+      Assert.Equal(acceptedScope, committed!.Scope);
+    }
     await Assertions.Expect(page).ToHaveURLAsync(new Regex($"/proposals/{Regex.Escape(committedRequestId.ToString("D"))}$",
       RegexOptions.IgnoreCase));
     Assert.Equal(1, revisionPosts);
 
-    await page.GetByLabel("Scope", new() { Exact = true }).FillAsync("Retried revision scope");
+    await page.GetByLabel("Scope", new() { Exact = true }).FillAsync(acceptedScope);
     await page.GetByLabel("Deliverables", new() { Exact = true }).FillAsync("Retried revision report");
     await page.GetByLabel("Fee", new() { Exact = true }).FillAsync("1200.50");
     await page.GetByRole(AriaRole.Checkbox,
       new() { Name = "I reviewed this revision and confirm the selected commercial action.", Exact = true }).CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Create reviewed revision", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("Outcome unconfirmed. Check persisted proposal revisions before retrying.",
-      new() { Exact = true })).ToBeVisibleAsync();
+      new() { Exact = true })).ToBeVisibleAsync(new() { Timeout = 20000 });
     Assert.NotEqual(Guid.Empty, retryRequestId);
     Assert.NotEqual(committedRequestId, retryRequestId);
 
     await page.ReloadAsync();
     await Assertions.Expect(page.GetByLabel("Scope", new() { Exact = true }))
-      .ToHaveValueAsync("Retried revision scope");
+      .ToHaveValueAsync(acceptedScope);
     await Assertions.Expect(page.GetByRole(AriaRole.Button,
       new() { Name = "Retry saved proposal revision", Exact = true })).ToBeVisibleAsync();
     await page.GetByRole(AriaRole.Checkbox,
@@ -630,7 +663,9 @@ public sealed class AngularCommercialJourneyTests
     await page.GetByRole(AriaRole.Button,
       new() { Name = "Retry saved proposal revision", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByLabel("Scope", new() { Exact = true }))
-      .ToHaveValueAsync("Retried revision scope");
+      .ToHaveValueAsync(acceptedScope);
+    await Assertions.Expect(page.GetByLabel("Deliverables", new() { Exact = true }))
+      .ToHaveValueAsync("Retried revision report");
     await Assertions.Expect(page).ToHaveURLAsync(new Regex($"/proposals/{Regex.Escape(retryRequestId.ToString("D"))}$",
       RegexOptions.IgnoreCase));
     Assert.Equal(3, revisionPosts);
@@ -647,16 +682,19 @@ public sealed class AngularCommercialJourneyTests
       Assert.Equal(proposals[0].Id, proposals[1].SupersedesId);
       Assert.Equal(proposals[1].Id, proposals[2].SupersedesId);
       Assert.All(proposals.Skip(1), p => Assert.Matches("^[a-f0-9]{64}$", p.CreateRequestHash!));
-      Assert.Equal("Committed revision scope", proposals[1].Scope);
-      Assert.Equal("Retried revision scope", proposals[2].Scope);
+      Assert.Equal(acceptedScope, proposals[1].Scope);
+      Assert.Equal(acceptedScope, proposals[2].Scope);
+      Assert.Equal("Committed revision report", proposals[1].Deliverables);
+      Assert.Equal("Retried revision report", proposals[2].Deliverables);
     }
-    await page.GetByLabel("Scope", new() { Exact = true }).FillAsync("Unsubmitted comparison draft");
+    await page.GetByLabel("Deliverables", new() { Exact = true }).FillAsync("Unsubmitted comparison draft");
     await page.GetByLabel("Compare recorded revision", new() { Exact = true }).SelectOptionAsync(proposalId.ToString("D"));
     var comparison = page.Locator("table.revision-comparison");
-    await Assertions.Expect(comparison).ToContainTextAsync("Original scope");
-    await Assertions.Expect(comparison).ToContainTextAsync("Retried revision scope");
+    await Assertions.Expect(comparison).ToContainTextAsync(acceptedScope);
+    await Assertions.Expect(comparison).ToContainTextAsync("Retried revision report");
     await Assertions.Expect(comparison).ToContainTextAsync("1000");
-    await Assertions.Expect(page.GetByLabel("Scope", new() { Exact = true })).ToHaveValueAsync("Unsubmitted comparison draft");
+    await Assertions.Expect(page.GetByLabel("Deliverables", new() { Exact = true }))
+      .ToHaveValueAsync("Unsubmitted comparison draft");
     Assert.Equal(3, revisionPosts);
     await OwnedBrowserFixtureHandoff.WaitAsync(origin, $"/ui/app/practice/proposals/{retryRequestId:D}", "axelor-proposal-comparison");
     Assert.Empty(errors);
@@ -802,9 +840,15 @@ public sealed class AngularCommercialJourneyTests
     // Move the synthetic fixture through existing commercial commands with an independent reviewer.
     await using (var db = host.CreateDbContext())
     {
-      db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId, UserId = host.Fixture.Reviewer.Id,
-        Role = "Partner", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = host.Fixture.Admin.Id });
-      await db.SaveChangesAsync();
+      if (!await db.RoleGrants.AnyAsync(x => x.FirmId == host.Fixture.FirmId &&
+          x.UserId == host.Fixture.Reviewer.Id && x.Role == "Partner" && x.ClientId == null &&
+          x.EngagementId == null && x.RevokedAt == null))
+      {
+        db.RoleGrants.Add(new RoleGrant { Id = Guid.NewGuid(), FirmId = host.Fixture.FirmId,
+          UserId = host.Fixture.Reviewer.Id, Role = "Partner", GrantedAt = DateTimeOffset.UtcNow,
+          GrantedByUserId = host.Fixture.Admin.Id });
+        await db.SaveChangesAsync();
+      }
       var reviewer = PbcSeed.Actor(host.Fixture.Reviewer, "Partner");
       Assert.True((await PracticeCrmService.ApproveProposalAsync(db, reviewer, proposalId)).Succeeded);
     }

@@ -1,12 +1,11 @@
 # Current-slice handoff
 
-## Acceptance-first client onboarding follow-up (2026-11-25; based on `244ac2ec74ae1de3d94e049599288fac136f4795`)
+## Acceptance-first onboarding and lifecycle projection (2026-11-25; parent `cdb4fb1ccc41a65f928de79b3fa94dd64cbd869b`)
 
-- Discovery creates or resolves the canonical prospective client before evaluation. Retained accepted evidence can seed a fresh continuance after input-generation change, but only a new exact-scope unconditional Partner decision reopens commercial commands. One open continuance is allowed per client generation.
-- A locked continuance command refreshes its tracked client generation before comparing and incrementing it. After material input changes, reviewed command preview and the database receipt guard now accept the exact retained prior decision from an earlier generation; commercial eligibility still requires a new unconditional Partner decision. Exact prospect/conversion tests use the opportunity-linked client; historical approvals and client records remain unchanged.
-- Focused results: Domain 9/9, commercial-gate regression 1/1 and API 1/1 passed. E2E: initial selected run 5/6; the corrected proposal-dispatch case passed 1/1 on rerun, and annual continuance passed 1/1 after the receipt-trigger migration. Docs validators and diff check pass. Earlier Angular/build/OpenAPI/EF checks predate this follow-up.
-- Exact-source GitHub CI is pending this follow-up commit. The browser journey still does not submit the full CE/RV questionnaire end-to-end. No Hostinger or production data, permissions or services changed; deployment was not performed.
-
+- The existing discovery form records an unpriced canonical prospect, selects a supported service route, confirms editable exact entity scope, and links CE/RV acceptance. Proposal and quotation commands require a current unconditional Partner decision for the same opportunity. This follow-up keeps a draft engagement at discovery/acceptance until exactly one matching client, route and period opportunity has current approval; ambiguous matches fail closed and the guided action requires RelationshipManager scope.
+- Focused local evidence: Domain lifecycle/acceptance/commercial-gate/completion cohort 43/43; Angular opportunity and lifecycle specs 22/22; Chrome discovery, proposal/detail recovery, and exact-context materiality journeys passed 1/1 each; API receivables 1/1. No full local suite ran.
+- The previous cdb exact release verification failed; its fixture, exact-context E2E and duplicate-grant fixture failures were corrected or aligned to current behavior. Exact CI for the follow-up commit is pending. No live data, permissions, or services changed. Hostinger deployment remains separate and blocked by current PG18.6/recovery evidence requirements.
+- Earlier local continuation follow-up on `244ac2ec` is historical; its evidence is retained in the prior handoff archive.
 
 **F-03/REG-01 (parent `162c4f5`):** exact context selection flows through materiality, lifecycle and risk routing; fixtures pin the source. Local: Domain 13/13, Chrome E2E 1/1, focused Domain 2/2, API 1/1, Angular 66/66, build and OpenAPI pass. CI pending; not deployed. Evidence `.local/autonomous/evidence/materiality-context-20261124/local-review.json`.
 

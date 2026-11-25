@@ -6,6 +6,7 @@ using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Security;
+using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -105,8 +106,14 @@ internal static class SupportedAuditCompletionWorldBuilder
 
     }
 
+    Guid primaryOpportunityId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      primaryOpportunityId = await db.Proposals.AsNoTracking()
+        .Where(x => x.FirmId == admin.FirmId && x.Id == primaryProposal)
+        .Select(x => x.OpportunityId).SingleAsync();
     if (recordAcceptance is null)
-      await RecordUnconditionalAcceptanceAsync(pg, clientId, "FinancialStatementAudit", staff.Actor, partner.Actor);
+      await RecordUnconditionalAcceptanceAsync(pg, clientId, "FinancialStatementAudit", staff.Actor, partner.Actor,
+        opportunityId: primaryOpportunityId);
     else
       await recordAcceptance(clientId, staff.Actor, partner.Actor);
 
@@ -250,11 +257,32 @@ internal static class SupportedAuditCompletionWorldBuilder
   }
 
   internal static async Task RecordUnconditionalAcceptanceAsync(ITestPostgresDatabase pg, Guid clientId,
-    string route, ActorContext preparer, ActorContext partner, Guid? engagementId = null)
+    string route, ActorContext preparer, ActorContext partner, Guid? engagementId = null, Guid? opportunityId = null)
   {
     await using var db = new AuditSphereDbContext(pg.Options);
-    var checklist = await AcceptanceChecklistService.GetAsync(db, preparer, clientId);
+    if (opportunityId.HasValue &&
+        await OpportunityAcceptanceGate.IsCurrentUnconditionalAsync(db, preparer.FirmId, opportunityId.Value))
+      return;
+    var checklist = await AcceptanceChecklistService.GetAsync(db, preparer, clientId,
+      serviceRoute: opportunityId.HasValue ? route : null, opportunityId: opportunityId);
     Assert.True(checklist.Succeeded, checklist.Message);
+    if (checklist.Value!.Path == AcceptancePaths.Continuance &&
+        !await db.AcceptanceDecisions.AsNoTracking().AnyAsync(x => x.FirmId == preparer.FirmId &&
+          x.PracticeClientId == clientId && x.Generation == checklist.Value.Generation &&
+          x.Path == AcceptancePaths.Continuance && x.Decision == "Pending" &&
+          (!opportunityId.HasValue || x.ServiceRoute == route) &&
+          x.OpportunityId == opportunityId &&
+          (!engagementId.HasValue || x.EngagementId == engagementId || x.EngagementId == null)))
+    {
+      var started = await AcceptanceChecklistService.StartContinuanceAsync(db, partner, clientId,
+        expectedGeneration: checklist.Value.Generation,
+        opportunityId: opportunityId,
+        serviceRoute: opportunityId.HasValue ? route : null);
+      Assert.True(started.Succeeded, started.Message);
+      checklist = await AcceptanceChecklistService.GetAsync(db, preparer, clientId,
+        serviceRoute: opportunityId.HasValue ? route : null, opportunityId: opportunityId);
+      Assert.True(checklist.Succeeded, checklist.Message);
+    }
     Assert.NotEmpty(checklist.Value!.Items);
     foreach (var item in checklist.Value.Items)
     {
@@ -266,14 +294,17 @@ internal static class SupportedAuditCompletionWorldBuilder
       };
       var result = await AcceptanceChecklistService.RecordAnswerAsync(db, preparer, clientId,
         item.Question.Code, answer, item.Question.RequiresEvidence ? $"synthetic-evidence:{item.Question.Code}" : null,
-        expectedGeneration: checklist.Value.Generation, expectedRevision: item.Answer?.Revision ?? 0);
+        expectedGeneration: checklist.Value.Generation, expectedRevision: item.Answer?.Revision ?? 0,
+        serviceRoute: opportunityId.HasValue ? route : null, opportunityId: opportunityId);
       Assert.True(result.Succeeded, $"{item.Question.Code}: {result.ErrorCode} {result.Message}");
     }
-    var current = await AcceptanceChecklistService.GetAsync(db, preparer, clientId);
+    var current = await AcceptanceChecklistService.GetAsync(db, preparer, clientId,
+      serviceRoute: opportunityId.HasValue ? route : null, opportunityId: opportunityId);
     Assert.True(current.Succeeded, current.Message);
     Assert.True(current.Value!.Ready, string.Join("; ", current.Value.Blockers.Select(x => x.Message)));
     var decision = await AcceptanceDecisionService.RecordAsync(db, partner,
-      new(clientId, engagementId, route, "ACCEPTED", "Synthetic test acceptance review.", null, current.Value.Generation));
+      new(clientId, engagementId, route, "ACCEPTED", "Synthetic test acceptance review.", null,
+        current.Value.Generation, opportunityId));
     Assert.True(decision.Succeeded, decision.Message);
   }
 

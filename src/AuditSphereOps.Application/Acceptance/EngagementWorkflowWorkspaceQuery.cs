@@ -181,6 +181,9 @@ public static class EngagementWorkflowWorkspaceQuery
     if (staffingLevel is not null)
       return (new(actor.FirmId, clientId, engagementId, [StaffingLevels.AuthorizationRole(staffingLevel)], InternalOnly: true), staffingLevel);
 
+    if (responsibleRole == "RelationshipManager")
+      return (new(actor.FirmId, clientId, engagementId, ["RelationshipManager"], InternalOnly: true), null);
+
     if (responsibleRole is not ("CommercialManager" or "FinanceManager")) return (null, null);
     return (new(actor.FirmId, clientId, engagementId, [responsibleRole], InternalOnly: true,
       RequireFirmWide: responsibleRole == "FinanceManager"), null);

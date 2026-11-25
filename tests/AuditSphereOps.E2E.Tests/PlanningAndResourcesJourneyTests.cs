@@ -244,9 +244,9 @@ public sealed class PlanningAndResourcesJourneyTests
       await db.SaveChangesAsync();
     }
     await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Refresh plan", Exact = true }).ClickAsync();
-    await Assertions.Expect(reviewerPage.GetByText("stale", new() { Exact = true })).ToBeVisibleAsync();
-    await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Region, new() { Name = "Materiality calculator", Exact = true }))
-      .ToContainTextAsync("The approved mapping or trial balance changed. Recalculate; this calculation no longer supports difference evaluation.");
+    var materiality = reviewerPage.GetByRole(AriaRole.Region, new() { Name = "Materiality calculator", Exact = true });
+    await Assertions.Expect(materiality)
+      .ToContainTextAsync("Materiality values from another reporting context are hidden. Select and review the exact context before continuing.");
     await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Button,
       new() { Name = "Preview materiality approval", Exact = true })).ToHaveCountAsync(0);
     await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading,

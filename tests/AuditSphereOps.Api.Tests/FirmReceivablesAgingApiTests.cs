@@ -42,7 +42,7 @@ public sealed class FirmReceivablesAgingApiTests
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, LeadId = lead.Id, PracticeClientId = seed.ClientId,
         ServiceRoute = "FinancialStatementAudit", EntityScope = "TEST", PeriodStart = "2026-01-01",
-        PeriodEnd = "2026-12-31", Currency = "QAR", CreatedAt = now
+        PeriodEnd = "2026-12-31", Currency = null, CreatedAt = now
       };
       var quotationId = Guid.NewGuid();
       var proposal = new Proposal

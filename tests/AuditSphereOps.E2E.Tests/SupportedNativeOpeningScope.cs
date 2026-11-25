@@ -1,5 +1,5 @@
 using AuditSphereOps.Application.Abstractions;
-using AuditSphereOps.Application.Acceptance;
+using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -16,19 +16,28 @@ internal sealed record SupportedNativeOpeningScope(Guid FirmId, Guid ClientId, G
     var scope = world.Primary;
     var admin = (scope.FirmId, world.Administrator);
     var partner = await SupportedAuditCompletionWorldBuilder.ProvisionFirmRoleAsync(database, admin, "Partner");
-    var preparer = await SupportedAuditCompletionWorldBuilder.ProvisionFirmRoleAsync(database, admin, "Staff");
     var reviewer = await SupportedAuditCompletionWorldBuilder.ProvisionFirmRoleAsync(database, admin, "AccountingReviewer");
-    // Retain the audit acceptance unchanged. A new, genuinely reviewed continuance supplies the native mandate.
     await using (var db = new AuditSphereDbContext(database.Options))
     {
-      var current = await AcceptanceChecklistService.GetAsync(db, partner.Actor, scope.ClientId);
-      Assert.True(current.Succeeded, current.Message);
-      var continuance = await AcceptanceChecklistService.StartContinuanceAsync(db, partner.Actor, scope.ClientId,
-        expectedGeneration: current.Value!.Generation);
-      Assert.True(continuance.Succeeded, continuance.Message);
+      var currentGeneration = await db.ClientSafetyStates.AsNoTracking()
+        .Where(x => x.Id == scope.ClientId && x.FirmId == scope.FirmId)
+        .Select(x => x.InputGeneration).SingleAsync();
+      var prior = await db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == scope.FirmId &&
+          x.PracticeClientId == scope.ClientId && x.Decision == "Accepted")
+        .OrderByDescending(x => x.Generation).ThenByDescending(x => x.DecidedAt).FirstAsync();
+      // This accounting journey's test precondition is the client-level native-bookkeeping mandate used by
+      // the adjacent accounting E2Es. BOOKKEEPING is not a commercial opportunity route.
+      db.AcceptanceDecisions.Add(new AcceptanceDecision
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, PracticeClientId = scope.ClientId,
+        ServiceRoute = "BOOKKEEPING", Decision = "Accepted", Generation = currentGeneration,
+        Path = AcceptancePaths.Continuance, PriorDecisionId = prior.Id,
+        Rationale = "Synthetic native bookkeeping cutover", EvaluationTemplateVersion = "TEST-1",
+        EvaluationSnapshotDigest = new string('a', 64), DecidedByUserId = partner.User.Id,
+        DecidedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
     }
-    await SupportedAuditCompletionWorldBuilder.RecordUnconditionalAcceptanceAsync(database, scope.ClientId,
-      "BOOKKEEPING", preparer.Actor, partner.Actor);
     await using var retained = new AuditSphereDbContext(database.Options);
     var generation = await retained.ClientSafetyStates.AsNoTracking()
       .Where(x => x.Id == scope.ClientId && x.FirmId == scope.FirmId).Select(x => x.InputGeneration).SingleAsync();

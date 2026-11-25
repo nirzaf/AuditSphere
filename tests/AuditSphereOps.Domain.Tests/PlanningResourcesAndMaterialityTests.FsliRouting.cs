@@ -11,7 +11,7 @@ namespace AuditSphereOps.Domain.Tests;
 
 public sealed partial class PlanningResourcesAndMaterialityTests
 {
-  private static async Task SeedRiskBandMappingAsync(PgTestSchema pg, World w, decimal cashBalance)
+  private static async Task<Guid> SeedRiskBandMappingAsync(PgTestSchema pg, World w, decimal cashBalance)
   {
     await using var db = new AuditSphereDbContext(pg.Options);
     var datasetId = Guid.NewGuid();
@@ -57,6 +57,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       CreatedAt = DateTimeOffset.UtcNow
     }));
     await db.SaveChangesAsync();
+    return mappingId;
   }
 
   private static async Task<Guid> AddFieldworkProcedureAsync(PgTestSchema pg, World w, Guid riskId)
@@ -92,13 +93,19 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     return procedure.Id;
   }
 
-  private static async Task<Guid> CalculateAndApproveTestMateriality(PgTestSchema pg, World w)
+  private static async Task<Guid> CalculateAndApproveTestMateriality(PgTestSchema pg, World w, Guid mappingId)
   {
     Guid assessmentId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
+      var manager = w.Actor("manager", "Manager");
+      var source = await MaterialityEngineService.GetSourceAsync(db, manager, w.EngagementId,
+        mappingId: mappingId);
+      Assert.True(source.Succeeded, source.Message);
       var calculated = await MaterialityEngineService.CalculateAsync(db, w.Actor("manager", "Manager"),
-        new(w.EngagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Risk-routing test materiality"));
+        new(w.EngagementId, MaterialityBenchmarks.Revenue, null, 1m, 75m, 5m, "Risk-routing test materiality",
+          MappingId: mappingId, ExpectedDatasetId: source.Value!.DatasetId,
+          ExpectedMappingVersion: source.Value.MappingVersion, ExpectedDatasetDigest: source.Value.DatasetDigest));
       Assert.True(calculated.Succeeded, calculated.Message);
       assessmentId = calculated.Value!.AssessmentId;
     }
@@ -155,8 +162,8 @@ public sealed partial class PlanningResourcesAndMaterialityTests
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var w = await SeedAsync(pg);
-    await SeedRiskBandMappingAsync(pg, w, -15_000m); // TE is inclusive and the classifier uses absolute signed balance.
-    await CalculateAndApproveTestMateriality(pg, w); // PM 20,000; TE 15,000.
+    var initialMappingId = await SeedRiskBandMappingAsync(pg, w, -15_000m); // TE is inclusive and the classifier uses absolute signed balance.
+    await CalculateAndApproveTestMateriality(pg, w, initialMappingId); // PM 20,000; TE 15,000.
 
     Guid riskId;
     Guid criticalEstimateRiskId;
@@ -231,17 +238,17 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     // A remapping changes both amount and source identity. Stale materiality blocks review until recalculated;
     // the refreshed calculation then requires a new Red Manager result rather than silently blessing Amber work.
     await Task.Delay(20);
-    await SeedRiskBandMappingAsync(pg, w, -25_000m);
+    var refreshedMappingId = await SeedRiskBandMappingAsync(pg, w, -25_000m);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var blocked = await AuditProgramService.ReviewResultAsync(db, w.Actor("manager", "Manager"),
         new(amberResultId, AuditProcedureReviewDecisions.Reviewed, null));
       Assert.Equal(ErrorCodes.GateBlocked, blocked.ErrorCode);
       var workspace = await AuditFieldworkWorkspaceQuery.GetAsync(db, w.Actor("manager", "Manager"), w.EngagementId);
-      Assert.Contains("approved mapping or trial balance changed",
+      Assert.Contains("mapped trial-balance source is unavailable",
         workspace.Value!.Risks.Single(x => x.Id == riskId).Blocker);
     }
-    await CalculateAndApproveTestMateriality(pg, w);
+    await CalculateAndApproveTestMateriality(pg, w, refreshedMappingId);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var stale = await AuditProgramService.ReviewResultAsync(db, w.Actor("manager", "Manager"),

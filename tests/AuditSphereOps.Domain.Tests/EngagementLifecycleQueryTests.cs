@@ -129,16 +129,20 @@ public sealed class EngagementLifecycleQueryTests
     await using var pg = await PgTestSchema.CreateAsync();
     var seed = await PbcSeed.SeedAsync(pg);
     var detailGrant = PbcSeed.Grant(seed.FirmId, seed.Staff, "SeniorManager");
-    var actionGrant = PbcSeed.Grant(seed.FirmId, seed.Staff, "CommercialManager", seed.ClientId, seed.EngagementId);
+    var actionGrant = PbcSeed.Grant(seed.FirmId, seed.Staff, "RelationshipManager", seed.ClientId);
     var targetGrantId = change == "DETAIL" ? detailGrant.Id : actionGrant.Id;
     await using (var setup = new AuditSphereDbContext(pg.Options))
     {
       setup.RoleGrants.Add(detailGrant);
       if (change == "ACTION") setup.RoleGrants.Add(actionGrant);
       await setup.SaveChangesAsync();
-      var baseline = await EngagementWorkflowWorkspaceQuery.GetAsync(setup, PbcSeed.Actor(seed.Staff, "Staff"), seed.EngagementId);
+      var actor = change == "ACTION"
+        ? new AuditSphereOps.Application.Abstractions.ActorContext(seed.Staff.Id, seed.FirmId,
+          seed.Staff.SessionEpoch, ["Staff", "RelationshipManager"])
+        : PbcSeed.Actor(seed.Staff, "Staff");
+      var baseline = await EngagementWorkflowWorkspaceQuery.GetAsync(setup, actor, seed.EngagementId);
       Assert.True(baseline.Succeeded, baseline.Message);
-      Assert.Contains("Commercial proposal preparation and dispatch required", baseline.Value!.Blockers);
+      Assert.Contains("A confirmed discovery opportunity for this client, service route, and reporting period is required before professional acceptance or commercial work.", baseline.Value!.Blockers);
       if (change == "ACTION") Assert.Single(baseline.Value.NextActions);
     }
     var race = new WorkflowExpiryBoundary(async () =>
@@ -158,7 +162,11 @@ public sealed class EngagementLifecycleQueryTests
     });
     await using var reader = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
       .AddInterceptors(race, new WorkflowExpiryCommitBoundary(race)).Options);
-    var result = await EngagementWorkflowWorkspaceQuery.GetAsync(reader, PbcSeed.Actor(seed.Staff, "Staff"), seed.EngagementId);
+    var actionActor = change == "ACTION"
+      ? new AuditSphereOps.Application.Abstractions.ActorContext(seed.Staff.Id, seed.FirmId,
+        seed.Staff.SessionEpoch, ["Staff", "RelationshipManager"])
+      : PbcSeed.Actor(seed.Staff, "Staff");
+    var result = await EngagementWorkflowWorkspaceQuery.GetAsync(reader, actionActor, seed.EngagementId);
     Assert.True(race.AnchorObserved);
     Assert.True(race.MutationCommitted);
     Assert.Equal(1, race.UpdatedRows);
@@ -173,7 +181,7 @@ public sealed class EngagementLifecycleQueryTests
     }
     else
     {
-      Assert.Contains("Commercial proposal preparation and dispatch required", result.Value!.Blockers);
+      Assert.Contains("A confirmed discovery opportunity for this client, service route, and reporting period is required before professional acceptance or commercial work.", result.Value!.Blockers);
       Assert.Empty(result.Value.NextActions);
     }
   }
@@ -200,7 +208,7 @@ public sealed class EngagementLifecycleQueryTests
       await setup.SaveChangesAsync();
       var baseline = await EngagementProgressQuery.GetAsync(setup, PbcSeed.Actor(seed.Staff, "Staff"), seed.EngagementId);
       Assert.True(baseline.Succeeded, baseline.Message);
-      Assert.Contains("Commercial proposal preparation and dispatch required", baseline.Value!.Gates);
+      Assert.Contains("A confirmed discovery opportunity for this client, service route, and reporting period is required before professional acceptance or commercial work.", baseline.Value!.Gates);
     }
     var race = new ProgressExpiryBoundary(seed.Staff.Id, async () =>
     {
@@ -247,7 +255,7 @@ public sealed class EngagementLifecycleQueryTests
         Assert.Equal(["Some engagement readiness details are restricted to firm-wide management."], progress.Gates);
         Assert.Equal("Some engagement readiness details are restricted to firm-wide management.", progress.NextAction);
       }
-      else Assert.Contains("Commercial proposal preparation and dispatch required", progress.Gates);
+      else Assert.Contains("A confirmed discovery opportunity for this client, service route, and reporting period is required before professional acceptance or commercial work.", progress.Gates);
     }
   }
 
@@ -377,7 +385,7 @@ public sealed class EngagementLifecycleQueryTests
     var user = PbcSeed.User(seed.FirmId, "Staff");
     var readGrant = PbcSeed.Grant(seed.FirmId, user, "Staff", seed.ClientId, seed.EngagementId);
     var detailGrant = PbcSeed.Grant(seed.FirmId, user, change == "READ" ? "SeniorManager" : "Manager");
-    var actionGrant = PbcSeed.Grant(seed.FirmId, user, "CommercialManager", seed.ClientId, seed.EngagementId);
+    var actionGrant = PbcSeed.Grant(seed.FirmId, user, "RelationshipManager", seed.ClientId);
     await using (var setup = new AuditSphereDbContext(pg.Options))
     {
       setup.Users.Add(user);
@@ -386,14 +394,18 @@ public sealed class EngagementLifecycleQueryTests
       if (change == "ACTION") setup.RoleGrants.Add(actionGrant);
       await setup.SaveChangesAsync();
     }
-    var actor = PbcSeed.Actor(user, "Staff");
+    var actor = change == "ACTION"
+      ? new AuditSphereOps.Application.Abstractions.ActorContext(user.Id, user.FirmId, user.SessionEpoch,
+        ["Staff", "RelationshipManager"])
+      : PbcSeed.Actor(user, "Staff");
     await using (var baseline = new AuditSphereDbContext(pg.Options))
     {
       var report = await EngagementWorkflowWorkspaceQuery.GetAsync(baseline, actor, seed.EngagementId);
       Assert.True(report.Succeeded, report.Message);
-      Assert.Equal(CanonicalEngagementStages.ProposalGeneration, report.Value!.CanonicalStage);
+      Assert.Equal(CanonicalEngagementStages.LeadIngestion, report.Value!.CanonicalStage);
       if (change == "ACTION") Assert.Single(report.Value.NextActions);
-      if (change is "READ" or "DETAIL") Assert.Contains("Commercial proposal preparation and dispatch required", report.Value.Blockers);
+      if (change is "READ" or "DETAIL")
+        Assert.Contains("A confirmed discovery opportunity for this client, service route, and reporting period is required before professional acceptance or commercial work.", report.Value.Blockers);
     }
     var targetGrant = change == "READ" ? readGrant.Id : change == "DETAIL" ? detailGrant.Id : actionGrant.Id;
     var race = new ProjectionSnapshotRace(workflow, afterSnapshot, async () =>
@@ -425,12 +437,12 @@ public sealed class EngagementLifecycleQueryTests
       else
       {
         Assert.True(result.Succeeded, result.Message);
-        Assert.Equal(CanonicalEngagementStages.ProposalGeneration, result.Value!.CanonicalStage);
+        Assert.Equal(CanonicalEngagementStages.LeadIngestion, result.Value!.CanonicalStage);
         Assert.Equal(EngagementWorkflowPhaseStatuses.Blocked, result.Value.CurrentPhase.Status);
         if (change == "DETAIL" && !afterSnapshot)
           Assert.Equal(["Some engagement readiness details are restricted to firm-wide management."], result.Value.Blockers);
         else if (change is "DETAIL" or "READ")
-          Assert.Contains("Commercial proposal preparation and dispatch required", result.Value.Blockers);
+          Assert.Contains("A confirmed discovery opportunity for this client, service route, and reporting period is required before professional acceptance or commercial work.", result.Value.Blockers);
         if (change == "ACTION")
         {
           if (afterSnapshot) Assert.Single(result.Value.NextActions);
@@ -446,11 +458,11 @@ public sealed class EngagementLifecycleQueryTests
       else
       {
         Assert.True(result.Succeeded, result.Message);
-        Assert.Equal(CanonicalEngagementStages.ProposalGeneration, result.Value!.Summary.CanonicalStage);
+        Assert.Equal(CanonicalEngagementStages.LeadIngestion, result.Value!.Summary.CanonicalStage);
         if (change == "DETAIL" && !afterSnapshot)
           Assert.Equal(["Some engagement readiness details are restricted to firm-wide management."], result.Value.Summary.BlockedReasons);
         else if (change is "DETAIL" or "READ")
-          Assert.Contains("Commercial proposal preparation and dispatch required", result.Value.Summary.BlockedReasons);
+          Assert.Contains("A confirmed discovery opportunity for this client, service route, and reporting period is required before professional acceptance or commercial work.", result.Value.Summary.BlockedReasons);
       }
     }
   }
@@ -517,7 +529,7 @@ public sealed class EngagementLifecycleQueryTests
     await using var pg = await PgTestSchema.CreateAsync();
     var seed = await PbcSeed.SeedAsync(pg);
     var partner = PbcSeed.Actor(seed.Admin, "Partner");
-    var unauthorized = PbcSeed.Actor(seed.Staff, "Staff");
+    var unauthorized = PbcSeed.Actor(PbcSeed.User(seed.FirmId, "Staff"), "Staff");
     var scopedStaff = PbcSeed.User(seed.FirmId, "Staff");
     var mixedStaff = PbcSeed.User(seed.FirmId, "Staff");
     var now = DateTimeOffset.UtcNow;
@@ -532,7 +544,8 @@ public sealed class EngagementLifecycleQueryTests
     {
       db.RoleGrants.AddRange(
         PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"),
-        PbcSeed.Grant(seed.FirmId, seed.Admin, "AccountingReviewer"));
+        PbcSeed.Grant(seed.FirmId, seed.Admin, "AccountingReviewer"),
+        PbcSeed.Grant(seed.FirmId, seed.Staff, "Staff", seed.ClientId));
 
       var engagement = new Engagement
       {
@@ -582,18 +595,18 @@ public sealed class EngagementLifecycleQueryTests
       await db.SaveChangesAsync();
       engagementId = engagement.Id;
 
-      // 1. Initial draft without proposal -> ProposalGeneration
+      // 1. A draft engagement without an exact discovery opportunity remains at discovery.
       var report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.True(report.Succeeded);
-      Assert.Equal(CanonicalEngagementStages.ProposalGeneration, report.Value!.Summary.CanonicalStage);
-      Assert.Equal(2, report.Value.Summary.StageIndex);
-      Assert.Contains("Commercial proposal preparation and dispatch required", report.Value.Summary.BlockedReasons);
-      AssertGuidedBlocker(report.Value.Summary, "Commercial proposal preparation and dispatch required",
-        "COMMERCIAL_PROPOSAL_PREPARATION_REQUIRED", "Commercial roles");
+      Assert.Equal(CanonicalEngagementStages.LeadIngestion, report.Value!.Summary.CanonicalStage);
+      Assert.Equal(1, report.Value.Summary.StageIndex);
+      AssertGuidedBlocker(report.Value.Summary,
+        "A confirmed discovery opportunity for this client, service route, and reporting period is required before professional acceptance or commercial work.",
+        "DISCOVERY_OPPORTUNITY_REQUIRED", "RelationshipManager");
       Assert.Null(report.Value.Summary.LocalArchiveState);
       Assert.Null(report.Value.Summary.ProviderProtectionState);
 
-      // 2. A draft proposal remains at ProposalGeneration until it has actually been dispatched.
+      // 2. A prospect is professionally accepted against the exact opportunity before proposal preparation.
       var lead = new Lead
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, Name = "Synthetic lifecycle client",
@@ -602,11 +615,19 @@ public sealed class EngagementLifecycleQueryTests
       var opportunity = new Opportunity
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, LeadId = lead.Id, PracticeClientId = seed.ClientId,
+        AcceptanceClientId = seed.ClientId, DiscoveryIdentitySha256 = new string('a', 64),
         ServiceRoute = "Audit", EntityScope = "TEST", PeriodStart = "2026-01-01",
-        PeriodEnd = "2026-12-31", Currency = "QAR", CreatedAt = now
+        PeriodEnd = "2026-12-31", Currency = null, EntityScopeConfirmedByUserId = seed.Admin.Id,
+        EntityScopeConfirmedAt = now, CreatedAt = now
       };
       db.Leads.Add(lead);
       db.Opportunities.Add(opportunity);
+      await db.SaveChangesAsync();
+      await SupportedAuditCompletionWorldBuilder.RecordUnconditionalAcceptanceAsync(pg, seed.ClientId, "Audit",
+        PbcSeed.Actor(seed.Staff, "Staff"), partner, opportunityId: opportunity.Id);
+      var decisionId = await db.AcceptanceDecisions.AsNoTracking().Where(x => x.FirmId == seed.FirmId &&
+        x.PracticeClientId == seed.ClientId && x.OpportunityId == opportunity.Id && x.EngagementId == null)
+        .Select(x => x.Id).SingleAsync();
       db.Proposals.Add(new Proposal
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, PracticeClientId = seed.ClientId,
@@ -622,6 +643,7 @@ public sealed class EngagementLifecycleQueryTests
       Assert.True(report.Succeeded);
       Assert.Equal(CanonicalEngagementStages.ProposalGeneration, report.Value!.Summary.CanonicalStage);
       Assert.Equal(2, report.Value.Summary.StageIndex);
+      Assert.Contains("Commercial proposal preparation and dispatch required", report.Value.Summary.BlockedReasons);
 
       var proposal = await db.Proposals.SingleAsync(x => x.FirmId == seed.FirmId && x.PracticeClientId == seed.ClientId);
       proposal.Status = CrmStates.ProposalInternalReview;
@@ -634,16 +656,10 @@ public sealed class EngagementLifecycleQueryTests
       Assert.True(report.Succeeded);
       Assert.Equal(CanonicalEngagementStages.DualKeyPending, report.Value!.Summary.CanonicalStage);
       Assert.Equal(3, report.Value.Summary.StageIndex);
-      Assert.Equal(["Unconditional Partner risk acceptance decision required", "Client commercial acceptance of proposal required"],
-        report.Value.Summary.BlockedReasons);
-      var detail = AssertGuidedBlocker(report.Value.Summary,
-        "Unconditional Partner risk acceptance decision required", "PARTNER_RISK_ACCEPTANCE_REQUIRED", "Partner");
-      Assert.Equal(0, detail.BlockerIndex);
-      Assert.Equal(report.Value.Summary.BlockedReasons[detail.BlockerIndex], detail.Cause);
-      Assert.Contains("Waiting", detail.Guidance, StringComparison.Ordinal);
+      Assert.Equal(["Client commercial acceptance of proposal required"], report.Value.Summary.BlockedReasons);
       AssertGuidedBlocker(report.Value.Summary, "Client commercial acceptance of proposal required",
         "CLIENT_COMMERCIAL_ACCEPTANCE_REQUIRED", "Dispatched client respondent");
-      Assert.Equal(2, report.Value.Summary.BlockerDetails!.Count);
+      Assert.Single(report.Value.Summary.BlockerDetails!);
 
       var workflow = await EngagementWorkflowWorkspaceQuery.GetAsync(db, partner, engagementId);
       Assert.True(workflow.Succeeded, workflow.Message);
@@ -677,20 +693,8 @@ public sealed class EngagementLifecycleQueryTests
       await AssertStaffingSnapshotRaceAsync(pg, seed, engagementId, afterSnapshot: false);
       await AssertStaffingSnapshotRaceAsync(pg, seed, engagementId, afterSnapshot: true);
 
-      // 3. Add partner unconditional acceptance -> AdvanceBilling
-      var decisionId = Guid.NewGuid();
-      db.AcceptanceDecisions.Add(new AcceptanceDecision
-      {
-        Id = decisionId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId,
-        ServiceRoute = "Audit", Decision = "Accepted", DecidedByUserId = seed.Admin.Id,
-        DecidedAt = now, Path = "NEW_CLIENT", Generation = 1,
-        Rationale = "Partner assessment passed",
-        EvaluationTemplateVersion = "V2",
-        EvaluationSnapshotDigest = new string('a', 64)
-      });
-      await db.SaveChangesAsync();
-
-      // WF-01 correction: a Partner's unconditional clearance alone never advances billing while the client has not accepted.
+      // Professional acceptance is already current for this exact opportunity; commercial progression still
+      // requires the client's independent response to the exact dispatched offer.
       report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.True(report.Succeeded);
       Assert.Equal(CanonicalEngagementStages.DualKeyPending, report.Value!.Summary.CanonicalStage);
@@ -1282,12 +1286,15 @@ public sealed class EngagementLifecycleQueryTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"));
+      db.RoleGrants.AddRange(PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"),
+        PbcSeed.Grant(seed.FirmId, seed.Staff, "Staff", seed.ClientId));
       var lead = new Lead { Id = Guid.NewGuid(), FirmId = seed.FirmId, Name = "Synthetic matrix client", Source = "Referral", CreatedAt = now };
       var opportunity = new Opportunity
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, LeadId = lead.Id, PracticeClientId = seed.ClientId,
-        ServiceRoute = "Audit", EntityScope = "TEST", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Currency = "QAR", CreatedAt = now
+        AcceptanceClientId = seed.ClientId, DiscoveryIdentitySha256 = new string('a', 64),
+        EntityScopeConfirmedByUserId = seed.Admin.Id, EntityScopeConfirmedAt = now,
+        ServiceRoute = "Audit", EntityScope = "TEST", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Currency = null, CreatedAt = now
       };
       var proposal = new Proposal
       {
@@ -1306,6 +1313,8 @@ public sealed class EngagementLifecycleQueryTests
       db.Opportunities.Add(opportunity);
       db.Proposals.Add(proposal);
       await db.SaveChangesAsync();
+      await SupportedAuditCompletionWorldBuilder.RecordUnconditionalAcceptanceAsync(pg, seed.ClientId, "Audit",
+        PbcSeed.Actor(seed.Staff, "Staff"), partner, opportunityId: opportunity.Id);
       var dispatch = await SeedDispatchedOfferAsync(db, proposal, seed.Admin.Id, now, "owner@matrix.example.test");
       await db.SaveChangesAsync();
       var offerHash = dispatch.OfferSha256!;
@@ -1365,7 +1374,9 @@ public sealed class EngagementLifecycleQueryTests
       // A later immutable decline is the current offer and never inherits the prior proposal's acceptance.
       var declineLead = new Lead { Id = Guid.NewGuid(), FirmId = seed.FirmId, Name = "Synthetic declined proposal", Source = "Referral", CreatedAt = now.AddSeconds(5) };
       var declineOpportunity = new Opportunity { Id = Guid.NewGuid(), FirmId = seed.FirmId, LeadId = declineLead.Id, PracticeClientId = seed.ClientId,
-        ServiceRoute = "Audit", EntityScope = "TEST", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Currency = "QAR", CreatedAt = now.AddSeconds(5) };
+        AcceptanceClientId = seed.ClientId, DiscoveryIdentitySha256 = new string('c', 64),
+        EntityScopeConfirmedByUserId = seed.Admin.Id, EntityScopeConfirmedAt = now.AddSeconds(5),
+        ServiceRoute = "Audit", EntityScope = "TEST", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", Currency = null, CreatedAt = now.AddSeconds(5) };
       var declined = new Proposal { Id = Guid.NewGuid(), FirmId = seed.FirmId, PracticeClientId = seed.ClientId, OpportunityId = declineOpportunity.Id,
         Status = CrmStates.ProposalInternalReview, Fee = 50000m, Currency = "QAR", ServiceProfileId = "AUDIT-2026",
         Scope = "Statutory Financial Audit", Deliverables = "Audit Report", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31", CreatedAt = now.AddSeconds(5) };
@@ -1373,6 +1384,8 @@ public sealed class EngagementLifecycleQueryTests
       db.Opportunities.Add(declineOpportunity);
       db.Proposals.Add(declined);
       await db.SaveChangesAsync();
+      await SupportedAuditCompletionWorldBuilder.RecordUnconditionalAcceptanceAsync(pg, seed.ClientId, "Audit",
+        PbcSeed.Actor(seed.Staff, "Staff"), partner, opportunityId: declineOpportunity.Id);
       var declineDispatch = await SeedDispatchedOfferAsync(db, declined, seed.Admin.Id, now.AddSeconds(5), "owner@matrix.example.test");
       await db.SaveChangesAsync();
       var declineResponse = await PracticeCrmService.RecordProposalResponseAsync(db, partner, declined.Id,
@@ -1400,7 +1413,8 @@ public sealed class EngagementLifecycleQueryTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"));
+      db.RoleGrants.AddRange(PbcSeed.Grant(seed.FirmId, seed.Admin, "Partner"),
+        PbcSeed.Grant(seed.FirmId, seed.Staff, "Staff", seed.ClientId));
       db.Engagements.Add(new Engagement
       {
         Id = engagementId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId, ServiceRoute = "Audit",
@@ -1414,8 +1428,10 @@ public sealed class EngagementLifecycleQueryTests
       var opportunity = new Opportunity
       {
         Id = opportunityId, FirmId = seed.FirmId, LeadId = leadId, PracticeClientId = seed.ClientId,
+        AcceptanceClientId = seed.ClientId, DiscoveryIdentitySha256 = new string('a', 64),
+        EntityScopeConfirmedByUserId = seed.Admin.Id, EntityScopeConfirmedAt = now,
         ServiceRoute = "Audit", EntityScope = "TEST", PeriodStart = "2026-01-01", PeriodEnd = "2026-12-31",
-        Currency = "QAR", CreatedAt = now
+        Currency = null, CreatedAt = now
       };
       var proposal = new Proposal
       {
@@ -1428,6 +1444,8 @@ public sealed class EngagementLifecycleQueryTests
       db.Opportunities.Add(opportunity);
       db.Proposals.Add(proposal);
       await db.SaveChangesAsync();
+      await SupportedAuditCompletionWorldBuilder.RecordUnconditionalAcceptanceAsync(pg, seed.ClientId, "Audit",
+        PbcSeed.Actor(seed.Staff, "Staff"), partner, opportunityId: opportunityId);
       var dispatch = await SeedDispatchedOfferAsync(db, proposal, seed.Admin.Id, now, "owner@annual.example.test");
       await db.SaveChangesAsync();
       var accepted = await PracticeCrmService.RecordProposalResponseAsync(db, partner, proposalId,
@@ -1445,8 +1463,9 @@ public sealed class EngagementLifecycleQueryTests
 
       var report = await EngagementLifecycleQuery.GetAsync(db, partner, engagementId);
       Assert.True(report.Succeeded, report.Message);
-      Assert.Equal(CanonicalEngagementStages.ProposalGeneration, report.Value!.Summary.CanonicalStage);
-      Assert.Contains("Commercial proposal preparation and dispatch required", report.Value.Summary.BlockedReasons);
+      Assert.Equal(CanonicalEngagementStages.LeadIngestion, report.Value!.Summary.CanonicalStage);
+      Assert.Contains("A confirmed discovery opportunity for this client, service route, and reporting period is required before professional acceptance or commercial work.",
+        report.Value.Summary.BlockedReasons);
     }
   }
 
@@ -1512,12 +1531,8 @@ public sealed class EngagementLifecycleQueryTests
       if (typedBlocker)
       {
         var details = before.Value!.Summary.BlockerDetails!;
-        Assert.Equal(2, details.Count);
-        var riskBlocker = Assert.Single(details, detail => detail.Code == "PARTNER_RISK_ACCEPTANCE_REQUIRED");
-        Assert.Equal(0, riskBlocker.BlockerIndex);
-        Assert.Equal("Unconditional Partner risk acceptance decision required", riskBlocker.Cause);
         var clientBlocker = Assert.Single(details, detail => detail.Code == "CLIENT_COMMERCIAL_ACCEPTANCE_REQUIRED");
-        Assert.Equal(1, clientBlocker.BlockerIndex);
+        Assert.Equal(0, clientBlocker.BlockerIndex);
         Assert.Equal("Client commercial acceptance of proposal required", clientBlocker.Cause);
       }
       else

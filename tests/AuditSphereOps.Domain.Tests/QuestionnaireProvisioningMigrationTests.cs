@@ -53,14 +53,14 @@ public sealed class QuestionnaireProvisioningMigrationTests
     Assert.True(saved.Succeeded, saved.Message);
     var originalAnswer = await answers.EvaluationResponses.AsNoTracking().SingleAsync();
     Assert.Equal(answeredCode, originalAnswer.QuestionId);
-    var pendingDecision = await answers.AcceptanceDecisions.AsNoTracking().SingleAsync();
-    Assert.Equal((client.FirmId, client.ClientId, "Pending"),
-      (pendingDecision.FirmId, pendingDecision.PracticeClientId, pendingDecision.Decision));
+    // Recording an initial checklist answer is not a professional decision and must not open
+    // a continuance or create an approval record before the required evaluation is complete.
+    Assert.Empty(await answers.AcceptanceDecisions.AsNoTracking().ToListAsync());
 
     async Task AssertAnswerPreservedAsync(AuditSphereDbContext db)
     {
       Assert.Equivalent(originalAnswer, await db.EvaluationResponses.AsNoTracking().SingleAsync(), strict: true);
-      Assert.Equivalent(pendingDecision, await db.AcceptanceDecisions.AsNoTracking().SingleAsync(), strict: true);
+      Assert.Empty(await db.AcceptanceDecisions.AsNoTracking().ToListAsync());
     }
 
     // Replaying the initializer against a complete pre-existing bank must preserve all retained IDs.

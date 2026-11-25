@@ -453,7 +453,48 @@ public static class EngagementLifecycleQuery
         BlockerDetails: details.Count == 0 ? null : details));
     }
 
-    // 2. Proposal Generation & 1. Lead Ingestion
+    // 1. Discovery and professional acceptance precede commercial proposal preparation. An engagement does
+    // not carry an opportunity foreign key, so resolve only a single exact client/route/period candidate;
+    // multiple candidates remain blocked rather than being selected by recency.
+    var acceptanceOpportunities = await db.Opportunities.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+      x.AcceptanceClientId == client.Id && x.ServiceRoute == engagement.ServiceRoute &&
+      x.PeriodStart == engagement.PeriodStart && x.PeriodEnd == engagement.PeriodEnd &&
+      x.Stage != CrmStates.OpportunityLost).Take(2).ToListAsync(ct);
+    if (acceptanceOpportunities.Count != 1 ||
+        !await OpportunityAcceptanceGate.IsCurrentUnconditionalAsync(db, actor.FirmId,
+          acceptanceOpportunities[0].Id, ct))
+    {
+      var acceptanceBlockers = new List<string>();
+      var acceptanceDetails = new List<EngagementLifecycleBlockerDetail>();
+      var deepLink = "/app/practice/leads";
+      if (acceptanceOpportunities.Count == 0)
+        AddGuidedBlocker(acceptanceBlockers, acceptanceDetails, "DISCOVERY_OPPORTUNITY_REQUIRED",
+          "A confirmed discovery opportunity for this client, service route, and reporting period is required before professional acceptance or commercial work.",
+          "RelationshipManager",
+          "Create or link the exact prospect and confirm its service, entity scope, and reporting period before starting the acceptance or continuance review.");
+      else if (acceptanceOpportunities.Count > 1)
+        AddGuidedBlocker(acceptanceBlockers, acceptanceDetails, "EXACT_ACCEPTANCE_SCOPE_REQUIRED",
+          "More than one discovery opportunity matches this client, service route, and reporting period; resolve the exact scope before continuing.",
+          "RelationshipManager",
+          "Resolve the opportunity identity and entity scope in the commercial workspace. This projection does not choose a candidate by recency.");
+      else
+      {
+        var opportunity = acceptanceOpportunities[0];
+        deepLink = $"/app/clients/{client.Id:D}/assessment?opportunityId={opportunity.Id:D}";
+        AddGuidedBlocker(acceptanceBlockers, acceptanceDetails, "CURRENT_OPPORTUNITY_ACCEPTANCE_REQUIRED",
+          "A current unconditional Partner acceptance or continuance decision for this exact opportunity is required before proposal or quotation preparation.",
+          "Partner",
+          "Complete the opportunity-bound CE or RV review, required evidence and specialist clearances, then record the independent Partner decision. Conditional, deferred, declined, or stale decisions do not unlock commercial work.");
+      }
+      return await ProjectAsync(new EngagementLifecycleSummary(
+        CanonicalEngagementStages.LeadIngestion,
+        acceptanceOpportunities.Count == 0 ? "Lead Discovery & Client Acceptance" : "Client Acceptance & Continuance",
+        1, acceptanceBlockers, acceptanceOpportunities.Count == 0 || acceptanceOpportunities.Count > 1
+          ? "RelationshipManager" : "Partner", deepLink, null, false, false,
+        BlockerDetails: acceptanceDetails.Count == 0 ? null : acceptanceDetails));
+    }
+
+    // 2. Proposal Generation
     var proposalBlockers = new List<string>();
     var proposalDetails = new List<EngagementLifecycleBlockerDetail>();
     AddGuidedBlocker(proposalBlockers, proposalDetails, "COMMERCIAL_PROPOSAL_PREPARATION_REQUIRED",
