@@ -37,7 +37,10 @@ public sealed partial class CompletionContractTraceTests(Xunit.Abstractions.ITes
         foreach (Match literal in ApiLiteral().Matches(lines[index]))
         {
           callers++;
-          var url = literal.Groups[1].Value.Split('?')[0];
+          // A nested template literal in a query can end this simple scanner mid-interpolation.
+          // Discard only that incomplete trailing expression; path parameters remain validated below.
+          var sourceUrl = TrailingPartialInterpolation().Replace(literal.Groups[1].Value, "");
+          var url = sourceUrl.Split('?')[0];
           url = TrailingQueryInterpolation().Replace(url, "");     // `${query}` glued to the last segment
           url = Interpolation().Replace(url, "*");
           var isPrefix = url.EndsWith('/');
@@ -145,5 +148,6 @@ public sealed partial class CompletionContractTraceTests(Xunit.Abstractions.ITes
   [GeneratedRegex(@"\{[^}]+\}")] private static partial Regex PathParameter();
   [GeneratedRegex(@"\$\{[^}]*\}")] private static partial Regex Interpolation();
   [GeneratedRegex(@"(?<=[^/])\$\{[^}]*\}$")] private static partial Regex TrailingQueryInterpolation();
+  [GeneratedRegex(@"(?<=[^/])\$\{[^}]*$")] private static partial Regex TrailingPartialInterpolation();
   [GeneratedRegex(@"\b(const|let)\s+\w*[bB]ase\w*\s*=|\bbase\w*\s*\([^)]*\)\s*(:\s*string\s*)?\{?\s*(return\s+)?[`'""]/api/|private\s+\w*[bB]ase\w*\(")] private static partial Regex BaseHelper();
 }

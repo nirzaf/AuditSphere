@@ -26,6 +26,9 @@ public sealed class AngularProposalWorkflowJourneyTests
     Guid proposalId;
     await using (var db = host.CreateDbContext())
     {
+      var clientLegalName = await db.PracticeClients.AsNoTracking()
+        .Where(x => x.FirmId == fixture.FirmId && x.Id == fixture.ClientId)
+        .Select(x => x.LegalName).SingleAsync();
       var engagement = await db.Engagements.SingleAsync(x => x.Id == fixture.EngagementId);
       engagement.ServiceRoute = "FinancialStatementAudit";
       engagement.PeriodStart = "2026-01-01";
@@ -45,7 +48,7 @@ public sealed class AngularProposalWorkflowJourneyTests
       var discovery = await PracticeCrmService.CreateOpportunityAsync(db,
         PbcSeed.Actor(fixture.Admin, "Administrator"),
         CommercialAcceptanceTestSupport.DiscoveryRequest(leadId, "FinancialStatementAudit",
-          "Synthetic lifecycle proposal", "2026-01-01", "2026-12-31",
+          clientLegalName, "2026-01-01", "2026-12-31",
           entityScope: "Synthetic lifecycle entity", requestId: opportunityId));
       Assert.True(discovery.Succeeded, discovery.Message);
     }

@@ -1,12 +1,12 @@
 # Current-slice handoff
 
-## Acceptance-first onboarding and lifecycle projection (2026-11-25; parent `cdb4fb1ccc41a65f928de79b3fa94dd64cbd869b`)
+## Acceptance-first onboarding and CI recovery (2026-11-25; candidate `b47e3456`; follow-up ready to push)
 
-- The existing discovery form records an unpriced canonical prospect, selects a supported service route, confirms editable exact entity scope, and links CE/RV acceptance. Proposal and quotation commands require a current unconditional Partner decision for the same opportunity. This follow-up keeps a draft engagement at discovery/acceptance until exactly one matching client, route and period opportunity has current approval; ambiguous matches fail closed and the guided action requires RelationshipManager scope.
-- Focused local evidence: Domain lifecycle/acceptance/commercial-gate/completion cohort 43/43; Angular opportunity and lifecycle specs 22/22; Chrome discovery, proposal/detail recovery, and exact-context materiality journeys passed 1/1 each; API receivables 1/1. No full local suite ran.
-- The previous cdb exact release verification failed; its fixture, exact-context E2E and duplicate-grant fixture failures were corrected or aligned to current behavior. Exact CI for the follow-up commit is pending. No live data, permissions, or services changed. Hostinger deployment remains separate and blocked by current PG18.6/recovery evidence requirements.
+- Acceptance-first discovery and the server-enforced unconditional Partner gate are pushed on `master` at `b47e34564a5f6b94280cc4b149f4899cc7ec6586`.
+- Exact-source fast CI [45560460710](https://github.com/nirzaf/AuditSphere/actions/runs/45560460710) passed. Full verification [45560493758](https://github.com/nirzaf/AuditSphere/actions/runs/45560493758) failed in the proposal-dispatch journey, lifecycle expectations, migration-guard test isolation and Angular contract tracing. Image run [45564406157](https://github.com/nirzaf/AuditSphere/actions/runs/45564406157) failed when migration compilation exhausted runner memory with no swap; API and worker images passed, but the immutable image set is incomplete. Exact logs are retained under `.local/autonomous/evidence/ci-b47e3456-current-20261125/`.
+- The follow-up corrects only the reproduced fixtures/assertions and scanner edge, isolates the opening-balance migration guard, and provisions temporary 8 GiB swap for worker/migration image builds. `actionlint`, `git diff --check`, and all three documentation validators pass. Local .NET retest is blocked because pinned SDK 11.0.100 is unavailable (installed SDK is 10.0.300); exact-source GitHub Actions must verify these changes.
+- No deployment occurred. The observed Hostinger target/recovery and authenticated acceptance gates remain unresolved; retain the separate PostgreSQL 18.6 environment and Pearlblanc service untouched.
 - Earlier local continuation follow-up on `244ac2ec` is historical; its evidence is retained in the prior handoff archive.
-
 **F-03/REG-01 (parent `162c4f5`):** exact context selection flows through materiality, lifecycle and risk routing; fixtures pin the source. Local: Domain 13/13, Chrome E2E 1/1, focused Domain 2/2, API 1/1, Angular 66/66, build and OpenAPI pass. CI pending; not deployed. Evidence `.local/autonomous/evidence/materiality-context-20261124/local-review.json`.
 
 ## PostgreSQL 19 exact-source verification and Hostinger release boundary (observed 2026-11-23; source `d59d6be05e30a6dc84f146ee3861cf0ec994d8e6`)

@@ -2,6 +2,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -95,14 +96,7 @@ public sealed class AuditPlanningCompletionTests
     await using (var migrationDb = new AuditSphereDbContext(pg.Options))
     {
       var migrations = migrationDb.Database.GetMigrations().ToArray();
-      var index = Array.FindIndex(migrations, x => x.EndsWith("_OpeningBalanceReviewedBasis", StringComparison.Ordinal));
-      Assert.True(index > 0);
-      var failure = await Record.ExceptionAsync(() => migrationDb.GetService<IMigrator>().MigrateAsync(migrations[index - 1]));
-      Assert.NotNull(failure);
-      while (failure is not PostgresException && failure.InnerException is not null) failure = failure.InnerException;
-      var postgres = Assert.IsType<PostgresException>(failure);
-      Assert.Equal("55000", postgres.SqlState); Assert.Contains("retained opening-balance", postgres.MessageText);
-      Assert.Contains(migrations[index], await migrationDb.Database.GetAppliedMigrationsAsync());
+      await AssertOpeningBalanceReviewMigrationDowngradeBlockedAsync(migrations);
       Assert.True((await Read(pg, scope.Preparer, scope.EngagementId, id)).CurrentIndependentReview);
     }
     await using var summaryDb = new AuditSphereDbContext(pg.Options);
@@ -117,5 +111,61 @@ public sealed class AuditPlanningCompletionTests
     Assert.Equal(0, summary.Value.RiskCount); Assert.Equal(1, await summaryDb.OpeningBalanceVerifications.CountAsync());
     Assert.Equal(ErrorCodes.ScopeDenied, (await AuditPlanningCompletionService.GetAuditPlanningSummaryAsync(summaryDb, scope.Preparer, world.Sibling.EngagementId)).ErrorCode);
     Assert.Equal(ErrorCodes.ScopeDenied, (await AuditPlanningCompletionService.GetAuditPlanningSummaryAsync(summaryDb, scope.Preparer, Guid.NewGuid())).ErrorCode);
+  }
+
+  private static async Task AssertOpeningBalanceReviewMigrationDowngradeBlockedAsync(string[] migrations)
+  {
+    var targetIndex = Array.FindIndex(migrations, x => x.EndsWith("_OpeningBalanceReviewedBasis", StringComparison.Ordinal));
+    Assert.True(targetIndex > 0);
+
+    // Test only this migration's retention guard. Downgrading a fully migrated completion fixture also traverses
+    // newer acceptance-first guards, which correctly refuse unrelated retained conversion evidence first.
+    await using var partialPg = await PgTestSchema.CreateAsync(migrations[targetIndex]);
+    await using var db = new AuditSphereDbContext(partialPg.Options);
+    var firmId = Guid.NewGuid();
+    var clientId = Guid.NewGuid();
+    var engagementId = Guid.NewGuid();
+    var verificationId = Guid.NewGuid();
+    var now = DateTimeOffset.UtcNow;
+    await db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO practice_clients
+        (id, firm_id, legal_name, commercial_name, status, billing_account_id, created_at,
+         jurisdiction, registration_number, restricted_profile, entity_type, tax_registration_number)
+      VALUES
+        ({clientId}, {firmId}, 'Synthetic migration guard client', NULL, {CrmStates.ClientProspect}, NULL, {now},
+         NULL, NULL, NULL, NULL, NULL)
+      """);
+    await db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO engagements
+        (id, firm_id, practice_client_id, service_route, period_start, period_end, service_profile_id,
+         status, professional_work_blocked, generation, created_at)
+      VALUES
+        ({engagementId}, {firmId}, {clientId}, 'FinancialStatementAudit', '2025-01-01', '2025-12-31',
+         'migration-guard', 'Active', FALSE, 1, {now})
+      """);
+    await db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO opening_balance_verifications
+        (id, firm_id, client_id, engagement_id, procedure_id, prior_period_id, prior_reference, as_of_date,
+         currency, opening_signed_total, agreed_signed_total, difference_amount, accounting_policies_consistent,
+         conclusion, rationale, evidence_references_json, revision, recorded_by_user_id, reviewed_by_user_id,
+         reviewed_basis_revision, review_comment, recorded_at, reviewed_at)
+      VALUES
+        ({verificationId}, {firmId}, {clientId}, {engagementId}, NULL, NULL, 'Synthetic prior reference',
+         DATE '2026-01-01', 'QAR', 100, 100, 0, TRUE, 'AGREED', 'Migration guard fixture', '[]', 2,
+         {Guid.NewGuid()}, NULL, 1, 'Retained independent review basis', {now}, {now})
+      """);
+
+    var failure = await Record.ExceptionAsync(() => db.GetService<IMigrator>().MigrateAsync(migrations[targetIndex - 1]));
+    Assert.NotNull(failure);
+    while (failure is not PostgresException && failure.InnerException is not null) failure = failure.InnerException;
+    var postgres = Assert.IsType<PostgresException>(failure);
+    Assert.Equal("55000", postgres.SqlState);
+    Assert.Contains("retained opening-balance", postgres.MessageText);
+    Assert.Contains(migrations[targetIndex], await db.Database.GetAppliedMigrationsAsync());
+    var evidence = await db.Database.SqlQueryRaw<int>("""
+      SELECT count(*)::int AS "Value" FROM opening_balance_verifications
+      WHERE id = {0} AND reviewed_basis_revision = 1 AND review_comment = 'Retained independent review basis'
+      """, verificationId).SingleAsync();
+    Assert.Equal(1, evidence);
   }
 }

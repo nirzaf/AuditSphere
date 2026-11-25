@@ -42,8 +42,8 @@ public sealed class PortfolioWorkspaceTests(ITestOutputHelper output)
     {
       var result = await EngagementProgressQuery.GetAsync(baseline, actor, f.EngagementId);
       Assert.True(result.Succeeded, result.Message);
-      Assert.Contains("Commercial proposal preparation and dispatch required", result.Value!.Gates);
-      Assert.Equal("Commercial proposal preparation and dispatch required", result.Value.NextAction);
+      Assert.Contains("A confirmed discovery opportunity for this client, service route, and reporting period is required before professional acceptance or commercial work.", result.Value!.Gates);
+      Assert.Equal("A confirmed discovery opportunity for this client, service route, and reporting period is required before professional acceptance or commercial work.", result.Value.NextAction);
       Assert.True(result.Value.GateOpen);
     }
 
@@ -88,7 +88,8 @@ public sealed class PortfolioWorkspaceTests(ITestOutputHelper output)
     Assert.True(progress.GateOpen);
     Assert.Equal(["Some engagement readiness details are restricted to firm-wide management."], progress.Gates);
     Assert.Equal("Some engagement readiness details are restricted to firm-wide management.", progress.NextAction);
-    Assert.DoesNotContain("Commercial proposal preparation and dispatch required", System.Text.Json.JsonSerializer.Serialize(progress));
+    Assert.DoesNotContain("A confirmed discovery opportunity for this client, service route, and reporting period is required before professional acceptance or commercial work.",
+      System.Text.Json.JsonSerializer.Serialize(progress));
   }
 
   private sealed class ProgressLifecycleSnapshotWitness(Guid userId, Guid engagementId) : DbCommandInterceptor

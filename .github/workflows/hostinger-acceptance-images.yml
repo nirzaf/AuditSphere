@@ -155,6 +155,24 @@ jobs:
           ref: ${{ needs.resolve-source.outputs.source_sha }}
           persist-credentials: false
 
+      - name: Add temporary swap for image compilation
+        if: ${{ matrix.key == 'worker' || matrix.key == 'migrations' }}
+        run: |
+          set -euo pipefail
+          # Worker and migration compilers can exceed runner RAM without swap.
+          # Leave at least 10 GiB free for Docker layers after allocating this file.
+          free_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+          if (( free_kib < 18 * 1024 * 1024 )); then
+            echo "::error::Image runner needs 18 GiB free to allocate swap and build layers."
+            exit 1
+          fi
+          swap_file="$(mktemp "$RUNNER_TEMP/auditsphere-image-swap.XXXXXXXX")"
+          dd if=/dev/zero of="$swap_file" bs=1M count=8192 status=none
+          sudo mkswap "$swap_file"
+          sudo swapon "$swap_file"
+          swapon --show=NAME --noheadings --raw | grep -Fx -- "$swap_file" >/dev/null
+          free -h
+
       - name: Find optional retained Angular artifact for this exact source SHA
         id: find-angular
         if: ${{ matrix.name == 'API' }}

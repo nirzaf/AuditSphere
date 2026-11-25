@@ -28,7 +28,7 @@ public sealed class EngagementWorkflowProjectionTests
     {
       var before = await EngagementWorkflowWorkspaceQuery.GetAsync(baseline, actor, seed.EngagementId);
       Assert.True(before.Succeeded, before.Message);
-      Assert.Equal(CanonicalEngagementStages.ProposalGeneration, before.Value!.CanonicalStage);
+      Assert.Equal(CanonicalEngagementStages.LeadIngestion, before.Value!.CanonicalStage);
       Assert.Equal(["Some engagement readiness details are restricted to firm-wide management."], before.Value.Blockers);
       Assert.Null(before.Value.BlockerDetails);
       Assert.Empty(before.Value.NextActions);
@@ -146,7 +146,7 @@ public sealed class EngagementWorkflowProjectionTests
     {
       var result = await EngagementWorkflowWorkspaceQuery.GetAsync(reader, actor, seed.EngagementId);
       Assert.True(result.Succeeded, result.Message);
-      Assert.Equal(CanonicalEngagementStages.ProposalGeneration, result.Value!.CanonicalStage);
+      Assert.Equal(CanonicalEngagementStages.LeadIngestion, result.Value!.CanonicalStage);
       Assert.Equal(EngagementWorkflowPhaseStatuses.Blocked, result.Value.CurrentPhase.Status);
       Assert.Equal(["Some engagement readiness details are restricted to firm-wide management."], result.Value.Blockers);
       Assert.Null(result.Value.BlockerDetails);
@@ -155,7 +155,7 @@ public sealed class EngagementWorkflowProjectionTests
     {
       var result = await EngagementLifecycleQuery.GetAsync(reader, actor, seed.EngagementId);
       Assert.True(result.Succeeded, result.Message);
-      Assert.Equal(CanonicalEngagementStages.ProposalGeneration, result.Value!.Summary.CanonicalStage);
+      Assert.Equal(CanonicalEngagementStages.LeadIngestion, result.Value!.Summary.CanonicalStage);
       Assert.Equal(["Some engagement readiness details are restricted to firm-wide management."], result.Value.Summary.BlockedReasons);
       Assert.Null(result.Value.Summary.BlockerDetails);
     }
@@ -265,7 +265,7 @@ public sealed class EngagementWorkflowProjectionTests
     await using var pg = await PgTestSchema.CreateAsync();
     var seed = await PbcSeed.SeedAsync(pg);
     var staff = PbcSeed.Actor(seed.Staff, "Staff");
-    var commercialManager = PbcSeed.User(seed.FirmId, "Staff");
+    var relationshipManager = PbcSeed.User(seed.FirmId, "Staff");
     var admin = PbcSeed.Actor(seed.Admin, "Administrator");
     var onboardingDue = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(8);
     var onboardingEarlier = onboardingDue.AddDays(-3);
@@ -273,8 +273,8 @@ public sealed class EngagementWorkflowProjectionTests
     Guid completedTask;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      db.Users.Add(commercialManager);
-      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, commercialManager, "CommercialManager", seed.ClientId, seed.EngagementId));
+      db.Users.Add(relationshipManager);
+      db.RoleGrants.Add(PbcSeed.Grant(seed.FirmId, relationshipManager, "RelationshipManager"));
       var completed = await EngagementWorkflowTaskService.CreateAsync(db, staff, seed.EngagementId,
         new("Completed onboarding work", WorkflowTaskPhases.ClientOnboarding, 1, onboardingEarlier, IdempotencyKey: Guid.NewGuid()));
       Assert.True(completed.Succeeded, completed.Message);
@@ -296,19 +296,19 @@ public sealed class EngagementWorkflowProjectionTests
       Assert.Equal(EngagementWorkflowPhaseStatuses.Blocked, report.Value.CurrentPhase.Status);
       Assert.Empty(report.Value.NextActions);
 
-      // An administrator without the stage's commercial role does not get the proposal action merely from broad read access.
+      // An administrator without the discovery role does not get the acceptance action merely from broad read access.
       var administrator = await EngagementWorkflowWorkspaceQuery.GetAsync(db, admin, seed.EngagementId);
       Assert.True(administrator.Succeeded, administrator.Message);
       Assert.Empty(administrator.Value!.NextActions);
 
-      var commercial = await EngagementWorkflowWorkspaceQuery.GetAsync(db,
-        PbcSeed.Actor(commercialManager, "CommercialManager"), seed.EngagementId);
-      Assert.True(commercial.Succeeded, commercial.Message);
-      var action = Assert.Single(commercial.Value!.NextActions);
+      var relationship = await EngagementWorkflowWorkspaceQuery.GetAsync(db,
+        PbcSeed.Actor(relationshipManager, "RelationshipManager"), seed.EngagementId);
+      Assert.True(relationship.Succeeded, relationship.Message);
+      var action = Assert.Single(relationship.Value!.NextActions);
       Assert.Equal("OPEN_CANONICAL_ACTION", action.Key);
-      Assert.Equal($"/app/clients/{seed.ClientId}", action.Href);
+      Assert.Equal("/app/practice/leads", action.Href);
 
-      // Completing operational tasks removes their displayed due date, but the canonical proposal gate remains blocked.
+      // Completing operational tasks removes their displayed due date, but the canonical discovery and acceptance gate remains blocked.
       await db.WorkTasks.Where(x => x.EngagementId == seed.EngagementId && x.Status != PracticeTimeStates.TaskCompleted)
         .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.Status, PracticeTimeStates.TaskCompleted));
       var completedWork = await EngagementWorkflowWorkspaceQuery.GetAsync(db, staff, seed.EngagementId);
