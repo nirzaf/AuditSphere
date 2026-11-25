@@ -129,6 +129,23 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
+      - name: Add temporary swap for .NET Release compilation
+        run: |
+          set -euo pipefail
+          # An exact-source compiler reached 53 MiB available RAM and was cancelled with no swap.
+          # Preserve at least 10 GiB for runner work by requiring 18 GiB before allocating 8 GiB.
+          free_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+          if (( free_kib < 18 * 1024 * 1024 )); then
+            echo "::error::Release compiler runner needs 18 GiB free to allocate swap and build outputs."
+            exit 1
+          fi
+          swap_file="$(mktemp "$RUNNER_TEMP/auditsphere-dotnet-build-swap.XXXXXXXX")"
+          dd if=/dev/zero of="$swap_file" bs=1M count=8192 status=none
+          sudo mkswap "$swap_file"
+          sudo swapon "$swap_file"
+          swapon --show=NAME --noheadings --raw | grep -Fx -- "$swap_file" >/dev/null
+          free -h
+
       - name: Restore and build Release outputs
         run: |
           set -euo pipefail
@@ -279,6 +296,22 @@ jobs:
           path: ${{ runner.temp }}/auditsphere-release-build-rejection.txt
           if-no-files-found: error
           retention-days: 7
+
+      - name: Add temporary swap for clean Release fallback
+        if: ${{ steps.verify-parallel-build.outputs.reused != 'true' }}
+        run: |
+          set -euo pipefail
+          free_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+          if (( free_kib < 18 * 1024 * 1024 )); then
+            echo "::error::Release fallback runner needs 18 GiB free to allocate swap and build outputs."
+            exit 1
+          fi
+          swap_file="$(mktemp "$RUNNER_TEMP/auditsphere-dotnet-fallback-swap.XXXXXXXX")"
+          dd if=/dev/zero of="$swap_file" bs=1M count=8192 status=none
+          sudo mkswap "$swap_file"
+          sudo swapon "$swap_file"
+          swapon --show=NAME --noheadings --raw | grep -Fx -- "$swap_file" >/dev/null
+          free -h
 
       - name: Build Release when parallel outputs are unavailable or rejected
         if: ${{ steps.verify-parallel-build.outputs.reused != 'true' }}

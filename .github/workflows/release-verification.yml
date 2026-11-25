@@ -755,6 +755,22 @@ jobs:
             exit 1
           fi
 
+      - name: Add temporary swap for clean Release fallback
+        if: ${{ steps.verify-fast-build.outputs.reused != 'true' }}
+        run: |
+          set -euo pipefail
+          free_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+          if (( free_kib < 18 * 1024 * 1024 )); then
+            echo "::error::Release fallback runner needs 18 GiB free to allocate swap and build outputs."
+            exit 1
+          fi
+          swap_file="$(mktemp "$RUNNER_TEMP/auditsphere-release-fallback-swap.XXXXXXXX")"
+          dd if=/dev/zero of="$swap_file" bs=1M count=8192 status=none
+          sudo mkswap "$swap_file"
+          sudo swapon "$swap_file"
+          swapon --show=NAME --noheadings --raw | grep -Fx -- "$swap_file" >/dev/null
+          free -h
+
       - name: Build Release when no verified fast-CI outputs are available
         if: ${{ steps.verify-fast-build.outputs.reused != 'true' }}
         run: |

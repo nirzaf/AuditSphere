@@ -1,12 +1,11 @@
-# Current-slice handoff
+## Acceptance-first onboarding and CI recovery (2026-11-25; current master `60d89bf3`)
 
-## Acceptance-first onboarding and CI recovery (2026-11-25; candidate `b47e3456`; follow-up ready to push)
+- Acceptance-first discovery and the server-enforced unconditional Partner gate are in `b47e3456`; exact fast CI passed, while full verification found fixture/expectation issues and image publication hit a migration-compiler OOM.
+- Follow-up `60d89bf3620aa97ed56d91a83369cb3dd12ef78b` is pushed. Exact fast CI [45570773692](https://github.com/nirzaf/AuditSphere/actions/runs/45570773692) failed at `.NET Release outputs`: compiler RSS reached about 15.9 GiB, available RAM fell to 53 MiB and swap was zero. Log: `.local/autonomous/evidence/ci-60d89bf-current-20261125/fast-dotnet-build-job-139056740168.log`.
+- Exact full verification [45570807580](https://github.com/nirzaf/AuditSphere/actions/runs/45570807580) resolves to `60d89bf3`; resolver and Angular/full specs passed. Its clean Release fallback is active. Image publication was not started because fast CI failed.
+- A targeted CI follow-up adds temporary 8 GiB swap to fast Release compilation and clean full-verification fallbacks, with a disk-space guard. `actionlint` and the documentation validators pass; local .NET tests are blocked because pinned SDK 11.0.100 is unavailable (only 10.0.300 is installed).
+- No deployment occurred. Required fresh data/configuration/volume recovery evidence, independent restore proof and authenticated acceptance remain open; preserve the separate retained database and Pearlblanc.
 
-- Acceptance-first discovery and the server-enforced unconditional Partner gate are pushed on `master` at `b47e34564a5f6b94280cc4b149f4899cc7ec6586`.
-- Exact-source fast CI [45560460710](https://github.com/nirzaf/AuditSphere/actions/runs/45560460710) passed. Full verification [45560493758](https://github.com/nirzaf/AuditSphere/actions/runs/45560493758) failed in the proposal-dispatch journey, lifecycle expectations, migration-guard test isolation and Angular contract tracing. Image run [45564406157](https://github.com/nirzaf/AuditSphere/actions/runs/45564406157) failed when migration compilation exhausted runner memory with no swap; API and worker images passed, but the immutable image set is incomplete. Exact logs are retained under `.local/autonomous/evidence/ci-b47e3456-current-20261125/`.
-- The follow-up corrects only the reproduced fixtures/assertions and scanner edge, isolates the opening-balance migration guard, and provisions temporary 8 GiB swap for worker/migration image builds. `actionlint`, `git diff --check`, and all three documentation validators pass. Local .NET retest is blocked because pinned SDK 11.0.100 is unavailable (installed SDK is 10.0.300); exact-source GitHub Actions must verify these changes.
-- No deployment occurred. The observed Hostinger target/recovery and authenticated acceptance gates remain unresolved; retain the separate PostgreSQL 18.6 environment and Pearlblanc service untouched.
-- Earlier local continuation follow-up on `244ac2ec` is historical; its evidence is retained in the prior handoff archive.
 **F-03/REG-01 (parent `162c4f5`):** exact context selection flows through materiality, lifecycle and risk routing; fixtures pin the source. Local: Domain 13/13, Chrome E2E 1/1, focused Domain 2/2, API 1/1, Angular 66/66, build and OpenAPI pass. CI pending; not deployed. Evidence `.local/autonomous/evidence/materiality-context-20261124/local-review.json`.
 
 ## PostgreSQL 19 exact-source verification and Hostinger release boundary (observed 2026-11-23; source `d59d6be05e30a6dc84f146ee3861cf0ec994d8e6`)
