@@ -13,7 +13,7 @@ Reviewed the four workflows on `master` at `0ef1987ba55009359c00e3dce9212ece4c7b
 | `.github/workflows/release-verification.yml` | Manual dispatch; nightly schedule at `02:17 UTC` | Full Angular suite, complete Domain/API/E2E test projects, isolated PostgreSQL 19 services, four Chrome E2E shards, exact-source artifacts, publication/contracts and aggregate gate | All jobs use `ubuntu-24.04`. Requested-ref concurrency does not cancel an active verification. |
 | `.github/workflows/release.yml` | Manual dispatch only | Separate protected Azure-oriented release workflow; builds source-bound images and performs protected release steps | All jobs use `ubuntu-24.04`. Environment-scoped release concurrency does not cancel an active release. Left unchanged. |
 
-No workflow uses a Windows runner. The projects are one `AuditSphereOps.slnx`, five application projects, three test projects and two tool projects. There is no Azure Functions project. The pinned SDK is .NET `11.0.100` with roll-forward disabled; projects target `net11.0`. Angular uses Node `26.13.0`. `Directory.Build.props` enables lock-file restore, ten `packages.lock.json` files are present, and the workflows use `--locked-mode`. The only NuGet source is nuget.org; no private-feed credential configuration or floating package versions were found.
+No workflow uses a Windows runner. The projects are one `AuditSphereOps.slnx`, five application projects, three test projects and two tool projects. There is no Azure Functions project. The pinned SDK is .NET `11.0.100` with roll-forward disabled; projects target `net11.0`. Angular uses Node `26.13.0`. `Directory.Build.props` and `Directory.Packages.props` are present; ten `packages.lock.json` files are present, and the workflows use `--locked-mode`. `NuGet.config` clears other sources and maps all packages to nuget.org. No private-feed credentials or floating package versions were found.
 
 Domain and API full-test jobs use isolated PostgreSQL 19; E2E uses Playwright with Google Chrome. Test traits exist, but no `Category=Integration` trait exists. The full release workflow is unfiltered.
 
@@ -21,10 +21,10 @@ The API suite is partitioned into sequential, fresh-process shards by `scripts/r
 
 Existing caching and artifact reuse:
 
-- `setup-dotnet` caches NuGet packages using the lock files; `setup-node` caches npm packages using each package lock file.
+- `setup-dotnet` caches NuGet packages using the lock files; `setup-node` caches npm packages using each package lock file. No standalone `actions/cache` step is used.
 - Full verification caches Playwright support files.
 - Fast CI passes exact-run Release and Angular artifacts to downstream checks. Full verification shares one Release build across independently isolated test jobs and uses `--no-build` where those outputs are verified.
-- Hostinger image publication uses the GHCR registry layer cache. The separate Azure-oriented release uses BuildKit GHA and registry caches.
+- Hostinger image publication uses the API, worker and migrations Dockerfiles with `docker buildx build` and a GHCR registry layer cache. The separate Azure-oriented `release.yml` uses `docker/build-push-action` with BuildKit GHA and GHCR registry caches.
 - The Release build artifact already uses upload compression level `0`; release image archives use level `1`.
 - No `bin/` or `obj/` cache exists. Checkout does not request full Git history. Actions are pinned by immutable commit SHA; checkout, setup-dotnet and artifact actions are on v7/v4 majors.
 
@@ -68,7 +68,7 @@ Exact-source GitHub Actions evidence available during this review:
 | Locked restore, Release build, full tests and publish | PASS | Full verification run [45600443152](https://github.com/nirzaf/AuditSphere/actions/runs/45600443152), attempt 1, completed successfully on the exact SHA. Locked restore, Release build, all unfiltered Domain/API tests, all Angular specs (2,141 passed across 200 files), all four E2E shards (351 discovered and exact coverage aggregate passed), and contract/publication checks passed. The API suite took 74m16s; the workflow completed in about 78m. |
 | Duplicate same-SHA scheduled verification | PASS, redundant run observed | Scheduled run [45602402206](https://github.com/nirzaf/AuditSphere/actions/runs/45602402206) overlapped the manual run for the same SHA and also completed successfully. Neither run was cancelled or suppressed. |
 | Local full .NET suites | NOT RUN | Repository policy keeps full regression suites in CI. The pinned .NET 11 SDK is also unavailable in the local environment. |
-| Previous-vs-current publish tree comparison | NOT RUN | No publish workflow or build output was changed. Existing exact-source publication checks verify the API assembly and Angular entry point. |
+| Previous-vs-current publish tree comparison | NOT RUN — no output-producing changes | No workflow, project, source-build or publish inputs changed; no Azure Functions project exists. The current fast CI publication check passed, verifying `AuditSphereOps.Api.dll` and `ui/index.html` are present and retired assemblies are absent. A full before/after file-list comparison was not performed. |
 | Deployment trigger, environment and secret handling | UNCHANGED | Workflow diff is empty; protected release and image workflows were not edited. |
 | Workflow syntax | PASS | `actionlint .github/workflows/*.yml` completed successfully. |
 | Documentation integrity | PASS | `git diff --check`; `validate-markdown-documentation.py` (193 Markdown files, 22 canonical documents, 3,014 links and 286 backticked repository paths); `validate-markdown-filenames.py` (all 193 files); and `validate-narrative-metrics.py` all passed. |
