@@ -40,6 +40,8 @@ The root `.dockerignore` excludes local SDKs, agent skills, test artifacts, auto
 
 Image builds emit compact memory snapshots during compilation. The fast .NET Release build uses the existing fixed-field runner sampler for live host and cgroup observations. These samples remain available in the Actions log if final build diagnostics are interrupted.
 
+The Hostinger worker image job provisions 8 GiB of runner-local temporary swap before invoking Buildx; the worker compiler was OOM-killed with zero swap and exit 137 in run 45539958694. This does not change the worker image, other image jobs, or Hostinger runtime configuration.
+
 The Hostinger image workflow records Buildx registry digests per image and assembles an exact source, workflow-run, attempt and `linux/amd64` manifest artifact. This binds deployable image references without implying that a target is configured or a deployment was accepted.
 
 `scripts/diagnostics/image-build-memory.sh` preserves image build exits while collecting bounded host/cgroup/process samples. `image-build-counters.py` and `image-build-counter-target.sh` own optional pinned runtime-counter observation, exact target validation and owned observer cleanup. After a permission-message failure, `image-build-counter-access.sh` supplies fixed-call proc/root/socket and private-output creation metadata in a separate owned observer; admission is once-only and unknown creation state remains retained. Their focused adapter/protocol checks run through the existing fast docs job. They do not change compiler or product policy.

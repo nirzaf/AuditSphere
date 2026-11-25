@@ -127,6 +127,24 @@ jobs:
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Add temporary swap for worker compilation
+        if: ${{ matrix.key == 'worker' }}
+        run: |
+          set -euo pipefail
+          # The worker's Infrastructure compiler was OOM-killed with no runner swap.
+          # Leave at least 10 GiB free for Docker layers after allocating this file.
+          free_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+          if (( free_kib < 18 * 1024 * 1024 )); then
+            echo "::error::Worker image runner needs 18 GiB free to allocate swap and build layers."
+            exit 1
+          fi
+          swap_file="$(mktemp "$RUNNER_TEMP/auditsphere-worker-swap.XXXXXXXX")"
+          dd if=/dev/zero of="$swap_file" bs=1M count=8192 status=none
+          sudo mkswap "$swap_file"
+          sudo swapon "$swap_file"
+          swapon --show=NAME --noheadings --raw | grep -Fx -- "$swap_file" >/dev/null
+          free -h
+
       - name: Log in to GitHub Container Registry
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
