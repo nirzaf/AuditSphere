@@ -71,7 +71,7 @@ Exact-source GitHub Actions evidence available during this review:
 | Previous-vs-current publish tree comparison | NOT RUN | No publish workflow or build output was changed. Existing exact-source publication checks verify the API assembly and Angular entry point. |
 | Deployment trigger, environment and secret handling | UNCHANGED | Workflow diff is empty; protected release and image workflows were not edited. |
 | Workflow syntax | PASS | `actionlint .github/workflows/*.yml` completed successfully. |
-| Documentation integrity | PASS | `git diff --check` for tracked changes; a whitespace check on this new report; `validate-markdown-documentation.py` (192 Markdown files / 3,014 links); `validate-markdown-filenames.py`; and `validate-narrative-metrics.py` all passed. |
+| Documentation integrity | PASS | `git diff --check`; `validate-markdown-documentation.py` (193 Markdown files, 22 canonical documents, 3,014 links and 286 backticked repository paths); `validate-markdown-filenames.py` (all 193 files); and `validate-narrative-metrics.py` all passed. |
 
 No timing improvement is claimed: the workflows already contain the applicable safe optimizations. Recent Actions history shows the .NET Release compile is the largest fast-CI job; the latest full run took about 78 minutes wall-clock, with the API job taking 74m16s. These are current-run observations, not before/after measurements.
 
