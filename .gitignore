@@ -99,3 +99,6 @@ wiki/
 
 # Local autonomous-run evidence (RUN-001/RUN-002); never committed
 .local/
+
+# Exact-source worker Release outputs staged only for the CI image build
+/release-assets/worker-release-build/worker-release-build.tar.gz

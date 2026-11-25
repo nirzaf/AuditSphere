@@ -40,7 +40,7 @@ The root `.dockerignore` excludes local SDKs, agent skills, test artifacts, auto
 
 Image builds emit compact memory snapshots during compilation. The fast .NET Release build uses the existing fixed-field runner sampler for live host and cgroup observations. These samples remain available in the Actions log if final build diagnostics are interrupted.
 
-The Hostinger worker image job provisions 8 GiB of runner-local temporary swap before invoking Buildx; the worker compiler was OOM-killed with zero swap and exit 137 in run 45539958694. This does not change the worker image, other image jobs, or Hostinger runtime configuration.
+The worker image compiler was OOM-killed near the runner memory limit with no swap; setting Roslyn to one processor did not prevent it. The image workflow now waits for successful current-master Fast CI, verifies its exact-source Release artifact, and reuses those outputs for worker publication. The worker Dockerfile retains its local source-build path when no prebuilt outputs are supplied. This changes CI build inputs, not worker runtime or Hostinger configuration.
 
 The Hostinger image workflow records Buildx registry digests per image and assembles an exact source, workflow-run, attempt and `linux/amd64` manifest artifact. This binds deployable image references without implying that a target is configured or a deployment was accepted.
 

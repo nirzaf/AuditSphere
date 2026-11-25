@@ -1,42 +1,124 @@
 name: Hostinger acceptance images
 
 on:
-  push:
+  workflow_run:
+    workflows: [AuditSphereOps CI]
+    types: [completed]
     branches: [master]
-    paths:
-      - '.github/workflows/hostinger-acceptance-images.yml'
-      - 'Directory.Build.props'
-      - 'Directory.Packages.props'
-      - 'AuditSphereOps.slnx'
-      - 'global.json'
-      - 'src/AuditSphereOps.Api/**'
-      - 'src/AuditSphereOps.Application/**'
-      - 'src/AuditSphereOps.Domain/**'
-      - 'src/AuditSphereOps.Infrastructure/**'
-      - 'src/AuditSphereOps.Ui/**'
-      - 'src/AuditSphereOps.Worker/**'
-      - 'infra/docker/migrations.Dockerfile'
-      - 'scripts/diagnostics/image-build-memory.sh'
-      - 'scripts/diagnostics/image-build-process-memory.sh'
-      - 'scripts/diagnostics/image-build-counters.py'
-      - 'scripts/diagnostics/image-build-counter-target.sh'
-      - 'scripts/release/hostinger_image_manifest.py'
-      - 'scripts/release/test_hostinger_image_manifest.py'
-      - 'docs/task_breakdown/tracking/pack_manifest.json'
-      - 'docs/task_breakdown/tasks/**'
-      - '.dockerignore'
   workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact current master commit SHA with successful fast CI
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: hostinger-acceptance-images-${{ github.event_name }}-${{ github.ref }}
-  # New pushes replace stale automatic image builds; explicit manual builds are retained.
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  group: hostinger-acceptance-images-master
+  # Never cancel a source-bound image publication after it has started.
+  cancel-in-progress: false
 
 jobs:
+  resolve-source:
+    name: Resolve current master and verified fast-CI artifact
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'workflow_run' &&
+         github.event.workflow_run.conclusion == 'success' &&
+         github.event.workflow_run.event == 'push' &&
+         github.event.workflow_run.head_branch == 'master' &&
+         github.event.workflow_run.repository.full_name == github.repository)
+      }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      source_sha: ${{ steps.resolve.outputs.source_sha }}
+      should_build: ${{ steps.resolve.outputs.should_build }}
+      build_run_id: ${{ steps.resolve.outputs.run_id }}
+      build_run_attempt: ${{ steps.resolve.outputs.run_attempt }}
+      build_artifact_name: ${{ steps.resolve.outputs.artifact_name }}
+    steps:
+      - name: Check out master workflow helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: master
+          persist-credentials: false
+
+      - name: Resolve current source and exact-source fast-CI artifact
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          API_URL: ${{ github.api_url }}
+          REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_SOURCE_SHA: ${{ inputs.source_sha }}
+          TRIGGER_SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+          TRIGGER_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+            source_sha="$TRIGGER_SOURCE_SHA"
+          else
+            source_sha="$MANUAL_SOURCE_SHA"
+            if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then
+              echo "::error::Manual image publication must be dispatched from master."
+              exit 1
+            fi
+          fi
+          if [[ ! "$source_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::source_sha must be a full lowercase 40-character commit SHA."
+            exit 1
+          fi
+
+          git fetch origin master --no-tags --depth=1
+          current_master="$(git rev-parse FETCH_HEAD)"
+          if [[ "$source_sha" != "$current_master" ]]; then
+            if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+              echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+              echo "should_build=false" >> "$GITHUB_OUTPUT"
+              echo "A newer master commit superseded this completed CI run; its image build is skipped." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "::error::Requested source_sha is not the current origin/master tip."
+            exit 1
+          fi
+
+          python3 scripts/release/ci_build_artifact.py find \
+            --api-url "$API_URL" \
+            --repository "$REPOSITORY" \
+            --branch master \
+            --source-sha "$source_sha" \
+            --github-output "$GITHUB_OUTPUT"
+          if ! grep -Fxq 'available=true' "$GITHUB_OUTPUT"; then
+            if [[ "$EVENT_NAME" == "workflow_run" ]]; then
+              build_result="$(gh api "repos/$REPOSITORY/actions/runs/$TRIGGER_RUN_ID/attempts/$TRIGGER_RUN_ATTEMPT/jobs?per_page=100" \
+                --jq '[.jobs[] | select(.name == "Build · .NET Release outputs") | .conclusion] | first // ""')"
+              if [[ "$build_result" == "skipped" ]]; then
+                echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+                echo "should_build=false" >> "$GITHUB_OUTPUT"
+                echo "The successful fast-CI run skipped .NET Release outputs; no application image is needed." >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              fi
+            fi
+            echo "::error::No successful, retained fast-CI Release artifact matches this exact source SHA."
+            exit 1
+          fi
+
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "should_build=true" >> "$GITHUB_OUTPUT"
+          echo "Building images for current master $source_sha with its verified exact-source Release artifact." \
+            >> "$GITHUB_STEP_SUMMARY"
+
   build-and-push:
+    needs: resolve-source
+    if: ${{ needs.resolve-source.outputs.should_build == 'true' }}
     name: Build and publish private linux/amd64 image (${{ matrix.name }})
     runs-on: ubuntu-24.04
     # The migration image builds the startup host and then publishes an EF bundle.
@@ -70,32 +152,29 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.resolve-source.outputs.source_sha }}
           persist-credentials: false
 
-      # Automatic push builds begin beside ci.yml, before its Angular artifact exists. Keep that
-      # path non-blocking; manually dispatched rebuilds can reuse the retained exact-SHA bundle.
-      - name: Find optional retained Angular artifact for a manual image rebuild
+      - name: Find optional retained Angular artifact for this exact source SHA
         id: find-angular
-        if: ${{ github.event_name == 'workflow_dispatch' && matrix.name == 'API' }}
+        if: ${{ matrix.name == 'API' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_SHA: ${{ needs.resolve-source.outputs.source_sha }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          default_branch="$(gh api "repos/${REPOSITORY}" --jq .default_branch)"
           python3 scripts/release/ci_build_artifact.py find-angular-bundle \
             --api-url https://api.github.com \
             --repository "$REPOSITORY" \
-            --branch "$default_branch" \
+            --branch master \
             --source-sha "$SOURCE_SHA" \
             --github-output "$GITHUB_OUTPUT"
 
-      - name: Download exact-source Angular bundle when already retained
+      - name: Download exact-source Angular bundle when retained
         id: download-angular
-        if: ${{ github.event_name == 'workflow_dispatch' && matrix.name == 'API' && steps.find-angular.outputs.run_id != '' }}
+        if: ${{ matrix.name == 'API' && steps.find-angular.outputs.run_id != '' }}
         continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -104,6 +183,64 @@ jobs:
           repository: ${{ github.repository }}
           run-id: ${{ steps.find-angular.outputs.run_id }}
           github-token: ${{ github.token }}
+
+      - name: Download exact-source Release outputs for worker publication
+        if: ${{ matrix.key == 'worker' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ needs.resolve-source.outputs.build_artifact_name }}
+          path: ${{ runner.temp }}/auditsphere-release-build
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.resolve-source.outputs.build_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Set up the exact .NET SDK and verify Release outputs
+        if: ${{ matrix.key == 'worker' }}
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          global-json-file: global.json
+
+      - name: Verify and stage worker Release outputs
+        id: prepare-worker
+        if: ${{ matrix.key == 'worker' }}
+        env:
+          BUILD_RUN_ID: ${{ needs.resolve-source.outputs.build_run_id }}
+          BUILD_RUN_ATTEMPT: ${{ needs.resolve-source.outputs.build_run_attempt }}
+          SOURCE_SHA: ${{ needs.resolve-source.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          test "$(dotnet --version)" = "$(jq -r .sdk.version global.json)"
+          python3 scripts/release/ci_build_artifact.py verify-and-extract \
+            --root "$GITHUB_WORKSPACE" \
+            --artifact-dir "$RUNNER_TEMP/auditsphere-release-build" \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-id "$BUILD_RUN_ID" \
+            --run-attempt "$BUILD_RUN_ATTEMPT" \
+            --source-sha "$SOURCE_SHA" \
+            --dotnet-sdk "$(dotnet --version)" \
+            --runner-image ubuntu-24.04
+
+          for project in AuditSphereOps.Domain AuditSphereOps.Application AuditSphereOps.Infrastructure AuditSphereOps.Worker; do
+            for output in bin obj; do
+              test -d "src/$project/$output/Release/net11.0"
+            done
+          done
+          mkdir -p release-assets/worker-release-build
+          tar -czf "$RUNNER_TEMP/worker-release-build.tar.gz" \
+            src/AuditSphereOps.Domain/bin/Release/net11.0 \
+            src/AuditSphereOps.Domain/obj/Release/net11.0 \
+            src/AuditSphereOps.Application/bin/Release/net11.0 \
+            src/AuditSphereOps.Application/obj/Release/net11.0 \
+            src/AuditSphereOps.Infrastructure/bin/Release/net11.0 \
+            src/AuditSphereOps.Infrastructure/obj/Release/net11.0 \
+            src/AuditSphereOps.Worker/bin/Release/net11.0 \
+            src/AuditSphereOps.Worker/obj/Release/net11.0
+          cp "$RUNNER_TEMP/worker-release-build.tar.gz" \
+            release-assets/worker-release-build/worker-release-build.tar.gz
+          build_sha256="$(sha256sum release-assets/worker-release-build/worker-release-build.tar.gz | cut -d ' ' -f 1)"
+          echo "sha256=$build_sha256" >> "$GITHUB_OUTPUT"
+          echo "Worker build reuses the verified exact-source Release artifact; archive SHA-256: $build_sha256." \
+            >> "$GITHUB_STEP_SUMMARY"
 
       - name: Discard incomplete optional bundle download
         if: ${{ matrix.name == 'API' && steps.download-angular.outcome == 'failure' }}
@@ -127,24 +264,6 @@ jobs:
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Add temporary swap for worker compilation
-        if: ${{ matrix.key == 'worker' }}
-        run: |
-          set -euo pipefail
-          # The worker's Infrastructure compiler was OOM-killed with no runner swap.
-          # Leave at least 10 GiB free for Docker layers after allocating this file.
-          free_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
-          if (( free_kib < 18 * 1024 * 1024 )); then
-            echo "::error::Worker image runner needs 18 GiB free to allocate swap and build layers."
-            exit 1
-          fi
-          swap_file="$(mktemp "$RUNNER_TEMP/auditsphere-worker-swap.XXXXXXXX")"
-          dd if=/dev/zero of="$swap_file" bs=1M count=8192 status=none
-          sudo mkswap "$swap_file"
-          sudo swapon "$swap_file"
-          swapon --show=NAME --noheadings --raw | grep -Fx -- "$swap_file" >/dev/null
-          free -h
-
       - name: Log in to GitHub Container Registry
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -160,7 +279,10 @@ jobs:
           IMAGE_KEY: ${{ matrix.key }}
           IMAGE_NAME: ${{ matrix.image }}
           DOCKERFILE: ${{ matrix.dockerfile }}
+          SOURCE_SHA: ${{ needs.resolve-source.outputs.source_sha }}
           USE_PREBUILT_ANGULAR: ${{ matrix.name == 'API' && steps.prepare-angular.outputs.available == 'true' }}
+          USE_PREBUILT_RELEASE: ${{ matrix.key == 'worker' }}
+          WORKER_RELEASE_BUILD_SHA256: ${{ steps.prepare-worker.outputs.sha256 }}
         run: |
           set -euo pipefail
           metadata_file="$RUNNER_TEMP/buildx-metadata.json"
@@ -170,8 +292,10 @@ jobs:
             docker buildx build --platform linux/amd64 --push \
             --cache-from "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}:buildcache" \
             --cache-to "type=registry,ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}:buildcache,mode=max" \
-            --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}:${GITHUB_SHA}" \
+            --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}:${SOURCE_SHA}" \
             --build-arg "USE_PREBUILT_ANGULAR=${USE_PREBUILT_ANGULAR}" \
+            --build-arg "USE_PREBUILT_RELEASE=${USE_PREBUILT_RELEASE}" \
+            --build-arg "WORKER_RELEASE_BUILD_SHA256=${WORKER_RELEASE_BUILD_SHA256}" \
             --metadata-file "$metadata_file" \
             --file "$DOCKERFILE" .
           python3 scripts/release/hostinger_image_manifest.py record \
@@ -179,7 +303,7 @@ jobs:
             --output "$record_dir/${IMAGE_KEY}.json" \
             --image-key "$IMAGE_KEY" \
             --repository "$GITHUB_REPOSITORY" \
-            --source-sha "$GITHUB_SHA" \
+            --source-sha "$SOURCE_SHA" \
             --run-id "$GITHUB_RUN_ID" \
             --run-attempt "$GITHUB_RUN_ATTEMPT"
 
@@ -193,7 +317,8 @@ jobs:
 
   summarize:
     name: Summarize image references
-    needs: build-and-push
+    needs: [resolve-source, build-and-push]
+    if: ${{ always() && needs.resolve-source.outputs.should_build == 'true' && needs.build-and-push.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -201,6 +326,7 @@ jobs:
       - name: Check out image workflow source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.resolve-source.outputs.source_sha }}
           persist-credentials: false
 
       - name: Download API digest record
@@ -223,9 +349,14 @@ jobs:
 
       - name: Assemble complete source-bound image manifest
         env:
-          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_SHA: ${{ needs.resolve-source.outputs.source_sha }}
         run: |
           set -euo pipefail
+          git fetch origin master --no-tags --depth=1
+          if [[ "$(git rev-parse FETCH_HEAD)" != "$SOURCE_SHA" ]]; then
+            echo "::error::master advanced during image publication; this run cannot publish a release manifest."
+            exit 1
+          fi
           python3 scripts/release/hostinger_image_manifest.py assemble \
             --records-dir "$RUNNER_TEMP/hostinger-image-records" \
             --output "$RUNNER_TEMP/hostinger-image-manifest.json" \

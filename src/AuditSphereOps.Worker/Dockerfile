@@ -5,6 +5,8 @@
 # external-effect workers. Build context is the repository root.
 #   docker build -f src/AuditSphereOps.Worker/Dockerfile -t auditsphere-worker:<git-sha> .
 FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS build
+ARG USE_PREBUILT_RELEASE=false
+ARG WORKER_RELEASE_BUILD_SHA256=
 ARG DOTNET_ROLL_FORWARD=disable
 ENV DOTNET_ROLL_FORWARD=$DOTNET_ROLL_FORWARD
 WORKDIR /repo
@@ -15,11 +17,27 @@ COPY src/AuditSphereOps.Infrastructure/AuditSphereOps.Infrastructure.csproj src/
 COPY src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj src/AuditSphereOps.Worker/packages.lock.json src/AuditSphereOps.Worker/
 RUN dotnet restore src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj --locked-mode
 COPY src/ src/
-RUN DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 dotnet publish src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj \
-  --configuration Release --no-restore -m:1 -p:BuildInParallel=false \
-  -p:UseSharedCompilation=false -o /out \
-  -p:CscEnvironment=DOTNET_PROCESSOR_COUNT=1 \
-  -p:RunAnalyzers=false -p:DebugType=None -p:DebugSymbols=false \
+COPY release-assets/worker-release-build/ /prebuilt-release/
+RUN if [ "$USE_PREBUILT_RELEASE" = "true" ]; then \
+      printf '%s' "$WORKER_RELEASE_BUILD_SHA256" | grep -Eq '^[0-9a-f]{64}$' && \
+      printf '%s  %s\n' "$WORKER_RELEASE_BUILD_SHA256" /prebuilt-release/worker-release-build.tar.gz \
+        | sha256sum --check --status - && \
+      tar -xzf /prebuilt-release/worker-release-build.tar.gz --no-same-owner -C /repo; \
+    elif [ "$USE_PREBUILT_RELEASE" != "false" ]; then \
+      echo "USE_PREBUILT_RELEASE must be true or false" >&2; exit 1; \
+    fi
+RUN if [ "$USE_PREBUILT_RELEASE" = "true" ]; then \
+      dotnet publish src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj \
+        --configuration Release --no-restore --no-build -m:1 -p:BuildInParallel=false \
+        -p:UseSharedCompilation=false -o /out -p:DebugType=None -p:DebugSymbols=false; \
+    else \
+      DOTNET_gcServer=0 DOTNET_GCConserveMemory=9 \
+        dotnet publish src/AuditSphereOps.Worker/AuditSphereOps.Worker.csproj \
+          --configuration Release --no-restore -m:1 -p:BuildInParallel=false \
+          -p:UseSharedCompilation=false -o /out \
+          -p:CscEnvironment=DOTNET_PROCESSOR_COUNT=1 \
+          -p:RunAnalyzers=false -p:DebugType=None -p:DebugSymbols=false; \
+    fi \
   && test -f /out/AuditSphereOps.Worker.dll
 
 FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS runtime

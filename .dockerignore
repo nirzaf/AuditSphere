@@ -42,6 +42,10 @@ release-assets/*
 !release-assets/angular/
 release-assets/angular/*
 !release-assets/angular/**
+!release-assets/worker-release-build/
+release-assets/worker-release-build/*
+!release-assets/worker-release-build/.keep
+!release-assets/worker-release-build/worker-release-build.tar.gz
 
 # Angular unit tests run in CI and are excluded from the production TypeScript build.
 src/AuditSphereOps.Ui/src/**/*.spec.ts
