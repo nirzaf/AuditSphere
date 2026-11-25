@@ -156,10 +156,9 @@ jobs:
           persist-credentials: false
 
       - name: Add temporary swap for image compilation
-        if: ${{ matrix.key == 'worker' || matrix.key == 'migrations' }}
         run: |
           set -euo pipefail
-          # Worker and migration compilers can exceed runner RAM without swap.
+          # Cold image builds can exceed runner RAM, including the API compile.
           # Leave at least 10 GiB free for Docker layers after allocating this file.
           free_kib="$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
           if (( free_kib < 18 * 1024 * 1024 )); then
