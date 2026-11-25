@@ -789,7 +789,8 @@ public sealed partial class CompletionVarianceCommandsApiTests
           await Task.Delay(delay!.Value);
           continue;
         }
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode, await response.Content.ReadAsStringAsync());
+        Assert.True(response.StatusCode == HttpStatusCode.OK,
+          await response.Content.ReadAsStringAsync());
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var preview = body.RootElement.GetProperty("value")
           .Deserialize<AssessmentCommandPreview>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
@@ -841,7 +842,8 @@ public sealed partial class CompletionVarianceCommandsApiTests
         Decision: "Accepted", Rationale: "Synthetic Partner decision after reviewing the exact opportunity checklist.",
         OpportunityId: opportunityId)));
     using var accepted = await Post(partnerClient, partnerCsrf, route + "/commands", decisionRequest);
-    Assert.Equal(HttpStatusCode.OK, accepted.StatusCode, await accepted.Content.ReadAsStringAsync());
+    Assert.True(accepted.StatusCode == HttpStatusCode.OK,
+      await accepted.Content.ReadAsStringAsync());
     var decided = (await partnerClient.GetFromJsonAsync<AssessmentWorkspace>(opportunityRoute))!;
     Assert.Equal("Accepted", decided.Checklist.CurrentDecision);
     Assert.Equal("DECISION_RECORDED", decided.TargetOpportunity!.State);
