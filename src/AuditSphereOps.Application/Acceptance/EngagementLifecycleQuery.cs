@@ -66,7 +66,7 @@ public sealed record EngagementLifecycleReport(
 /// </summary>
 public static class EngagementLifecycleQuery
 {
-  private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "Auditor", "EngagementLeader", "CommercialManager", "FinanceManager"];
+  private static readonly string[] Roles = ["Administrator", "Partner", "Manager", "Senior", "Staff", "Auditor", "EngagementLeader", "RelationshipManager", "CommercialManager", "FinanceManager"];
   private static readonly string[] DetailRoles = ["Administrator", "Partner", "Manager", "SeniorManager"];
   internal const string RestrictedBlockers = "Some engagement readiness details are restricted to firm-wide management.";
 

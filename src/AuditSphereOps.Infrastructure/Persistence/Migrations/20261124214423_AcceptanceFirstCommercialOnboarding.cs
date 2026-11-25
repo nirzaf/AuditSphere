@@ -137,6 +137,22 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql($"""
+                LOCK TABLE lead_activity_events, opportunities, acceptance_decisions IN ACCESS EXCLUSIVE MODE;
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM lead_activity_events WHERE NOT ({LegacyLeadActivityShape}))
+                       OR EXISTS (SELECT 1 FROM opportunities WHERE acceptance_client_id IS NOT NULL
+                           OR discovery_identity_sha256 IS NOT NULL OR entity_scope_confirmed_by_user_id IS NOT NULL
+                           OR entity_scope_confirmed_at IS NOT NULL OR expected_fee IS NULL OR currency IS NULL)
+                       OR EXISTS (SELECT 1 FROM acceptance_decisions WHERE opportunity_id IS NOT NULL
+                           OR opportunity_basis_sha256 IS NOT NULL) THEN
+                        RAISE EXCEPTION USING ERRCODE = '55000',
+                            MESSAGE = 'Retained acceptance-first CRM evidence prevents downgrade.';
+                    END IF;
+                END $$;
+                """);
+
             migrationBuilder.DropCheckConstraint(
                 name: "ck_lead_activity_shape",
                 table: "lead_activity_events");

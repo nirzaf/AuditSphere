@@ -106,7 +106,8 @@ public sealed partial class CompletionVarianceCommandsApiTests
   {
     await using var pg = await PgTestSchema.CreateAsync();
     var world = await SupportedAuditCompletionWorldBuilder.CreateAsync(pg,
-      recordAcceptance: (clientId, staff, partner) => RecordProvisionedAcceptanceViaHttpAsync(pg, clientId, staff, partner));
+      recordAcceptance: (clientId, opportunityId, staff, partner) =>
+        RecordProvisionedAcceptanceViaHttpAsync(pg, clientId, opportunityId, staff, partner));
     var preparer = world.Primary.Preparer;
     var reviewer = world.Reviewer;
     var programReviewer = await ProvisionFirmPartnerAsync(pg, world.Administrator, "r03-program-reviewer");
@@ -736,7 +737,7 @@ public sealed partial class CompletionVarianceCommandsApiTests
   }
 
   private static async Task RecordProvisionedAcceptanceViaHttpAsync(
-    PgTestSchema pg, Guid clientId, ActorContext staff, ActorContext partner)
+    PgTestSchema pg, Guid clientId, Guid opportunityId, ActorContext staff, ActorContext partner)
   {
     Assert.NotEqual(staff.UserId, partner.UserId);
     using var staffFactory = Factory(pg, await UserAsync(pg, staff.UserId));
@@ -745,49 +746,74 @@ public sealed partial class CompletionVarianceCommandsApiTests
     using var partnerClient = partnerFactory.CreateClient(new() { AllowAutoRedirect = false });
     var staffCsrf = await SignIn(staffClient);
     var partnerCsrf = await SignIn(partnerClient);
-    var route = $"/api/ui/clients/{clientId:D}/acceptance";
-
-    var initial = (await staffClient.GetFromJsonAsync<AcceptanceWorkspace>(route))!;
-    Assert.Equal(clientId, initial.ClientId);
-    Assert.Equal(AcceptancePaths.NewClient, initial.Path);
-    Assert.True(initial.CanEdit);
-    Assert.False(initial.CanDecide);
-    Assert.False(initial.Ready);
-    Assert.Null(initial.CurrentDecision);
+    var route = $"/api/ui/clients/{clientId:D}/assessment";
+    var opportunityRoute = route + $"?opportunityId={opportunityId:D}";
+    var initial = (await staffClient.GetFromJsonAsync<AssessmentWorkspace>(opportunityRoute))!;
+    Assert.Equal(clientId, initial.Client.Id);
+    Assert.Equal(opportunityId, initial.TargetOpportunity!.Id);
+    Assert.Equal("FinancialStatementAudit", initial.TargetOpportunity.ServiceRoute);
+    Assert.Equal("CLIENT_ACCEPTANCE", initial.TargetOpportunity.Process);
+    Assert.Equal(AcceptancePaths.NewClient, initial.Checklist.Path);
+    Assert.True(initial.Checklist.CanEdit);
+    Assert.False(initial.Checklist.CanDecide);
+    Assert.False(initial.Checklist.Ready);
+    Assert.Null(initial.Checklist.CurrentDecision);
     var approvedBank = QuestionnaireSeed.CeQuestions.ToDictionary(x => x.QuestionCode, StringComparer.Ordinal);
-    Assert.Equal(approvedBank.Keys.Order(StringComparer.Ordinal), initial.Questions.Select(x => x.Code).Order(StringComparer.Ordinal));
-    Assert.All(initial.Questions, question =>
+    Assert.Equal(approvedBank.Keys.Order(StringComparer.Ordinal), initial.Checklist.Questions.Select(x => x.Code).Order(StringComparer.Ordinal));
+    Assert.All(initial.Checklist.Questions, question =>
     {
       Assert.Equal(approvedBank[question.Code].PromptText, question.Prompt);
       Assert.Null(question.Answer);
       Assert.Equal("0", question.Revision);
     });
 
-    var decision = new
-    {
-      serviceRoute = "FinancialStatementAudit",
-      decision = "ACCEPTED",
-      rationale = "Synthetic Partner decision after reviewing the provisioned checklist.",
-      initial.Generation
-    };
-    using (var premature = await Post(partnerClient, partnerCsrf, route + "/decision", decision))
+    var prematureDecision = new AssessmentCommandRequest(Guid.NewGuid(),
+      new("DECISION", initial.Checklist.Generation, ServiceRoute: initial.TargetOpportunity.ServiceRoute,
+        Decision: "Accepted", Rationale: "Synthetic Partner decision before completing the checklist.", OpportunityId: opportunityId));
+    using (var premature = await Post(partnerClient, partnerCsrf, route + "/preview", prematureDecision))
     {
       Assert.Equal(HttpStatusCode.BadRequest, premature.StatusCode);
       using var body = JsonDocument.Parse(await premature.Content.ReadAsStringAsync());
       Assert.Equal(ErrorCodes.GateBlocked, body.RootElement.GetProperty("code").GetString());
     }
 
-    foreach (var question in initial.Questions)
+    async Task<AssessmentCommandRequest> ReviewAsync(HttpClient client, string csrf, AssessmentCommandRequest request)
+    {
+      for (var retry = 0; ; retry++)
+      {
+        using var response = await Post(client, csrf, route + "/preview", request);
+        if (response.StatusCode == HttpStatusCode.TooManyRequests && retry < 4)
+        {
+          var delay = response.Headers.RetryAfter?.Delta;
+          Assert.InRange(delay ?? TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(15));
+          await Task.Delay(delay!.Value);
+          continue;
+        }
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode, await response.Content.ReadAsStringAsync());
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var preview = body.RootElement.GetProperty("value")
+          .Deserialize<AssessmentCommandPreview>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        return request with
+        {
+          Fields = preview.Fields,
+          ReviewBasis = preview.ReviewBasis,
+          RequestHash = preview.RequestHash,
+          Reviewed = true
+        };
+      }
+    }
+
+    foreach (var question in initial.Checklist.Questions)
     {
       var answer = approvedBank[question.Code].AdverseAnswer == "YES" ? "No" : "Yes";
       var evidence = question.RequiresEvidence ? $"synthetic-intake:{question.Code}" : null;
-      // The full bank exceeds one command window. The boundary refuses these requests
-      // before executing the command, so only a throttled request can be retried here.
+      var answerRequest = await ReviewAsync(staffClient, staffCsrf, new AssessmentCommandRequest(Guid.NewGuid(),
+        new("ANSWER", initial.Checklist.Generation, question.Revision, question.Code, answer, evidence,
+          ServiceRoute: initial.TargetOpportunity.ServiceRoute, OpportunityId: opportunityId)));
       for (var retry = 0; ; retry++)
       {
-        using var response = await Post(staffClient, staffCsrf, route + $"/answers/{question.Code}",
-          new { answer, evidence, initial.Generation, question.Revision });
-        if (response.StatusCode == HttpStatusCode.NoContent)
+        using var response = await Post(staffClient, staffCsrf, route + "/commands", answerRequest);
+        if (response.StatusCode == HttpStatusCode.OK)
           break;
         Assert.True(response.StatusCode == HttpStatusCode.TooManyRequests && retry < 4,
           $"{question.Code}: {response.StatusCode} {await response.Content.ReadAsStringAsync()}");
@@ -797,12 +823,12 @@ public sealed partial class CompletionVarianceCommandsApiTests
       }
     }
 
-    var prepared = (await partnerClient.GetFromJsonAsync<AcceptanceWorkspace>(route))!;
-    Assert.Equal(initial.Generation, prepared.Generation);
-    Assert.True(prepared.Ready, string.Join("; ", prepared.Blockers.Select(x => x.Message)));
-    Assert.True(prepared.CanDecide);
-    Assert.Null(prepared.CurrentDecision);
-    Assert.All(prepared.Questions, question =>
+    var prepared = (await partnerClient.GetFromJsonAsync<AssessmentWorkspace>(opportunityRoute))!;
+    Assert.Equal(AcceptancePaths.NewClient, prepared.Checklist.Path);
+    Assert.True(prepared.Checklist.Ready, string.Join("; ", prepared.Checklist.Blockers.Select(x => x.Message)));
+    Assert.True(prepared.Checklist.CanDecide);
+    Assert.Null(prepared.Checklist.CurrentDecision);
+    Assert.All(prepared.Checklist.Questions, question =>
     {
       Assert.Equal(approvedBank[question.Code].AdverseAnswer == "YES" ? "No" : "Yes", question.Answer);
       Assert.Equal("1", question.Revision);
@@ -810,14 +836,20 @@ public sealed partial class CompletionVarianceCommandsApiTests
         Assert.Equal($"synthetic-intake:{question.Code}", question.Evidence);
     });
 
-    using var accepted = await Post(partnerClient, partnerCsrf, route + "/decision", decision);
-    Assert.True(accepted.StatusCode == HttpStatusCode.NoContent, await accepted.Content.ReadAsStringAsync());
-    var decided = (await partnerClient.GetFromJsonAsync<AcceptanceWorkspace>(route))!;
-    Assert.Equal("Accepted", decided.CurrentDecision);
+    var decisionRequest = await ReviewAsync(partnerClient, partnerCsrf, new AssessmentCommandRequest(Guid.NewGuid(),
+      new("DECISION", prepared.Checklist.Generation, ServiceRoute: prepared.TargetOpportunity!.ServiceRoute,
+        Decision: "Accepted", Rationale: "Synthetic Partner decision after reviewing the exact opportunity checklist.",
+        OpportunityId: opportunityId)));
+    using var accepted = await Post(partnerClient, partnerCsrf, route + "/commands", decisionRequest);
+    Assert.Equal(HttpStatusCode.OK, accepted.StatusCode, await accepted.Content.ReadAsStringAsync());
+    var decided = (await partnerClient.GetFromJsonAsync<AssessmentWorkspace>(opportunityRoute))!;
+    Assert.Equal("Accepted", decided.Checklist.CurrentDecision);
+    Assert.Equal("DECISION_RECORDED", decided.TargetOpportunity!.State);
     await using var db = new AuditSphereDbContext(pg.Options);
     var retained = await db.AcceptanceDecisions.AsNoTracking().SingleAsync(x =>
-      x.FirmId == partner.FirmId && x.PracticeClientId == clientId && x.Decision == "Accepted");
+      x.FirmId == partner.FirmId && x.PracticeClientId == clientId && x.OpportunityId == opportunityId && x.Decision == "Accepted");
     Assert.Equal(partner.UserId, retained.DecidedByUserId);
+    Assert.Matches("^[a-f0-9]{64}$", retained.OpportunityBasisSha256);
   }
 
   private static async Task<AppUser> UserAsync(PgTestSchema pg, Guid userId)

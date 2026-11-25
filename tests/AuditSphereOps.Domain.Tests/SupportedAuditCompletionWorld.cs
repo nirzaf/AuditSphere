@@ -32,7 +32,7 @@ internal static class SupportedAuditCompletionWorldBuilder
 
   public static async Task<SupportedAuditCompletionWorld> CreateAsync(ITestPostgresDatabase pg, decimal primaryFee = 20000m, bool includeSibling = true, bool requireCommercialReview = false,
     string clientLegalName = "Synthetic R02 Audit Client",
-    Func<Guid, ActorContext, ActorContext, Task>? recordAcceptance = null)
+    Func<Guid, Guid, ActorContext, ActorContext, Task>? recordAcceptance = null)
   {
     var admin = await BootstrapAdminAsync(pg);
     var relationship = await ProvisionFirmRoleAsync(pg, admin, "RelationshipManager");
@@ -66,6 +66,9 @@ internal static class SupportedAuditCompletionWorldBuilder
       Assert.True(rule.Succeeded, rule.Message);
     }
     var commercialProfileSaved = false;
+    var acceptanceCallback = recordAcceptance;
+    Func<Guid, Guid, Task>? acceptOpportunityViaApi = acceptanceCallback is null ? null :
+      (acceptanceClientId, opportunityId) => acceptanceCallback!(acceptanceClientId, opportunityId, staff.Actor, partner.Actor);
     var primaryProposal = await CreateAcceptedProposalAsync(pg, relationship.Actor, partner.Actor, manager.Actor,
       "Primary", clientLegalName, "2026-01-01", "2026-12-31", async db =>
       {
@@ -74,7 +77,7 @@ internal static class SupportedAuditCompletionWorldBuilder
           new("Synthetic Audit Firm", "Test address", "firm@example.test", "", "#0F766E", "Synthetic test terms"));
         Assert.True(saved.Succeeded, saved.Message);
         commercialProfileSaved = true;
-      }, primaryFee, requireCommercialReview);
+      }, primaryFee, requireCommercialReview, acceptOpportunityViaApi);
     Guid clientId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -111,11 +114,8 @@ internal static class SupportedAuditCompletionWorldBuilder
       primaryOpportunityId = await db.Proposals.AsNoTracking()
         .Where(x => x.FirmId == admin.FirmId && x.Id == primaryProposal)
         .Select(x => x.OpportunityId).SingleAsync();
-    if (recordAcceptance is null)
-      await RecordUnconditionalAcceptanceAsync(pg, clientId, "FinancialStatementAudit", staff.Actor, partner.Actor,
-        opportunityId: primaryOpportunityId);
-    else
-      await recordAcceptance(clientId, staff.Actor, partner.Actor);
+    await RecordUnconditionalAcceptanceAsync(pg, clientId, "FinancialStatementAudit", staff.Actor, partner.Actor,
+      opportunityId: primaryOpportunityId);
 
     if (!includeSibling)
     {
@@ -201,7 +201,8 @@ internal static class SupportedAuditCompletionWorldBuilder
 
   internal static async Task<Guid> CreateAcceptedProposalAsync(ITestPostgresDatabase pg, ActorContext relationship,
     ActorContext partner, ActorContext manager, string suffix, string clientLegalName, string periodStart, string periodEnd,
-    Func<AuditSphereDbContext, Task> ensureCommercialProfile, decimal fee = 20000m, bool nonStandardTerms = false)
+    Func<AuditSphereDbContext, Task> ensureCommercialProfile, decimal fee = 20000m, bool nonStandardTerms = false,
+    Func<Guid, Guid, Task>? recordOpportunityAcceptance = null)
   {
     Guid proposalId;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -216,9 +217,19 @@ internal static class SupportedAuditCompletionWorldBuilder
         new(lead.Value, "FinancialStatementAudit", scope, periodStart, periodEnd, null, null, 60m,
           ProspectiveLegalName: clientLegalName, EntityScopeConfirmed: true));
       Assert.True(opportunity.Succeeded, opportunity.Message);
-      var accepted = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db, manager, partner,
-        relationship.FirmId, opportunity.Value);
-      Assert.True(accepted.Succeeded, accepted.Message);
+      if (recordOpportunityAcceptance is null)
+      {
+        var accepted = await CommercialAcceptanceTestSupport.AcceptOpportunityAsync(db, manager, partner,
+          relationship.FirmId, opportunity.Value);
+        Assert.True(accepted.Succeeded, accepted.Message);
+      }
+      else
+      {
+        var acceptanceClientId = await db.Opportunities.AsNoTracking().Where(x => x.FirmId == relationship.FirmId &&
+          x.Id == opportunity.Value).Select(x => x.AcceptanceClientId).SingleAsync();
+        Assert.True(acceptanceClientId.HasValue, "The discovery opportunity must retain its canonical prospective client.");
+        await recordOpportunityAcceptance(acceptanceClientId.GetValueOrDefault(), opportunity.Value);
+      }
       var proposal = await PracticeCrmService.ReviseProposalAsync(db, relationship,
         new(opportunity.Value, $"Synthetic R02 {suffix} audit", scope, "Tax advisory",
           "Independent auditor report", "Client supplies source records", fee, "QAR", periodStart, periodEnd,

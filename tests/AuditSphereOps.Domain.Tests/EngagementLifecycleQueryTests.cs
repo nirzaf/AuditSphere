@@ -1348,11 +1348,17 @@ public sealed class EngagementLifecycleQueryTests
         report.Value.Summary.BlockerDetails!.Select(x => x.Code));
 
       // A later conditional decision supersedes the unconditional one for the same generation: it is not a clearance.
+      var priorDecisionAt = await db.AcceptanceDecisions.AsNoTracking()
+        .Where(x => x.FirmId == seed.FirmId && x.PracticeClientId == seed.ClientId && x.ServiceRoute == "Audit" &&
+          x.Decision != "Pending")
+        .Select(x => x.DecidedAt)
+        .MaxAsync() ?? now;
+      var conditionalAt = priorDecisionAt.AddSeconds(1);
       db.AcceptanceDecisions.Add(new AcceptanceDecision
       {
         Id = conditionalId, FirmId = seed.FirmId, PracticeClientId = seed.ClientId, ServiceRoute = "Audit",
         Decision = "AcceptedWithConditions", Conditions = "Obtain bank confirmation before fieldwork",
-        DecidedByUserId = seed.Admin.Id, DecidedAt = now.AddSeconds(1), Path = "NEW_CLIENT", Generation = 1,
+        DecidedByUserId = seed.Admin.Id, DecidedAt = conditionalAt, Path = "NEW_CLIENT", Generation = 1,
         Rationale = "Conditional assessment", EvaluationTemplateVersion = "V2", EvaluationSnapshotDigest = new string('b', 64)
       });
       await db.SaveChangesAsync();
@@ -1364,7 +1370,7 @@ public sealed class EngagementLifecycleQueryTests
       db.AcceptanceDecisions.Add(new AcceptanceDecision
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, PracticeClientId = seed.ClientId, ServiceRoute = "Audit",
-        Decision = "Accepted", DecidedByUserId = seed.Admin.Id, DecidedAt = now.AddSeconds(2), Path = "NEW_CLIENT", Generation = 1,
+        Decision = "Accepted", DecidedByUserId = seed.Admin.Id, DecidedAt = conditionalAt.AddSeconds(1), Path = "NEW_CLIENT", Generation = 1,
         Rationale = "Conditions discharged", EvaluationTemplateVersion = "V2", EvaluationSnapshotDigest = new string('d', 64)
       });
       await db.SaveChangesAsync();

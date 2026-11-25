@@ -106,6 +106,7 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
     const string privateHold = "SYN-PAR-002-ENGAGEMENT-PRIVATE-HOLD";
     const string privateRisk = "SYN-PAR-002-AUDIT-PLAN-PRIVATE-RISK";
     const string revokedRisk = "SYN-PAR-002-REVOKED-RISK-MUST-NOT-PERSIST";
+    var holdId = Guid.NewGuid();
     await using (var db = host.CreateDbContext())
     {
       db.Engagements.Add(new Engagement
@@ -127,7 +128,7 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
       db.ClientSafetyStates.Add(new ClientSafetyState { Id = unrelatedClientId, FirmId = f.FirmId });
       db.EngagementHolds.Add(new EngagementHold
       {
-        Id = Guid.NewGuid(), FirmId = f.FirmId, EngagementId = f.EngagementId,
+        Id = holdId, FirmId = f.FirmId, EngagementId = f.EngagementId,
         HoldKind = "Synthetic review", Reason = privateHold, CreatedAt = DateTimeOffset.UtcNow
       });
       db.AuditRisks.Add(new AuditRisk
@@ -217,6 +218,14 @@ public sealed class AngularClientScopeEngagementParityJourneyTests
     Assert.DoesNotContain(privateRisk, legacySiblingPlanText, StringComparison.Ordinal);
     Assert.Equal(documentToken, await page.EvaluateAsync<string>("() => window.__engagementParityToken"));
     await NavigateAsync(page, legacyPlan, privateRisk);
+
+    // The hold's visibility and scope were verified above. Remove only this synthetic fixture
+    // before isolating the revoked-write check, because the held-work projection correctly
+    // disables planning previews before they issue an authorization request.
+    await using (var db = host.CreateDbContext())
+      Assert.Equal(1, await db.EngagementHolds.Where(x => x.Id == holdId).ExecuteDeleteAsync());
+    var unheldPlanText = await NavigateAsync(page, legacyPlan, privateRisk);
+    Assert.DoesNotContain(privateHold, unheldPlanText, StringComparison.Ordinal);
 
     var riskSection = page.GetByRole(AriaRole.Region,
       new() { Name = "Identified risks (§19.3)", Exact = true });
