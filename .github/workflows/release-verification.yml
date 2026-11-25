@@ -6,8 +6,8 @@ run-name: AuditSphere release verification · ${{ inputs.ref || 'default branch'
 # .NET suite runs with a separate ephemeral PostgreSQL service for
 # every matrix job. A single Release solution build supplies run- and SHA-bound test binaries to the
 # matrix, and the Angular production bundle is built once and shared with the API/E2E tests. No test
-# project is omitted: Domain/E2E run unfiltered; the complete API suite runs via verified
-# process-isolated shards with exact discovery/result reconciliation. The aggregate requires every job.
+# project is omitted: Domain runs unfiltered; API uses verified process-isolated shards.
+# Browser E2E collections run on four isolated runners with an exact-coverage aggregate.
 #
 # Every verification command runs through scripts/release/run-verification-step.sh, which records
 # its command and exact exit status in the job summary and preserves the full log. Per-project logs
@@ -265,8 +265,24 @@ jobs:
             key: api
             project: tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj
             assembly: AuditSphereOps.Api.Tests
-          - name: Playwright E2E
+          - name: Playwright E2E 1/4
             key: e2e
+            shard: 0
+            project: tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj
+            assembly: AuditSphereOps.E2E.Tests
+          - name: Playwright E2E 2/4
+            key: e2e
+            shard: 1
+            project: tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj
+            assembly: AuditSphereOps.E2E.Tests
+          - name: Playwright E2E 3/4
+            key: e2e
+            shard: 2
+            project: tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj
+            assembly: AuditSphereOps.E2E.Tests
+          - name: Playwright E2E 4/4
+            key: e2e
+            shard: 3
             project: tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj
             assembly: AuditSphereOps.E2E.Tests
     services:
@@ -474,7 +490,7 @@ jobs:
           key: playwright-chrome-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'tests/AuditSphereOps.E2E.Tests/packages.lock.json') }}
 
       - name: Build and run the complete unfiltered test project
-        if: ${{ matrix.key != 'api' }}
+        if: ${{ matrix.key == 'domain' }}
         run: |
           set -euo pipefail
           bash scripts/release/run-verification-step.sh "Full $TEST_PROJECT_KEY test project (no --filter)" \
@@ -482,6 +498,30 @@ jobs:
             --logger "trx;LogFileName=$TEST_PROJECT_KEY.trx" --logger "console;verbosity=normal" \
             --blame-hang --blame-hang-timeout 15m --blame-hang-dump-type none \
             --results-directory "$VERIFICATION_TRX_DIR"
+
+      - name: Run one verified Playwright collection shard
+        if: ${{ matrix.key == 'e2e' }}
+        env:
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+          E2E_SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          bash scripts/release/run-verification-step.sh "Verified isolated browser shard $E2E_SHARD" \
+            python3 scripts/release/e2e_test_shards.py run \
+            --assembly tests/AuditSphereOps.E2E.Tests/bin/Release/net11.0/AuditSphereOps.E2E.Tests.dll \
+            --shard "$E2E_SHARD" --source "$SOURCE_COMMIT" --output "$VERIFICATION_TRX_DIR/browser-shard"
+
+      - name: Retain browser shard discovery, results and execution evidence
+        if: ${{ always() && matrix.key == 'e2e' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: browser-e2e-shard-${{ matrix.shard }}
+          path: |
+            ${{ runner.temp }}/release-verification/trx/browser-shard/*.json
+            ${{ runner.temp }}/release-verification/trx/browser-shard/results.trx
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
 
       - name: Run complete API suite via verified process-isolated shards
         if: ${{ matrix.key == 'api' }}
@@ -513,13 +553,13 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: release-verification-logs-${{ matrix.key }}-attempt-${{ github.run_attempt }}
+          name: release-verification-logs-${{ matrix.key }}${{ matrix.key == 'e2e' && format('-shard-{0}', matrix.shard) || '' }}-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/release-verification/logs
           if-no-files-found: warn
           retention-days: 30
 
       - name: Upload ${{ matrix.name }} TRX results
-        if: ${{ always() }}
+        if: ${{ always() && matrix.key != 'e2e' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-verification-trx-${{ matrix.key }}
@@ -541,6 +581,53 @@ jobs:
             echo "Project: \`$TEST_PROJECT\`"
             echo "Commit: \`$SOURCE_COMMIT\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  browser-coverage:
+    name: Verify · Complete browser shard coverage
+    needs: [resolve-ref, dotnet-tests]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve-ref.outputs.commit }}
+          persist-credentials: false
+
+      - name: Download the four independent browser shard artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: browser-e2e-shard-*
+          path: ${{ runner.temp }}/browser-shards
+          merge-multiple: false
+
+      - name: Require exact and entirely passing browser coverage
+        env:
+          SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release/e2e_test_shards.py aggregate --source "$SOURCE_COMMIT" \
+            --artifacts "$RUNNER_TEMP/browser-shards" --output "$RUNNER_TEMP/verified-browser-trx"
+          cat "$RUNNER_TEMP/verified-browser-trx/coverage.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload canonical browser TRX aggregate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-trx-e2e
+          path: ${{ runner.temp }}/verified-browser-trx
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
+
+      - name: Upload canonical browser coverage evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-logs-e2e-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/verified-browser-trx/coverage.json
+          if-no-files-found: error
+          retention-days: 30
 
   release-build-artifacts:
     name: Build · Exact-source Release and test artifacts
@@ -1095,7 +1182,7 @@ jobs:
   release-gate:
     name: Verify · Full release contract
     if: ${{ always() }}
-    needs: [resolve-ref, angular, release-build-artifacts, dotnet-tests, release-contract]
+    needs: [resolve-ref, angular, release-build-artifacts, dotnet-tests, browser-coverage, release-contract]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -1116,7 +1203,7 @@ jobs:
           SOURCE_RESULT: ${{ needs.resolve-ref.result }}
           ANGULAR_RESULT: ${{ needs.angular.result }}
           BUILD_ARTIFACTS_RESULT: ${{ needs.release-build-artifacts.result }}
-          DOTNET_RESULT: ${{ needs.dotnet-tests.result }}
+          DOTNET_RESULT: ${{ needs.dotnet-tests.result == 'success' && needs.browser-coverage.result || needs.dotnet-tests.result }}
           CONTRACT_RESULT: ${{ needs.release-contract.result }}
           REQUESTED_REF: ${{ inputs.ref || github.event.repository.default_branch }}
           SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
@@ -1166,7 +1253,7 @@ jobs:
           SOURCE_COMMIT: ${{ needs.resolve-ref.outputs.commit }}
           SOURCE_RESULT: ${{ needs.resolve-ref.result }}
           ANGULAR_RESULT: ${{ needs.angular.result }}
-          DOTNET_RESULT: ${{ needs.dotnet-tests.result }}
+          DOTNET_RESULT: ${{ needs.dotnet-tests.result == 'success' && needs.browser-coverage.result || needs.dotnet-tests.result }}
           CONTRACT_RESULT: ${{ needs.release-contract.result }}
         run: |
           set -euo pipefail

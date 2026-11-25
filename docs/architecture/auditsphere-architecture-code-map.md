@@ -22,6 +22,8 @@ The Release outputs and fallback build steps set Roslyn's processor count to one
 
 The full release workflow uses the artifact finder's GitHub step outputs to locate the exact-source fast Release build. It verifies provenance and contents before reusing the binaries. When reuse is unavailable, the clean build uses the same single-worker MSBuild graph and single-processor Roslyn setting as the Release outputs job, matching the build-artifact provenance manifest.
 
+Full release verification assigns whole Playwright/xUnit collections to four independent hosted runners, each with its own PostgreSQL service and browser. `scripts/release/e2e_test_shards.py` reconciles xUnit and VSTest inventories, rediscovered adapter identities and exact TRX/callback results, then requires all four same-source, same-run shards before producing the canonical browser evidence. The final release check still requires Angular, Domain, API, browser, contract and publication checks.
+
 ## PostgreSQL major-upgrade preflight ownership
 
 `scripts/db/postgresql_major_upgrade_preflight.py` runs a read-only PostgreSQL 18 catalog inventory

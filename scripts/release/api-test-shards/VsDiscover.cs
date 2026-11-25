@@ -48,7 +48,7 @@ internal static class Program
                 if (ids.Length == 0 || ids.Distinct().Count() != ids.Length || selected.Length != ids.Length)
                     throw new InvalidOperationException("Invalid shard assignment");
                 var run = new RunSink();
-                try { wrapper.RunTests(selected, Settings(args[4]), run); }
+                try { wrapper.RunTests(selected, Settings(args[4], args.Length == 6 && args[5] == "8400000" ? 8400000 : 1200000), run); }
                 finally {
                     File.WriteAllText(Path.Combine(args[4], "events.json"), JsonSerializer.Serialize(new {
                         complete = run.Complete, total = run.Total, errors = run.Errors,
@@ -64,8 +64,8 @@ internal static class Program
         return 0;
     }
     static string Property(TestCase c, string name) => Convert.ToString(c.GetPropertyValue(c.Properties.Single(p => p.Id == name)))!;
-    static string Settings(string? results) => "<RunSettings><RunConfiguration><MaxCpuCount>1</MaxCpuCount>" +
-        (results == null ? "" : "<ResultsDirectory>" + SecurityElement.Escape(results) + "</ResultsDirectory><TestSessionTimeout>1200000</TestSessionTimeout>") +
+    static string Settings(string? results, int sessionTimeoutMs = 1200000) => "<RunSettings><RunConfiguration><MaxCpuCount>1</MaxCpuCount>" +
+        (results == null ? "" : "<ResultsDirectory>" + SecurityElement.Escape(results) + "</ResultsDirectory><TestSessionTimeout>" + sessionTimeoutMs + "</TestSessionTimeout>") +
         "</RunConfiguration><xUnit><PreEnumerateTheories>true</PreEnumerateTheories></xUnit>" +
         (results == null ? "" : "<LoggerRunSettings><Loggers><Logger friendlyName=\"trx\" enabled=\"true\"><Configuration><LogFileName>results.trx</LogFileName></Configuration></Logger></Loggers></LoggerRunSettings>" +
             "<DataCollectionRunSettings><DataCollectors><DataCollector friendlyName=\"blame\" enabled=\"true\"><Configuration><CollectDumpOnTestSessionHang TestTimeout=\"15m\" HangDumpType=\"None\" /></Configuration></DataCollector></DataCollectors></DataCollectionRunSettings>") + "</RunSettings>";
