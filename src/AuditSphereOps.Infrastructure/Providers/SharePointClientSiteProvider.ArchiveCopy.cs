@@ -52,12 +52,30 @@ public sealed partial class SharePointClientSiteProvider
         var item = await GetDriveItemAsync(graph, request.DriveId, request.ItemId, token);
         if (item.Id != request.ItemId || item.IsFolder || item.ParentDriveId != request.DriveId)
           throw ArchiveBlocked("archive-copy-source-item-mismatch", authorization: true);
-        var version = await GetExactVersionAsync(graph, request.DriveId, request.ItemId, request.VersionId, token);
+        var currentVersion = await GetCurrentVersionAsync(graph, request.DriveId, request.ItemId, token);
+        var isCurrentVersion = string.Equals(currentVersion.Id, request.VersionId, StringComparison.Ordinal);
+        var version = isCurrentVersion
+          ? currentVersion
+          : await GetExactVersionAsync(graph, request.DriveId, request.ItemId, request.VersionId, token);
         if (version.Id != request.VersionId || version.Size != request.ExpectedByteCount)
+          throw ArchiveBlocked("archive-copy-source-version-mismatch", authorization: true);
+        if (isCurrentVersion && string.IsNullOrWhiteSpace(item.ContentTag))
           throw ArchiveBlocked("archive-copy-source-version-mismatch", authorization: true);
 
         var bytes = await ReadVersionBytesAsync(request.TenantId, graph, request.DriveId,
-          request.ItemId, request.VersionId, request.ExpectedByteCount, token);
+          request.ItemId, isCurrentVersion ? null : request.VersionId, request.ExpectedByteCount, token);
+        if (isCurrentVersion)
+        {
+          await RecheckArchiveCopyAsync(token);
+          var afterItem = await GetDriveItemAsync(graph, request.DriveId, request.ItemId, token);
+          var afterVersion = await GetCurrentVersionAsync(graph, request.DriveId, request.ItemId, token);
+          if (afterItem.Id != item.Id || afterItem.ParentId != item.ParentId ||
+              afterItem.ParentDriveId != item.ParentDriveId || afterItem.Size != currentVersion.Size ||
+              afterVersion.Id != currentVersion.Id || afterVersion.Size != currentVersion.Size)
+            throw ArchiveBlocked("archive-copy-source-version-mismatch", authorization: true);
+          if (afterItem.ContentTag != item.ContentTag)
+            throw ArchiveBlocked("archive-copy-source-bytes-mismatch");
+        }
         if (bytes.LongLength != request.ExpectedByteCount ||
             !string.Equals(Hashing.Sha256Hex(bytes), request.ExpectedSha256, StringComparison.Ordinal))
           throw ArchiveBlocked("archive-copy-source-bytes-mismatch");
@@ -421,7 +439,7 @@ public sealed partial class SharePointClientSiteProvider
     if (version.Size != expectedByteCount)
       throw ArchiveBlocked("archive-copy-destination-version-size-mismatch");
     var bytes = await ReadVersionBytesAsync(context.Target.TenantId, context.GraphToken,
-      context.DriveId, item.Id, version.Id, expectedByteCount, ct);
+      context.DriveId, item.Id, null, expectedByteCount, ct);
     var afterItem = await GetDriveItemAsync(context.GraphToken, context.DriveId, item.Id, ct);
     var afterVersion = await GetCurrentVersionAsync(context.GraphToken, context.DriveId, item.Id, ct);
     var digest = Hashing.Sha256Hex(bytes);
@@ -623,13 +641,16 @@ public sealed partial class SharePointClientSiteProvider
   }
 
   private async Task<byte[]> ReadVersionBytesAsync(
-    string tenantId, string graphToken, string driveId, string itemId, string versionId,
+    string tenantId, string graphToken, string driveId, string itemId, string? versionId,
     long expectedByteCount, CancellationToken ct)
   {
     if (!string.Equals(tenantId, options.TenantId, StringComparison.OrdinalIgnoreCase) ||
         expectedByteCount < 0 || expectedByteCount > MaximumArchiveCopyBytes)
       throw ArchiveBlocked("archive-copy-content-size-invalid");
-    var url = $"{ArchiveGraph}/drives/{GraphId(driveId)}/items/{GraphId(itemId)}/versions/{Uri.EscapeDataString(versionId)}/content";
+    var contentPath = versionId is null
+      ? "content"
+      : $"versions/{Uri.EscapeDataString(versionId)}/content";
+    var url = $"{ArchiveGraph}/drives/{GraphId(driveId)}/items/{GraphId(itemId)}/{contentPath}";
     using var request = new HttpRequestMessage(HttpMethod.Get, url);
     request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", graphToken);
     request.Headers.Accept.ParseAdd("application/octet-stream");

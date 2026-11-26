@@ -30,12 +30,18 @@ public sealed partial class SharePointClientSiteProviderTests
     private readonly string staffObjectId;
     private int nextItem = 1;
     private int nextListItemId = 7;
+    private int nextCurrentRead = 1;
     public bool StaffWrite { get; set; }
     public bool LoseAfterNextUpload { get; set; }
+    public bool ChangeSourceDuringCurrentRead { get; set; }
+    public bool ChangeSourceContentTagDuringCurrentRead { get; set; }
     public int CreatedFileCount { get; private set; }
     public int CreatedFolderCount { get; private set; }
     public int CreatedEmptyFileCount { get; private set; }
     public int SourceVersionContentRequests { get; private set; }
+    public int SourceCurrentContentRequests { get; private set; }
+    public int DestinationCurrentContentRequests { get; private set; }
+    public List<string> ContentRequestUris { get; } = [];
     public bool EmptyFileCreateWasNoOverwrite { get; private set; }
     public bool EmptyFileCreateHadDigest { get; private set; }
     public string? EmptyFileCreatePath { get; private set; }
@@ -63,6 +69,18 @@ public sealed partial class SharePointClientSiteProviderTests
 
     public void AddVersion(string itemId, string versionId, byte[] content) =>
       versions[(itemId, versionId)] = content.ToArray();
+
+    public void SetCurrentSource(byte[] content, string versionId, string contentTag)
+    {
+      var item = items["source-item"];
+      items["source-item"] = item with
+      {
+        Content = content.ToArray(),
+        VersionId = versionId,
+        ContentTag = contentTag
+      };
+      AddVersion("source-item", versionId, content);
+    }
 
     public string AddUniqueWriteFolder(string parentId, string name)
     {
@@ -97,6 +115,8 @@ public sealed partial class SharePointClientSiteProviderTests
         ? content.ToArray()
         : throw new InvalidOperationException("Unexpected archive test version.");
     }
+
+    public string ReadCurrentVersionId(string itemId) => items[itemId].VersionId;
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
@@ -182,6 +202,9 @@ public sealed partial class SharePointClientSiteProviderTests
         }
         if (segments[^1] == "content")
         {
+          if (string.Equals(items[itemId].VersionId, versionId, StringComparison.Ordinal))
+            throw new InvalidOperationException("Current item content must use the item-content endpoint.");
+          ContentRequestUris.Add(path);
           SourceVersionContentRequests++;
           var redirect = new HttpResponseMessage(HttpStatusCode.Found)
           {
@@ -190,6 +213,42 @@ public sealed partial class SharePointClientSiteProviderTests
           redirect.Headers.Location = new Uri($"https://download.sharepoint.com/archive-copy/{Uri.EscapeDataString(itemId)}/{Uri.EscapeDataString(versionId)}");
           return redirect;
         }
+      }
+
+      if (request.Method == HttpMethod.Get && segments.Length == 6 &&
+          segments[3] == "items" && segments[^1] == "content")
+      {
+        var itemId = segments[4];
+        var item = items[itemId];
+        var content = item.Content.ToArray();
+        var contentReadId = "current-read-" + nextCurrentRead++;
+        versions[(itemId, contentReadId)] = content;
+        ContentRequestUris.Add(path);
+        if (itemId == "source-item")
+        {
+          SourceCurrentContentRequests++;
+          if (ChangeSourceDuringCurrentRead)
+          {
+            ChangeSourceDuringCurrentRead = false;
+            var changedContent = Encoding.UTF8.GetBytes("source changed during current content read");
+            SetCurrentSource(changedContent, "source-version-9", "source-ctag-9");
+          }
+          else if (ChangeSourceContentTagDuringCurrentRead)
+          {
+            ChangeSourceContentTagDuringCurrentRead = false;
+            items[itemId] = item with { ContentTag = "source-ctag-drift" };
+          }
+        }
+        else
+        {
+          DestinationCurrentContentRequests++;
+        }
+        var redirect = new HttpResponseMessage(HttpStatusCode.Found)
+        {
+          RequestMessage = request
+        };
+        redirect.Headers.Location = new Uri($"https://download.sharepoint.com/archive-copy/{Uri.EscapeDataString(itemId)}/{Uri.EscapeDataString(contentReadId)}");
+        return redirect;
       }
 
       if (path.Contains("/items/", StringComparison.Ordinal) && path.Contains(":/", StringComparison.Ordinal))
@@ -416,6 +475,35 @@ public sealed partial class SharePointClientSiteProviderTests
     Assert.Equal("source-version-7", snapshot.VersionId);
     Assert.Equal(snapshotBytes, snapshot.Content);
     Assert.Equal(3, sourceGuardCalls); // operation entry, Graph content request, preauthenticated redirect
+    Assert.Contains("/v1.0/drives/source-drive/items/source-item/versions/source-version-7/content",
+      remote.ContentRequestUris);
+
+    var currentSnapshotRequest = snapshotRequest with
+    {
+      VersionId = "source-version-8",
+      ExpectedSha256 = Hashing.Sha256Hex(currentSourceBytes),
+      ExpectedByteCount = currentSourceBytes.LongLength
+    };
+    var currentSnapshot = await provider.ReadExactSnapshotAsync(currentSnapshotRequest, CancellationToken.None);
+    Assert.Equal("source-version-8", currentSnapshot.VersionId);
+    Assert.Equal(currentSourceBytes, currentSnapshot.Content);
+    Assert.Contains("/v1.0/drives/source-drive/items/source-item/content", remote.ContentRequestUris);
+    Assert.DoesNotContain("/v1.0/drives/source-drive/items/source-item/versions/source-version-8/content",
+      remote.ContentRequestUris);
+
+    remote.ChangeSourceDuringCurrentRead = true;
+    var changedDuringRead = await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      provider.ReadExactSnapshotAsync(currentSnapshotRequest, CancellationToken.None));
+    Assert.Equal("archive-copy-source-version-mismatch", changedDuringRead.Code);
+    Assert.Equal(2, remote.SourceCurrentContentRequests);
+    Assert.Equal("source-version-9", remote.ReadCurrentVersionId("source-item"));
+
+    remote.SetCurrentSource(currentSourceBytes, "source-version-8", "source-ctag-7");
+    remote.ChangeSourceContentTagDuringCurrentRead = true;
+    var changedContentTag = await Assert.ThrowsAsync<OperationBlockedException>(() =>
+      provider.ReadExactSnapshotAsync(currentSnapshotRequest, CancellationToken.None));
+    Assert.Equal("archive-copy-source-bytes-mismatch", changedContentTag.Code);
+    Assert.Equal(3, remote.SourceCurrentContentRequests);
 
     var sourceRequestsBeforeDirectGuard = remote.SourceVersionContentRequests;
     var downloadsBeforeDirectGuard = transfer.DownloadRequests;
@@ -478,6 +566,11 @@ public sealed partial class SharePointClientSiteProviderTests
     Assert.Equal(firstWrite.DestinationVersion, retryWrite.DestinationVersion);
     Assert.Equal(1, remote.CreatedFileCount);
     Assert.Equal(1, remote.CreatedFolderCount);
+    Assert.True(remote.DestinationCurrentContentRequests > 0);
+    Assert.Contains($"/v1.0/drives/{target.DriveId}/items/{firstWrite.DestinationItemId}/content",
+      remote.ContentRequestUris);
+    Assert.DoesNotContain($"/v1.0/drives/{target.DriveId}/items/{firstWrite.DestinationItemId}/versions/archive-version-1/content",
+      remote.ContentRequestUris);
     Assert.Equal(0, transfer.RequestsWithAuthorization);
 
     var emptyBytes = Array.Empty<byte>();
