@@ -67,7 +67,7 @@ public sealed record BudgetActualSummary(
   int ForecastMinutes,
   decimal ForecastCost,
   int ActualMinutes,
-  decimal ActualCost);
+  decimal? ActualCost);
 
 /// <summary>
 /// Guarded native practice time and budget commands. Approved facts are never edited:
@@ -78,6 +78,48 @@ public static partial class PracticeTimeService
   private static readonly string[] WorkRoles = ["Senior", "Staff", "Manager", "Partner", "Administrator"];
   private static readonly string[] ReviewReworkCreatorRoles = ["Reviewer", "Senior", "Manager", "Partner", "Administrator"];
   internal static readonly string[] ApprovalRoles = ["Manager", "Partner", "Administrator"];
+
+  internal sealed record BudgetActualRow(int ActualMinutes, decimal? ActualCost);
+  internal sealed record BudgetActualCalculation(int ActualMinutes, decimal? ActualCost,
+    IReadOnlyDictionary<(string Phase, string RiskArea), BudgetActualRow> Rows);
+
+  internal static BudgetActualCalculation CalculateBudgetActuals(string? budgetCurrency,
+    IReadOnlyList<TimeEntry> entries)
+  {
+    var reportCurrency = budgetCurrency?.Trim();
+    var totals = new Dictionary<(string Phase, string RiskArea), (int Minutes, decimal Cost, bool Complete)>();
+    foreach (var entry in entries)
+    {
+      var key = (entry.Phase, BudgetRiskArea(entry.RiskArea));
+      if (!totals.TryGetValue(key, out var total)) total = (0, 0m, true);
+      total.Minutes = checked(total.Minutes + entry.DurationMinutes);
+      var classification = entry.BillableClassification?.Trim();
+      if (string.Equals(classification, PracticeTimeStates.Billable, StringComparison.OrdinalIgnoreCase))
+      {
+        var entryCurrency = entry.Currency?.Trim();
+        if (entry.RateCardVersionId.HasValue && entry.RatePerHour is >= 0m && !string.IsNullOrWhiteSpace(entryCurrency) &&
+            !string.IsNullOrWhiteSpace(reportCurrency) &&
+            string.Equals(entryCurrency, reportCurrency, StringComparison.OrdinalIgnoreCase))
+          total.Cost += entry.DurationMinutes * entry.RatePerHour.Value / 60m;
+        else
+          total.Complete = false;
+      }
+      else if (!string.Equals(classification, PracticeTimeStates.NonBillable, StringComparison.OrdinalIgnoreCase) &&
+               !string.Equals(classification, PracticeTimeStates.NoCharge, StringComparison.OrdinalIgnoreCase))
+        total.Complete = false;
+      totals[key] = total;
+    }
+
+    var rows = totals.ToDictionary(x => x.Key,
+      x => new BudgetActualRow(x.Value.Minutes,
+        x.Value.Complete ? MoneyPolicy.Normalize(x.Value.Cost) : null));
+    decimal? actualCost = rows.Values.All(x => x.ActualCost.HasValue)
+      ? MoneyPolicy.Normalize(rows.Values.Sum(x => x.ActualCost!.Value))
+      : null;
+    return new BudgetActualCalculation(rows.Values.Sum(x => x.ActualMinutes), actualCost, rows);
+  }
+
+  private static string BudgetRiskArea(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
 
   public static Task<CommandResult<Guid>> CreateTaskAsync(
     IAuditSphereDbContext db, ActorContext actor, CreateTaskRequest request, CancellationToken ct = default) =>
@@ -842,11 +884,10 @@ public static partial class PracticeTimeService
       x.FirmId == actor.FirmId && x.EngagementBudgetId == budget.Id).ToListAsync(ct);
     var entries = await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
       x.EngagementId == engagementId && x.Status == PracticeTimeStates.TimeApproved).ToListAsync(ct);
+    var actuals = CalculateBudgetActuals(budget.Currency, entries);
     return CommandResult<BudgetActualSummary>.Ok(new BudgetActualSummary(
       budget.Id, budget.Version, lines.Sum(x => x.ForecastMinutes),
-      MoneyPolicy.Normalize(lines.Sum(x => x.ForecastCost)), entries.Sum(x => x.DurationMinutes),
-      MoneyPolicy.Normalize(entries.Sum(x => x.RatePerHour.HasValue
-        ? x.DurationMinutes * x.RatePerHour.Value / 60m : 0m))));
+      MoneyPolicy.Normalize(lines.Sum(x => x.ForecastCost)), actuals.ActualMinutes, actuals.ActualCost));
   }
 
   private static async Task<CommandResult> SetAssigneeAsync(
@@ -1083,17 +1124,22 @@ public static partial class PracticeTimeService
     var lines = await db.BudgetLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementBudgetId == summary.Value!.BudgetId).ToListAsync(ct);
     var entries = await db.TimeEntries.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId &&
       x.Status == PracticeTimeStates.TimeApproved).ToListAsync(ct);
-    static string Area(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
-    var keys = lines.Select(x => (x.Phase, Area(x.RiskArea))).Concat(entries.Select(x => (x.Phase, Area(x.RiskArea))))
+    var budgetCurrency = await db.EngagementBudgets.AsNoTracking().Where(x =>
+      x.FirmId == actor.FirmId && x.Id == summary.Value!.BudgetId).Select(x => x.Currency).SingleAsync(ct);
+    var actuals = CalculateBudgetActuals(budgetCurrency, entries);
+    var keys = lines.Select(x => (x.Phase, BudgetRiskArea(x.RiskArea))).Concat(entries.Select(x => (x.Phase, BudgetRiskArea(x.RiskArea))))
       .Distinct().OrderBy(x => Array.IndexOf(BudgetPhases.Assignable, x.Item1) is var i && i < 0 ? 99 : i).ThenBy(x => x.Item2, StringComparer.Ordinal);
-    var rows = keys.Select(k => new BudgetBreakdownRow(k.Item1, k.Item2,
-      lines.Where(x => x.Phase == k.Item1 && Area(x.RiskArea) == k.Item2).Sum(x => x.ForecastMinutes),
-      MoneyPolicy.Normalize(lines.Where(x => x.Phase == k.Item1 && Area(x.RiskArea) == k.Item2).Sum(x => x.ForecastCost)),
-      entries.Where(x => x.Phase == k.Item1 && Area(x.RiskArea) == k.Item2).Sum(x => x.DurationMinutes),
-      MoneyPolicy.Normalize(entries.Where(x => x.Phase == k.Item1 && Area(x.RiskArea) == k.Item2)
-        .Sum(x => x.RatePerHour.HasValue ? x.DurationMinutes * x.RatePerHour.Value / 60m : 0m)))).ToList();
+    var rows = keys.Select(k =>
+    {
+      actuals.Rows.TryGetValue(k, out var actual);
+      return new BudgetBreakdownRow(k.Item1, k.Item2,
+        lines.Where(x => x.Phase == k.Item1 && BudgetRiskArea(x.RiskArea) == k.Item2).Sum(x => x.ForecastMinutes),
+        MoneyPolicy.Normalize(lines.Where(x => x.Phase == k.Item1 && BudgetRiskArea(x.RiskArea) == k.Item2).Sum(x => x.ForecastCost)),
+        actual is null ? 0 : actual.ActualMinutes, actual is null ? 0m : actual.ActualCost);
+    }).ToList();
     var s = summary.Value!;
-    return CommandResult<BudgetBreakdownView>.Ok(new(s.BudgetId, s.BudgetVersion, rows, s.ForecastMinutes, s.ForecastCost, s.ActualMinutes, s.ActualCost));
+    return CommandResult<BudgetBreakdownView>.Ok(new(s.BudgetId, s.BudgetVersion, rows, s.ForecastMinutes, s.ForecastCost,
+      actuals.ActualMinutes, actuals.ActualCost));
   }
 
   private static string? ValidateBudget(ReviseBudgetRequest request)

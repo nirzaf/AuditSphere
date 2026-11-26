@@ -686,12 +686,26 @@ public sealed class PracticeTimeTests
 
       var task = (await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
         new CreateTaskRequest("Budget actual", fixture.ClientId, fixture.EngagementId,
-          AssigneeUserId: fixture.Preparer.Id))).Value;
+          AssigneeUserId: fixture.Preparer.Id, Phase: BudgetPhases.Fieldwork, RiskArea: "Revenue"))).Value;
       var time = (await PracticeTimeService.SaveTimeDraftAsync(db, fixture.PreparerActor,
         new SaveTimeDraftRequest(task, new DateOnly(2026, 1, 15), 8 * 60, 60,
           "Staff", "Schedules", Currency: "QAR"))).Value;
       Assert.True((await PracticeTimeService.SubmitTimeAsync(db, fixture.PreparerActor, time)).Succeeded);
       Assert.True((await PracticeTimeService.ApproveTimeAsync(db, fixture.PartnerActor, time)).Succeeded);
+
+      foreach (var (date, classification) in new[]
+        {
+          (new DateOnly(2026, 1, 16), PracticeTimeStates.NonBillable),
+          (new DateOnly(2026, 1, 17), PracticeTimeStates.NoCharge)
+        })
+      {
+        var nonChargeable = await PracticeTimeService.SaveTimeDraftAsync(db, fixture.PreparerActor,
+          new SaveTimeDraftRequest(task, date, 8 * 60, 60, "Staff", "Schedules",
+            BillableClassification: classification));
+        Assert.True(nonChargeable.Succeeded, nonChargeable.Message);
+        Assert.True((await PracticeTimeService.SubmitTimeAsync(db, fixture.PreparerActor, nonChargeable.Value)).Succeeded);
+        Assert.True((await PracticeTimeService.ApproveTimeAsync(db, fixture.PartnerActor, nonChargeable.Value)).Succeeded);
+      }
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -703,8 +717,102 @@ public sealed class PracticeTimeTests
       Assert.Equal(secondBudgetId, summary.Value!.BudgetId);
       Assert.Equal(60, summary.Value.ForecastMinutes);
       Assert.Equal(120m, summary.Value.ForecastCost);
-      Assert.Equal(60, summary.Value.ActualMinutes);
+      Assert.Equal(180, summary.Value.ActualMinutes);
       Assert.Equal(120m, summary.Value.ActualCost);
+    }
+
+    Guid dollarBudgetId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var usdRate = await PracticeTimeService.ReviseRateCardAsync(db, fixture.RateCardManagerActor,
+        new RateCardDraftRequest("Staff", "Schedules", "USD", 240m));
+      Assert.True(usdRate.Succeeded, usdRate.Message);
+      Assert.True((await PracticeTimeService.ApproveRateCardAsync(db, fixture.PartnerActor, usdRate.Value)).Succeeded);
+
+      var usdBudget = await PracticeTimeService.ReviseBudgetAsync(db, fixture.ManagerActor,
+        new ReviseBudgetRequest(fixture.EngagementId, "USD",
+          [new BudgetLineRequest("Staff", "Schedules", 60, BudgetPhases.Completion, "Inventory")],
+          ExpectedVersion: 2));
+      Assert.True(usdBudget.Succeeded, usdBudget.Message);
+      dollarBudgetId = usdBudget.Value;
+      Assert.True((await PracticeTimeService.ApproveBudgetAsync(db, fixture.PartnerActor, dollarBudgetId)).Succeeded);
+
+      var usdTask = (await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
+        new CreateTaskRequest("USD actual", fixture.ClientId, fixture.EngagementId,
+          AssigneeUserId: fixture.Preparer.Id, Phase: BudgetPhases.Completion, RiskArea: "Inventory"))).Value;
+      var usdTime = await PracticeTimeService.SaveTimeDraftAsync(db, fixture.PreparerActor,
+        new SaveTimeDraftRequest(usdTask, new DateOnly(2026, 1, 18), 8 * 60, 60,
+          "Staff", "Schedules", Currency: "USD"));
+      Assert.True(usdTime.Succeeded, usdTime.Message);
+      Assert.True((await PracticeTimeService.SubmitTimeAsync(db, fixture.PreparerActor, usdTime.Value)).Succeeded);
+      Assert.True((await PracticeTimeService.ApproveTimeAsync(db, fixture.PartnerActor, usdTime.Value)).Succeeded);
+
+      // The current writer captures currency. This pre-approval fixture exercises a retained legacy row
+      // permitted by the database shape, without changing any already-approved history.
+      var legacyTask = (await PracticeTimeService.CreateTaskAsync(db, fixture.PreparerActor,
+        new CreateTaskRequest("Missing currency legacy basis", fixture.ClientId, fixture.EngagementId,
+          AssigneeUserId: fixture.Preparer.Id, Phase: BudgetPhases.Planning, RiskArea: "Controls"))).Value;
+      var legacyTime = await PracticeTimeService.SaveTimeDraftAsync(db, fixture.PreparerActor,
+        new SaveTimeDraftRequest(legacyTask, new DateOnly(2026, 1, 19), 8 * 60, 60,
+          "Staff", "Schedules", Currency: "QAR"));
+      Assert.True(legacyTime.Succeeded, legacyTime.Message);
+      var draft = await db.TimeEntries.SingleAsync(x => x.Id == legacyTime.Value);
+      draft.Currency = null;
+      await db.SaveChangesAsync();
+      Assert.True((await PracticeTimeService.SubmitTimeAsync(db, fixture.PreparerActor, legacyTime.Value)).Succeeded);
+      Assert.True((await PracticeTimeService.ApproveTimeAsync(db, fixture.PartnerActor, legacyTime.Value)).Succeeded);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var qar = await PracticeTimeService.GetBudgetActualAsync(db, fixture.PreparerActor,
+        fixture.EngagementId, secondBudgetId);
+      Assert.True(qar.Succeeded, qar.Message);
+      Assert.Equal(300, qar.Value!.ActualMinutes);
+      Assert.Null(qar.Value.ActualCost);
+
+      var breakdown = await PracticeTimeService.GetBudgetBreakdownAsync(db, fixture.PreparerActor, fixture.EngagementId);
+      Assert.True(breakdown.Succeeded, breakdown.Message);
+      Assert.Equal(dollarBudgetId, breakdown.Value!.BudgetId);
+      Assert.Equal(300, breakdown.Value.ActualMinutes);
+      Assert.Null(breakdown.Value.ActualCost);
+      var safeUsd = Assert.Single(breakdown.Value.Rows,
+        x => x.Phase == BudgetPhases.Completion && x.RiskArea == "Inventory");
+      Assert.Equal(240m, safeUsd.ActualCost);
+      var mismatchedQar = Assert.Single(breakdown.Value.Rows,
+        x => x.Phase == BudgetPhases.Fieldwork && x.RiskArea == "Revenue");
+      Assert.Equal(180, mismatchedQar.ActualMinutes);
+      Assert.Null(mismatchedQar.ActualCost);
+      var missingCurrency = Assert.Single(breakdown.Value.Rows,
+        x => x.Phase == BudgetPhases.Planning && x.RiskArea == "Controls");
+      Assert.Null(missingCurrency.ActualCost);
+
+      var planning = await EngagementPlanningQuery.GetAsync(db, fixture.PreparerActor, fixture.EngagementId);
+      Assert.True(planning.Succeeded, planning.Message);
+      Assert.Null(planning.Value!.Budget!.ActualCost);
+      Assert.Null(Assert.Single(planning.Value.Budget.Rows,
+        x => x.Phase == BudgetPhases.Fieldwork && x.RiskArea == "Revenue").ActualCost);
+      Assert.Equal("240.000000", Assert.Single(planning.Value.Budget.Rows,
+        x => x.Phase == BudgetPhases.Completion && x.RiskArea == "Inventory").ActualCost);
+
+      var missingRate = PracticeTimeService.CalculateBudgetActuals("QAR",
+      [new TimeEntry
+      {
+        Phase = BudgetPhases.Reporting, RiskArea = "Missing rate", DurationMinutes = 60,
+        BillableClassification = PracticeTimeStates.Billable, Currency = "QAR",
+        RateCardVersionId = Guid.NewGuid(), RatePerHour = null
+      }]);
+      Assert.Null(missingRate.ActualCost);
+      Assert.Null(Assert.Single(missingRate.Rows).Value.ActualCost);
+
+      var nonChargeableOnly = PracticeTimeService.CalculateBudgetActuals("USD",
+      [new TimeEntry
+      {
+        Phase = BudgetPhases.Reporting, RiskArea = "Non-chargeable", DurationMinutes = 60,
+        BillableClassification = PracticeTimeStates.NoCharge, Currency = null, RatePerHour = null
+      }]);
+      Assert.Equal(60, nonChargeableOnly.ActualMinutes);
+      Assert.Equal(0m, nonChargeableOnly.ActualCost);
     }
   }
 

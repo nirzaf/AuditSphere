@@ -8,9 +8,9 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Practice;
 
 public sealed record PlanningBudgetRow(string Phase, string RiskArea, int ForecastMinutes,
-  string ForecastCost, int ActualMinutes, string ActualCost);
+  string ForecastCost, int ActualMinutes, string? ActualCost);
 public sealed record PlanningBudget(string Id, string Version, string Currency, IReadOnlyList<PlanningBudgetRow> Rows,
-  int ForecastMinutes, string ForecastCost, int ActualMinutes, string ActualCost);
+  int ForecastMinutes, string ForecastCost, int ActualMinutes, string? ActualCost);
 public sealed record EngagementPlanning(IReadOnlyList<StaffAssignmentRow> Team, PlanningBudget? Budget, string BudgetState,
   bool CanManageStaffing, IReadOnlyList<StaffCandidate> Candidates, string LatestBudgetVersion, PlanningDraft? Draft,
   bool CanPrepareBudget);
@@ -36,12 +36,13 @@ public static class EngagementPlanningQuery
     {
       var b = budget.Value!;
       static string Exact(decimal value) => value.ToString(CultureInfo.InvariantCulture);
+      static string? ExactActual(decimal? value) => value?.ToString(CultureInfo.InvariantCulture);
       var currency = await db.EngagementBudgets.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Id == b.BudgetId)
         .Select(x => x.Currency).SingleAsync(ct);
       projection = new(b.BudgetId.ToString(), b.BudgetVersion.ToString(CultureInfo.InvariantCulture), currency,
         b.Rows.Select(r => new PlanningBudgetRow(r.Phase, r.RiskArea, r.ForecastMinutes,
-          Exact(r.ForecastCost), r.ActualMinutes, Exact(r.ActualCost))).ToArray(),
-        b.ForecastMinutes, Exact(b.ForecastCost), b.ActualMinutes, Exact(b.ActualCost));
+          Exact(r.ForecastCost), r.ActualMinutes, ExactActual(r.ActualCost))).ToArray(),
+        b.ForecastMinutes, Exact(b.ForecastCost), b.ActualMinutes, ExactActual(b.ActualCost));
     }
     var final = await WorkspaceQuery.EngagementAsync(db, actor, engagementId, ct);
     if (!final.Succeeded) return CommandResult<EngagementPlanning>.Fail(final.ErrorCode!, "Planning unavailable.");

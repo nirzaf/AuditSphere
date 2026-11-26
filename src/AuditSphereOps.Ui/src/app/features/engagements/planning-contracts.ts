@@ -12,7 +12,7 @@ export interface BudgetRow {
   forecastMinutes: number;
   actualMinutes: number;
   forecastCost: string;
-  actualCost: string;
+  actualCost: string | null;
 }
 export interface Budget {
   currency: string;
@@ -22,7 +22,7 @@ export interface Budget {
   forecastMinutes: number;
   actualMinutes: number;
   forecastCost: string;
-  actualCost: string;
+  actualCost: string | null;
 }
 export interface DraftLine {
   role: string;
@@ -199,7 +199,7 @@ export function decodePlanning(value: unknown): Planning {
           (k) => Number.isSafeInteger(row[k]) && Number(row[k]) >= 0,
         ) ||
         !exactDecimal(row['forecastCost']) ||
-        !exactDecimal(row['actualCost'])
+        !(row['actualCost'] === null || exactDecimal(row['actualCost']))
       )
         throw new Error('Invalid financial quantity');
     }

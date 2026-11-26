@@ -23,9 +23,9 @@ public sealed record ResourceGridRow(
   IReadOnlyList<ResourceAvailabilityView> Availability, IReadOnlyList<ResourceAllocationView> Allocations);
 public sealed record ResourceGridView(DateOnly FirstWeek, int Weeks, IReadOnlyList<ResourceGridRow> Rows);
 
-public sealed record BudgetBreakdownRow(string Phase, string RiskArea, int ForecastMinutes, decimal ForecastCost, int ActualMinutes, decimal ActualCost);
+public sealed record BudgetBreakdownRow(string Phase, string RiskArea, int ForecastMinutes, decimal ForecastCost, int ActualMinutes, decimal? ActualCost);
 public sealed record BudgetBreakdownView(Guid BudgetId, long BudgetVersion, IReadOnlyList<BudgetBreakdownRow> Rows,
-  int ForecastMinutes, decimal ForecastCost, int ActualMinutes, decimal ActualCost);
+  int ForecastMinutes, decimal ForecastCost, int ActualMinutes, decimal? ActualCost);
 
 /// <summary>
 /// Staff profiles, availability, week allocations and the resource grid. Profiles and plans are planning data, not

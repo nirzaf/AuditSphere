@@ -72,6 +72,23 @@ describe('Exact planning contracts', () => {
         budgetState: 'APPROVED',
       }).budget?.forecastCost,
     ).toBe('0.00');
+    const unavailable = decodePlanning({
+      team: [],
+      latestBudgetVersion: '0',
+      draft: null,
+      canManageStaffing: false,
+      canPrepareBudget: false,
+      candidates: [],
+      budget: {
+        ...budget,
+        actualCost: null,
+        rows: [{ phase: 'FIELDWORK', riskArea: 'Revenue', forecastMinutes: 0,
+          actualMinutes: 0, forecastCost: '0.00', actualCost: null }],
+      },
+      budgetState: 'APPROVED',
+    });
+    expect(unavailable.budget?.actualCost).toBeNull();
+    expect(unavailable.budget?.rows[0].actualCost).toBeNull();
     expect(() =>
       decodePlanning({
         team: [],
@@ -127,6 +144,41 @@ describe('Planning protected editor clearing', () => {
       .flush(planning);
     return fixture.componentInstance;
   }
+  it('accepts unavailable budget actuals and renders them separately from zero', () => {
+    const fixture = TestBed.createComponent(EngagementPlanning);
+    fixture.componentRef.setInput('engagementId', id);
+    fixture.detectChanges();
+    TestBed.tick();
+    TestBed.inject(HttpTestingController)
+      .expectOne('/api/ui/engagements/' + id + '/planning')
+      .flush({
+        ...planning,
+        budget: {
+          id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          version: '1',
+          currency: 'QAR',
+          rows: [
+            {
+              phase: 'FIELDWORK', riskArea: 'Revenue', forecastMinutes: 60, actualMinutes: 60,
+              forecastCost: '100.00', actualCost: null,
+            },
+            {
+              phase: 'COMPLETION', riskArea: 'Inventory', forecastMinutes: 0, actualMinutes: 0,
+              forecastCost: '0.00', actualCost: '0.00',
+            },
+          ],
+          forecastMinutes: 60,
+          actualMinutes: 60,
+          forecastCost: '100.00',
+          actualCost: null,
+        },
+        budgetState: 'APPROVED',
+      });
+    fixture.detectChanges();
+    const content = fixture.nativeElement.textContent as string;
+    expect(content.match(/Unavailable/g)).toHaveLength(2);
+    expect(content).toContain('0.00');
+  });
   it('does not substitute staffing authority for reviewed budget preparation', async () => {
     const component = open();
     component.data.set({ ...planning, canPrepareBudget: false });

@@ -150395,7 +150395,10 @@
             "format": "int32"
           },
           "actualCost": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -150436,7 +150439,10 @@
             "format": "int32"
           },
           "actualCost": {
-            "type": "string"
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

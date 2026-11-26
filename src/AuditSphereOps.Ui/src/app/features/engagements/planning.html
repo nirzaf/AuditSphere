@@ -417,7 +417,7 @@
                   <td>{{ row.actualMinutes }}</td>
                   <td>{{ budgetVariance(row.forecastMinutes, row.actualMinutes) }}</td>
                   <td>{{ row.forecastCost }}</td>
-                  <td>{{ row.actualCost }}</td>
+                  <td>{{ row.actualCost ?? 'Unavailable' }}</td>
                 </tr>
               }
             </tbody>
@@ -429,7 +429,7 @@
                 <td>{{ budget.actualMinutes }}</td>
                 <td>{{ budgetVariance(budget.forecastMinutes, budget.actualMinutes) }}</td>
                 <td>{{ budget.forecastCost }}</td>
-                <td>{{ budget.actualCost }}</td>
+                <td>{{ budget.actualCost ?? 'Unavailable' }}</td>
               </tr>
             </tfoot>
           </table>
