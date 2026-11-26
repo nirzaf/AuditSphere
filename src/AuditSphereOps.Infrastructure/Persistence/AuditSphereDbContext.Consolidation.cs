@@ -230,6 +230,20 @@ public sealed partial class AuditSphereDbContext
     journal.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).HasName("ak_consolidation_journals_scope_id");
     match.HasAlternateKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id }).HasName("ak_intercompany_matches_scope_id");
 
+    var matchReservation = b.Entity<ConsolidationMatchReservation>();
+    matchReservation.HasKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.IntercompanyMatchId })
+      .HasName("pk_consolidation_match_reservations");
+    matchReservation.HasIndex(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.ConsolidationJournalId })
+      .HasDatabaseName("ix_consolidation_match_reservations_scope_journal");
+    matchReservation.HasOne<IntercompanyMatch>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.IntercompanyMatchId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_consolidation_match_reservations_match_scope");
+    matchReservation.HasOne<ConsolidationJournal>().WithMany()
+      .HasForeignKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.ConsolidationJournalId })
+      .HasPrincipalKey(x => new { x.FirmId, x.GroupId, x.ScopeVersionId, x.Id })
+      .OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_consolidation_match_reservations_journal_scope");
+
     var run = b.Entity<ConsolidationRun>();
     run.Property(x => x.EngineVersion).HasMaxLength(100);
     run.Property(x => x.InputManifest).HasMaxLength(20000);

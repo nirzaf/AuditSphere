@@ -1217,6 +1217,16 @@ public sealed class ConsolidationJournalLine
   public DateTimeOffset CreatedAt { get; set; }
 }
 
+/// <summary>Reserves each approved intercompany match to exactly one approved group journal.</summary>
+public sealed class ConsolidationMatchReservation
+{
+  public Guid FirmId { get; set; }
+  public Guid GroupId { get; set; }
+  public Guid ScopeVersionId { get; set; }
+  public Guid IntercompanyMatchId { get; set; }
+  public Guid ConsolidationJournalId { get; set; }
+}
+
 public sealed class ConsolidationRun
 {
   public Guid Id { get; set; }

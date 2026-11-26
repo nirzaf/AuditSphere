@@ -283,21 +283,41 @@ public static partial class ConsolidationService
     if (pendingGrouped)
       return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GateBlocked,
         "Every row in a grouped intercompany match must be reviewed before the group run.");
-    var matches = await db.IntercompanyMatches.AsNoTracking().Where(x => x.FirmId == firmId && x.ScopeVersionId == scope.Id &&
+    var matches = await db.IntercompanyMatches.AsNoTracking().Where(x => x.FirmId == firmId && x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id &&
       x.Status == AccountingWorkflowStates.Approved && !x.OutsidePerimeterReview).ToListAsync(ct);
     var approvedJournals = await db.ConsolidationJournals.AsNoTracking().Where(x => x.FirmId == firmId &&
-      x.ScopeVersionId == scope.Id && x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
+      x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id && x.Status == AccountingWorkflowStates.Approved).ToListAsync(ct);
     var journalIds = approvedJournals.Select(x => x.Id).ToArray();
     var journalLines = await db.ConsolidationJournalLines.AsNoTracking().Where(x => x.FirmId == firmId &&
-      journalIds.Contains(x.ConsolidationJournalId)).ToListAsync(ct);
-    var linkedMatches = journalLines.Where(x => x.IntercompanyMatchId.HasValue).Select(x => x.IntercompanyMatchId!.Value).ToHashSet();
-    var eliminationSources = matches.Where(x => !linkedMatches.Contains(x.Id))
+      x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id && journalIds.Contains(x.ConsolidationJournalId)).ToListAsync(ct);
+    var reservations = await db.ConsolidationMatchReservations.AsNoTracking().Where(x => x.FirmId == firmId &&
+      x.GroupId == scope.GroupId && x.ScopeVersionId == scope.Id).ToListAsync(ct);
+    var reservationByMatch = reservations.ToDictionary(x => x.IntercompanyMatchId);
+    var approvedJournalIds = approvedJournals.Select(x => x.Id).ToHashSet();
+    var eligibleMatchIds = matches.Select(x => x.Id).ToHashSet();
+    var lineOwnersByMatch = journalLines.Where(x => x.IntercompanyMatchId.HasValue)
+      .GroupBy(x => x.IntercompanyMatchId!.Value)
+      .ToDictionary(x => x.Key, x => x.Select(line => line.ConsolidationJournalId).Distinct().ToArray());
+    var contradictoryConsumption = lineOwnersByMatch.Any(group =>
+        group.Value.Length != 1 || !reservationByMatch.TryGetValue(group.Key, out var reservation) ||
+        reservation.ConsolidationJournalId != group.Value[0]) ||
+      reservations.Any(reservation => !eligibleMatchIds.Contains(reservation.IntercompanyMatchId) ||
+        !approvedJournalIds.Contains(reservation.ConsolidationJournalId) ||
+        !journalLines.Any(line => line.ConsolidationJournalId == reservation.ConsolidationJournalId &&
+          line.IntercompanyMatchId == reservation.IntercompanyMatchId));
+    if (contradictoryConsumption)
+      return CommandResult<ConsolidationBuild>.Fail(ErrorCodes.GateBlocked,
+        "Approved intercompany consumption evidence is inconsistent; review the group journals before calculating.");
+
+    var authorizedJournalLines = journalLines.Where(line => !line.IntercompanyMatchId.HasValue ||
+      reservationByMatch[line.IntercompanyMatchId.Value].ConsolidationJournalId == line.ConsolidationJournalId).ToList();
+    var eliminationSources = matches.Where(x => !reservationByMatch.ContainsKey(x.Id))
       .SelectMany(x => new[]
       {
         (new ConsolidationElimination(x.Id, x.SellerTaxonomyCode, Math.Sign(x.SellerAmount) * x.MatchedAmount * -1m, x.Currency, "SELLER", x.Id, x.AccountNature), (Guid?)null),
         (new ConsolidationElimination(x.Id, x.BuyerTaxonomyCode, Math.Sign(x.BuyerAmount) * x.MatchedAmount * -1m, x.Currency, "BUYER", x.Id, x.AccountNature), (Guid?)null)
       })
-      .Concat(journalLines.Select(x => (new ConsolidationElimination(x.Id, x.TaxonomyCode, x.Debit - x.Credit, x.Currency, "", x.IntercompanyMatchId, ConsolidationEliminationKinds.GroupJournal), (Guid?)x.ConsolidationJournalId)))
+      .Concat(authorizedJournalLines.Select(x => (new ConsolidationElimination(x.Id, x.TaxonomyCode, x.Debit - x.Credit, x.Currency, "", x.IntercompanyMatchId, ConsolidationEliminationKinds.GroupJournal), (Guid?)x.ConsolidationJournalId)))
       .ToList();
     ConsolidationCalculation calculation;
     try

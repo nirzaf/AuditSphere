@@ -422,14 +422,20 @@ public sealed partial class ClientAccountingTests
       var linkedJournalId = (await ConsolidationService.CreateConsolidationJournalAsync(db, preparer,
         new ConsolidationJournalRequest(consolidationScopeId, "GC-LINKED", "GROUP_RECLASSIFICATION", "QAR", "linked-match-adjustment",
         [new(matchId, "CASH", 100m, 0m, "Reviewed linked elimination"),
-         new(null, "REVENUE", 0m, 100m, "Reviewed linked elimination")]))).Value;
-      Assert.True((await ConsolidationService.ApproveConsolidationJournalAsync(db, reviewer, linkedJournalId)).Succeeded);
-      var duplicateLinkedJournal = await ConsolidationService.CreateConsolidationJournalAsync(db, preparer,
+         new(matchId, "REVENUE", 0m, 100m, "Reviewed linked elimination")]))).Value;
+      var duplicateLinkedJournal = (await ConsolidationService.CreateConsolidationJournalAsync(db, preparer,
         new ConsolidationJournalRequest(consolidationScopeId, "GC-DUPLICATE-LINK", "GROUP_RECLASSIFICATION", "QAR", "duplicate-linked-match",
-        [new(matchId, "CASH", 100m, 0m, "Must not duplicate a reviewed match"),
-         new(null, "REVENUE", 0m, 100m, "Must not duplicate a reviewed match")]));
-      Assert.False(duplicateLinkedJournal.Succeeded);
-      Assert.Equal(ErrorCodes.IdempotencyConflict, duplicateLinkedJournal.ErrorCode);
+        [new(matchId, "CASH", 100m, 0m, "Competing submitted match consumer"),
+         new(null, "REVENUE", 0m, 100m, "Competing submitted match consumer")]))).Value;
+      Assert.True((await ConsolidationService.ApproveConsolidationJournalAsync(db, reviewer, linkedJournalId)).Succeeded);
+      var duplicateApproval = await ConsolidationService.ApproveConsolidationJournalAsync(db, reviewer, duplicateLinkedJournal);
+      Assert.False(duplicateApproval.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, duplicateApproval.ErrorCode);
+      Assert.Equal(AccountingWorkflowStates.Submitted,
+        (await db.ConsolidationJournals.AsNoTracking().SingleAsync(x => x.Id == duplicateLinkedJournal)).Status);
+      Assert.Equal(linkedJournalId, (await db.ConsolidationMatchReservations.AsNoTracking()
+        .SingleAsync(x => x.FirmId == scope.FirmId && x.ScopeVersionId == consolidationScopeId &&
+          x.IntercompanyMatchId == matchId)).ConsolidationJournalId);
       var changedJournalId = (await ConsolidationService.CreateConsolidationJournalAsync(db, preparer,
         new ConsolidationJournalRequest(consolidationScopeId, "GC-002", "GROUP_RECLASSIFICATION", "QAR", "group-adjustment-002",
         [new(null, "CASH", 50m, 0m, "Post-run group-only cash reclassification"),
@@ -460,7 +466,12 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == runId && x.IntercompanyMatchId == matchId));
       Assert.Equal(20, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId));
       Assert.Equal(2, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId && x.ConsolidationJournalId == changedJournalId));
-      Assert.Equal(1, await db.ConsolidationRunLines.CountAsync(x => x.RunId == rebuiltRunId && x.IntercompanyMatchId == matchId));
+      var linkedMatchLines = await db.ConsolidationRunLines.AsNoTracking().Where(x =>
+        x.RunId == rebuiltRunId && x.IntercompanyMatchId == matchId).ToListAsync();
+      Assert.Equal(2, linkedMatchLines.Count);
+      Assert.All(linkedMatchLines, x => Assert.Equal(linkedJournalId, x.ConsolidationJournalId));
+      Assert.Contains(linkedMatchLines, x => x.TaxonomyCode == "CASH" && x.EliminationAmount == 100m && x.ConsolidatedAmount == 100m);
+      Assert.Contains(linkedMatchLines, x => x.TaxonomyCode == "REVENUE" && x.EliminationAmount == -100m && x.ConsolidatedAmount == -100m);
       Assert.Empty(await db.ConsolidationRunLines.Where(x => x.RunId == rebuiltRunId && x.IntercompanyMatchId == outsideMatchId).ToListAsync());
       Assert.All(await db.ConsolidationComponents.Where(x => x.ScopeVersionId == consolidationScopeId).ToListAsync(), x => Assert.Equal(AccountingWorkflowStates.Approved, x.Status));
       Assert.Equal(sourceClientBooksBefore,

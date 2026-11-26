@@ -463,6 +463,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<ConsolidationJournalLine> ConsolidationJournalLines => Set<ConsolidationJournalLine>();
 
+  public DbSet<ConsolidationMatchReservation> ConsolidationMatchReservations => Set<ConsolidationMatchReservation>();
+
   public DbSet<AdvancedConsolidationMethodSchedule> AdvancedConsolidationMethodSchedules => Set<AdvancedConsolidationMethodSchedule>();
 
   public DbSet<AdvancedConsolidationExecution> AdvancedConsolidationExecutions => Set<AdvancedConsolidationExecution>();

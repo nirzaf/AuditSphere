@@ -6651,6 +6651,37 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ConsolidationMatchReservation", b =>
+                {
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
+                    b.Property<Guid>("ScopeVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("scope_version_id");
+
+                    b.Property<Guid>("IntercompanyMatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("intercompany_match_id");
+
+                    b.Property<Guid>("ConsolidationJournalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("consolidation_journal_id");
+
+                    b.HasKey("FirmId", "GroupId", "ScopeVersionId", "IntercompanyMatchId")
+                        .HasName("pk_consolidation_match_reservations");
+
+                    b.HasIndex("FirmId", "GroupId", "ScopeVersionId", "ConsolidationJournalId")
+                        .HasDatabaseName("ix_consolidation_match_reservations_scope_journal");
+
+                    b.ToTable("consolidation_match_reservations");
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ConsolidationRun", b =>
                 {
                     b.Property<Guid>("Id")
@@ -35469,6 +35500,25 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("FirmId", "GroupId", "ScopeVersionId", "IntercompanyMatchId")
                         .HasPrincipalKey("FirmId", "GroupId", "ScopeVersionId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ConsolidationMatchReservation", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Accounting.ConsolidationJournal", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "GroupId", "ScopeVersionId", "ConsolidationJournalId")
+                        .HasPrincipalKey("FirmId", "GroupId", "ScopeVersionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_consolidation_match_reservations_journal_scope");
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.IntercompanyMatch", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "GroupId", "ScopeVersionId", "IntercompanyMatchId")
+                        .HasPrincipalKey("FirmId", "GroupId", "ScopeVersionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_consolidation_match_reservations_match_scope");
                 });
 
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.ConsolidationRun", b =>

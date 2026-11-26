@@ -10,6 +10,9 @@ using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql;
 
 namespace AuditSphereOps.Api.Tests;
 
@@ -1211,6 +1214,255 @@ public sealed partial class ConsolidationWorkspaceApiTests
   }
 
   [Fact]
+  public async Task ConsolidationJournalApproval_ReservesEachMatchOnceAndRollsBackConflictingMultiMatch()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-MATCH-RESERVATION");
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var otherFirmFixture = await PbcSeed.SeedAsync(pg);
+    var reviewer = new AppUser
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, Email = "match-reservation-reviewer@auditsphere.test",
+      DisplayName = "Match Reservation Reviewer", TenantId = "tenant-001", Subject = "sub-match-reservation-reviewer"
+    };
+    var unrelatedReviewer = new AppUser
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, Email = "unrelated-match-reviewer@auditsphere.test",
+      DisplayName = "Unrelated Group Reviewer", TenantId = "tenant-001", Subject = "sub-unrelated-match-reviewer"
+    };
+    var secondMember = new PracticeClient
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, LegalName = "Match Reservation Counterparty",
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    Guid groupId, scopeId, firstMatchId, concurrentMatchId, rollbackMatchId, staleMatchId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.Users.AddRange(reviewer, unrelatedReviewer);
+      db.PracticeClients.Add(secondMember);
+      var group = new ClientGroup
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, Code = "MATCH-RESERVATION", Name = "Match Reservation",
+        Revision = 1
+      };
+      var unrelatedGroup = new ClientGroup
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, Code = "MATCH-RESERVATION-OTHER", Name = "Other Group",
+        Revision = 1
+      };
+      groupId = group.Id;
+      db.ClientGroups.AddRange(group, unrelatedGroup);
+      db.GroupAccessGrants.AddRange(
+        new GroupAccessGrant
+        {
+          Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = group.Id, UserId = fixture.Staff.Id,
+          Role = "AccountingPreparer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Staff.Id
+        },
+        new GroupAccessGrant
+        {
+          Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = group.Id, UserId = fixture.Staff.Id,
+          Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Staff.Id
+        },
+        new GroupAccessGrant
+        {
+          Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = group.Id, UserId = reviewer.Id,
+          Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Staff.Id
+        },
+        new GroupAccessGrant
+        {
+          Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = unrelatedGroup.Id, UserId = unrelatedReviewer.Id,
+          Role = "AccountingReviewer", GrantedAt = DateTimeOffset.UtcNow, GrantedByUserId = fixture.Staff.Id
+        });
+      var scope = new ConsolidationScopeVersion
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = group.Id, PeriodId = Guid.CreateVersion7(),
+        Method = ConsolidationCalculator.RestrictedMethod, ReportingCurrency = "QAR", Status = AccountingWorkflowStates.Approved,
+        OpeningBasis = "OPENING_BALANCE", CreatedByUserId = fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow,
+        ApprovedByUserId = reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow, GroupRevision = 1
+      };
+      db.ConsolidationScopeVersions.Add(scope);
+      scopeId = scope.Id;
+
+      IntercompanyMatch Match(string reference, decimal amount) => new()
+      {
+        Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = group.Id, ScopeVersionId = scope.Id,
+        SellerClientId = fixture.ClientId, BuyerClientId = secondMember.Id, AccountNature = ConsolidationEliminationKinds.ReceivablePayable,
+        SellerTaxonomyCode = "ASSETS.IC_AR", BuyerTaxonomyCode = "LIABILITIES.IC_AP", PeriodCode = "FY2026", Currency = "QAR",
+        TransactionReference = reference, SellerAmount = amount, BuyerAmount = -amount, MatchedAmount = amount,
+        Difference = 0m, Status = AccountingWorkflowStates.Approved, DifferenceReason = "No difference",
+        EvidenceReference = "SYNTHETIC-INTERCOMPANY-EVIDENCE", CreatedByUserId = fixture.Staff.Id,
+        ReviewedByUserId = reviewer.Id, CreatedAt = DateTimeOffset.UtcNow, ReviewedAt = DateTimeOffset.UtcNow
+      };
+      var firstMatch = Match("IC-RESERVATION-01", 100m);
+      var concurrentMatch = Match("IC-RESERVATION-02", 20m);
+      var rollbackMatch = Match("IC-RESERVATION-03", 20m);
+      var staleMatch = Match("IC-RESERVATION-04", 10m);
+      db.IntercompanyMatches.AddRange(firstMatch, concurrentMatch, rollbackMatch, staleMatch);
+      firstMatchId = firstMatch.Id;
+      concurrentMatchId = concurrentMatch.Id;
+      rollbackMatchId = rollbackMatch.Id;
+      staleMatchId = staleMatch.Id;
+      await db.SaveChangesAsync();
+    }
+
+    using var preparerFactory = Factory(pg, fixture.Staff);
+    using var preparer = preparerFactory.CreateClient();
+    var preparerCsrf = await SignIn(preparer);
+    using var reviewerFactory = Factory(pg, reviewer);
+    using var reviewerA = reviewerFactory.CreateClient();
+    using var reviewerB = reviewerFactory.CreateClient();
+    var reviewerCsrfA = await SignIn(reviewerA);
+    var reviewerCsrfB = await SignIn(reviewerB);
+    using var unrelatedFactory = Factory(pg, unrelatedReviewer);
+    using var unrelated = unrelatedFactory.CreateClient();
+    var unrelatedCsrf = await SignIn(unrelated);
+    using var otherFirmFactory = Factory(pg, otherFirmFixture.Staff);
+    using var otherFirm = otherFirmFactory.CreateClient();
+    var otherFirmCsrf = await SignIn(otherFirm);
+
+    object Journal(string number, params object[] lines) => new
+    {
+      journalNumber = number, journalType = "INTERCOMPANY_ELIMINATION", currency = "QAR",
+      evidenceReference = $"SYNTHETIC-{number}", lines
+    };
+    async Task<Guid> CreateAsync(string number, params object[] lines)
+    {
+      using var response = await Post(preparer, preparerCsrf, $"/api/ui/consolidation/scopes/{scopeId}/journals",
+        Journal(number, lines));
+      Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+      return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value").GetGuid();
+    }
+    Task<HttpResponseMessage> ApproveAsync(HttpClient client, string csrf, Guid id) =>
+      Post(client, csrf, $"/api/ui/consolidation/journals/{id}/approve", new { });
+
+    var ownerJournalId = await CreateAsync("EJ-RESERVATION-A",
+      new { intercompanyMatchId = firstMatchId, taxonomyCode = "ASSETS.IC_AR", debit = 100m, credit = 0m, description = "First side" },
+      new { intercompanyMatchId = firstMatchId, taxonomyCode = "LIABILITIES.IC_AP", debit = 0m, credit = 100m, description = "Second side" });
+    using (var selfApproval = await ApproveAsync(preparer, preparerCsrf, ownerJournalId))
+      Assert.Equal(HttpStatusCode.BadRequest, selfApproval.StatusCode);
+    var competingJournalId = await CreateAsync("EJ-RESERVATION-B",
+      new { intercompanyMatchId = firstMatchId, taxonomyCode = "ASSETS.IC_AR", debit = 100m, credit = 0m, description = "Competing side" },
+      new { intercompanyMatchId = (Guid?)null, taxonomyCode = "LIABILITIES.IC_AP", debit = 0m, credit = 100m, description = "Unlinked side" });
+    var unlinkedJournalId = await CreateAsync("EJ-RESERVATION-UNLINKED",
+      new { intercompanyMatchId = (Guid?)null, taxonomyCode = "ASSETS.IC_AR", debit = 5m, credit = 0m, description = "Group-only debit" },
+      new { intercompanyMatchId = (Guid?)null, taxonomyCode = "LIABILITIES.IC_AP", debit = 0m, credit = 5m, description = "Group-only credit" });
+
+    using (var wrongGroup = await ApproveAsync(unrelated, unrelatedCsrf, ownerJournalId))
+    {
+      Assert.Equal(HttpStatusCode.Forbidden, wrongGroup.StatusCode);
+      Assert.DoesNotContain(firstMatchId.ToString("D"), await wrongGroup.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+    }
+    using (var wrongFirm = await ApproveAsync(otherFirm, otherFirmCsrf, ownerJournalId))
+    {
+      Assert.Equal(HttpStatusCode.Forbidden, wrongFirm.StatusCode);
+      Assert.DoesNotContain(firstMatchId.ToString("D"), await wrongFirm.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+    }
+    using (var approved = await ApproveAsync(reviewerA, reviewerCsrfA, ownerJournalId))
+      Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
+    using (var conflict = await ApproveAsync(reviewerA, reviewerCsrfA, competingJournalId))
+    {
+      Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
+      Assert.DoesNotContain(firstMatchId.ToString("D"), await conflict.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+    }
+    using (var unlinked = await ApproveAsync(reviewerA, reviewerCsrfA, unlinkedJournalId))
+      Assert.Equal(HttpStatusCode.OK, unlinked.StatusCode);
+
+    var concurrentA = await CreateAsync("EJ-RESERVATION-CONCURRENT-A",
+      new { intercompanyMatchId = concurrentMatchId, taxonomyCode = "ASSETS.IC_AR", debit = 20m, credit = 0m, description = "Concurrent A" },
+      new { intercompanyMatchId = (Guid?)null, taxonomyCode = "LIABILITIES.IC_AP", debit = 0m, credit = 20m, description = "Concurrent A balance" });
+    var concurrentB = await CreateAsync("EJ-RESERVATION-CONCURRENT-B",
+      new { intercompanyMatchId = concurrentMatchId, taxonomyCode = "ASSETS.IC_AR", debit = 20m, credit = 0m, description = "Concurrent B" },
+      new { intercompanyMatchId = (Guid?)null, taxonomyCode = "LIABILITIES.IC_AP", debit = 0m, credit = 20m, description = "Concurrent B balance" });
+    var concurrentResponses = await Task.WhenAll(
+      ApproveAsync(reviewerA, reviewerCsrfA, concurrentA), ApproveAsync(reviewerB, reviewerCsrfB, concurrentB));
+    using var responseA = concurrentResponses[0];
+    using var responseB = concurrentResponses[1];
+    Assert.Single(concurrentResponses, x => x.StatusCode == HttpStatusCode.OK);
+    Assert.Single(concurrentResponses, x => x.StatusCode == HttpStatusCode.Conflict);
+
+    var multiMatchJournalId = await CreateAsync("EJ-RESERVATION-MULTI-MATCH",
+      new { intercompanyMatchId = concurrentMatchId, taxonomyCode = "ASSETS.IC_AR", debit = 20m, credit = 0m, description = "Reserved match" },
+      new { intercompanyMatchId = rollbackMatchId, taxonomyCode = "LIABILITIES.IC_AP", debit = 0m, credit = 20m, description = "Unreserved match" });
+    using (var conflict = await ApproveAsync(reviewerA, reviewerCsrfA, multiMatchJournalId))
+      Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
+
+    var staleJournalId = await CreateAsync("EJ-RESERVATION-STALE",
+      new { intercompanyMatchId = staleMatchId, taxonomyCode = "ASSETS.IC_AR", debit = 10m, credit = 0m, description = "Stale debit" },
+      new { intercompanyMatchId = (Guid?)null, taxonomyCode = "LIABILITIES.IC_AP", debit = 0m, credit = 10m, description = "Stale balance" });
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      await db.ClientGroups.Where(x => x.FirmId == fixture.FirmId && x.Id == groupId)
+        .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.Revision, 2));
+    }
+    using (var stale = await ApproveAsync(reviewerA, reviewerCsrfA, staleJournalId))
+      Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(ownerJournalId, (await proof.ConsolidationMatchReservations.AsNoTracking()
+      .SingleAsync(x => x.FirmId == fixture.FirmId && x.IntercompanyMatchId == firstMatchId)).ConsolidationJournalId);
+    Assert.Equal(1, await proof.ConsolidationMatchReservations.CountAsync(x => x.FirmId == fixture.FirmId &&
+      x.GroupId == groupId && x.ScopeVersionId == scopeId && x.IntercompanyMatchId == firstMatchId));
+    var concurrentOwner = await proof.ConsolidationMatchReservations.AsNoTracking()
+      .SingleAsync(x => x.FirmId == fixture.FirmId && x.IntercompanyMatchId == concurrentMatchId);
+    Assert.Contains(concurrentOwner.ConsolidationJournalId, new[] { concurrentA, concurrentB });
+    Assert.False(await proof.ConsolidationMatchReservations.AnyAsync(x => x.FirmId == fixture.FirmId &&
+      (x.IntercompanyMatchId == rollbackMatchId || x.IntercompanyMatchId == staleMatchId)));
+    Assert.Equal(AccountingWorkflowStates.Submitted,
+      await proof.ConsolidationJournals.Where(x => x.Id == competingJournalId).Select(x => x.Status).SingleAsync());
+    Assert.Equal(AccountingWorkflowStates.Submitted,
+      await proof.ConsolidationJournals.Where(x => x.Id == multiMatchJournalId).Select(x => x.Status).SingleAsync());
+    Assert.Equal(AccountingWorkflowStates.Submitted,
+      await proof.ConsolidationJournals.Where(x => x.Id == staleJournalId).Select(x => x.Status).SingleAsync());
+    Assert.Equal(AccountingWorkflowStates.Approved,
+      await proof.ConsolidationJournals.Where(x => x.Id == unlinkedJournalId).Select(x => x.Status).SingleAsync());
+  }
+
+  [Fact]
+  public async Task ConsolidationMatchReservationMigration_BackfillsSingleOwnerAndRejectsAmbiguousHistory()
+  {
+    await using (var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-MATCH-RESERVATION-BACKFILL"))
+    {
+      var fixture = await PbcSeed.SeedAsync(pg);
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var migrations = db.Database.GetMigrations().ToArray();
+      var index = Array.FindIndex(migrations, x => x.EndsWith("_ConsolidationMatchReservations", StringComparison.Ordinal));
+      Assert.True(index > 0, "ConsolidationMatchReservations migration is missing.");
+      var migrator = db.GetService<IMigrator>();
+      await migrator.MigrateAsync(migrations[index - 1]);
+      var evidence = await SeedApprovedMatchConsumerHistoryAsync(db, fixture, duplicateOwners: false);
+      await migrator.MigrateAsync();
+
+      var reservation = await db.ConsolidationMatchReservations.AsNoTracking().SingleAsync(x =>
+        x.FirmId == fixture.FirmId && x.GroupId == evidence.GroupId && x.ScopeVersionId == evidence.ScopeId &&
+        x.IntercompanyMatchId == evidence.MatchId);
+      Assert.Equal(evidence.OwnerJournalId, reservation.ConsolidationJournalId);
+      Assert.Equal(2, await db.ConsolidationJournalLines.CountAsync(x =>
+        x.ConsolidationJournalId == evidence.OwnerJournalId && x.IntercompanyMatchId == evidence.MatchId));
+    }
+
+    await using (var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-MATCH-RESERVATION-AMBIGUOUS"))
+    {
+      var fixture = await PbcSeed.SeedAsync(pg);
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var migrations = db.Database.GetMigrations().ToArray();
+      var index = Array.FindIndex(migrations, x => x.EndsWith("_ConsolidationMatchReservations", StringComparison.Ordinal));
+      Assert.True(index > 0, "ConsolidationMatchReservations migration is missing.");
+      var migrator = db.GetService<IMigrator>();
+      await migrator.MigrateAsync(migrations[index - 1]);
+      _ = await SeedApprovedMatchConsumerHistoryAsync(db, fixture, duplicateOwners: true);
+
+      var failure = await Record.ExceptionAsync(() => migrator.MigrateAsync());
+      Assert.NotNull(failure);
+      while (failure is not PostgresException && failure.InnerException is not null)
+        failure = failure.InnerException;
+      var error = Assert.IsType<PostgresException>(failure);
+      Assert.Equal("P0001", error.SqlState);
+      Assert.Contains("F01 preflight blocked", error.MessageText, StringComparison.Ordinal);
+      Assert.DoesNotContain(migrations[index], await db.Database.GetAppliedMigrationsAsync());
+      Assert.Equal(2, await db.ConsolidationJournals.CountAsync(x => x.Status == AccountingWorkflowStates.Approved));
+    }
+  }
+
+  [Fact]
   public async Task AdvancedConsolidation_GetWorkspace_AndSubmitSchedule()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-CONSOL-ADVANCED");
@@ -1633,6 +1885,79 @@ public sealed partial class ConsolidationWorkspaceApiTests
     Assert.Equal(reviewerEpochBefore + 1, await proof.Users.AsNoTracking()
       .Where(x => x.Id == fixture.Seed.Reviewer.Id).Select(x => x.SessionEpoch).SingleAsync());
     Assert.Equal(operationalJournalCountBefore, await proof.ClientOperationalJournals.CountAsync());
+  }
+
+  private static async Task<(Guid GroupId, Guid ScopeId, Guid MatchId, Guid OwnerJournalId)> SeedApprovedMatchConsumerHistoryAsync(
+    AuditSphereDbContext db, PbcSeed.Fixture fixture, bool duplicateOwners)
+  {
+    var reviewer = new AppUser
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, Email = "legacy-match-reviewer@auditsphere.test",
+      DisplayName = "Legacy Match Reviewer", TenantId = "tenant-001", Subject = "sub-legacy-match-reviewer"
+    };
+    var buyer = new PracticeClient
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, LegalName = "Legacy Reservation Buyer",
+      CreatedAt = DateTimeOffset.UtcNow
+    };
+    var group = new ClientGroup
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, Code = duplicateOwners ? "LEGACY-DUP" : "LEGACY-VALID",
+      Name = "Legacy Reservation Fixture", Revision = 1
+    };
+    var scope = new ConsolidationScopeVersion
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = group.Id, PeriodId = Guid.CreateVersion7(),
+      Method = ConsolidationCalculator.RestrictedMethod, ReportingCurrency = "QAR", Status = AccountingWorkflowStates.Approved,
+      OpeningBasis = "OPENING_BALANCE", CreatedByUserId = fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow,
+      ApprovedByUserId = reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow, GroupRevision = 1
+    };
+    var match = new IntercompanyMatch
+    {
+      Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = group.Id, ScopeVersionId = scope.Id,
+      SellerClientId = fixture.ClientId, BuyerClientId = buyer.Id,
+      AccountNature = ConsolidationEliminationKinds.ReceivablePayable, SellerTaxonomyCode = "ASSETS.IC_AR",
+      BuyerTaxonomyCode = "LIABILITIES.IC_AP", PeriodCode = "FY2026", Currency = "QAR",
+      TransactionReference = duplicateOwners ? "IC-LEGACY-DUP" : "IC-LEGACY-VALID", SellerAmount = 100m,
+      BuyerAmount = -100m, MatchedAmount = 100m, Status = AccountingWorkflowStates.Approved,
+      EvidenceReference = "SYNTHETIC-LEGACY-MATCH", CreatedByUserId = fixture.Staff.Id,
+      ReviewedByUserId = reviewer.Id, CreatedAt = DateTimeOffset.UtcNow, ReviewedAt = DateTimeOffset.UtcNow
+    };
+    db.Users.Add(reviewer);
+    db.PracticeClients.Add(buyer);
+    db.ClientGroups.Add(group);
+    db.ConsolidationScopeVersions.Add(scope);
+    db.IntercompanyMatches.Add(match);
+    var ownerJournalId = Guid.CreateVersion7();
+    var journals = Enumerable.Range(0, duplicateOwners ? 2 : 1).Select(index => new ConsolidationJournal
+    {
+      Id = index == 0 ? ownerJournalId : Guid.CreateVersion7(), FirmId = fixture.FirmId,
+      GroupId = group.Id, ScopeVersionId = scope.Id, JournalNumber = $"GC-LEGACY-{index + 1}",
+      JournalType = "INTERCOMPANY_ELIMINATION", Currency = "QAR", TotalDebits = 100m,
+      TotalCreditsAbs = 100m, EvidenceReference = "SYNTHETIC-LEGACY-JOURNAL", Status = AccountingWorkflowStates.Approved,
+      CreatedByUserId = fixture.Staff.Id, ApprovedByUserId = reviewer.Id,
+      CreatedAt = DateTimeOffset.UtcNow, ApprovedAt = DateTimeOffset.UtcNow
+    }).ToArray();
+    db.ConsolidationJournals.AddRange(journals);
+    foreach (var journal in journals)
+    {
+      db.ConsolidationJournalLines.AddRange(
+        new ConsolidationJournalLine
+        {
+          Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = group.Id, ScopeVersionId = scope.Id,
+          ConsolidationJournalId = journal.Id, IntercompanyMatchId = match.Id, TaxonomyCode = "ASSETS.IC_AR",
+          Debit = 100m, Credit = 0m, Currency = "QAR", Description = "Synthetic legacy debit", CreatedAt = journal.CreatedAt
+        },
+        new ConsolidationJournalLine
+        {
+          Id = Guid.CreateVersion7(), FirmId = fixture.FirmId, GroupId = group.Id, ScopeVersionId = scope.Id,
+          ConsolidationJournalId = journal.Id, IntercompanyMatchId = duplicateOwners ? null : match.Id,
+          TaxonomyCode = "LIABILITIES.IC_AP", Debit = 0m, Credit = 100m, Currency = "QAR",
+          Description = "Synthetic legacy credit", CreatedAt = journal.CreatedAt
+        });
+    }
+    await db.SaveChangesAsync();
+    return (group.Id, scope.Id, match.Id, ownerJournalId);
   }
 
   private static StandaloneApiApplicationFactory Factory(OwnedPostgresDatabase pg, AppUser u) => new(new Dictionary<string, string?>
