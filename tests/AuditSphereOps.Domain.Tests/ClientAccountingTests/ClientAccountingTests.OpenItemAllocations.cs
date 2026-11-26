@@ -1,9 +1,13 @@
+using System.Data.Common;
+using System.Security.Cryptography;
+using System.Text;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
@@ -403,13 +407,16 @@ public sealed partial class ClientAccountingTests
     await using var pg = await PgTestSchema.CreateAsync();
     var scope = await SeedAsync(pg);
     var alternateReviewer = User(scope.FirmId, "allocation-reviewer-other");
+    var revocationReviewer = User(scope.FirmId, "allocation-reviewer-revocation-check");
     await using (var grants = new AuditSphereDbContext(pg.Options))
     {
-      grants.Users.Add(alternateReviewer);
-      grants.RoleGrants.Add(Grant(scope.FirmId, alternateReviewer, "AccountingReviewer", scope.ClientA));
+      grants.Users.AddRange(alternateReviewer, revocationReviewer);
+      grants.RoleGrants.AddRange(Grant(scope.FirmId, alternateReviewer, "AccountingReviewer", scope.ClientA),
+        Grant(scope.FirmId, revocationReviewer, "AccountingReviewer", scope.ClientA));
       await grants.SaveChangesAsync();
     }
     var alternateReviewerActor = Actor(alternateReviewer, "AccountingReviewer");
+    var revocationReviewerActor = Actor(revocationReviewer, "AccountingReviewer");
     var seed = await SeedSalesWorkflow(pg, scope);
     var maker = Actor(scope.Preparer, "AccountingPreparer");
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
@@ -451,7 +458,7 @@ public sealed partial class ClientAccountingTests
 
     var allocate = new ClientOpenItemAllocationRequest(Guid.CreateVersion7(), "SALES_CREDIT", creditItemId, "ALLOCATE",
       "RCPT-CREDIT-1", "Apply approved customer credit to invoice", [new(1, "SALES_INVOICE", invoiceItemId, 20m)], "");
-    Guid allocationSubmissionId, allocationLineId;
+    Guid allocationSubmissionId, allocationLineId, corruptSubmissionId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var preview = await ClientOpenItemAllocationWorkflow.PreviewAsync(db, maker, scope.ClientA, allocate);
@@ -464,6 +471,22 @@ public sealed partial class ClientAccountingTests
       var submitted = await ClientOpenItemAllocationWorkflow.SubmitAsync(db, maker, scope.ClientA,
         allocate with { PreviewDigest = preview.Value.Digest });
       Assert.True(submitted.Succeeded, submitted.Message); allocationSubmissionId = submitted.Value!.SubmissionId;
+      var queuedRequest = allocate with
+      {
+        CommandId = Guid.CreateVersion7(), Reference = "RCPT-CREDIT-2", Reason = "Prepare a separate reviewed allocation",
+        Lines = [new(1, "SALES_INVOICE", invoiceItemId, 5m)]
+      };
+      var queuedPreview = await ClientOpenItemAllocationWorkflow.PreviewAsync(db, maker, scope.ClientA, queuedRequest);
+      Assert.True(queuedPreview.Succeeded, queuedPreview.Message);
+      var queuedSubmission = await ClientOpenItemAllocationWorkflow.SubmitAsync(db, maker, scope.ClientA,
+        queuedRequest with { PreviewDigest = queuedPreview.Value!.Digest });
+      Assert.True(queuedSubmission.Succeeded, queuedSubmission.Message);
+      var pendingIds = await db.ClientOpenItemAllocationSubmissions.AsNoTracking()
+        .Where(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientA && x.CreatedByUserId == maker.UserId &&
+          !db.ClientOpenItemAllocationDecisions.Any(d => d.FirmId == x.FirmId && d.ClientId == x.ClientId && d.SubmissionId == x.Id))
+        .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Select(x => x.Id).ToListAsync();
+      Assert.Equal(2, pendingIds.Count);
+      corruptSubmissionId = pendingIds[^1];
       var makerCommand = await ClientOpenItemAllocationWorkflow.FindCommandAsync(db, maker, scope.ClientA, allocate.CommandId, "SUBMIT");
       Assert.True(makerCommand.Succeeded && makerCommand.Value!.Found);
       Assert.Equal(maker.UserId, makerCommand.Value!.Receipt!.ActorUserId);
@@ -479,7 +502,39 @@ public sealed partial class ClientAccountingTests
       Assert.False(otherClientCommand.Value!.Found);
       Assert.Null(otherClientCommand.Value.Receipt);
       var pending = await ClientOpenItemAllocationWorkflow.PendingAsync(db, reviewer, scope.ClientA);
-      Assert.True(pending.Succeeded, pending.Message); Assert.Single(pending.Value!);
+      Assert.True(pending.Succeeded, pending.Message); Assert.Equal(2, pending.Value!.Count);
+
+      // The database trigger protects retained rows, so corruption is injected only into the
+      // materialized read projection. A bad row after a valid row must fail the whole queue.
+      foreach (var mode in new[] { "hash", "malformed-json", "null-preview" })
+      {
+        var fault = new PendingAllocationReadFault(mode, corruptSubmissionId);
+        var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(fault).Options;
+        await using var faultedDb = new AuditSphereDbContext(options);
+        var unreadable = await ClientOpenItemAllocationWorkflow.PendingAsync(faultedDb, reviewer, scope.ClientA);
+        Assert.False(unreadable.Succeeded);
+        Assert.Equal(ErrorCodes.ManifestMismatch, unreadable.ErrorCode);
+        Assert.Null(unreadable.Value);
+        Assert.Equal(2, fault.MaterializedSubmissionCount);
+      }
+
+      var revokedGrantCount = 0;
+      var revokeFault = new PendingAllocationReadFault("hash", corruptSubmissionId, async () =>
+      {
+        await using var revoker = new AuditSphereDbContext(pg.Options);
+        revokedGrantCount = await revoker.RoleGrants.Where(x => x.FirmId == scope.FirmId && x.UserId == revocationReviewer.Id &&
+          x.ClientId == scope.ClientA && x.Role == "AccountingReviewer" && x.RevokedAt == null)
+          .ExecuteUpdateAsync(x => x.SetProperty(g => g.RevokedAt, DateTimeOffset.UtcNow));
+      });
+      var revokeOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(revokeFault).Options;
+      await using var revokeDb = new AuditSphereDbContext(revokeOptions);
+      var deniedAfterRead = await ClientOpenItemAllocationWorkflow.PendingAsync(revokeDb, revocationReviewerActor, scope.ClientA);
+      Assert.Equal(1, revokeFault.PendingQueryCount);
+      Assert.Equal(1, revokedGrantCount);
+      Assert.False(deniedAfterRead.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, deniedAfterRead.ErrorCode);
+      Assert.Null(deniedAfterRead.Value);
+
       var review = await ClientOpenItemAllocationWorkflow.ReviewPreviewAsync(db, reviewer, scope.ClientA, allocationSubmissionId);
       Assert.True(review.Succeeded, review.Message); Assert.Equal(allocationSubmissionId, review.Value!.SubmissionId);
       Assert.False((await ClientOpenItemAllocationWorkflow.ReviewAsync(db, maker, scope.ClientA, allocationSubmissionId,
@@ -519,7 +574,7 @@ public sealed partial class ClientAccountingTests
       var balances = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA, new(2026, 2, 1));
       Assert.Equal("110.000000", balances.Value!.Single(x => x.OpenItemId == invoiceItemId).OpenAmount);
       Assert.Equal("10.000000", balances.Value!.Single(x => x.OpenItemId == creditItemId).OpenAmount);
-      Assert.Equal(2, await db.ClientOpenItemAllocationSubmissions.CountAsync());
+      Assert.Equal(3, await db.ClientOpenItemAllocationSubmissions.CountAsync());
       Assert.Equal(2, await db.ClientOpenItemAllocationDecisions.CountAsync());
       Assert.Empty(await db.FirmJournals.ToListAsync());
     }
@@ -632,5 +687,50 @@ public sealed partial class ClientAccountingTests
       Assert.False(outside.Succeeded);
       Assert.Equal(ErrorCodes.GateBlocked, outside.ErrorCode);
     }
+  }
+
+  private sealed class PendingAllocationReadFault : DbCommandInterceptor, IMaterializationInterceptor
+  {
+    private readonly string mode;
+    private readonly Guid corruptSubmissionId;
+    private readonly Func<Task>? afterPendingQuery;
+    private int pendingQueryCount;
+    private int materializedSubmissionCount;
+
+    public PendingAllocationReadFault(string mode, Guid corruptSubmissionId, Func<Task>? afterPendingQuery = null)
+    {
+      this.mode = mode;
+      this.corruptSubmissionId = corruptSubmissionId;
+      this.afterPendingQuery = afterPendingQuery;
+    }
+
+    public int PendingQueryCount => Volatile.Read(ref pendingQueryCount);
+    public int MaterializedSubmissionCount => Volatile.Read(ref materializedSubmissionCount);
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+      DbDataReader result, CancellationToken cancellationToken = default)
+    {
+      if (afterPendingQuery is not null && command.CommandText.Contains("client_open_item_allocation_submissions", StringComparison.OrdinalIgnoreCase) &&
+          Interlocked.CompareExchange(ref pendingQueryCount, 1, 0) == 0)
+        await afterPendingQuery();
+      return result;
+    }
+
+    public object InitializedInstance(MaterializationInterceptionData materializationData, object entity)
+    {
+      if (entity is not ClientOpenItemAllocationSubmission submission) return entity;
+      Interlocked.Increment(ref materializedSubmissionCount);
+      if (submission.Id != corruptSubmissionId) return entity;
+
+      if (mode == "hash") submission.ManifestHash = new string('x', 64);
+      else
+      {
+        submission.ManifestJson = mode == "malformed-json" ? "{" : "null";
+        submission.ManifestHash = Sha256(submission.ManifestJson);
+      }
+      return entity;
+    }
+
+    private static string Sha256(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
   }
 }

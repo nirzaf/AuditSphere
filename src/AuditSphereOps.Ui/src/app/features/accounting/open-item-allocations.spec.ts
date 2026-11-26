@@ -170,6 +170,46 @@ describe('client open-item control reconciliation', () => {
     http.verify();
     fixture.destroy();
   });
+
+  it('keeps pending reviews disabled and shows support guidance when retained evidence fails integrity validation', async () => {
+    TestBed.configureTestingModule({ imports: [OpenItemAllocations], providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const http = TestBed.inject(HttpTestingController);
+    TestBed.inject(SessionService).current.set({ userId: reviewerId, firmId: client, generation: '4', staff: true });
+    const fixture = TestBed.createComponent(OpenItemAllocations);
+    const component = fixture.componentInstance;
+    component.asOfDate = '2026-02-01';
+    fixture.componentRef.setInput('clientId', client);
+    fixture.componentRef.setInput('periods', [
+      { id: period, code: 'FY26', startDate: '2026-01-01', endDate: '2026-12-31', currency: 'QAR' },
+      { id: alternatePeriod, code: 'ALT-26', startDate: '2026-01-01', endDate: '2026-06-30', currency: 'QAR' }
+    ]);
+    component.reportingPeriodId = alternatePeriod;
+    fixture.detectChanges();
+
+    http.expectOne(request => request.url.endsWith('/open-item-balances')).flush([]);
+    http.expectOne(request => request.url.endsWith('/manual-settlement-options')).flush({ periods: [], counterparties: [], cashAccounts: [] });
+    http.expectOne(request => request.url.endsWith('/open-item-control-reconciliation')).flush({
+      clientId: client, periodId: alternatePeriod, periodCode: 'ALT-26', currency: 'QAR', asOfDate: '2026-02-01',
+      ledgerBasis: 'POSTED_NATIVE_CLIENT_JOURNALS_TO_AS_OF_DATE', allocationBasis: 'CURRENT_APPROVED_ALLOCATIONS_NO_SEPARATE_EFFECTIVE_DATE',
+      openingDetailStatus: 'NO_APPROVED_OPENING', unlinkedOpenItemCount: 0, accounts: [], reconciled: true
+    });
+    http.expectOne(request => request.url.endsWith('/open-item-allocation-submissions'))
+      .flush({ code: 'manifest.mismatch', message: 'Pending allocation evidence failed integrity validation.' },
+        { status: 400, statusText: 'Bad Request' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.pending()).toEqual([]);
+    expect(component.pendingLoadedFor()).toBe('');
+    expect(component.error()).toContain('contact support before retrying');
+    expect(fixture.nativeElement.textContent).toContain('Reviews are disabled; contact support before retrying.');
+    expect(fixture.nativeElement.textContent).not.toContain('Pending allocations for independent review');
+    const buttons = fixture.nativeElement.querySelectorAll('button') as HTMLButtonElement[];
+    expect(Array.from(buttons).some(button => button.textContent?.includes('Approve this exact allocation'))).toBe(false);
+    http.verify();
+    fixture.destroy();
+    TestBed.resetTestingModule();
+  });
 });
 
 describe('client open-item allocation manifest assent', () => {

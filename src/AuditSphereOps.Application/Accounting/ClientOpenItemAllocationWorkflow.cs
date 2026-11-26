@@ -351,16 +351,37 @@ public static class ClientOpenItemAllocationWorkflow
       return CommandResult<IReadOnlyList<ClientOpenItemAllocationPreview>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var submissions = await db.ClientOpenItemAllocationSubmissions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId &&
       x.CreatedByUserId != actor.UserId && !db.ClientOpenItemAllocationDecisions.Any(d => d.FirmId == x.FirmId && d.ClientId == x.ClientId && d.SubmissionId == x.Id))
-      .OrderBy(x => x.CreatedAt).Take(100).ToListAsync(ct);
+      .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).Take(100).ToListAsync(ct);
     var result = new List<ClientOpenItemAllocationPreview>();
+    var integrityFailure = false;
     foreach (var submission in submissions)
     {
-      if (Hash(submission.ManifestJson) != submission.ManifestHash) continue;
-      try { var preview = JsonSerializer.Deserialize<ClientOpenItemAllocationPreview>(submission.ManifestJson); if (preview is not null) result.Add(preview with { SubmissionId = submission.Id }); }
-      catch (JsonException) { }
+      if (Hash(submission.ManifestJson) != submission.ManifestHash)
+      {
+        integrityFailure = true;
+        break;
+      }
+      try
+      {
+        var preview = JsonSerializer.Deserialize<ClientOpenItemAllocationPreview>(submission.ManifestJson);
+        if (preview is null)
+        {
+          integrityFailure = true;
+          break;
+        }
+        result.Add(preview with { SubmissionId = submission.Id });
+      }
+      catch (JsonException)
+      {
+        integrityFailure = true;
+        break;
+      }
     }
     if (!(await Authorize(db, actor, clientId, Reviewers, ct)).Succeeded)
       return CommandResult<IReadOnlyList<ClientOpenItemAllocationPreview>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (integrityFailure)
+      return CommandResult<IReadOnlyList<ClientOpenItemAllocationPreview>>.Fail(ErrorCodes.ManifestMismatch,
+        "Pending allocation evidence failed integrity validation; no review queue was returned.");
     return CommandResult<IReadOnlyList<ClientOpenItemAllocationPreview>>.Ok(result);
   }
 

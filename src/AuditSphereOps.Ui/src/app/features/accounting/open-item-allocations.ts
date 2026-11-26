@@ -1,5 +1,5 @@
 import { Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { Subscription, timeout } from 'rxjs';
@@ -694,10 +694,14 @@ export class OpenItemAllocations {
         }
         this.busy.set(false);
       },
-      error: () => {
+      error: failure => {
         if (request !== this.pendingRequest || context !== this.currentScopeKey()) return;
         this.pending.set([]); this.pendingLoadedFor.set(""); this.busy.set(false);
-        this.error.set("Pending allocation reviews could not be loaded for this client and session. Refresh before continuing.");
+        const body = failure instanceof HttpErrorResponse ? failure.error : null;
+        const code = body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>)['code'] : null;
+        this.error.set(code === 'manifest.mismatch'
+          ? 'Pending allocation evidence failed its integrity check. Reviews are disabled; contact support before retrying.'
+          : 'Pending allocation reviews could not be loaded for this client and session. Refresh before continuing.');
       }
     });
   }
