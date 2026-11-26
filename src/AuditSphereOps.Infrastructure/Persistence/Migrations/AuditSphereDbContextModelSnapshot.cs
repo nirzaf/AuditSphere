@@ -12520,6 +12520,104 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.StatementLayoutCommandReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("action");
+
+                    b.Property<long>("ActorEpoch")
+                        .HasColumnType("bigint")
+                        .HasColumnName("actor_epoch");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ExpectedLayoutHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("expected_layout_hash");
+
+                    b.Property<Guid>("FirmId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("firm_id");
+
+                    b.Property<string>("InputJson")
+                        .IsRequired()
+                        .HasMaxLength(120000)
+                        .HasColumnType("text")
+                        .HasColumnName("input_json");
+
+                    b.Property<Guid>("LayoutVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("layout_version_id");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("request_id");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("result_json");
+
+                    b.Property<string>("ResultLayoutHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("result_layout_hash");
+
+                    b.Property<string>("ResultStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("result_status");
+
+                    b.Property<int>("ResultVersionNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("result_version_number");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FirmId", "ActorId");
+
+                    b.HasIndex("FirmId", "ClientId", "CreatedAt")
+                        .HasDatabaseName("ix_statement_layout_command_receipt_client_history");
+
+                    b.HasIndex("FirmId", "ClientId", "LayoutVersionId");
+
+                    b.HasIndex("FirmId", "ClientId", "ActorId", "RequestId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_statement_layout_command_receipt_actor_request");
+
+                    b.ToTable("statement_layout_command_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_statement_layout_command_receipt_values", "actor_epoch >= 1 AND request_id <> '00000000-0000-0000-0000-000000000000'::uuid AND action IN ('SAVE','PUBLISH') AND request_hash ~ '^[0-9a-f]{64}$' AND (expected_layout_hash IS NULL OR expected_layout_hash ~ '^[0-9a-f]{64}$') AND result_layout_hash ~ '^[0-9a-f]{64}$' AND result_status IN ('DRAFT','VALIDATED','PUBLISHED') AND result_version_number >= 1 AND length(input_json) BETWEEN 1 AND 120000 AND length(result_json) BETWEEN 1 AND 1000000 AND jsonb_typeof(input_json::jsonb) = 'object' AND jsonb_typeof(result_json::jsonb) = 'object'");
+                        });
+                });
+
             modelBuilder.Entity("AuditSphereOps.Domain.Accounting.StatementLayoutLine", b =>
                 {
                     b.Property<Guid>("Id")
@@ -36754,6 +36852,30 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FirmId", "ClientId", "EngagementId", "ScheduleId")
                         .HasPrincipalKey("FirmId", "ClientId", "EngagementId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AuditSphereOps.Domain.Accounting.StatementLayoutCommandReceipt", b =>
+                {
+                    b.HasOne("AuditSphereOps.Domain.Security.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ActorId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Practice.PracticeClient", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId")
+                        .HasPrincipalKey("FirmId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AuditSphereOps.Domain.Accounting.StatementLayoutVersion", null)
+                        .WithMany()
+                        .HasForeignKey("FirmId", "ClientId", "LayoutVersionId")
+                        .HasPrincipalKey("FirmId", "ClientId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

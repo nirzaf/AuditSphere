@@ -25,6 +25,7 @@ public static class StatementLayoutService
 {
   private static readonly string[] PreparerRoles = ["AccountingPreparer", "Staff", "Manager", "Partner", "Administrator"];
   private static readonly string[] PublisherRoles = ["AccountingReviewer", "Manager", "Partner", "Administrator"];
+  private static readonly string[] ReaderRoles = ["AccountingPreparer", "AccountingReviewer", "Staff", "Manager", "Partner", "Administrator"];
 
   /// <summary>Creates or replaces a draft layout for a client/framework/name. The draft is
   /// validated immediately; an invalid grammar is stored with its errors so the author can
@@ -123,7 +124,7 @@ public static class StatementLayoutService
     if (version is null)
       return CommandResult<StatementLayoutValidationValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, version.ClientId, RequiredRoles: PreparerRoles, InternalOnly: true), ct);
+      new AuthorizationRequest(actor.FirmId, version.ClientId, RequiredRoles: ReaderRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<StatementLayoutValidationValue>.Fail(auth.ErrorCode!, auth.Message!);
     var lines = await LoadLinesAsync(db, actor.FirmId, version.Id, ct);
@@ -180,7 +181,7 @@ public static class StatementLayoutService
     if (version is null)
       return CommandResult<IReadOnlyList<StatementLayoutLine>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
-      new AuthorizationRequest(actor.FirmId, version.ClientId, RequiredRoles: PreparerRoles, InternalOnly: true), ct);
+      new AuthorizationRequest(actor.FirmId, version.ClientId, RequiredRoles: ReaderRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<IReadOnlyList<StatementLayoutLine>>.Fail(auth.ErrorCode!, auth.Message!);
     var lines = await db.StatementLayoutLines.AsNoTracking()

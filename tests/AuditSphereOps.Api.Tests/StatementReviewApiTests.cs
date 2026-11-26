@@ -16,6 +16,101 @@ namespace AuditSphereOps.Api.Tests;
 public sealed class StatementReviewApiTests
 {
   [Fact]
+  public async Task StatementLayoutSetupCreatesAndPublishesThroughScopedCommands()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-STATEMENT-LAYOUT-SETUP");
+    var f = await PbcSeed.SeedAsync(pg);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.RoleGrants.AddRange(
+        PbcSeed.Grant(f.FirmId, f.Staff, "AccountingPreparer", f.ClientId),
+        PbcSeed.Grant(f.FirmId, f.Reviewer, "AccountingReviewer", f.ClientId));
+      await db.SaveChangesAsync();
+    }
+
+    var root = $"/api/ui/accounting/clients/{f.ClientId:D}/statement-layouts";
+    using var staffFactory = Factory(pg, f.Staff); using var staff = staffFactory.CreateClient();
+    var staffCsrf = await SignIn(staff);
+    var empty = await Read(staff, root);
+    Assert.Empty(empty.GetProperty("items").EnumerateArray());
+
+    var requestId = Guid.NewGuid();
+    var draftBody = new
+    {
+      requestId,
+      layoutVersionId = (Guid?)null,
+      expectedLayoutHash = (string?)null,
+      draft = new
+      {
+        clientId = f.ClientId,
+        frameworkPolicy = "IFRS-2026",
+        name = "Primary statements",
+        supersedesLayoutId = (Guid?)null,
+        lines = new[]
+        {
+          new { lineCode = "CASH", label = "Cash", kind = "MAPPED_TAXONOMY_BALANCE", section = "FINANCIAL_POSITION", order = 1,
+            displaySign = "SIGNED", taxonomyNodeCode = "CASH", childLineCodes = (string[]?)null, referencedLineCodes = (string[]?)null,
+            operations = (string[]?)null, zeroDenominatorYieldsZero = false, denominatorLineCode = (string?)null, isSubtotal = false }
+        }
+      },
+      reviewed = true
+    };
+    using var create = await Post(staff, staffCsrf, root + "/drafts", draftBody);
+    Assert.Equal(HttpStatusCode.OK, create.StatusCode);
+    using var createdJson = JsonDocument.Parse(await create.Content.ReadAsStringAsync());
+    var created = createdJson.RootElement.GetProperty("value").Clone();
+    Assert.Equal("VALIDATED", created.GetProperty("resultStatus").GetString());
+    var layoutId = created.GetProperty("layoutVersionId").GetGuid();
+    var layoutHash = created.GetProperty("resultLayoutHash").GetString()!;
+
+    using var exactRetry = await Post(staff, staffCsrf, root + "/drafts", draftBody);
+    Assert.Equal(HttpStatusCode.OK, exactRetry.StatusCode);
+    using (var retryJson = JsonDocument.Parse(await exactRetry.Content.ReadAsStringAsync()))
+      Assert.Equal(created.GetProperty("id").GetGuid(), retryJson.RootElement.GetProperty("value").GetProperty("id").GetGuid());
+    using var changedReplay = await Post(staff, staffCsrf, root + "/drafts", new
+    {
+      requestId, layoutVersionId = (Guid?)null, expectedLayoutHash = (string?)null,
+      draft = new
+      {
+        clientId = f.ClientId, frameworkPolicy = "IFRS-2026", name = "Changed primary statements",
+        supersedesLayoutId = (Guid?)null, lines = draftBody.draft.lines
+      }, reviewed = true
+    });
+    Assert.Equal(HttpStatusCode.Conflict, changedReplay.StatusCode);
+
+    using var reviewerFactory = Factory(pg, f.Reviewer); using var reviewer = reviewerFactory.CreateClient();
+    var reviewerCsrf = await SignIn(reviewer);
+    var catalogue = await Read(reviewer, root);
+    Assert.Single(catalogue.GetProperty("items").EnumerateArray());
+    var detail = await Read(reviewer, root + $"/{layoutId:D}");
+    Assert.Equal(layoutHash, detail.GetProperty("layoutHash").GetString());
+    Assert.Equal(1, detail.GetProperty("lines").GetArrayLength());
+
+    var publishRequestId = Guid.NewGuid();
+    using var stalePublish = await Post(reviewer, reviewerCsrf, root + $"/{layoutId:D}/publish", new
+    {
+      requestId = Guid.NewGuid(), expectedLayoutHash = new string('0', 64), reason = "Reviewed exact layout", reviewed = true
+    });
+    Assert.Equal(HttpStatusCode.Conflict, stalePublish.StatusCode);
+    var publishBody = new { requestId = publishRequestId, expectedLayoutHash = layoutHash,
+      reason = "Independent review of the exact client layout.", reviewed = true };
+    using var publish = await Post(reviewer, reviewerCsrf, root + $"/{layoutId:D}/publish", publishBody);
+    Assert.Equal(HttpStatusCode.OK, publish.StatusCode);
+    using var publishedJson = JsonDocument.Parse(await publish.Content.ReadAsStringAsync());
+    Assert.Equal("PUBLISHED", publishedJson.RootElement.GetProperty("value").GetProperty("resultStatus").GetString());
+    using var publishRetry = await Post(reviewer, reviewerCsrf, root + $"/{layoutId:D}/publish", publishBody);
+    Assert.Equal(HttpStatusCode.OK, publishRetry.StatusCode);
+    using (var retryJson = JsonDocument.Parse(await publishRetry.Content.ReadAsStringAsync()))
+      Assert.Equal(publishedJson.RootElement.GetProperty("value").GetProperty("id").GetGuid(),
+        retryJson.RootElement.GetProperty("value").GetProperty("id").GetGuid());
+    var retained = await Read(reviewer, root + $"/receipts/{publishRequestId:D}");
+    Assert.True(retained.GetProperty("found").GetBoolean());
+    Assert.Equal("PUBLISH", retained.GetProperty("receipt").GetProperty("action").GetString());
+    using var foreignReceipt = await reviewer.GetAsync($"/api/ui/accounting/clients/{Guid.NewGuid():D}/statement-layouts/receipts/{publishRequestId:D}");
+    Assert.Equal(HttpStatusCode.Forbidden, foreignReceipt.StatusCode);
+  }
+
+  [Fact]
   public async Task CompleteTotalsPagedContributionsAndExportShareOneApprovedBasis()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-STATEMENT-REVIEW"); var f = await PbcSeed.SeedAsync(pg);

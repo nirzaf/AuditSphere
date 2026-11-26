@@ -172,6 +172,7 @@ function isProfileSaveAcknowledgement(value: unknown, profile: Profile | null): 
     }
     @if (workspace(); as w) {
       <section aria-label="Selected client accounting"><h2>{{ w.name }}</h2>
+        <p><a [routerLink]="['/app/accounting/clients', w.clientId, 'statement-layouts']">Statement layout setup</a></p>
         @defer (on interaction(chartTrigger)) { <audit-accounting-charts [clientId]="w.clientId" /> }
         @placeholder { <button matButton #chartTrigger type="button">Open chart of accounts</button> }
         @if (w.profile; as p) { <h3>Accounting profile</h3><dl><dt>Jurisdiction</dt><dd>{{ p.jurisdiction }}</dd>

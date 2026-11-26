@@ -3,6 +3,7 @@ using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -205,6 +206,7 @@ public sealed class StatementLayoutServiceTests
       await db.SaveChangesAsync();
     }
     var reviewer = new ActorContext(reviewerId, scope.FirmId, 1, ["AccountingReviewer", "Partner"]);
+    var preparer = new ActorContext(scope.Actor.UserId, scope.FirmId, scope.Actor.SessionEpoch, ["AccountingPreparer"]);
 
     Guid layoutId;
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -231,8 +233,7 @@ public sealed class StatementLayoutServiceTests
       Assert.Equal(ErrorCodes.Accounting.MappingIncomplete, invalidPublish.ErrorCode);
 
       // A valid draft becomes VALIDATED on save.
-      var valid = await StatementLayoutService.SaveLayoutDraftAsync(db, scope.Actor,
-        new StatementLayoutDraftRequest(scope.ClientId, "IFRS-2026", "Primary statements",
+      var validDraft = new StatementLayoutDraftRequest(scope.ClientId, "IFRS-2026", "Primary statements",
         [
           new("CASH", "Cash", StatementLayoutLineKinds.MappedTaxonomyBalance, StatementLayoutSections.FinancialPosition,
             1, StatementLayoutDisplaySigns.Signed, "CASH"),
@@ -241,27 +242,81 @@ public sealed class StatementLayoutServiceTests
           new("CURRENT_ASSETS", "Current assets", StatementLayoutLineKinds.SumChildLines,
             StatementLayoutSections.FinancialPosition, 3, StatementLayoutDisplaySigns.Signed,
             ChildLineCodes: ["CASH", "AR"], IsSubtotal: true)
-        ]));
-      Assert.True(valid.Succeeded, valid.Message);
-      Assert.Equal(StatementLayoutStatuses.Validated, valid.Value!.Status);
-      Assert.Equal(3, valid.Value.LineCount);
-      Assert.Matches("^[0-9a-f]{64}$", valid.Value.LayoutHash);
-      layoutId = valid.Value.LayoutVersionId;
+        ]);
+      var saveInput = new StatementLayoutSaveInput(Guid.NewGuid(), null, null, validDraft, Reviewed: true);
+      var saved = await StatementLayoutWorkspace.SaveDraftAsync(db, preparer, scope.ClientId, saveInput);
+      Assert.True(saved.Succeeded, saved.Message);
+      Assert.Equal(StatementLayoutStatuses.Validated, saved.Value!.ResultStatus);
+      Assert.Equal(1, saved.Value.ResultVersionNumber);
+      Assert.Matches("^[0-9a-f]{64}$", saved.Value.ResultLayoutHash);
+      var exactRetry = await StatementLayoutWorkspace.SaveDraftAsync(db, preparer, scope.ClientId, saveInput);
+      Assert.True(exactRetry.Succeeded, exactRetry.Message);
+      Assert.Equal(saved.Value.Id, exactRetry.Value!.Id);
+      Assert.Equal(saved.Value.RequestHash, exactRetry.Value.RequestHash);
+      var changedRetry = await StatementLayoutWorkspace.SaveDraftAsync(db, preparer, scope.ClientId,
+        saveInput with { Draft = validDraft with { Name = "Changed primary statements" } });
+      Assert.False(changedRetry.Succeeded);
+      Assert.Equal(ErrorCodes.IdempotencyConflict, changedRetry.ErrorCode);
+      using (var savedInput = System.Text.Json.JsonDocument.Parse(saved.Value.InputJson))
+        Assert.Equal("Primary statements", savedInput.RootElement.GetProperty("input").GetProperty("draft").GetProperty("name").GetString());
+      using (var savedResult = System.Text.Json.JsonDocument.Parse(saved.Value.ResultJson))
+        Assert.True(savedResult.RootElement.GetProperty("validation").GetProperty("isValid").GetBoolean());
+      layoutId = saved.Value.LayoutVersionId;
+
+      var staleSave = await StatementLayoutWorkspace.SaveDraftAsync(db, preparer, scope.ClientId,
+        new StatementLayoutSaveInput(Guid.NewGuid(), layoutId, new string('0', 64),
+          validDraft with { Lines = [.. validDraft.Lines, new("EXTRA", "Extra", StatementLayoutLineKinds.Heading,
+            StatementLayoutSections.FinancialPosition, 4)] }, Reviewed: true));
+      Assert.False(staleSave.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, staleSave.ErrorCode);
+
+      var reviewerDetail = await StatementLayoutWorkspace.DetailAsync(db, reviewer, layoutId);
+      Assert.True(reviewerDetail.Succeeded, reviewerDetail.Message);
+      Assert.Equal(layoutId, reviewerDetail.Value!.LayoutVersionId);
+      Assert.Equal(3, reviewerDetail.Value.Lines.Count);
+      Assert.True((await StatementLayoutService.ValidateLayoutAsync(db, reviewer, layoutId)).Succeeded);
+      Assert.True((await StatementLayoutService.GetLayoutLinesAsync(db, reviewer, layoutId)).Succeeded);
+      var reviewerAuthorAttempt = await StatementLayoutWorkspace.SaveDraftAsync(db, reviewer, scope.ClientId,
+        new StatementLayoutSaveInput(Guid.NewGuid(), null, null, validDraft with { Name = "Reviewer draft" }, Reviewed: true));
+      Assert.False(reviewerAuthorAttempt.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, reviewerAuthorAttempt.ErrorCode);
 
       // The author cannot publish their own layout.
       var selfPublish = await StatementLayoutService.PublishLayoutAsync(db, scope.Actor, layoutId, "Self publish");
       Assert.False(selfPublish.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, selfPublish.ErrorCode);
 
-      var published = await StatementLayoutService.PublishLayoutAsync(db, reviewer, layoutId,
-        "Approved by the reporting partner for the 2026 IFRS presentation.");
+      var stalePublish = await StatementLayoutWorkspace.PublishAsync(db, reviewer, scope.ClientId, layoutId,
+        new StatementLayoutPublishInput(Guid.NewGuid(), new string('0', 64), "Reviewed exact layout", Reviewed: true));
+      Assert.False(stalePublish.Succeeded);
+      Assert.Equal(ErrorCodes.StaleRevision, stalePublish.ErrorCode);
+
+      var publishInput = new StatementLayoutPublishInput(Guid.NewGuid(), saved.Value.ResultLayoutHash,
+        "Approved by the reporting partner for the 2026 IFRS presentation.", Reviewed: true);
+      var published = await StatementLayoutWorkspace.PublishAsync(db, reviewer, scope.ClientId, layoutId, publishInput);
       Assert.True(published.Succeeded, published.Message);
-      Assert.Equal(StatementLayoutStatuses.Published, published.Value!.Status);
+      var publishedValue = published.Value!;
+      Assert.Equal(StatementLayoutStatuses.Published, publishedValue.ResultStatus);
+      var publishRetry = await StatementLayoutWorkspace.PublishAsync(db, reviewer, scope.ClientId, layoutId, publishInput);
+      Assert.True(publishRetry.Succeeded, publishRetry.Message);
+      Assert.Equal(publishedValue.Id, publishRetry.Value!.Id);
+      Assert.Equal(2, await db.StatementLayoutCommandReceipts.CountAsync(x => x.ClientId == scope.ClientId));
 
       // A published version is immutable: re-publishing is refused.
       var republish = await StatementLayoutService.PublishLayoutAsync(db, reviewer, layoutId, "Again");
       Assert.False(republish.Succeeded);
       Assert.Equal(ErrorCodes.ProtectedState, republish.ErrorCode);
+    }
+
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+    {
+      var update = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE statement_layout_command_receipts SET result_status = 'DRAFT' WHERE client_id = {scope.ClientId}"));
+      Assert.Equal("55000", update.SqlState);
+      var delete = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM statement_layout_command_receipts WHERE client_id = {scope.ClientId}"));
+      Assert.Equal("55000", delete.SqlState);
+      Assert.Equal(2, await verify.StatementLayoutCommandReceipts.CountAsync(x => x.ClientId == scope.ClientId));
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))

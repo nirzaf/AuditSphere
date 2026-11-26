@@ -275,6 +275,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
 
   public DbSet<StatementLayoutLine> StatementLayoutLines => Set<StatementLayoutLine>();
 
+  public DbSet<StatementLayoutCommandReceipt> StatementLayoutCommandReceipts => Set<StatementLayoutCommandReceipt>();
+
   public DbSet<TrialBalanceImportBatch> TrialBalanceImportBatches => Set<TrialBalanceImportBatch>();
 
   public DbSet<TrialBalanceRow> TrialBalanceRows => Set<TrialBalanceRow>();
@@ -676,6 +678,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureConfirmationBookedSources(b);
     ConfigureScopedEvidence(b);
     ConfigureAccounting(b);
+    ConfigureStatementLayoutCommands(b);
     ConfigureNativeTrialBalanceSources(b);
     ConfigureNativeGeneralLedgerSources(b);
     ConfigureClientAccounting(b);

@@ -920,6 +920,97 @@ public sealed class AngularFinancialArtifactParityJourneyTests
     await OwnedBrowserFixtureHandoff.WaitAsync(origin, route, "period-evidence");
   }
 
+  [Fact]
+  [Trait("CaseId", "AS-LAY-001-ANGULAR-STATEMENT-LAYOUT-SETUP")]
+  public async Task FreshClientLayoutIsCreatedAndPublishedBeforePackagePresentationExport()
+  {
+    await using var host = await OwnedHost.StartAsync(startWorker: false,
+      caseId: "AS-LAY-001-ANGULAR-STATEMENT-LAYOUT-SETUP");
+    var (packageId, _) = await FinancialPackageFixture.CreatePackageAsync(host);
+    var clientId = host.Fixture.ClientId;
+    await using (var db = host.CreateDbContext())
+    {
+      // This new producer is client-scoped; the package fixture's engagement grants do not widen to the client.
+      db.RoleGrants.AddRange(
+        PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Staff, "AccountingPreparer", clientId),
+        PbcSeed.Grant(host.Fixture.FirmId, host.Fixture.Reviewer, "AccountingReviewer", clientId));
+      await db.SaveChangesAsync();
+    }
+    var settings = new Dictionary<string, string> { ["AngularUi__Enabled"] = "true" };
+    var preparerOrigin = await host.StartApiForIdentityAsync(host.Fixture.Staff, settings);
+    var reviewerOrigin = await host.StartApiForIdentityAsync(host.Fixture.Reviewer, settings);
+    var layoutPath = $"/ui/app/accounting/clients/{clientId:D}/statement-layouts";
+
+    using var playwright = await Playwright.CreateAsync();
+    await using var browser = await PlaywrightBrowser.LaunchAsync(playwright);
+    await using var preparerContext = await browser.NewContextAsync(new() { AcceptDownloads = true });
+    var preparerPage = await LoginAsync(preparerContext, preparerOrigin, layoutPath);
+    await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading,
+      new() { Name = "Statement layouts", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(preparerPage.GetByText("No statement layouts exist for this client. Start with a new draft.",
+      new() { Exact = true })).ToBeVisibleAsync();
+    await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Create layout draft", Exact = true }).ClickAsync();
+    await preparerPage.GetByLabel("Framework", new() { Exact = true }).FillAsync("IFRS");
+    await preparerPage.GetByLabel("Layout name", new() { Exact = true }).FillAsync("E2E primary statements");
+    await preparerPage.GetByLabel("Code", new() { Exact = true }).FillAsync("CASH");
+    await preparerPage.GetByLabel("Label", new() { Exact = true }).FillAsync("Cash");
+    await preparerPage.Locator("fieldset.line select").First.SelectOptionAsync(StatementLayoutLineKinds.MappedTaxonomyBalance);
+    await preparerPage.GetByLabel("Taxonomy node", new() { Exact = true }).FillAsync("CASH");
+    await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Add typed line", Exact = true }).ClickAsync();
+    var revenueLine = preparerPage.Locator("fieldset.line").Nth(1);
+    await Assertions.Expect(revenueLine).ToBeVisibleAsync();
+    await revenueLine.GetByLabel("Code", new() { Exact = true }).FillAsync("REVENUE");
+    await revenueLine.GetByLabel("Label", new() { Exact = true }).FillAsync("Revenue");
+    await revenueLine.Locator("select").Nth(0).SelectOptionAsync(StatementLayoutLineKinds.MappedTaxonomyBalance);
+    await revenueLine.Locator("select").Nth(1).SelectOptionAsync(StatementLayoutSections.ProfitOrLoss);
+    await revenueLine.Locator("select").Nth(2).SelectOptionAsync(StatementLayoutDisplaySigns.Inverted);
+    await revenueLine.GetByLabel("Taxonomy node", new() { Exact = true }).FillAsync("REVENUE");
+    await preparerPage.GetByLabel("I reviewed these exact client, framework, name, predecessor and typed line values for saving.",
+      new() { Exact = true }).CheckAsync();
+    await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Save reviewed draft", Exact = true }).ClickAsync();
+    await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading, new() { Name = "Layout draft retained", Exact = true })).ToBeVisibleAsync();
+    var savedBody = await preparerPage.Locator("body").InnerTextAsync();
+    var layoutId = Guid.Parse(System.Text.RegularExpressions.Regex.Match(savedBody,
+      @"version ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})").Groups[1].Value);
+    await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Acknowledge exact retained result", Exact = true }).ClickAsync();
+    await Assertions.Expect(preparerPage.GetByText("Retained statement-layout result acknowledged.", new() { Exact = true })).ToBeVisibleAsync();
+
+    await using var reviewerContext = await browser.NewContextAsync();
+    var reviewerPage = await LoginAsync(reviewerContext, reviewerOrigin, layoutPath);
+    await reviewerPage.Locator("section[aria-label='Statement layout catalogue'] li button").First.ClickAsync();
+    await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading,
+      new() { Name = "IFRS · E2E primary statements · v1", Exact = true })).ToBeVisibleAsync();
+    await reviewerPage.GetByLabel("Publication reason", new() { Exact = true }).FillAsync("Independent review of the exact E2E client layout.");
+    await reviewerPage.GetByLabel("I independently reviewed the exact layout hash, validation and renderer-supported lines.",
+      new() { Exact = true }).CheckAsync();
+    await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Publish independently", Exact = true }).ClickAsync();
+    await Assertions.Expect(reviewerPage.GetByRole(AriaRole.Heading, new() { Name = "Layout publication retained", Exact = true })).ToBeVisibleAsync();
+    await reviewerPage.GetByRole(AriaRole.Button, new() { Name = "Acknowledge exact retained result", Exact = true }).ClickAsync();
+
+    await using (var verify = host.CreateDbContext())
+    {
+      var layout = await verify.StatementLayoutVersions.AsNoTracking().SingleAsync(x => x.Id == layoutId && x.ClientId == clientId);
+      Assert.Equal(StatementLayoutStatuses.Published, layout.Status);
+      Assert.Equal(2, await verify.StatementLayoutCommandReceipts.CountAsync(x => x.LayoutVersionId == layoutId));
+    }
+
+    await NavigateSpaAsync(preparerPage, $"/ui/app/accounting/packages/{packageId:D}");
+    await Assertions.Expect(preparerPage.GetByRole(AriaRole.Heading,
+      new() { Name = "Statement presentation (unapproved draft)", Exact = true })).ToBeVisibleAsync();
+    await Assertions.Expect(preparerPage.GetByText(layoutId.ToString("D"), new() { Exact = false })).ToBeVisibleAsync();
+    var download = await preparerPage.RunAndWaitForDownloadAsync(() =>
+      preparerPage.GetByRole(AriaRole.Button, new() { Name = "Download PDF draft", Exact = true }).ClickAsync());
+    Assert.EndsWith(".pdf", download.SuggestedFilename, StringComparison.OrdinalIgnoreCase);
+    await using var output = await download.CreateReadStreamAsync();
+    using var bytes = new MemoryStream();
+    await output.CopyToAsync(bytes);
+    Assert.True(bytes.Length > 0);
+    var downloadStatus = preparerPage.GetByRole(AriaRole.Status).Filter(new()
+      { HasText = "downloaded. It remains unapproved and is not an issued statement." });
+    await Assertions.Expect(downloadStatus).ToContainTextAsync(
+      "downloaded. It remains unapproved and is not an issued statement.");
+  }
+
   private static async Task<IPage> LoginAsync(IBrowserContext context, string origin, string path)
   {
     var page = await context.NewPageAsync();
