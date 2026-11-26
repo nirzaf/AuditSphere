@@ -375,15 +375,25 @@ public sealed partial class FirmOperationsTests
       Assert.True(internalEntry.Succeeded, internalEntry.Message);
       Assert.True((await PracticeTimeService.SubmitTimeAsync(db, w.A("staff", "Staff"), internalEntry.Value)).Succeeded);
       Assert.True((await PracticeTimeService.ApproveTimeAsync(db, manager, internalEntry.Value)).Succeeded);
+      var noChargeTask = (await PracticeTimeService.CreateTaskAsync(db, manager, new("No-charge client support", w.ClientId, w.EngagementId, w.U["staff"].Id))).Value;
+      var noChargeEntry = await PracticeTimeService.SaveTimeDraftAsync(db, w.A("staff", "Staff"),
+        new(noChargeTask, workDate, 960, 30, "Staff", "AUDIT", PracticeTimeStates.NoCharge, "No-charge client support"));
+      Assert.True(noChargeEntry.Succeeded, noChargeEntry.Message);
+      Assert.True((await PracticeTimeService.SubmitTimeAsync(db, w.A("staff", "Staff"), noChargeEntry.Value)).Succeeded);
+      Assert.True((await PracticeTimeService.ApproveTimeAsync(db, manager, noChargeEntry.Value)).Succeeded);
       var withInternal = (await PracticeAnalyticsQuery.GetAsync(db, partner, periodStart, today)).Value!.Engagements.Single(x => x.EngagementId == w.EngagementId);
-      Assert.Equal((360, 60), (withInternal.ActualMinutes, withInternal.NonChargeableMinutes));
+      Assert.Equal((390, 90), (withInternal.ActualMinutes, withInternal.NonChargeableMinutes));
       Assert.Equal<decimal?>(3000m, withInternal.StandardValue);
       Assert.Equal<decimal?>(100.0m, withInternal.RealizationPercent);
+      Assert.Equal<decimal?>(1300m, withInternal.ActualCost);
+      Assert.Equal<decimal?>(1700m, withInternal.Profit);
+      Assert.Equal<decimal?>(56.7m, withInternal.MarginPercent);
+      Assert.True(withInternal.CostComplete);
       var utilizationWithInternal = (await PracticeAnalyticsQuery.GetAsync(db, partner, periodStart, today)).Value!.Departments.Single(x => x.Department == "Audit");
       Assert.Equal(300, utilizationWithInternal.ChargeableMinutes);
       // The weekly grid reads the same basis: all approved time as hours, billable time as utilization.
       var gridCells = (await ResourcePlanningService.GetGridAsync(db, manager, workDate, 1)).Value!.Rows.Single(x => x.UserId == w.U["staff"].Id).Weeks;
-      Assert.Equal((360, 300), (gridCells[0].ApprovedActualMinutes, gridCells[0].ApprovedBillableMinutes));
+      Assert.Equal((390, 300), (gridCells[0].ApprovedActualMinutes, gridCells[0].ApprovedBillableMinutes));
 
       // Same-value duplicates do not change the amount; conflicting rates at the latest effective date make only cost-derived figures unavailable.
       Assert.True((await PracticeAnalyticsQuery.RecordCostRateAsync(db, partner, w.U["staff"].Id, 200m, "QAR", costRateEffectiveFrom)).Succeeded);

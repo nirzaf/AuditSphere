@@ -227,11 +227,11 @@ public static partial class PracticeAnalyticsQuery
     var costRates = await db.StaffCostRates.AsNoTracking().Where(x => x.FirmId == f).ToListAsync(ct);
     static string? NormalizeCurrency(string? currency) => string.IsNullOrWhiteSpace(currency) || currency.Trim().Length != 3
       ? null : currency.Trim().ToUpperInvariant();
-    decimal? Cost(TimeEntry t)
+    decimal? Cost(TimeEntry t, string? reportCurrency)
     {
-      var timeCurrency = NormalizeCurrency(t.Currency);
-      if (timeCurrency is null) return null;
-      var applicableRates = costRates.Where(r => r.UserId == t.UserId && r.EffectiveFrom <= t.WorkDate && NormalizeCurrency(r.Currency) == timeCurrency).ToArray();
+      var safeCurrency = NormalizeCurrency(reportCurrency);
+      if (safeCurrency is null) return null;
+      var applicableRates = costRates.Where(r => r.UserId == t.UserId && r.EffectiveFrom <= t.WorkDate && NormalizeCurrency(r.Currency) == safeCurrency).ToArray();
       if (applicableRates.Length == 0) return null;
       var latestEffectiveFrom = applicableRates.Max(r => r.EffectiveFrom);
       var latestRates = applicableRates.Where(r => r.EffectiveFrom == latestEffectiveFrom).Select(r => r.HourlyCost).Distinct().Take(2).ToArray();
@@ -277,7 +277,6 @@ public static partial class PracticeAnalyticsQuery
     var rows = engagementIds.Select(id =>
     {
       var mine = time.Where(t => t.EngagementId == id).ToList();
-      var costs = mine.Select(Cost).ToList();
       var budget = budgets.Where(b => b.EngagementId == id).OrderByDescending(b => b.Version).FirstOrDefault();
       var bl = budget is null ? [] : budgetLines.Where(l => l.EngagementBudgetId == budget.Id).ToList();
       var currencyInputs = new List<string?>();
@@ -292,6 +291,7 @@ public static partial class PracticeAnalyticsQuery
       var currency = knownCurrencies.Length > 1 ? "MIXED"
         : currencyInputs.Count == 0 || currencyInputs.Any(x => x is null) ? "UNAVAILABLE" : knownCurrencies[0]!;
       var currencyIsSafe = currency is not ("MIXED" or "UNAVAILABLE");
+      var costs = mine.Select(t => Cost(t, currencyIsSafe ? currency : null)).ToList();
       var billed = 0m; var collected = 0m;
       foreach (var invoice in billedLines.Where(x => x.Engagement == id).GroupBy(x => x.i.Id))
       {
