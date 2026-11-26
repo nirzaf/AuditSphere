@@ -61,7 +61,7 @@ ReleaseSafety__RequireProtectionAttestation=false
 ReleaseSafety__RequireExternalCheckpointBeforeDelivery=true
 ```
 
-These are independent gates. `LiveAuditRelease=true` requires external effects and therefore fails validation while the current live provider composition is unavailable. Signed-document lineage and external checkpoints must not be enabled by changing a flag without their approved evidence. Purview and eSignature provider integrations are outside product scope.
+These are independent gates. The worker `release-checkpoint` group requires `FeatureActivation:LiveAuditRelease=true`, external effects enabled, simulation adapters disabled, an isolated Acceptance or individually allowlisted Production composition, and the explicitly configured absolute checkpoint root shared by API and worker. This is a code capability; it does not establish owner approval, deployed configuration, or external acceptance. Signed-document lineage and external checkpoints must not be enabled by changing a flag without their approved evidence. Purview and eSignature provider integrations are outside product scope.
 
 ## Records settings
 
@@ -83,7 +83,7 @@ Worker__Group=general
 Mail__Provider=GRAPH|SMTP|RESEND
 ```
 
-The worker validates a non-empty firm ID, a positive deployment epoch, bounded lease settings, and an approved environment/composition. Current code permits live effects only in an isolated `Acceptance` mail composition; ordinary production worker startup is intentionally refused until an approved live composition is implemented.
+The worker validates a non-empty firm ID, a positive deployment epoch, bounded lease settings, and an approved environment/composition. Core `general`, `processing`, and `records` groups can run in Production with external effects disabled. The code also permits individually allowlisted Production live groups when external effects are enabled and simulation adapters are disabled. Provider credential and exact-resource checks remain separate; code capability does not establish owner approval, deployed configuration, or external acceptance.
 
 The optional `Telemetry__Otlp__Endpoint` is validated by API and Worker; an unset value leaves export disabled. The API metrics pipeline includes built-in ASP.NET HTTP request measurements. The endpoint URL is not a place for credentials. See [TelemetryEndpoint](../../src/AuditSphereOps.Application/Diagnostics/TelemetryEndpoint.cs). A configured exporter alone is not an accepted dashboard, alert, or privacy review.
 

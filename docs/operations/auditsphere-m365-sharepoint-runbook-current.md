@@ -28,4 +28,4 @@ The authoritative issued release/archive store is separate from mutable working 
 
 Required live evidence includes exact resource access, forbidden unrelated-site access, correct item/version byte readback, uncertain-outcome reconciliation without duplicates, staff membership addition/removal, direct-access ACL review and approved cross-store restore/recovery fencing. Record named owners, UTC times, provider request IDs, release SHA and current configuration revision without secrets or customer document content.
 
-Current live M365 workers are Acceptance-only; Azure provider credential wiring and Production live-worker composition remain engineering/release gates. Following this documentation does not accept a production environment.
+Worker code supports the narrow Acceptance live groups and individually allowlisted Production live groups with simulation disabled. Provider credentials and exact-resource bindings, Production target configuration, owner approval, deployment, and external acceptance remain separate gates; this documentation does not accept a production environment.

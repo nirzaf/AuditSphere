@@ -69,7 +69,7 @@ Use this checklist in order. Mark an item complete only with observed evidence f
 
 - [ ] Worker uses the intended `Worker__FirmId`, positive `Worker__DeploymentEpoch`, group, lease, renewal, and retry settings.
 - [ ] Web process records durable intents but does not execute provider effects.
-- [ ] Worker composition is the approved environment; current code permits live effects only in the isolated Acceptance live-mail composition.
+- [ ] Core `general`/`processing`/`records` workers run with external effects disabled. A Production live group must be individually listed in `Worker:ApprovedLiveGroups`, use no simulation adapters, and pass its provider/resource fences; record owner approval and deployment evidence separately.
 - [ ] `429`, `403`, credential failure, timeout, uncertain result, and recovery-fence behavior are observed and safe.
 - [ ] Mail provider is one approved Graph/SMTP/Resend path with secret references, sender authorization, and delivery semantics documented.
 - [ ] Outbox backlog, failed operations, leases, retries, and reconciliation cases are monitored.

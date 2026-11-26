@@ -81,7 +81,7 @@ The implementation is in [RoleAdministrationService](../../src/AuditSphereOps.Ap
 
 `ExternalEffects:Enabled` is a deployment fence, not a UI switch. In the current web host, setting it to `true` validates a positive deployment epoch and OIDC configuration and then intentionally refuses startup because the approved live provider composition is not registered. Do not remove that guard or enable it to test a simulation.
 
-The worker permits live effects only in the isolated `Acceptance` environment and only for the configured live-mail composition. Local simulation is restricted to explicit Test composition. Production must have `Application:AllowSimulationAdapters=false` in the web host and `AllowSimulationAdapters=false` in the worker, with no demo identity.
+The worker permits the narrow live groups in Acceptance. Its Production code path permits a live group only when that group is individually listed in `Worker:ApprovedLiveGroups`, external effects are enabled, and simulation adapters are disabled; provider credential and resource checks still apply. Core `general`, `processing`, and `records` groups run with external effects disabled. Production must have `Application:AllowSimulationAdapters=false` in the web host and `AllowSimulationAdapters=false` in the worker, with no demo identity. These code paths do not establish owner approval, deployed configuration, or external acceptance.
 
 ## Completion evidence
 
