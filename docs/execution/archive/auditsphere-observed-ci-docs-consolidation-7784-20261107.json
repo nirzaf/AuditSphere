@@ -1,0 +1,58 @@
+{
+  "archiveVersion": 1,
+  "archivedAtUtc": "2026-11-26T11:37:08Z",
+  "source": "docs/execution/status.json#observedCi.docsConsolidationCandidate7784",
+  "entrySha256": "ea760be7f488895f655f486bdeb5124a5c0dc5cb574dfc474c67db7246648b25",
+  "entry": {
+    "runId": 42386372096,
+    "attempt": 1,
+    "event": "push",
+    "metadataHeadSha": "7784ea8f415b85f47552971aff89d852c81b6c8a",
+    "aggregateStatus": "FAILURE",
+    "jobs": {
+      "angular": {
+        "id": 128444524291,
+        "status": "SUCCESS",
+        "actualCheckoutSha": "UNVERIFIED; complete Angular log was not retained"
+      },
+      "docsHealth": {
+        "id": 128444524439,
+        "status": "FAILURE",
+        "failedStep": "Validate capability packets and runner safety guards",
+        "actualCheckoutSha": "7784ea8f415b85f47552971aff89d852c81b6c8a",
+        "log": ".local/autonomous/evidence/docs-consolidation-20261107/ci-7784ea8f-fast/job-128444524439-docs.log",
+        "logSha256": "a0268510ea6ab9dba35f9d63a6a76a0aa2d1ff5d112243a32d6b9b9d25bb3c99",
+        "checkoutEvidence": "retained Docs log fetched exact ref and prints the same SHA"
+      },
+      "dotnetRelease": {
+        "id": 128444946820,
+        "status": "SUCCESS",
+        "currentStep": "Restore and build Release",
+        "actualCheckoutSha": "7784ea8f415b85f47552971aff89d852c81b6c8a",
+        "checkoutEvidence": "terminal Release log fetched exact ref and prints the same SHA",
+        "build": "PASS; 0 warnings; 0 errors",
+        "domainGuards": "PASS 16/16",
+        "apiGuards": "PASS 12/12",
+        "openApi": "PASS; contract current",
+        "log": ".local/autonomous/evidence/docs-consolidation-20261107/ci-7784ea8f-fast/job-128444946820-release.log",
+        "logSha256": "76b4f481e35685f7121e2219234d5bec8265e828622d45f03856d91beb9df40a"
+      }
+    },
+    "failure": "The test expected LOCAL_ONLY while the operational evidence verifier returned UNKNOWN because docs/evidence/restore-drill-latest.json is absent. The declared historical JSON blob at c19f4cb73412 has the exact recorded SHA-256, but the current restore runbook states that it is historical only.",
+    "localCorrection": "The regression now expects UNKNOWN and LOCAL_RESTORE_EVIDENCE_UNKNOWN; the runbook states LOCAL_ONLY requires present, hash-valid evidence passing reconciliation. No historical evidence was restored.",
+    "fullReleaseVerification": "NOT_DISPATCHED_FOR_THIS_DOCUMENTATION_FOLLOWUP",
+    "imageRun": "No image workflow was observed for the 7784 docs-only predecessor; the exact a217 successor fast run is separately recorded and no image run was observed there either.",
+    "terminalAtUtc": "2026-11-07T16:06:31Z",
+    "artifactMetadata": {
+      "path": ".local/autonomous/evidence/docs-consolidation-20261107/ci-7784ea8f-fast/artifact-metadata.json",
+      "sha256": "95ee0a5007f46164c2d965a0fdafceda0afb44ca0501d057fb5a69952a6a1850",
+      "retrieval": "METADATA_ONLY_DOWNLOADED_ONCE",
+      "artifactIds": [
+        13580932747,
+        13579039256
+      ]
+    },
+    "nonBlockingAnnotation": "GitHub warns Node 20 action runtime is deprecated; actions were forced onto Node 24. Not the Docs failure.",
+    "nextAction": "Historical; current ledger governs continuation."
+  }
+}
