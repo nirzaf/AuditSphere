@@ -373,19 +373,27 @@ public static partial class ClientAccountingService
     if (journals.Any(string.IsNullOrWhiteSpace) || journals.Distinct(StringComparer.OrdinalIgnoreCase).Count() != journals.Length ||
         lineIds.Any(string.IsNullOrWhiteSpace) || lineIds.Distinct(StringComparer.OrdinalIgnoreCase).Count() != lineIds.Length)
       return CommandResult<int>.Fail(ErrorCodes.Accounting.ImportRejected, "GL journal and line identities must be unique and non-empty.");
+    foreach (var line in transactions.SelectMany(x => x.Lines))
+    {
+      var accountCode = line.AccountCode?.Trim() ?? string.Empty;
+      if (!accounts.TryGetValue(accountCode, out var account) || !account.IsPosting ||
+          account.Status != AccountingWorkflowStates.Active)
+        return CommandResult<int>.Fail(ErrorCodes.Accounting.ImportRejected,
+          $"GL line '{line.StableLineId.Trim()}' references account '{accountCode}' that is missing, nonposting, or inactive in the selected client chart.");
+    }
     foreach (var transaction in transactions)
     {
       if (transaction.PostingDate < period.StartDate || transaction.PostingDate > period.EndDate || transaction.Lines.Count == 0)
         return CommandResult<int>.Fail(ErrorCodes.Accounting.ImportRejected, "Every GL journal must be populated and inside the selected period.");
       if (transaction.Lines.Any(x => x.Debit < 0m || x.Credit < 0m || (x.Debit > 0m && x.Credit > 0m) ||
-          !accounts.ContainsKey(x.AccountCode.Trim()) || !IsCurrencyCode(x.OriginalCurrency) ||
+          !IsCurrencyCode(x.OriginalCurrency) ||
           MoneyPolicy.Normalize(x.OriginalAmount) != x.OriginalAmount ||
           MoneyPolicy.Normalize(x.FunctionalAmount) != x.FunctionalAmount ||
           x.FunctionalAmount != MoneyPolicy.Normalize(x.Debit - x.Credit) ||
           (string.Equals(x.OriginalCurrency.Trim(), currency, StringComparison.OrdinalIgnoreCase) && x.OriginalAmount != x.FunctionalAmount) ||
           (x.OriginalAmount != 0m && Math.Sign(x.OriginalAmount) != Math.Sign(x.FunctionalAmount))))
         return CommandResult<int>.Fail(ErrorCodes.Accounting.ImportRejected,
-          "GL lines need a published account, valid original currency, normalized amounts, and signed functional value equal to the debit/credit posting.");
+          "GL lines need valid original currency, normalized amounts, and signed functional value equal to the debit/credit posting.");
       if (MoneyPolicy.Normalize(transaction.Lines.Sum(x => x.Debit) - transaction.Lines.Sum(x => x.Credit)) != 0m)
         return CommandResult<int>.Fail(ErrorCodes.Accounting.ImportRejected, $"Journal {transaction.StableJournalId} is not balanced.");
     }

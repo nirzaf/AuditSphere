@@ -459,6 +459,121 @@ public sealed partial class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
+  public async Task GlImport_RejectsNonPostingAndNonActiveChartAccounts()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var (periodId, bookId) = await CreateGlFixtureAsync(pg, scope, preparer);
+    Guid chartId;
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      var chart = await ClientAccountingService.CreateChartVersionAsync(setup, preparer, scope.ClientA,
+        "GL-ELIGIBILITY", new DateOnly(2026, 1, 1));
+      Assert.True(chart.Succeeded, chart.Message);
+      chartId = chart.Value;
+      Assert.True((await ClientAccountingService.AddAccountsAsync(setup, preparer, chartId, [
+        new("summary-v2", "9000", "Summary account", "ASSET", "DEBIT", false),
+        new("detail-v2", "9100", "Cash detail", "ASSET", "DEBIT", true, "summary-v2"),
+        new("retired-v2", "9200", "Retired account", "ASSET", "DEBIT", true),
+        new("cash-v2", "1000", "Cash", "ASSET", "DEBIT", true),
+        new("revenue-v2", "3000", "Revenue", "INCOME", "CREDIT", true)
+      ])).Succeeded);
+    }
+    // Account lifecycle has no supported post-publication deactivation command. This
+    // fixture sets a retained non-active status while the chart is still a draft.
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(1, await setup.ClientAccounts.Where(x => x.ChartVersionId == chartId && x.AccountCode == "9200")
+        .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, AccountingWorkflowStates.Retired)));
+      Assert.True((await ClientAccountingService.PublishChartVersionAsync(setup, reviewer, chartId)).Succeeded);
+    }
+
+    GeneralLedgerTransactionInput Transaction(string journal, string debitAccount) =>
+      new(journal, $"INV-{journal}", new DateOnly(2026, 6, 30), null, "user-a", "LEDGER-A", null, false, false,
+        [new($"{journal}-L1", debitAccount, 10m, 0m, "QAR", 10m, 10m),
+         new($"{journal}-L2", "3000", 0m, 10m, "QAR", -10m, -10m)]);
+    GeneralLedgerImportRequest Request(string journal, string account, char hashSuffix) =>
+      new(scope.ClientA, scope.EngagementA, periodId, bookId, "csv-v1", "gl-v1", new string(hashSuffix, 64),
+        "CLIENT-A", "QAR", $"eligibility-{journal}", [Transaction(journal, account)]);
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      foreach (var (journal, account) in new[] { ("J-PARENT", "9000"), ("J-RETIRED", "9200") })
+      {
+        var refused = await ClientAccountingService.ImportGeneralLedgerAsync(db, preparer,
+          Request(journal, account, journal == "J-PARENT" ? 'a' : 'b'));
+        Assert.False(refused.Succeeded);
+        Assert.Equal(ErrorCodes.Accounting.ImportRejected, refused.ErrorCode);
+        Assert.Contains($"{journal}-L1", refused.Message!, StringComparison.Ordinal);
+        Assert.Contains(account, refused.Message!, StringComparison.Ordinal);
+      }
+    }
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Empty(await verify.SourceImportBatches.ToListAsync());
+      Assert.Empty(await verify.GeneralLedgerTransactions.ToListAsync());
+      Assert.Empty(await verify.GeneralLedgerLines.ToListAsync());
+      Assert.Empty(await verify.SourceAcceptanceDecisions.ToListAsync());
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var accepted = await ClientAccountingService.ImportGeneralLedgerAsync(db, preparer,
+        Request("J-POSTING", "9100", 'c'));
+      Assert.True(accepted.Succeeded, accepted.Message);
+    }
+
+    Guid batchId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var start = await ClientAccountingService.BeginGeneralLedgerImportAsync(db, preparer,
+        new GeneralLedgerImportStartRequest(scope.ClientA, scope.EngagementA, periodId, bookId,
+          "stream-v1", "gl-v1", new string('d', 64), "CLIENT-A", "QAR", "eligibility-stream", 1, 1, 2));
+      Assert.True(start.Succeeded, start.Message);
+      batchId = start.Value;
+      foreach (var (journal, account) in new[] { ("J-CHUNK-PARENT", "9000"), ("J-CHUNK-RETIRED", "9200") })
+      {
+        var transaction = new[] { Transaction(journal, account) };
+        var refused = await ClientAccountingService.AppendGeneralLedgerChunkAsync(db, preparer,
+          new GeneralLedgerImportChunkRequest(batchId, 0,
+            ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", transaction), transaction, Finalize: true));
+        Assert.False(refused.Succeeded);
+        Assert.Equal(ErrorCodes.Accounting.ImportRejected, refused.ErrorCode);
+        Assert.Contains($"{journal}-L1", refused.Message!, StringComparison.Ordinal);
+        Assert.Contains(account, refused.Message!, StringComparison.Ordinal);
+      }
+    }
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Single(await verify.GeneralLedgerTransactions.ToListAsync());
+      Assert.Equal(2, await verify.GeneralLedgerLines.CountAsync());
+      Assert.Empty(await verify.GeneralLedgerImportChunks.ToListAsync());
+      Assert.Empty(await verify.SourceAcceptanceDecisions.ToListAsync());
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var transaction = new[] { Transaction("J-CHUNK-POSTING", "9100") };
+      var accepted = await ClientAccountingService.AppendGeneralLedgerChunkAsync(db, preparer,
+        new GeneralLedgerImportChunkRequest(batchId, 0,
+          ClientAccountingService.ComputeGeneralLedgerChunkDigest("QAR", transaction), transaction, Finalize: true));
+      Assert.True(accepted.Succeeded, accepted.Message);
+      Assert.Equal("SEALED", accepted.Value!.Status);
+    }
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(2, await verify.SourceImportBatches.CountAsync());
+      Assert.Single(await verify.GeneralLedgerImportChunks.ToListAsync());
+      Assert.Equal(2, await verify.GeneralLedgerTransactions.CountAsync());
+      Assert.Equal(4, await verify.GeneralLedgerLines.CountAsync());
+      Assert.Equal(2, await verify.GeneralLedgerLines.CountAsync(x => x.AccountCode == "9100"));
+    }
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
   public async Task StreamingGlImport_IsIdempotentAndSealsOnlyCompleteBatch()
   {
     await using var pg = await PgTestSchema.CreateAsync();

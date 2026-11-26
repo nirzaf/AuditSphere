@@ -172,6 +172,8 @@ clients. This setup does not itself provide native journal posting.
 
 - Import scope: `Application/Accounting/ReportingScopeResolver.cs` resolves caller-supplied firm/client/engagement/period/book IDs through their exact owner records for `TrialBalanceImportService`, `ClientAccountingService.GeneralLedger.cs` and native TB capture. It never substitutes a different scope; a null book means no book ID was supplied, not an approved no-book decision. Authorization stays with the owning command or query.
 
+- External GL account eligibility: `ClientAccountingService.ValidateGeneralLedgerTransactions` resolves each line against the complete selected client chart, then permits only `IsPosting` accounts whose status is `ACTIVE`, matching native journal eligibility. CSV preview, direct import and chunk append share this validator; refusals identify the line/account, and rejected lines write no normalized rows or chunk receipts.
+
 - TB amount parsing: `TrialBalanceCsvImporter.ParseAmount` enforces the stored `numeric(19,6)` magnitude and scale before normalization for signed net values; debit and credit source sides use the same bound independently and reject negative sides before net subtraction. CSV preview/import and literal-cell XLSX intake share this parsing boundary; failures occur before source persistence.
 
 - Tests: `ClientAccountingTests.GeneralLedger.cs`, `TrialBalanceCalculatorTests.cs`, `TrialBalanceWorkerTests.cs`, `TrialBalanceXlsxImporterTests.cs`, `SourceAcceptanceAndComparativesTests.cs`, `GeneralLedgerCompletenessApiTests.cs`, `AngularGeneralLedgerCompletenessJourneyTests.cs`
