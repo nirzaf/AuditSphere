@@ -30,7 +30,7 @@ public sealed class AngularRouteAndShellMigrationSweepTests
     ("/app/accounting/mappings", "COA and accounting mappings"),
     ("/app/accounting/journals", "Adjustment journals"),
     ("/app/accounting/differences", "Audit differences"),
-    ("/app/accounting/reviews", "Financial package reviews"),
+    ("/app/accounting/reviews", "Audit file review"),
     ("/app/accounting/rollforward", "Period roll-forward"),
     ("/app/accounting/restatements", "Period restatements"),
     ("/app/accounting/remeasurement", "Currency remeasurement workpapers"),

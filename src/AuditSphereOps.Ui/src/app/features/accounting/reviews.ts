@@ -32,7 +32,7 @@ function decodeSelection(raw: unknown): string[] | null {
   imports: [RouterLink, MatButtonModule, ...SHARED],
   template: `
     <a routerLink="/app/accounting">← Back to accounting workspace</a>
-    <audit-page-header title="Financial package reviews" eyebrow="Accounting review"
+    <audit-page-header title="Audit file review" eyebrow="Accounting review"
       description="Only validated packages in the current client and engagement grants are listed. Every stage is bound to the package's exact revision, generation and hash." />
     <button matButton="outlined" (click)="refreshQueue()">Refresh queue</button>
     <audit-state [loading]="queue.loading()" [error]="queue.error()" label="the review queue" />

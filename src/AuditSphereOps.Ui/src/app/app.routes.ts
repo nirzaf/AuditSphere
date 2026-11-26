@@ -106,7 +106,7 @@ export const routes: Routes = [
     loadComponent: () => import('./features/accounting/restatements').then(m => m.PeriodRestatements) },
   { path: 'app/accounting/packages/:id', canActivate: [staffGuard], title: 'Financial statement package · AuditSphere',
     loadComponent: () => import('./features/accounting/package').then(m => m.FinancialPackage) },
-  { path: 'app/accounting/reviews', canActivate: [staffGuard], title: 'Package reviews · AuditSphere',
+  { path: 'app/accounting/reviews', canActivate: [staffGuard], title: 'Audit file review · AuditSphere',
     loadComponent: () => import('./features/accounting/reviews').then(m => m.PackageReviews) },
   { path: 'app/accounting/mappings/:id/edit', canActivate: [staffGuard], canDeactivate: [unsavedChangesGuard], title: 'Prepare mapping version · AuditSphere',
     loadComponent: () => import('./features/accounting/mapping-draft').then(m => m.MappingDraft) },

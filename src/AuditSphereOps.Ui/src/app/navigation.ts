@@ -27,7 +27,7 @@ export const NAVIGATION: NavGroup[] = [
     { id: 'consolidation', label: 'Group consolidation', path: '/app/consolidation', icon: 'layers', section: 'Group Consolidation' },
   ] },
   { id: 'review-delivery', title: 'Review, Reporting & Close', icon: 'clipboard-check', items: [
-    { id: 'reviews', label: 'Package reviews', path: '/app/accounting/reviews', icon: 'clipboard-check' },
+    { id: 'reviews', label: 'Audit file review', path: '/app/accounting/reviews', icon: 'clipboard-check' },
     { id: 'roll-forward', label: 'Roll-forward', path: '/app/accounting/rollforward', icon: 'calendar-sync' },
     { id: 'restatements', label: 'Restatements', path: '/app/accounting/restatements', icon: 'history' },
   ] },

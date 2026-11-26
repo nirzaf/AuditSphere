@@ -202,9 +202,9 @@ const queueViews: { key: QueueView; label: string }[] = [
     }
     @if (availability.current()?.destinations?.includes('reviews')) {
       <section aria-labelledby="package-review-handoff-heading">
-        <h2 id="package-review-handoff-heading">Financial package reviews</h2>
+        <h2 id="package-review-handoff-heading">Audit file review</h2>
         <p>Package review is separate from operational tasks and procedure submissions. Open the authorized queue to check current stages and older packages; no package total is loaded here.</p>
-        <a matButton routerLink="/app/accounting/reviews">Open financial package review queue</a>
+        <a matButton routerLink="/app/accounting/reviews">Open audit file review queue</a>
         <p>Each package rechecks your current review eligibility. Opening the queue records no approval.</p>
       </section>
     }

@@ -72,7 +72,7 @@ describe('responsive workspace navigation', () => {
     const s = await setup({ destinations: ['reviews'], tasks: 'not_authorized', reviews: 'not_authorized' });
     await s.fixture.whenStable();
     const nav = s.fixture.nativeElement.querySelector('nav.workspace-navigation') as HTMLElement;
-    expect([...nav.querySelectorAll('a')].map(link => link.textContent?.trim())).toEqual(['Package reviews']);
+    expect([...nav.querySelectorAll('a')].map(link => link.textContent?.trim())).toEqual(['Audit file review']);
     expect([...nav.querySelectorAll('h2')].map(heading => heading.textContent?.trim())).toEqual(['Review, Reporting & Close']);
     expect(nav.querySelector('a[href$="/app/work"]')).toBeNull();
     s.fixture.destroy();

@@ -127,13 +127,13 @@ const ARTIFACTS: [string, string][] = [['financial-package-xlsx.v1', 'Download w
   selector: 'audit-financial-package',
   imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED, StatementPresentation],
   template: `
-    <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a routerLink="/app/accounting">Client accounting</a> / <a routerLink="/app/accounting/reviews">Package reviews</a> / <span>Package</span></nav>
+    <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <a routerLink="/app/accounting">Client accounting</a> / <a routerLink="/app/accounting/reviews">Audit file review</a> / <span>Package</span></nav>
     <audit-page-header title="Financial statement package" eyebrow="Client accounting" description="Deterministic package calculations, validation status, immutable review decisions, and artifact outputs." />
     <button matButton="outlined" (click)="pkg.reload()">Refresh package</button>
     <audit-state [loading]="pkg.loading()" [error]="pkg.error()" label="the scoped package" />
     @if (pkg.data(); as p) {
       <p class="actions" aria-label="Package navigation"><audit-status [value]="p.status" /><a [routerLink]="['/app/engagements', p.engagementId]">Engagement</a>
-        <a [routerLink]="['/app/engagements', p.engagementId, 'financial-package']">Build another package</a><a routerLink="/app/accounting/reviews">Package reviews</a>
+        <a [routerLink]="['/app/engagements', p.engagementId, 'financial-package']">Build another package</a><a routerLink="/app/accounting/reviews">Audit file review</a>
         @if (p.comparativePackageId) { <a [routerLink]="['/app/accounting/packages', p.comparativePackageId]">Review comparative package and its cash-flow sources</a> }</p>
       <p role="status">{{ passed(p) }} validations passed · {{ p.validations.length - passed(p) }} failed · {{ p.reviews.length }} review decisions · {{ p.statementTotals.length }} statement lines</p>
       <section class="panel" aria-labelledby="package-heading">

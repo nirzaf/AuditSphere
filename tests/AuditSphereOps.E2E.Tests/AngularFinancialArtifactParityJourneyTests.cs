@@ -598,7 +598,7 @@ public sealed class AngularFinancialArtifactParityJourneyTests
     Assert.Equal(queueToken, await queuePage.EvaluateAsync<string>("window.__accountingQueueParityToken"));
     await queuePage.SetViewportSizeAsync(1280, 900);
     await Assertions.Expect(reviewQueuePage.GetByRole(AriaRole.Heading,
-      new() { Name = "Financial package reviews", Exact = true })).ToBeVisibleAsync();
+      new() { Name = "Audit file review", Exact = true })).ToBeVisibleAsync();
     var packageRow = reviewQueuePage.Locator("tr").Filter(new() { Has = reviewQueuePage.GetByRole(AriaRole.Checkbox,
       new() { Name = $"Select package {packageId:D}", Exact = true }) });
     await packageRow.GetByText("Package identity", new() { Exact = true }).ClickAsync();
@@ -617,7 +617,7 @@ public sealed class AngularFinancialArtifactParityJourneyTests
     await Assertions.Expect(reviewQueuePage.GetByText("Selection saved in this tab", new() { Exact = false })).ToBeVisibleAsync();
     await reviewQueuePage.ReloadAsync();
     await Assertions.Expect(reviewQueuePage.GetByRole(AriaRole.Heading,
-      new() { Name = "Financial package reviews", Exact = true })).ToBeVisibleAsync();
+      new() { Name = "Audit file review", Exact = true })).ToBeVisibleAsync();
     await reviewQueuePage.GetByRole(AriaRole.Button, new() { Name = "Restore saved selection", Exact = true }).ClickAsync();
     await Assertions.Expect(packageSelection).ToBeCheckedAsync();
     await reviewQueuePage.GetByRole(AriaRole.Button, new() { Name = "Preview selected", Exact = true }).ClickAsync();

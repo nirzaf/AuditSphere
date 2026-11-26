@@ -48,7 +48,8 @@ describe('work availability and session fencing', () => {
     expect(packageLink()).toBeNull();
     http.expectOne('/api/ui/workspace-availability').flush(availability('not_enabled', 'not_enabled', ['reviews']));
     TestBed.tick();
-    expect(packageLink()?.textContent).toContain('Open financial package review queue');
+    expect(fixture.nativeElement.querySelector('#package-review-handoff-heading')?.textContent).toBe('Audit file review');
+    expect(packageLink()?.textContent).toContain('Open audit file review queue');
     expect(fixture.nativeElement.textContent).toContain('no package total is loaded here');
     expect(fixture.nativeElement.textContent).toContain('Workflow work is not enabled');
     http.expectNone(tasksUrl); http.expectNone(reviewsUrl);

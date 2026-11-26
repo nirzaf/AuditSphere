@@ -58,7 +58,7 @@ public static class GlobalSearchQuery
     ("COA and mappings", "/app/accounting/mappings", "chart of accounts taxonomy"),
     ("Adjustment journals", "/app/accounting/journals", "adjustments aje"),
     ("Audit differences", "/app/accounting/differences", "misstatements"),
-    ("Financial package reviews", "/app/accounting/reviews", "packages statements"),
+    ("Audit file review", "/app/accounting/reviews", "financial package reviews statements"),
     ("Period roll-forward", "/app/accounting/rollforward", "opening balances"),
     ("Period restatements", "/app/accounting/restatements", "ias 8"),
     ("Currency remeasurement", "/app/accounting/remeasurement", "fx foreign exchange"),
