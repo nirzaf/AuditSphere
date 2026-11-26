@@ -280,6 +280,56 @@ describe('Accounting workspace mode and period navigation', () => {
     expect(workspace.error()).toContain('rejected');
   });
 
+  it('rejects impossible fiscal month/day pairs and preserves the reviewed form', async () => {
+    const fixture = await open();
+    const workspace = fixture.componentInstance;
+    await select(fixture, clientB, clientWorkspace(clientB, 'Client B', guid(32), []));
+
+    for (const [month, day, valid] of [
+      [2, 28, true], [2, 29, true], [2, 30, false], [2, 31, false],
+      [4, 30, true], [4, 31, false], [1, 31, true],
+    ] as const) {
+      workspace.form.month = month;
+      workspace.form.day = day;
+      expect(workspace.fiscalCalendarValid()).toBe(valid);
+    }
+
+    const setInput = (name: string, value: string) => {
+      const input = fixture.nativeElement.querySelector(`input[name="${name}"]`) as HTMLInputElement;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    };
+    setInput('month', '2');
+    setInput('day', '30');
+    const reason = fixture.nativeElement.querySelector('textarea[name="reason"]') as HTMLTextAreaElement;
+    reason.value = 'Reviewed fiscal calendar change';
+    reason.dispatchEvent(new Event('input'));
+    const reviewed = fixture.nativeElement.querySelector('input[name="reviewed"]') as HTMLInputElement;
+    reviewed.checked = true;
+    reviewed.dispatchEvent(new Event('change'));
+    await settle(fixture);
+    expect(workspace.fiscalDayMaximum()).toBe(29);
+    const dayInput = fixture.nativeElement.querySelector('input[name="day"]') as HTMLInputElement;
+    const saveButton = dayInput.closest('form')!.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(saveButton.disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Enter a possible Gregorian month and day.');
+    workspace.saveProfile();
+    http.expectNone(request => request.method === 'POST' && request.url.endsWith('/profile'));
+    expect(workspace.form.day).toBe(30);
+
+    setInput('day', '29');
+    await settle(fixture);
+    expect(workspace.fiscalCalendarValid()).toBe(true);
+    expect(saveButton.disabled).toBe(false);
+    workspace.saveProfile();
+    const request = http.expectOne(request => request.method === 'POST' && request.url === `/api/ui/accounting/clients/${clientB}/profile`);
+    expect(request.request.body).toMatchObject({ fiscalMonth: 2, fiscalDay: 29, reason: 'Reviewed fiscal calendar change' });
+    request.flush({ code: 'accounting.mapping-invalid' }, { status: 400, statusText: 'Bad Request' });
+    await settle(fixture);
+    expect(workspace.form.month).toBe(2);
+    expect(workspace.form.day).toBe(29);
+  });
+
   it('keeps malformed successful profile responses unresolved after a scoped readback', async () => {
     const fixture = await open();
     const workspace = fixture.componentInstance;

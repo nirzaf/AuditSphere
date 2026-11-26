@@ -185,6 +185,7 @@ function isProfileSaveAcknowledgement(value: unknown, profile: Profile | null): 
           <label>Functional currency <input name="currency" [(ngModel)]="form.currency" required pattern="[A-Z]{3}" maxlength="3" /></label>
           <label>Fiscal start month <input name="month" type="number" [(ngModel)]="form.month" required min="1" max="12" /></label>
           <label>Fiscal start day <input name="day" type="number" [(ngModel)]="form.day" required min="1" max="31" /></label>
+          @if (!fiscalCalendarValid()) { <p role="alert">Enter a possible Gregorian month and day. February 29 is allowed as a stored start date.</p> }
           <label>Source system <input name="source" [(ngModel)]="form.source" required maxlength="100" /></label>
           <label>Source identifier <input name="identifier" [(ngModel)]="form.identifier" maxlength="200" /></label>
           <label>Book source mode <select name="sourceMode" [(ngModel)]="form.sourceMode" [disabled]="sourceModeSelectionDisabled(w)">
@@ -199,7 +200,7 @@ function isProfileSaveAcknowledgement(value: unknown, profile: Profile | null): 
             <p>Native mode requires an accepted client-level BOOKKEEPING service decision. Changing currency, fiscal calendar, source identity, jurisdiction or source mode after periods exist requires a reviewed cutover. VAT/tax and ancillary modules remain optional.</p>
           }
           <label><input name="reviewed" type="checkbox" [(ngModel)]="reviewed" /> I reviewed this client profile and revision {{ w.profile?.revision ?? '0' }}.</label>
-          <button matButton type="submit" [disabled]="profileForm.invalid || profileReasonInvalid(w) || !reviewed || saving() || writeBlocked()">Save profile</button>
+          <button matButton type="submit" [disabled]="profileForm.invalid || !fiscalCalendarValid() || profileReasonInvalid(w) || !reviewed || saving() || writeBlocked()">Save profile</button>
           @if (profileOutcomeUnknown()) {
             <p role="alert">The profile save outcome remains unresolved. Refreshing shows persisted setup but does not confirm that the request settled; profile, period, roll-forward, book, opening-bridge and dimension submissions in this workspace stay disabled.</p>
           } @else if (uncertain()) { <p role="alert">The outcome is unconfirmed. Refresh the client and review persisted setup before another change.</p> }
@@ -471,6 +472,15 @@ export class AccountingWorkspace {
       (w.periods.length > 0 || w.hasMorePeriods || w.profile?.sourceMode === 'NATIVE_BOOKKEEPING');
   }
 
+  fiscalDayMaximum(): number {
+    return this.form.month === 2 ? 29 : [4, 6, 9, 11].includes(this.form.month) ? 30 : 31;
+  }
+
+  fiscalCalendarValid(): boolean {
+    return Number.isInteger(this.form.month) && this.form.month >= 1 && this.form.month <= 12 &&
+      Number.isInteger(this.form.day) && this.form.day >= 1 && this.form.day <= this.fiscalDayMaximum();
+  }
+
   profileReasonRequired(w: Workspace): boolean {
     const profile = w.profile;
     return !!profile && (this.form.jurisdiction.trim() !== profile.jurisdiction ||
@@ -485,7 +495,8 @@ export class AccountingWorkspace {
 
   saveProfile(): void {
     const w = this.workspace();
-    if (!w || !this.reviewed || this.saving() || this.writeBlocked() || this.sourceModeChangeBlocked(w) || this.profileReasonInvalid(w)) return;
+    if (!w || !this.reviewed || this.saving() || this.writeBlocked() || !this.fiscalCalendarValid() ||
+        this.sourceModeChangeBlocked(w) || this.profileReasonInvalid(w)) return;
     const generation = this.session.invalidation();
     this.saving.set(true); this.error.set('');
     this.write = this.http.post('/api/ui/accounting/clients/' + w.clientId + '/profile', {

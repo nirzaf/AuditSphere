@@ -16,7 +16,7 @@ public static partial class ClientAccountingService
     var currency = (string.IsNullOrWhiteSpace(request.FunctionalCurrency) ? AccountingDefaults.DefaultCurrency : request.FunctionalCurrency).Trim().ToUpperInvariant();
     var reason = NormalizeProfileReason(request.Reason);
     if (request.ClientId == Guid.Empty || currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
-        request.FiscalYearStartMonth is < 1 or > 12 || request.FiscalYearStartDay is < 1 or > 31 ||
+        !IsValidFiscalMonthDay(request.FiscalYearStartMonth, request.FiscalYearStartDay) ||
         string.IsNullOrWhiteSpace(request.Jurisdiction) || string.IsNullOrWhiteSpace(request.SourceSystem) ||
         !ClientAccountingSourceModes.IsSupported(sourceMode) || IsInvalidProfileReason(request.Reason))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "A valid client accounting profile is required.");
@@ -72,7 +72,7 @@ public static partial class ClientAccountingService
     var currency = (string.IsNullOrWhiteSpace(request.FunctionalCurrency) ? AccountingDefaults.DefaultCurrency : request.FunctionalCurrency).Trim().ToUpperInvariant();
     var reason = NormalizeProfileReason(request.Reason);
     if (!expectedProfileRevision.IsValid || request.ClientId == Guid.Empty || currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
-        request.FiscalYearStartMonth is < 1 or > 12 || request.FiscalYearStartDay is < 1 or > 31 ||
+        !IsValidFiscalMonthDay(request.FiscalYearStartMonth, request.FiscalYearStartDay) ||
         string.IsNullOrWhiteSpace(request.Jurisdiction) || string.IsNullOrWhiteSpace(request.SourceSystem) ||
         !ClientAccountingSourceModes.IsSupported(sourceMode) || IsInvalidProfileReason(request.Reason))
       return CommandResult<long>.Fail(ErrorCodes.Accounting.MappingInvalid, "A valid client accounting profile is required.");
@@ -203,6 +203,14 @@ public static partial class ClientAccountingService
 
   private static bool IsInvalidProfileReason(string? reason) =>
     reason is not null && reason.Trim().Length > 2000;
+
+  private static bool IsValidFiscalMonthDay(int month, int day) =>
+    month is >= 1 and <= 12 && day >= 1 && day <= (month switch
+    {
+      2 => 29,
+      4 or 6 or 9 or 11 => 30,
+      _ => 31
+    });
 
   private static async Task<CommandResult> ValidateSourceModeAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid clientId, string sourceMode, CancellationToken ct)

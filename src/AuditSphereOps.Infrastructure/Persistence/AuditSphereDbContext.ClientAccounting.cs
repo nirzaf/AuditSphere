@@ -54,7 +54,7 @@ public sealed partial class AuditSphereDbContext
     profile.ToTable("client_accounting_profiles", t =>
     {
       t.HasCheckConstraint("ck_client_accounting_profile_values",
-        "length(trim(jurisdiction)) > 0 AND functional_currency ~ '^[A-Z]{3}$' AND fiscal_year_start_month BETWEEN 1 AND 12 AND fiscal_year_start_day BETWEEN 1 AND 31");
+        "length(trim(jurisdiction)) > 0 AND functional_currency ~ '^[A-Z]{3}$' AND fiscal_year_start_month BETWEEN 1 AND 12 AND fiscal_year_start_day BETWEEN 1 AND CASE WHEN fiscal_year_start_month = 2 THEN 29 WHEN fiscal_year_start_month IN (4, 6, 9, 11) THEN 30 ELSE 31 END");
       t.HasCheckConstraint("ck_client_accounting_profile_source_mode",
         "source_mode IN ('EXTERNAL_SOURCE', 'NATIVE_BOOKKEEPING')");
     });
