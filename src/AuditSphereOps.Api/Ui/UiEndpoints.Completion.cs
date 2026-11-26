@@ -2,12 +2,13 @@ using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Records;
 using AuditSphereOps.Domain.Shared;
+using System.ComponentModel.DataAnnotations;
 
 namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
-  public sealed record CriticalityInput(bool Critical);
+  public sealed record CriticalityInput(bool Critical, [property: MaxLength(4000)] string? Rationale = null);
   public sealed record SrmInput(string Recommendations);
   public sealed record ClearanceInput(Guid SrmId, string KeyRiskAreasComment, string NotesComment);
   public sealed record OpinionInput(string OpinionType, string? FocusArea, string? Basis);
@@ -128,8 +129,13 @@ public static partial class UiEndpoints
       CommandAsync(http, (db, actor, ct) => EngagementCompletionWorkspaceQuery.PrepareReleaseCandidateAsync(db, actor, id, i.PackageId, ct)))
       .WithUiResponse<UiValueResponse<Guid>>();
     group.MapPost("/confirmations/{caseId:guid}/criticality", (Guid caseId, CriticalityInput i, HttpContext http) =>
-      CommandAsync(http, (db, actor, ct) => AuditDeliverableService.SetConfirmationCriticalityAsync(db, actor, caseId, i.Critical,
-        i.Critical ? "Material to the audit opinion" : "Reassessed as not critical to the report", ct)))
+      CommandAsync(http, (db, actor, ct) =>
+      {
+        if (string.IsNullOrWhiteSpace(i.Rationale) || i.Rationale.Length > 4000)
+          return Task.FromResult(CommandResult.Fail(ErrorCodes.AuditPlanning.Invalid,
+            "Provide a rationale of 1 to 4000 characters for the criticality decision."));
+        return AuditDeliverableService.SetConfirmationCriticalityAsync(db, actor, caseId, i.Critical, i.Rationale.Trim(), ct);
+      }))
       .WithUiResponse<UiValueResponse<bool>>();
     group.MapPost("/engagements/{id:guid}/completion/srm", (Guid id, SrmInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, actor, id, i.Recommendations ?? "", ct)))

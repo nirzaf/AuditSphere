@@ -28,6 +28,21 @@ public sealed class ConfirmationApiTests
     Assert.Equal(HttpStatusCode.BadRequest,(await Action(staff,sc,path,id,"DISPATCH",new{reference="not-sent"})).StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden,(await Action(staff,sc,path,id,"APPROVE")).StatusCode);
     Assert.Equal(HttpStatusCode.OK,(await Action(reviewer,rc,path,id,"APPROVE")).StatusCode);
+    var legacyCriticalityPath = $"/api/ui/confirmations/{id:D}/criticality";
+    foreach (var invalid in new object[] { new { critical = true }, new { critical = true, rationale = "  " }, new { critical = true, rationale = new string('x', 4001) } })
+    {
+      Assert.Equal(HttpStatusCode.BadRequest, (await Post(admin, legacyCriticalityPath, ac, invalid)).StatusCode);
+      await using var invalidDb = new AuditSphereDbContext(pg.Options);
+      Assert.Equal(0, await invalidDb.ConfirmationCriticalities.CountAsync(x => x.ConfirmationCaseId == id));
+    }
+    const string legacyRationale = "  Caller supplied materiality assessment  ";
+    using (var legacyResult = await Post(admin, legacyCriticalityPath, ac, new { critical = true, rationale = legacyRationale }))
+      Assert.Equal(HttpStatusCode.OK, legacyResult.StatusCode);
+    await using (var legacyDb = new AuditSphereDbContext(pg.Options))
+    {
+      var retained = await legacyDb.ConfirmationCriticalities.SingleAsync(x => x.ConfirmationCaseId == id);
+      Assert.Equal("Caller supplied materiality assessment", retained.Rationale);
+    }
     Assert.Equal(HttpStatusCode.OK,(await Action(admin,ac,path,id,"CRITICALITY",new{critical=true,rationale="Outstanding critical evidence"})).StatusCode);
     Assert.Equal(1,(await Get(staff,path)).GetProperty("outstandingCritical").GetInt32());
     Assert.Equal(HttpStatusCode.OK,(await Action(staff,sc,path,id,"DISPATCH",new{reference="observed-synthetic-dispatch"})).StatusCode);

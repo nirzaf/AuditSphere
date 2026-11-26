@@ -975,7 +975,8 @@ public static partial class AuditDeliverableService
 
   public static async Task<CommandResult> SetConfirmationCriticalityAsync(IAuditSphereDbContext db, ActorContext actor, Guid caseId, bool critical, string rationale, CancellationToken ct = default)
   {
-    if (string.IsNullOrWhiteSpace(rationale)) return CommandResult.Fail(ErrorCodes.AuditPlanning.Invalid, "Explain why the confirmation is (or is not) critical to the report.");
+    if (string.IsNullOrWhiteSpace(rationale) || rationale.Length > 4000)
+      return CommandResult.Fail(ErrorCodes.AuditPlanning.Invalid, "Explain why the confirmation is (or is not) critical to the report in 4000 characters or fewer.");
     var confirmation = await db.AuditConfirmationCases.AsNoTracking().SingleOrDefaultAsync(x => x.Id == caseId && x.FirmId == actor.FirmId, ct);
     if (confirmation is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeAsync(db, actor, confirmation.EngagementId, ["Manager", "Partner", "Administrator"], ct);

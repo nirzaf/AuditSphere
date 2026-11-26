@@ -126677,6 +126677,13 @@
         "properties": {
           "critical": {
             "type": "boolean"
+          },
+          "rationale": {
+            "maxLength": 4000,
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
