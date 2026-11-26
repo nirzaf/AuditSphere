@@ -336,7 +336,7 @@ function Assert-M365ArchiveCopyReadback($Readback, $OperationPlan, [string] $Ope
         $file.readBackSha256 -cne $file.sourceSha256 -or
         (Assert-ArchiveCopyPositiveInteger $file.readBackByteCount -AllowZero) -ne $expected.sourceByteCount -or
         $file.verificationOutcome -cne 'MATCH') { throw 'DRIFT' }
-    $fileReadAt = Assert-ArchiveCopyTimestamp $file.readBackAt
+    Assert-ArchiveCopyTimestamp $file.readBackAt | Out-Null
     $resultByKey[$file.sourceKeySha256] = $file
   }
 
@@ -360,6 +360,7 @@ function Assert-M365ArchiveCopyReadback($Readback, $OperationPlan, [string] $Ope
         'destinationItemId','destinationVersion','readBackSha256','readBackByteCount','verificationOutcome')) {
       if ($receipt[$field] -cne $file[$field]) { throw 'DRIFT' }
     }
+    $fileReadAt = Assert-ArchiveCopyTimestamp $file.readBackAt
     if ((Assert-ArchiveCopyTimestamp $receipt.readBackAt) -ne $fileReadAt) { throw 'DRIFT' }
   }
 

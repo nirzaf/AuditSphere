@@ -104,6 +104,11 @@ function New-Readback($OperationPlan = (New-PinnedOperationPlan)) {
   $permissionJson = ConvertTo-Json -InputObject @([ordered]@{
     PrincipalKind = 'SHAREPOINT_GROUP'; PrincipalId = $script:staffGroupId; Role = 'READ'
   }) -Depth 6 -Compress
+  $readBackTimes = @{}
+  for ($i = 0; $i -lt $OperationPlan.files.Count; $i++) {
+    $readBackTimes[[string] $OperationPlan.files[$i].sourceKeySha256] =
+      ([DateTimeOffset]::Parse($script:now, [System.Globalization.CultureInfo]::InvariantCulture)).AddMinutes($i).ToString('O')
+  }
   $files = @($OperationPlan.files | ForEach-Object {
     [ordered]@{
       sourceKind = $_.sourceKind; sourceKeySha256 = $_.sourceKeySha256; sourceId = $_.sourceId
@@ -113,13 +118,13 @@ function New-Readback($OperationPlan = (New-PinnedOperationPlan)) {
       destinationDriveId = $OperationPlan.destinationDriveId; destinationLibraryRootItemId = $OperationPlan.destinationLibraryRootItemId
       hasExactTargetBinding = $true; destinationItemId = "item-$($_.sourceKeySha256.Substring(0,4))"
       destinationVersion = 'destination-v9'; readBackSha256 = $_.sourceSha256; readBackByteCount = $_.sourceByteCount
-      verificationOutcome = 'MATCH'; readBackAt = $script:now
+      verificationOutcome = 'MATCH'; readBackAt = $readBackTimes[[string] $_.sourceKeySha256]
     }
   })
   $receipts = @($files | ForEach-Object -Begin { $i = 50 } -Process {
     $i++
     [ordered]@{ receiptId = ('00000000-0000-4000-8000-{0:D12}' -f $i); attemptToken = 3 } + $_
-  })
+  } | Sort-Object -Property sourceKeySha256 -Descending)
   $resultPermissions = [ordered]@{
     expectedPermissionsJson = $permissionJson; expectedPermissionsSha256 = $script:permissionDigest
     observedPermissionsJson = $permissionJson; observedPermissionsSha256 = $script:permissionDigest
@@ -197,6 +202,8 @@ Assert-That 'matching-application-evidence-stays-incomplete' ($positive.Status -
   $positive.Result.checks[0].state -eq 'PASS' -and $positive.Result.checks[1].state -eq 'INCOMPLETE_EVIDENCE' -and
   @($positive.Result.blockedPrerequisites).Count -eq 4 -and $positive.Result.mutationsAttempted -eq 0 -and
   $positive.Result.mutationsConfirmed -eq 0) "status=$($positive.Status); errorCode=$($positive.Result.errorCode); checkStates=$(@($positive.Result.checks | ForEach-Object state) -join ','); blockers=$(@($positive.Result.blockedPrerequisites) -join ',')"
+Assert-That 'distinct-file-timestamps-match-reordered-receipts' (@($positiveEvidence.result.files.readBackAt | Select-Object -Unique).Count -eq 3 -and
+  $positiveEvidence.fileReceipts[0].sourceKeySha256 -cne $positiveEvidence.result.files[0].sourceKeySha256)
 Assert-That 'transport-is-three-exact-get-requests' ($positive.Handler.SendCount -eq 3 -and
   @($positive.Handler.Methods | Where-Object { $_ -cne 'GET' }).Count -eq 0 -and
   $positive.Handler.Uris[1] -ceq "$($script:plan.publicBaseUri.TrimEnd('/'))/api/ui/records/archive-copies/$operationIdText/evidence") "count=$($positive.Handler.SendCount); methods=$($positive.Handler.Methods -join ',')"
@@ -235,6 +242,13 @@ $wrongTimestamp = New-Readback $operationPlan
 $wrongTimestamp.result.files[0].readBackAt = '2026-10-23T07:00:00.0000000'
 $case = Invoke-SyntheticReadback $wrongTimestamp
 Assert-That 'timestamp-without-explicit-offset-rejected' ($case.Status -eq 'DRIFT')
+
+$wrongPerFileTimestamp = New-Readback $operationPlan
+$wrongPerFileTimestamp.fileReceipts[0].readBackAt = $script:now
+$case = Invoke-SyntheticReadback $wrongPerFileTimestamp
+Assert-That 'matched-file-timestamp-mismatch-is-drift-with-read-only-transport' ($case.Status -eq 'DRIFT' -and
+  $case.Handler.SendCount -eq 3 -and @($case.Handler.Methods | Where-Object { $_ -cne 'GET' }).Count -eq 0 -and
+  $case.Result.mutationsAttempted -eq 0 -and $case.Result.mutationsConfirmed -eq 0)
 
 $wrongConfig = New-Readback $operationPlan
 $wrongConfig.result.targetRevision = 6
