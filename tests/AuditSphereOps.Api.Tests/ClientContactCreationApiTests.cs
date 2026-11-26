@@ -253,6 +253,99 @@ public sealed class ClientContactCreationApiTests
     Assert.Equal(fixture.Admin.Id, routing.CreatedByUserId);
   }
 
+  [Fact]
+  public async Task ClientMaintenanceRoutesRequireReviewedExactDiffAndPersistScopedProfileAndContact()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("CLIENT-MAINTENANCE-API");
+    var f = await PbcSeed.SeedAsync(pg);
+    var firstId = Guid.CreateVersion7();
+    var secondId = Guid.CreateVersion7();
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.ClientContacts.AddRange(
+        new ClientContact { Id = firstId, FirmId = f.FirmId, PracticeClientId = f.ClientId, FullName = "First primary", Email = "first@example.test", Role = "Finance", Primary = true, IsActive = true },
+        new ClientContact { Id = secondId, FirmId = f.FirmId, PracticeClientId = f.ClientId, FullName = "Second primary", Email = "second@example.test", Role = "Finance", Primary = true, IsActive = true });
+      await setup.SaveChangesAsync();
+    }
+
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
+    {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
+      ["DevelopmentIdentity:Enabled"] = "true",
+      ["DevelopmentIdentity:Subject"] = f.Admin.Subject,
+      ["DevelopmentIdentity:TenantId"] = f.Admin.TenantId,
+      ["Application:AllowSimulationAdapters"] = "true",
+      ["ExternalEffects:Enabled"] = "false"
+    });
+    using var c = factory.CreateClient(new() { AllowAutoRedirect = false });
+    Assert.Equal(HttpStatusCode.Unauthorized, (await c.GetAsync($"/api/ui/clients/{f.ClientId}/profile-maintenance")).StatusCode);
+    await c.GetAsync("/auth/sign-in");
+    using var session = await c.GetAsync("/api/ui/session");
+    var csrf = Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie").Single(x => x.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal))
+      .Split(';')[0]["XSRF-TOKEN=".Length..]);
+
+    var profileUrl = $"/api/ui/clients/{f.ClientId}/profile-maintenance";
+    var profileState = (await c.GetFromJsonAsync<ClientMaintenanceState>(profileUrl))!;
+    var profileRequest = new ClientMaintenanceRequest(Guid.NewGuid(), profileState.ReviewBasis,
+      Profile: profileState.Profile! with { LegalName = "Reviewed profile through API" });
+    using var noCsrf = await Post(c, "forged", profileUrl + "/preview", profileRequest);
+    Assert.Equal(HttpStatusCode.Forbidden, noCsrf.StatusCode);
+    using var profilePreviewResponse = await Post(c, csrf, profileUrl + "/preview", profileRequest);
+    Assert.Equal(HttpStatusCode.OK, profilePreviewResponse.StatusCode);
+    var profilePreview = JsonDocument.Parse(await profilePreviewResponse.Content.ReadAsStringAsync()).RootElement.GetProperty("value")
+      .Deserialize<ClientMaintenancePreview>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+    var reviewedProfile = profileRequest with { Reviewed = true, ExpectedRequestHash = profilePreview.RequestHash };
+    using var unreviewed = await Post(c, csrf, profileUrl, reviewedProfile with { Reviewed = false });
+    Assert.Equal(HttpStatusCode.BadRequest, unreviewed.StatusCode);
+    using var profileSaved = await Post(c, csrf, profileUrl, reviewedProfile);
+    Assert.Equal(HttpStatusCode.OK, profileSaved.StatusCode);
+    var profileReceipt = JsonDocument.Parse(await profileSaved.Content.ReadAsStringAsync()).RootElement.GetProperty("value")
+      .Deserialize<ClientMaintenanceReceiptValue>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+    using var profileReplay = await Post(c, csrf, profileUrl, reviewedProfile);
+    Assert.Equal(HttpStatusCode.OK, profileReplay.StatusCode);
+    Assert.Equal(profileReceipt, JsonDocument.Parse(await profileReplay.Content.ReadAsStringAsync()).RootElement.GetProperty("value")
+      .Deserialize<ClientMaintenanceReceiptValue>(new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+    var freshProfileState = (await c.GetFromJsonAsync<ClientMaintenanceState>(profileUrl))!;
+    using var changedPreviewResponse = await Post(c, csrf, profileUrl + "/preview",
+      profileRequest with { ReviewBasis = freshProfileState.ReviewBasis,
+        Profile = profileRequest.Profile! with { LegalName = "Changed retry" } });
+    var changedPreview = JsonDocument.Parse(await changedPreviewResponse.Content.ReadAsStringAsync()).RootElement.GetProperty("value")
+      .Deserialize<ClientMaintenancePreview>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+    using var changedRetry = await Post(c, csrf, profileUrl, reviewedProfile with
+      { ReviewBasis = freshProfileState.ReviewBasis, Profile = profileRequest.Profile! with { LegalName = "Changed retry" },
+        ExpectedRequestHash = changedPreview.RequestHash });
+    Assert.Equal(HttpStatusCode.Conflict, changedRetry.StatusCode);
+    using var profileLookup = await c.GetAsync(profileUrl + "/receipts/" + profileReceipt.RequestId + "?requestHash=" + profileReceipt.RequestHash);
+    Assert.Equal(HttpStatusCode.OK, profileLookup.StatusCode);
+
+    var contactUrl = $"/api/ui/clients/{f.ClientId}/contacts/{firstId}/maintenance";
+    var contactState = (await c.GetFromJsonAsync<ClientMaintenanceState>(contactUrl))!;
+    var contactRequest = new ClientMaintenanceRequest(Guid.NewGuid(), contactState.ReviewBasis,
+      Contact: contactState.Contact! with { FullName = "Updated finance contact", Primary = true });
+    using var contactPreviewResponse = await Post(c, csrf, contactUrl + "/preview", contactRequest);
+    Assert.Equal(HttpStatusCode.OK, contactPreviewResponse.StatusCode);
+    var contactPreview = JsonDocument.Parse(await contactPreviewResponse.Content.ReadAsStringAsync()).RootElement.GetProperty("value")
+      .Deserialize<ClientMaintenancePreview>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+    Assert.Equal(2, contactPreview.ReplacedPrimary.Count);
+    Assert.Equal(firstId, Assert.Single(contactPreview.ResultPrimary).Id);
+    var reviewedContact = contactRequest with { Reviewed = true, ExpectedRequestHash = contactPreview.RequestHash };
+    using var contactSaved = await Post(c, csrf, contactUrl, reviewedContact);
+    Assert.Equal(HttpStatusCode.OK, contactSaved.StatusCode);
+    var contactReceipt = JsonDocument.Parse(await contactSaved.Content.ReadAsStringAsync()).RootElement.GetProperty("value")
+      .Deserialize<ClientMaintenanceReceiptValue>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+    using var contactLookup = await c.GetAsync(contactUrl + "/receipts/" + contactReceipt.RequestId + "?requestHash=" + contactReceipt.RequestHash);
+    Assert.Equal(HttpStatusCode.OK, contactLookup.StatusCode);
+    using var foreignContactRoute = await c.GetAsync($"/api/ui/clients/{Guid.CreateVersion7()}/contacts/{firstId}/maintenance");
+    Assert.Equal(HttpStatusCode.Forbidden, foreignContactRoute.StatusCode);
+
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Equal("Reviewed profile through API", await proof.PracticeClients.Where(x => x.Id == f.ClientId).Select(x => x.LegalName).SingleAsync());
+    Assert.True((await proof.ClientContacts.AsNoTracking().SingleAsync(x => x.Id == firstId)).Primary);
+    Assert.False((await proof.ClientContacts.AsNoTracking().SingleAsync(x => x.Id == secondId)).Primary);
+    Assert.Equal(3, await proof.ClientSafetyStates.Where(x => x.Id == f.ClientId).Select(x => x.InputGeneration).SingleAsync());
+    Assert.Equal(2, await proof.ClientMaintenanceReceipts.CountAsync());
+  }
+
   private static Task<HttpResponseMessage> Post(HttpClient c,string csrf,string url,object input){var r=new HttpRequestMessage(HttpMethod.Post,url){Content=JsonContent.Create(input)};r.Headers.Add("X-XSRF-TOKEN",csrf);return c.SendAsync(r);}
   private static Task<HttpResponseMessage> Delete(HttpClient c, string csrf, string url, object input)
   {

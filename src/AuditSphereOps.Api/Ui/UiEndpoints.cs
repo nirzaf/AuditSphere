@@ -78,6 +78,7 @@ public static partial class UiEndpoints
     MapPortfolioEndpoints(group);
     MapUserProfileEndpoints(group);
     MapClientContactCreationEndpoints(group);
+    MapClientMaintenanceEndpoints(group);
     MapClientRelationshipEndpoints(group);
     MapEngagementActivationReviewEndpoints(group);
     MapEngagementCreationEndpoints(group);

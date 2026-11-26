@@ -19,7 +19,8 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   AuditSphereOps.Application.Operations.IAuditSphereDbContext,
   AuditSphereOps.Application.Operations.IClientAccountingDbContext,
   AuditSphereOps.Application.Operations.IAdjustmentJournalDbContext,
-  AuditSphereOps.Application.Operations.IRecordsArchiveCopyDbContext
+  AuditSphereOps.Application.Operations.IRecordsArchiveCopyDbContext,
+  AuditSphereOps.Application.Operations.IClientMaintenanceDbContext
 {
   public bool AdministratorOversightObserved { get; set; }
   public DbSet<AdministratorOversightAccessEvent> AdministratorOversightAccessEvents => Set<AdministratorOversightAccessEvent>();
@@ -146,6 +147,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<ClientContact> ClientContacts => Set<ClientContact>();
 
   public DbSet<ClientContactCreation> ClientContactCreations => Set<ClientContactCreation>();
+  public DbSet<ClientMaintenanceReceipt> ClientMaintenanceReceipts => Set<ClientMaintenanceReceipt>();
   public DbSet<ClientConversion> ClientConversions => Set<ClientConversion>();
   public DbSet<ClientRelationship> ClientRelationships => Set<ClientRelationship>();
   public DbSet<ClientContactRouting> ClientContactRoutings => Set<ClientContactRouting>();
@@ -655,6 +657,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigureWorkflowTaskPlanReceipts(b);
     ConfigureWorkflowReminders(b);
     ConfigureClientContactCreations(b);
+    ConfigureClientMaintenance(b);
     ConfigureClientConversions(b);
     ConfigureAssessmentReceipts(b);
     ConfigureResourcePlanningReceipts(b);

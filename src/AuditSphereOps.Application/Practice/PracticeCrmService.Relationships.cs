@@ -152,7 +152,7 @@ public static partial class PracticeCrmService
       new AuthorizationRequest(actor.FirmId, ClientId: request.ClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return auth;
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
 
@@ -181,7 +181,7 @@ public static partial class PracticeCrmService
     safety.InputGeneration++;
 
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
 

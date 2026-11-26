@@ -34,6 +34,142 @@
       </dl>
     </div>
 
+    @if (clientWorkspace()?.canManageContacts) {
+      <section aria-label="Reviewed client profile maintenance">
+        <h3>Client profile maintenance</h3>
+        <p>Changes are reviewed against the current client generation and saved with an immutable receipt.</p>
+        @if (!profileDraft()) {
+          <button matButton type="button" [disabled]="profileBusy() || profileUncertain()" (click)="editClientProfile()">Edit legal entity details</button>
+        }
+        @if (profileBusy()) { <p role="status">Loading or saving the reviewed client profile…</p> }
+        @if (profileMaintenanceError()) { <p role="alert">{{ profileMaintenanceError() }}</p> }
+        @if (profileDraft(); as draft) {
+          <form (ngSubmit)="reviewClientProfile()">
+            <label>Legal name
+              <input name="maintenanceLegalName" required [ngModel]="draft.legalName" (ngModelChange)="setProfileField('legalName', $event)" />
+            </label>
+            <label>Commercial name
+              <input name="maintenanceCommercialName" [ngModel]="draft.commercialName ?? ''" (ngModelChange)="setProfileField('commercialName', $event)" />
+            </label>
+            <label>Registration number
+              <input name="maintenanceRegistrationNumber" [ngModel]="draft.registrationNumber ?? ''" (ngModelChange)="setProfileField('registrationNumber', $event)" />
+            </label>
+            <label>Tax registration number
+              <input name="maintenanceTaxRegistrationNumber" maxlength="64" [ngModel]="draft.taxRegistrationNumber ?? ''" (ngModelChange)="setProfileField('taxRegistrationNumber', $event)" />
+            </label>
+            <label>Entity type
+              <input name="maintenanceEntityType" maxlength="64" [ngModel]="draft.entityType ?? ''" (ngModelChange)="setProfileField('entityType', $event)" />
+            </label>
+            <label>Jurisdiction
+              <input name="maintenanceJurisdiction" [ngModel]="draft.jurisdiction ?? ''" (ngModelChange)="setProfileField('jurisdiction', $event)" />
+            </label>
+            <label>Restricted profile notes
+              <textarea name="maintenanceRestrictedProfile" [ngModel]="draft.restrictedProfile ?? ''" (ngModelChange)="setProfileField('restrictedProfile', $event)"></textarea>
+            </label>
+            <button matButton type="submit" [disabled]="profileBusy() || profileUncertain()">Review profile changes</button>
+            <button matButton type="button" [disabled]="profileBusy() || profileUncertain()" (click)="cancelProfileMaintenance()">Cancel</button>
+          </form>
+        }
+        @if (profilePreview(); as preview) {
+          <section aria-label="Review client profile changes" role="group">
+            <h4>Review profile changes</h4>
+            <p>Current generation: {{ profileMaintenanceState()?.safetyGeneration }}</p>
+            <dl>
+              <dt>Legal name</dt><dd>{{ profileMaintenanceState()?.profile?.legalName }} → {{ profileReviewValue('legalName') }}</dd>
+              <dt>Commercial name</dt><dd>{{ profileMaintenanceState()?.profile?.commercialName ?? 'Not recorded' }} → {{ profileReviewValue('commercialName') }}</dd>
+              <dt>Registration number</dt><dd>{{ profileMaintenanceState()?.profile?.registrationNumber ?? 'Not recorded' }} → {{ profileReviewValue('registrationNumber') }}</dd>
+              <dt>Tax registration number</dt><dd>{{ profileMaintenanceState()?.profile?.taxRegistrationNumber ?? 'Not recorded' }} → {{ profileReviewValue('taxRegistrationNumber') }}</dd>
+              <dt>Entity type</dt><dd>{{ profileMaintenanceState()?.profile?.entityType ?? 'Not recorded' }} → {{ profileReviewValue('entityType') }}</dd>
+              <dt>Jurisdiction</dt><dd>{{ profileMaintenanceState()?.profile?.jurisdiction ?? 'Not recorded' }} → {{ profileReviewValue('jurisdiction') }}</dd>
+              <dt>Restricted profile notes</dt><dd>{{ profileMaintenanceState()?.profile?.restrictedProfile ?? 'Not recorded' }} → {{ profileReviewValue('restrictedProfile') }}</dd>
+            </dl>
+            <label><input type="checkbox" name="profileReviewed" [checked]="profileReviewed()" (change)="profileReviewed.set($any($event.target).checked)" /> I reviewed these exact client profile changes.</label>
+            <button matButton type="button" [disabled]="profileBusy() || !profileReviewed() || !profileReviewIsCurrent()" (click)="saveClientProfile()">Save reviewed profile</button>
+            <button matButton type="button" [disabled]="profileBusy()" (click)="cancelProfileReview()">Edit changes</button>
+            <p>Request {{ preview.requestId }} · basis {{ preview.reviewBasis }}</p>
+          </section>
+        }
+        @if (profileUncertain()) {
+          <section role="alert" aria-label="Profile outcome recovery">
+            <h4>Profile outcome unconfirmed</h4><p>{{ profileMaintenanceMessage() }}</p>
+            <p>Request {{ profilePending()?.requestId }}</p>
+            <button matButton type="button" [disabled]="profileBusy()" (click)="reconcileClientMaintenance('PROFILE')">Check retained profile receipt</button>
+            @if (profileReceipt(); as receipt) {
+              <p>Receipt {{ receipt.id }} · generation {{ receipt.resultGeneration }}</p>
+              <button matButton type="button" [disabled]="profileBusy()" (click)="acknowledgeClientMaintenance('PROFILE')">Acknowledge saved result</button>
+            }
+          </section>
+        }
+        @if (profileReceiptAbsent()) { <p role="status">{{ profileMaintenanceMessage() }}</p> }
+        @if (profileReceipt(); as receipt) { <p role="status">Profile update receipt {{ receipt.id }} · generation {{ receipt.resultGeneration }}</p> }
+      </section>
+
+      <section aria-label="Reviewed contact maintenance">
+        <h3>Client contacts</h3>
+        @if (!clientWorkspace()?.contacts?.length) { <p>No contacts are available on this page.</p> }
+        @for (contact of clientWorkspace()?.contacts ?? []; track contact.id) {
+          <p>{{ contact.name }} · {{ contact.email }} · {{ contact.role }} · {{ contact.primary ? 'Primary' : 'Alternate' }}
+            <button matButton type="button" [disabled]="contactBusy() || contactUncertain()" (click)="editClientContact(contact.id)">Edit contact</button>
+          </p>
+        }
+        @if (contactBusy()) { <p role="status">Loading or saving the reviewed contact…</p> }
+        @if (contactMaintenanceError()) { <p role="alert">{{ contactMaintenanceError() }}</p> }
+        @if (contactDraft(); as draft) {
+          <form (ngSubmit)="reviewClientContact()">
+            <label>Full name<input name="maintenanceContactName" required [ngModel]="draft.fullName" (ngModelChange)="setContactField('fullName', $event)" /></label>
+            <label>Email<input name="maintenanceContactEmail" type="email" required [ngModel]="draft.email" (ngModelChange)="setContactField('email', $event)" /></label>
+            <label>Role<input name="maintenanceContactRole" required [ngModel]="draft.role" (ngModelChange)="setContactField('role', $event)" /></label>
+            <label>Phone<input name="maintenanceContactPhone" maxlength="32" [ngModel]="draft.phone ?? ''" (ngModelChange)="setContactField('phone', $event)" /></label>
+            <label>Title<input name="maintenanceContactTitle" maxlength="100" [ngModel]="draft.title ?? ''" (ngModelChange)="setContactField('title', $event)" /></label>
+            <label>Signatory authority metadata<input name="maintenanceContactAuthority" maxlength="64" [ngModel]="draft.signatoryAuthority ?? ''" (ngModelChange)="setContactField('signatoryAuthority', $event)" /></label>
+            <label>Approved scope metadata<textarea name="maintenanceContactScope" [ngModel]="draft.approvedScope ?? ''" (ngModelChange)="setContactField('approvedScope', $event)"></textarea></label>
+            <label>Valid from (ISO timestamp with explicit offset)
+              <input name="maintenanceContactValidFrom" [ngModel]="draft.validFrom ?? ''" (ngModelChange)="setContactField('validFrom', $event)" />
+            </label>
+            <label>Valid to (ISO timestamp with explicit offset)
+              <input name="maintenanceContactValidTo" [ngModel]="draft.validTo ?? ''" (ngModelChange)="setContactField('validTo', $event)" />
+            </label>
+            <label><input type="checkbox" name="maintenanceContactPrimary" [ngModel]="draft.primary" (ngModelChange)="setContactField('primary', $event)" /> Make this the primary contact</label>
+            <label><input type="checkbox" name="maintenanceContactActive" [ngModel]="draft.isActive" (ngModelChange)="setContactField('isActive', $event)" /> Contact is active</label>
+            <button matButton type="submit" [disabled]="contactBusy() || contactUncertain()">Review contact changes</button>
+            <button matButton type="button" [disabled]="contactBusy() || contactUncertain()" (click)="cancelContactMaintenance()">Cancel</button>
+          </form>
+        }
+        @if (contactPreview(); as preview) {
+          <section aria-label="Review client contact changes" role="group">
+            <h4>Review contact changes</h4><p>Current generation: {{ contactMaintenanceState()?.safetyGeneration }}</p>
+            <dl>
+              <dt>Name</dt><dd>{{ contactMaintenanceState()?.contact?.fullName }} → {{ contactReviewValue('fullName') }}</dd>
+              <dt>Email</dt><dd>{{ contactMaintenanceState()?.contact?.email }} → {{ contactReviewValue('email') }}</dd>
+              <dt>Role</dt><dd>{{ contactMaintenanceState()?.contact?.role }} → {{ contactReviewValue('role') }}</dd>
+              <dt>Primary status</dt><dd>{{ contactMaintenanceState()?.contact?.primary ? 'Primary' : 'Alternate' }} → {{ contactReviewValue('primary') ? 'Primary' : 'Alternate' }}</dd>
+              <dt>Active status</dt><dd>{{ contactMaintenanceState()?.contact?.isActive ? 'Active' : 'Inactive' }} → {{ contactReviewValue('isActive') ? 'Active' : 'Inactive' }}</dd>
+            </dl>
+            @if (preview.replacedPrimary.length) { <h5>Current primary contacts to clear</h5><ul>@for (item of preview.replacedPrimary; track item.id) { <li>{{ item.name }} · {{ item.id }}</li> }</ul> }
+            <h5>Primary contacts after update</h5>@if (!preview.resultPrimary.length) { <p>No primary contact is selected after this update.</p> }
+            <ul>@for (item of preview.resultPrimary; track item.id) { <li>{{ item.name }} · {{ item.id }}</li> }</ul>
+            <label><input type="checkbox" name="contactReviewed" [checked]="contactReviewed()" (change)="contactReviewed.set($any($event.target).checked)" /> I reviewed these exact contact changes and primary-contact effects.</label>
+            <button matButton type="button" [disabled]="contactBusy() || !contactReviewed() || !contactReviewIsCurrent()" (click)="saveClientContact()">Save reviewed contact</button>
+            <button matButton type="button" [disabled]="contactBusy()" (click)="cancelContactReview()">Edit changes</button>
+            <p>Request {{ preview.requestId }} · basis {{ preview.reviewBasis }}</p>
+          </section>
+        }
+        @if (contactUncertain()) {
+          <section role="alert" aria-label="Contact outcome recovery">
+            <h4>Contact outcome unconfirmed</h4><p>{{ contactMaintenanceMessage() }}</p>
+            <p>Request {{ contactPending()?.requestId }}</p>
+            <button matButton type="button" [disabled]="contactBusy()" (click)="reconcileClientMaintenance('CONTACT')">Check retained contact receipt</button>
+            @if (contactReceipt(); as receipt) {
+              <p>Receipt {{ receipt.id }} · generation {{ receipt.resultGeneration }}</p>
+              <button matButton type="button" [disabled]="contactBusy()" (click)="acknowledgeClientMaintenance('CONTACT')">Acknowledge saved result</button>
+            }
+          </section>
+        }
+        @if (contactReceiptAbsent()) { <p role="status">{{ contactMaintenanceMessage() }}</p> }
+        @if (contactReceipt(); as receipt) { <p role="status">Contact update receipt {{ receipt.id }} · generation {{ receipt.resultGeneration }}</p> }
+      </section>
+    }
+
     <div class="relationship-group">
       <h3>Parent companies ({{ h.parents.length }})</h3>
       @if (!h.parents.length) {

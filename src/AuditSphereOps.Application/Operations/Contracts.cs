@@ -428,6 +428,12 @@ public interface IRecordsArchiveCopyDbContext : IAuditSphereDbContext
   DbSet<ArchiveCopyPermissionObservation> ArchiveCopyPermissionObservations { get; }
 }
 
+/// <summary>Client CRM update capability with its append-only maintenance receipt set.</summary>
+public interface IClientMaintenanceDbContext : IAuditSphereDbContext
+{
+  DbSet<ClientMaintenanceReceipt> ClientMaintenanceReceipts { get; }
+}
+
 public interface IAuditSphereDbContextFactory
 {
   Task<IAuditSphereDbContext> CreateAsync(CancellationToken ct = default);

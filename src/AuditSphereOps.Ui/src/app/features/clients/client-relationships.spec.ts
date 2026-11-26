@@ -136,6 +136,23 @@ const mockClientWorkspace = {
   contacts: [{ id: contactId, name: 'Nasser Al-Thani', email: 'nasser@apex.qa', role: 'Chief Financial Officer', primary: true }],
   portalIntent: null,
 };
+const maintenanceBasis = 'a'.repeat(64);
+const maintenanceRequestHash = 'b'.repeat(64);
+const mockProfileMaintenanceState = {
+  clientId, operationKind: 'PROFILE', clientName: 'Apex Holding Group Q.P.S.C.', safetyGeneration: '1',
+  reviewBasis: maintenanceBasis,
+  profile: { legalName: 'Apex Holding Group Q.P.S.C.', commercialName: null, registrationNumber: 'CR-2026-0042',
+    taxRegistrationNumber: 'QA-TIN-987654321', entityType: 'Q.P.S.C.', jurisdiction: 'Qatar', restrictedProfile: null },
+  contactId: null, contact: null, currentPrimary: [],
+};
+const mockContactMaintenanceState = {
+  clientId, operationKind: 'CONTACT', clientName: 'Apex Holding Group Q.P.S.C.', safetyGeneration: '2',
+  reviewBasis: 'c'.repeat(64), profile: null, contactId,
+  contact: { fullName: 'Nasser Al-Thani', email: 'nasser@apex.qa', role: 'Chief Financial Officer', phone: '+974 4400 1122',
+    title: 'CFO & Managing Director', signatoryAuthority: 'FULL_COMMERCIAL_AND_AUDIT', approvedScope: null,
+    validFrom: null, validTo: null, primary: true, isActive: true },
+  currentPrimary: [{ id: contactId, name: 'Nasser Al-Thani' }],
+};
 const mockCandidates = {
   items: [{ id: parentId, name: 'Global Supreme Corp' }, { id: subId, name: 'Apex Logistics W.L.L.' }],
   total: 2, page: 0, pageSize: 50,
@@ -146,10 +163,11 @@ const mockResolution = {
 };
 
 function flushWorkspace(httpMock: HttpTestingController, fixture: ComponentFixture<ClientRelationships>, routings: Record<string, unknown>[] = mockRoutings,
-  resolutionPurpose = 'COMMERCIAL'): void {
+  resolutionPurpose = 'COMMERCIAL', workspace: typeof mockClientWorkspace = mockClientWorkspace): void {
   httpMock.expectOne(`/api/ui/clients/${clientId}/hierarchy`).flush(mockHierarchy);
   httpMock.expectOne(`/api/ui/clients/${clientId}/routings`).flush(routings);
-  httpMock.expectOne(`/api/ui/clients/${clientId}?contactPage=0&contactPageSize=50`).flush(mockClientWorkspace);
+  httpMock.expectOne(`/api/ui/clients/${clientId}?contactPage=0&contactPageSize=50`).flush(workspace);
+  httpMock.expectOne(`/api/ui/clients/${clientId}/profile-maintenance`).flush(mockProfileMaintenanceState);
   httpMock.expectOne(`/api/ui/clients/${clientId}/relationship-candidates?page=0&pageSize=50`).flush(mockCandidates);
   httpMock.expectOne(request => request.urlWithParams.startsWith(
     `/api/ui/clients/${clientId}/routings/resolve?purpose=${resolutionPurpose}&asOfDate=`)).flush(mockResolution);
@@ -234,6 +252,154 @@ describe('ClientRelationships Component', () => {
     expect(text).toContain('Assign contact routing');
     expect(text).toContain('Add a client relationship');
     expect(text).toContain('Current recipient resolution');
+  });
+
+  it('reviews profile and contact changes through scoped endpoints and previews primary replacement', async () => {
+    const fixture = TestBed.createComponent(ClientRelationships);
+    fixture.componentRef.setInput('clientId', clientId);
+    fixture.detectChanges();
+    flushWorkspace(httpMock, fixture);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const profileLoad = component.editClientProfile();
+    httpMock.expectOne(`/api/ui/clients/${clientId}/profile-maintenance`).flush(mockProfileMaintenanceState);
+    await profileLoad;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[name="maintenanceLegalName"]')).toBeTruthy();
+    component.setProfileField('legalName', 'Apex reviewed profile');
+    fixture.detectChanges();
+    expect([...fixture.nativeElement.querySelectorAll('button')].some((button: HTMLButtonElement) => button.textContent?.trim() === 'Review profile changes')).toBe(true);
+    const profileReview = component.reviewClientProfile();
+    const profilePreviewRequest = httpMock.expectOne(`/api/ui/clients/${clientId}/profile-maintenance/preview`);
+    expect(profilePreviewRequest.request.body.profile.legalName).toBe('Apex reviewed profile');
+    profilePreviewRequest.flush({ value: { clientId, operationKind: 'PROFILE', contactId: null,
+      requestId: profilePreviewRequest.request.body.requestId, reviewBasis: maintenanceBasis,
+      requestHash: maintenanceRequestHash, beforeJson: '{}', afterJson: '{}', replacedPrimary: [], resultPrimary: [] } });
+    await profileReview;
+    fixture.detectChanges();
+    component.profileReviewed.set(true);
+    fixture.detectChanges();
+    expect([...fixture.nativeElement.querySelectorAll('button')].some((button: HTMLButtonElement) => button.textContent?.trim() === 'Save reviewed profile')).toBe(true);
+    const savingProfile = component.saveClientProfile();
+    const profileSave = httpMock.expectOne(`/api/ui/clients/${clientId}/profile-maintenance`);
+    expect(profileSave.request.body).toMatchObject({ reviewed: true, expectedRequestHash: maintenanceRequestHash,
+      profile: { legalName: 'Apex reviewed profile' } });
+    const profileReceipt = { id: relId1, clientId, contactId: null, operationKind: 'PROFILE', actorId: clientId,
+      actorEpoch: 1, requestId: profileSave.request.body.requestId, requestHash: maintenanceRequestHash,
+      reviewBasis: maintenanceBasis, previousGeneration: '1', resultGeneration: '2', beforeJson: '{}', afterJson: '{}',
+      createdAt: '2026-11-27T00:00:00Z' };
+    profileSave.flush({ code: 'request.failed', message: 'Temporary service failure.' },
+      { status: 503, statusText: 'Service Unavailable' });
+    await savingProfile;
+    fixture.detectChanges();
+    expect(component.profileUncertain()).toBe(true);
+    expect([...fixture.nativeElement.querySelectorAll('button')].some((button: HTMLButtonElement) => button.textContent?.trim() === 'Check retained profile receipt')).toBe(true);
+    const profileReconciliation = component.reconcileClientMaintenance('PROFILE');
+    const profileLookup = httpMock.expectOne(`/api/ui/clients/${clientId}/profile-maintenance/receipts/${profileReceipt.requestId}?requestHash=${maintenanceRequestHash}`);
+    profileLookup.flush({ found: true, receipt: profileReceipt });
+    await profileReconciliation;
+    fixture.detectChanges();
+    expect(component.profileReceipt()).toMatchObject({ requestId: profileReceipt.requestId, requestHash: maintenanceRequestHash });
+    component.acknowledgeClientMaintenance('PROFILE');
+    httpMock.expectOne(`/api/ui/clients/${clientId}/profile-maintenance`).flush({ ...mockProfileMaintenanceState,
+      safetyGeneration: '2', reviewBasis: 'e'.repeat(64), profile: { ...mockProfileMaintenanceState.profile, legalName: 'Apex reviewed profile' } });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component.profileUncertain()).toBe(false);
+    expect(component.profileReceipt()).toBeNull();
+
+    const contactLoad = component.editClientContact(contactId);
+    httpMock.expectOne(`/api/ui/clients/${clientId}/contacts/${contactId}/maintenance`).flush(mockContactMaintenanceState);
+    await contactLoad;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[name="maintenanceContactEmail"]')).toBeTruthy();
+    component.setContactField('email', 'finance@apex.qa');
+    fixture.detectChanges();
+    expect([...fixture.nativeElement.querySelectorAll('button')].some((button: HTMLButtonElement) => button.textContent?.trim() === 'Review contact changes')).toBe(true);
+    const contactReview = component.reviewClientContact();
+    const contactPreviewRequest = httpMock.expectOne(`/api/ui/clients/${clientId}/contacts/${contactId}/maintenance/preview`);
+    expect(contactPreviewRequest.request.body.contact.email).toBe('finance@apex.qa');
+    contactPreviewRequest.flush({ value: { clientId, operationKind: 'CONTACT', contactId,
+      requestId: contactPreviewRequest.request.body.requestId, reviewBasis: mockContactMaintenanceState.reviewBasis,
+      requestHash: 'd'.repeat(64), beforeJson: '{}', afterJson: '{}',
+      replacedPrimary: [{ id: contactId, name: 'Nasser Al-Thani' }], resultPrimary: [{ id: contactId, name: 'Nasser Al-Thani' }] } });
+    await contactReview;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Current primary contacts to clear');
+    component.contactReviewed.set(true);
+    fixture.detectChanges();
+    expect([...fixture.nativeElement.querySelectorAll('button')].some((button: HTMLButtonElement) => button.textContent?.trim() === 'Save reviewed contact')).toBe(true);
+    const savingContact = component.saveClientContact();
+    const contactSave = httpMock.expectOne(`/api/ui/clients/${clientId}/contacts/${contactId}/maintenance`);
+    expect(contactSave.request.body).toMatchObject({ reviewed: true, contact: { email: 'finance@apex.qa' } });
+    contactSave.flush({ value: { ...profileReceipt, id: relId2, contactId, operationKind: 'CONTACT',
+      requestId: contactSave.request.body.requestId, requestHash: 'd'.repeat(64), reviewBasis: mockContactMaintenanceState.reviewBasis,
+      previousGeneration: '2', resultGeneration: '3' } });
+    await savingContact;
+    flushWorkspace(httpMock, fixture);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component.contactMaintenanceMessage()).toContain('immutable receipt were saved');
+  });
+
+  it('clears maintenance drafts and review assent when the mounted session identity changes', async () => {
+    const fixture = TestBed.createComponent(ClientRelationships);
+    fixture.componentRef.setInput('clientId', clientId);
+    fixture.detectChanges();
+    flushWorkspace(httpMock, fixture);
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+    component.profileDraft.set({ ...mockProfileMaintenanceState.profile });
+    component.contactDraft.set({ ...mockContactMaintenanceState.contact });
+    component.profileReviewed.set(true);
+    component.contactReviewed.set(true);
+
+    TestBed.inject(SessionService).current.set({ userId: parentId, firmId: clientId, generation: '2', staff: true });
+    fixture.detectChanges();
+
+    expect(component.profileDraft()).toBeNull();
+    expect(component.contactDraft()).toBeNull();
+    expect(component.profileReviewed()).toBe(false);
+    expect(component.contactReviewed()).toBe(false);
+    flushWorkspace(httpMock, fixture);
+    await fixture.whenStable();
+  });
+
+  it('shows scoped loading and error states and an empty contact list', async () => {
+    const fixture = TestBed.createComponent(ClientRelationships);
+    fixture.componentRef.setInput('clientId', clientId);
+    fixture.detectChanges();
+    flushWorkspace(httpMock, fixture, mockRoutings, 'COMMERCIAL', { ...mockClientWorkspace, contacts: [] });
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+    expect(fixture.nativeElement.textContent).toContain('No contacts are available on this page.');
+
+    const profileLoad = component.editClientProfile();
+    expect(component.profileBusy()).toBe(true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Loading or saving the reviewed client profile');
+    httpMock.expectOne(`/api/ui/clients/${clientId}/profile-maintenance`).flush(
+      { code: 'scope.denied', message: 'This client maintenance workspace is unavailable.' },
+      { status: 403, statusText: 'Forbidden' });
+    await profileLoad;
+    fixture.detectChanges();
+    expect(component.profileMaintenanceError()).toContain('client maintenance workspace is unavailable');
+
+    component.load();
+    fixture.detectChanges();
+    flushWorkspace(httpMock, fixture);
+    await fixture.whenStable();
+    const contactLoad = component.editClientContact(contactId);
+    expect(component.contactBusy()).toBe(true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Loading or saving the reviewed contact');
+    httpMock.expectOne(`/api/ui/clients/${clientId}/contacts/${contactId}/maintenance`).flush(
+      { code: 'scope.denied', message: 'This client maintenance workspace is unavailable.' },
+      { status: 403, statusText: 'Forbidden' });
+    await contactLoad;
+    fixture.detectChanges();
+    expect(component.contactMaintenanceError()).toContain('client maintenance workspace is unavailable');
   });
 
   it('keeps an unrevoked routing assignment revocable after its contact is deactivated', () => {
