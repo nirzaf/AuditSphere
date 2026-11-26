@@ -10,15 +10,24 @@ Developer tooling only. It stores no credentials and never runs model-generated 
 from __future__ import annotations
 
 import contextlib
+import datetime as dt
+import errno
 import hashlib
 import json
 import os
 import re
 import socket
 import stat
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Iterable
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - exercised on platforms without POSIX flock
+    fcntl = None
 
 REPOSITORY = "nirzaf/AuditSphere"
 TASK_ID = re.compile(r"^(RUN|WU)-[0-9]{3}$")
@@ -39,6 +48,10 @@ SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 class StateError(Exception):
     """Raised for corrupt state, a foreign repository, a held lock or a violated invariant."""
+
+
+class RunnerUnavailable(StateError):
+    """Raised when this platform cannot safely serialize or inspect a runner process group."""
 
 
 # ---------------------------------------------------------------- JSON-schema subset
@@ -142,7 +155,7 @@ def load_json(path: Path) -> Any:
         raise StateError(f"{path}: corrupt JSON ({exc})") from exc
 
 
-def atomic_write_json(path: Path, value: Any) -> None:
+def atomic_write_json(path: Path, value: Any, *, fsync_parent: bool = False) -> None:
     """Write via a temporary file in the same directory, fsync it, then replace."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -154,6 +167,12 @@ def atomic_write_json(path: Path, value: Any) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(tmp, path)
+        if fsync_parent:
+            parent_fd = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(parent_fd)
+            finally:
+                os.close(parent_fd)
     except BaseException:
         with contextlib.suppress(FileNotFoundError):
             os.unlink(tmp)
@@ -168,6 +187,280 @@ def _pid_alive(pid: int) -> bool:
     except PermissionError:
         return True
     return True
+
+
+# The session checkpoint schema deliberately remains stable.  This separate, strict owner
+# record is the durable process identity for the repository-wide modifying-runner lock.
+RUNNER_OWNER_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["schemaVersion", "repoPath", "originatingStatePath", "taskId", "sessionId",
+                 "host", "supervisorPid", "runnerPid", "processGroupId", "phase",
+                 "needsReconciliation", "createdAtUtc", "updatedAtUtc"],
+    "properties": {
+        "schemaVersion": {"const": 1},
+        "repoPath": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "originatingStatePath": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "taskId": {"type": "string", "pattern": "^(RUN|WU)-[0-9]{3}$", "maxLength": 100},
+        "sessionId": {"type": ["string", "null"], "minLength": 1, "maxLength": 200},
+        "host": {"type": "string", "minLength": 1, "maxLength": 255},
+        "supervisorPid": {"type": "integer", "minimum": 1},
+        "runnerPid": {"type": ["integer", "null"], "minimum": 1},
+        "processGroupId": {"type": ["integer", "null"], "minimum": 1},
+        "phase": {"enum": ["DISPATCHING", "RUNNING", "STOPPED"]},
+        "needsReconciliation": {"type": "boolean"},
+        "createdAtUtc": {"type": "string", "minLength": 1, "maxLength": 40},
+        "updatedAtUtc": {"type": "string", "minLength": 1, "maxLength": 40},
+    },
+}
+MAX_RUNNER_OWNER_BYTES = 16 * 1024
+
+
+def runner_owner_path(repo: Path) -> Path:
+    return Path(repo) / ".local" / "autonomous" / "runner-owner.json"
+
+
+def runner_lock_path(repo: Path) -> Path:
+    return Path(repo) / ".local" / "autonomous" / "runner.lock"
+
+
+def _utc_timestamp(value: Any, path: str, errors: list[str]) -> None:
+    if not isinstance(value, str):
+        return
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)", value):
+        errors.append(f"{path}: expected an explicit UTC timestamp")
+        return
+    try:
+        parsed = dt.datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+        if parsed.utcoffset() != dt.timedelta(0):
+            errors.append(f"{path}: timestamp must be UTC")
+    except ValueError:
+        errors.append(f"{path}: invalid UTC timestamp")
+
+
+def validate_runner_owner(owner: Any, *, repo: Path | None = None) -> list[str]:
+    errors = validate(owner, RUNNER_OWNER_SCHEMA)
+    if errors or not isinstance(owner, dict):
+        return errors
+    for key in ("repoPath", "originatingStatePath"):
+        value = owner[key]
+        if len(value.encode("utf-8")) > 4096:
+            errors.append(f"$.{key}: exceeds 4096 UTF-8 bytes")
+        if not Path(value).is_absolute() or str(Path(value).resolve(strict=False)) != value:
+            errors.append(f"$.{key}: path is not canonical and absolute")
+    if repo is not None and owner["repoPath"] != str(Path(repo).resolve(strict=False)):
+        errors.append("$.repoPath: owner belongs to another repository")
+    for key in ("createdAtUtc", "updatedAtUtc"):
+        _utc_timestamp(owner[key], f"$.{key}", errors)
+    if owner["phase"] == "DISPATCHING":
+        if owner["runnerPid"] is not None or owner["processGroupId"] is not None:
+            errors.append("$.phase: DISPATCHING must not claim a runner process identity")
+        if not owner["needsReconciliation"]:
+            errors.append("$.needsReconciliation: DISPATCHING must require reconciliation")
+    elif owner["phase"] == "RUNNING":
+        if owner["runnerPid"] is None or owner["processGroupId"] is None:
+            errors.append("$.phase: RUNNING requires runner PID and process group")
+        elif owner["runnerPid"] != owner["processGroupId"]:
+            errors.append("$.processGroupId: must match the isolated runner PID")
+        if owner["supervisorPid"] == owner["runnerPid"]:
+            errors.append("$.supervisorPid: must differ from the isolated runner PID")
+        if not owner["needsReconciliation"]:
+            errors.append("$.needsReconciliation: RUNNING must require reconciliation")
+    return errors
+
+
+def _strict_json(data: bytes, path: Path) -> Any:
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON property {key!r}")
+            result[key] = value
+        return result
+    try:
+        return json.loads(data.decode("utf-8"), object_pairs_hook=unique_object)
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+        raise StateError(f"{path}: corrupt runner owner JSON ({exc})") from exc
+
+
+def load_runner_owner(repo: Path) -> dict | None:
+    path = runner_owner_path(repo)
+    try:
+        fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise StateError(f"{path}: cannot safely open runner owner ({exc})") from exc
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_RUNNER_OWNER_BYTES:
+            raise StateError(f"{path}: runner owner is not a bounded regular file")
+        chunks = []
+        remaining = MAX_RUNNER_OWNER_BYTES + 1
+        while remaining:
+            chunk = os.read(fd, min(4096, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        data = b"".join(chunks)
+        if len(data) > MAX_RUNNER_OWNER_BYTES:
+            raise StateError(f"{path}: runner owner exceeds {MAX_RUNNER_OWNER_BYTES} bytes")
+    finally:
+        os.close(fd)
+    owner = _strict_json(data, path)
+    errors = validate_runner_owner(owner, repo=repo)
+    if errors:
+        raise StateError(f"{path}: invalid runner owner: " + "; ".join(errors))
+    return owner
+
+
+def save_runner_owner(repo: Path, owner: dict) -> None:
+    errors = validate_runner_owner(owner, repo=repo)
+    if errors:
+        raise StateError("refusing to persist invalid runner owner: " + "; ".join(errors))
+    payload = json.dumps(owner, indent=2, sort_keys=True).encode("utf-8") + b"\n"
+    if len(payload) > MAX_RUNNER_OWNER_BYTES:
+        raise StateError("runner owner exceeds the 16 KiB bound")
+    atomic_write_json(runner_owner_path(repo), owner, fsync_parent=True)
+
+
+@contextlib.contextmanager
+def modifying_runner_lock(repo: Path):
+    """Hold one stable repository-wide flock for the complete modifying run."""
+    if fcntl is None or not hasattr(os, "killpg"):
+        raise RunnerUnavailable("POSIX flock/process-group support is unavailable")
+    path = runner_lock_path(repo)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    except OSError as exc:
+        raise StateError(f"{path}: cannot safely open runner lock ({exc})") from exc
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise StateError(f"{path}: runner lock is not a regular file")
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise StateError(f"{path}: another modifying runner owns the repository lock") from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
+
+
+def process_state(pid: int) -> str:
+    """Return ALIVE, DEAD, or UNKNOWN; uncertainty always blocks reconciliation."""
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        return "UNKNOWN"
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return "DEAD"
+    except PermissionError:
+        return "UNKNOWN"
+    except OSError as exc:
+        if exc.errno == errno.ESRCH:
+            return "DEAD"
+        return "UNKNOWN"
+    if _pid_is_zombie(pid):
+        return "DEAD"
+    return "ALIVE"
+
+
+def process_group_state(process_group_id: int) -> str:
+    if not isinstance(process_group_id, int) or isinstance(process_group_id, bool) or process_group_id <= 1:
+        return "UNKNOWN"
+    try:
+        os.killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return "DEAD"
+    except PermissionError:
+        pass  # Darwin may report EPERM for a group containing only unreaped zombies.
+    except OSError as exc:
+        if exc.errno == errno.ESRCH:
+            return "DEAD"
+        if exc.errno == errno.EPERM:
+            pass
+        else:
+            return "UNKNOWN"
+    # killpg(0) succeeds for zombie-only groups on Linux. Inspect the group on both platforms
+    # before treating it as stopped; inaccessible process-table data stays UNKNOWN.
+    group_states = _process_group_states(process_group_id)
+    if group_states is None:
+        return "UNKNOWN"
+    if group_states and all(state.startswith("Z") for state in group_states):
+        return "DEAD"
+    if group_states:
+        return "ALIVE"
+    try:
+        os.killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return "DEAD"
+    except OSError:
+        return "UNKNOWN"
+    return "UNKNOWN"
+
+
+def _ps_rows(args: list[str]) -> list[str] | None:
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, check=False, timeout=2)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.splitlines()
+
+
+def _pid_is_zombie(pid: int) -> bool:
+    if sys.platform.startswith("linux"):
+        try:
+            raw = Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
+            fields = raw[raw.rfind(")") + 2:].split()
+            return bool(fields and fields[0] == "Z")
+        except FileNotFoundError:
+            return False
+        except OSError:
+            return False
+    rows = _ps_rows(["ps", "-o", "stat=", "-p", str(pid)])
+    return bool(rows and rows[0].strip().startswith("Z"))
+
+
+def _process_group_states(process_group_id: int) -> list[str] | None:
+    if sys.platform.startswith("linux"):
+        states = []
+        try:
+            entries = list(Path("/proc").iterdir())
+        except OSError:
+            return None
+        for entry in entries:
+            if not entry.name.isdigit():
+                continue
+            try:
+                raw = (entry / "stat").read_text(encoding="ascii")
+                fields = raw[raw.rfind(")") + 2:].split()
+                if len(fields) > 2 and int(fields[2]) == process_group_id:
+                    states.append(fields[0])
+            except FileNotFoundError:
+                continue
+            except (PermissionError, ValueError, OSError):
+                return None
+        return states
+    rows = _ps_rows(["ps", "-axo", "pgid=,stat="])
+    if rows is None:
+        return None
+    states = []
+    for row in rows:
+        fields = row.split(None, 1)
+        if len(fields) == 2:
+            try:
+                if int(fields[0]) == process_group_id:
+                    states.append(fields[1].strip())
+            except ValueError:
+                continue
+    return states
 
 
 @contextlib.contextmanager

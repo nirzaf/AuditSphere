@@ -1,0 +1,83 @@
+{
+  "archiveVersion": 1,
+  "archivedAtUtc": "2026-11-26T11:13:29Z",
+  "source": "docs/execution/status.json#observedCi.docsFollowupBase42acad",
+  "entrySha256": "254d31b2cd13ea3cd26d91e76d39f074f448b45dc12d49456d95b4628ed4875a",
+  "entry": {
+    "observedAtUtc": "2026-11-07T15:02:34Z",
+    "sourceShaFromRunMetadata": "42acad66c31a4bad8bb47a19436475030ef4bb86",
+    "fastRunId": 42381662824,
+    "fastAttempt": 1,
+    "fastStatus": "FAILURE",
+    "fastActualCheckoutSha": "42acad66c31a4bad8bb47a19436475030ef4bb86",
+    "jobs": {
+      "angular": {
+        "id": 128430383599,
+        "status": "SUCCESS",
+        "actualCheckoutSha": "42acad66c31a4bad8bb47a19436475030ef4bb86",
+        "summary": "1998 passed / 196 files",
+        "log": ".local/autonomous/evidence/docs-consolidation-20261107/ci-42381662824-fast-terminal/job-128430383599-angular.log"
+      },
+      "docs": {
+        "id": 128430383877,
+        "status": "FAILURE",
+        "actualCheckoutSha": "42acad66c31a4bad8bb47a19436475030ef4bb86",
+        "failedStep": "Validate capability packets and runner safety guards",
+        "cause": "docs/testing/agent-check-capabilities.json was absent in the base checkout; restored locally from 4862237b",
+        "log": ".local/autonomous/evidence/docs-consolidation-20261107/ci-42381662824-fast-terminal/job-128430383877-docs.log"
+      },
+      "release": {
+        "id": 128431005848,
+        "status": "FAILURE",
+        "actualCheckoutSha": "42acad66c31a4bad8bb47a19436475030ef4bb86",
+        "failedStep": "Verify OpenAPI contract drift",
+        "cause": "Generated contract adds detail.maxLength=2000; the committed contract lacked that field. Corrected locally from the exact generated delta.",
+        "log": ".local/autonomous/evidence/docs-consolidation-20261107/ci-42381662824-fast-terminal/job-128431005848-release.log"
+      }
+    },
+    "imageRunId": 42381662821,
+    "imageAttempt": 1,
+    "imageStatus": "SUCCESS",
+    "imageCompletedAtUtc": "2026-11-07T14:52:33Z",
+    "imageJobs": {
+      "api": {
+        "id": 128430383570,
+        "status": "SUCCESS",
+        "actualCheckoutSha": "42acad66c31a4bad8bb47a19436475030ef4bb86",
+        "manifestPin": "sha256:4ae3afe023b43fc28a5fdc7c71287418b12de31dc3c69a864ae10d126794f029",
+        "log": ".local/autonomous/evidence/docs-consolidation-20261107/ci-42381662821/image-api-128430383570/job-log-128430383570.log"
+      },
+      "migrations": {
+        "id": 128430383405,
+        "status": "SUCCESS",
+        "actualCheckoutSha": "42acad66c31a4bad8bb47a19436475030ef4bb86",
+        "manifestPin": "sha256:aafa0d0547b652ddc5bee14e58c60714540ad9d95d1b738690e8dc978c145d39",
+        "log": ".local/autonomous/evidence/docs-consolidation-20261107/ci-42381662821/image-migrations-128430383405/job-log-128430383405.log"
+      },
+      "worker": {
+        "id": 128430383501,
+        "status": "SUCCESS",
+        "actualCheckoutSha": "42acad66c31a4bad8bb47a19436475030ef4bb86",
+        "manifestPin": "sha256:6f73e1c7971df2a3a0a2812a7bb353be115c0badecda8f8402236ac9303f4e20",
+        "log": ".local/autonomous/evidence/docs-consolidation-20261107/ci-42381662821/image-worker-128430383501/job-log-128430383501.log"
+      },
+      "summary": {
+        "id": 128436290817,
+        "status": "SUCCESS",
+        "summaryLog": ".local/autonomous/evidence/docs-consolidation-20261107/ci-42381662821/image-summary-128436290817/job-log-128436290817.log"
+      }
+    },
+    "artifactMetadata": {
+      "path": ".local/autonomous/evidence/docs-consolidation-20261107/ci-42381662821/artifact-metadata.json",
+      "totalCount": 0,
+      "retrieval": "METADATA_ONLY"
+    },
+    "terminalProof": ".local/autonomous/evidence/docs-consolidation-20261107/ci-42381662821/images-terminal-proof-42381662821.json",
+    "localCorrections": {
+      "catalog": "Exact bytes restored from 4862237b; SHA-256 2931b367103966b6b656d36eb3e1def8fbee70161fc7977d1319b133a7bf7b8d",
+      "openApiContract": "Generated detail.maxLength=2000 field restored; emitter build and contract verification pass"
+    },
+    "fullReleaseRun": "NOT_DISPATCHED_FOR_THIS_DOCS_AND_CONTRACT_SLICE",
+    "nextAction": "Historical; current ledger governs continuation."
+  }
+}

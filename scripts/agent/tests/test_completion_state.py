@@ -156,6 +156,49 @@ class StateIntegrityTests(unittest.TestCase):
             self.assertEqual(json.loads(path.read_text()), {"a": 1})
             self.assertEqual([p.name for p in Path(tmp).iterdir()], ["state.json"])
 
+    def test_repository_runner_lock_is_nonblocking_and_keeps_its_inode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp).resolve()
+            with cs.modifying_runner_lock(repo):
+                lock_path = cs.runner_lock_path(repo)
+                inode = lock_path.stat().st_ino
+                with self.assertRaises(cs.StateError):
+                    with cs.modifying_runner_lock(repo):
+                        pass
+            self.assertEqual(lock_path.stat().st_ino, inode)
+            with cs.modifying_runner_lock(repo):
+                self.assertEqual(lock_path.stat().st_ino, inode)
+
+    def test_runner_lock_without_flock_is_a_prerequisite_failure(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(cs, "fcntl", None):
+            with self.assertRaises(cs.RunnerUnavailable):
+                with cs.modifying_runner_lock(Path(tmp)):
+                    pass
+
+    def test_runner_owner_rejects_unknown_fields_inconsistent_phase_and_non_utc_time(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp).resolve()
+            owner = {"schemaVersion": 1, "repoPath": str(repo),
+                     "originatingStatePath": str(repo / ".local/autonomous/state.json"),
+                     "taskId": "RUN-004", "sessionId": "s-1", "host": "test-host",
+                     "supervisorPid": os.getpid(), "runnerPid": os.getpid() + 1,
+                     "processGroupId": os.getpid() + 1, "phase": "RUNNING", "needsReconciliation": True,
+                     "createdAtUtc": "2026-10-22T18:00:00.000000Z",
+                     "updatedAtUtc": "2026-10-22T18:00:00+00:00"}
+            self.assertEqual(cs.validate_runner_owner(owner, repo=repo), [])
+            self.assertTrue(any("unknown property" in error for error in
+                                cs.validate_runner_owner({**owner, "unexpected": True}, repo=repo)))
+            dispatching = {**owner, "phase": "DISPATCHING"}
+            self.assertTrue(any("DISPATCHING" in error for error in cs.validate_runner_owner(dispatching, repo=repo)))
+            non_utc = {**owner, "createdAtUtc": "2026-10-22T18:00:00+03:00"}
+            self.assertTrue(any("explicit UTC" in error for error in cs.validate_runner_owner(non_utc, repo=repo)))
+
+    def test_process_state_treats_permission_and_inspection_errors_as_unknown(self):
+        with mock.patch.object(cs.os, "kill", side_effect=PermissionError):
+            self.assertEqual(cs.process_state(123), "UNKNOWN")
+        with mock.patch.object(cs.os, "kill", side_effect=ProcessLookupError):
+            self.assertEqual(cs.process_state(123), "DEAD")
+
 
 class ResultTests(unittest.TestCase):
     def setUp(self):
