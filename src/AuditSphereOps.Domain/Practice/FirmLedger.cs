@@ -18,6 +18,7 @@ public static class LedgerStates
   public const string JournalReviewRequired = "REVIEW_REQUIRED";
   public const string JournalApproved = "APPROVED";
   public const string JournalPosted = "POSTED";
+  public const string JournalCancelled = "CANCELLED";
   /// <summary>Posted-period purpose used for year-end transfers out of revenue and expense accounts.</summary>
   public const string YearEndClosingPurpose = "YEAR_END_CLOSE";
   /// <summary>Manual monthly accrual of the end-of-service obligation to a provision account (ADR-0010).</summary>

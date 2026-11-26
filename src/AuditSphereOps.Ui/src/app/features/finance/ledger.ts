@@ -14,7 +14,7 @@ export const decodeLedger = obj({ canCreateSetup: bool, canClosePeriod: bool, ca
   accounts: arr(obj({ id: guid, code: text, name: text, accountType: text, normalSide: text, postingAllowed: bool }), 5000),
   postings: arr(obj({ id: guid, periodId: nullable(guid), journalId: nullable(guid), postedAt: instant, currency: text, postedByUserId: guid, reversalOfPostingId: nullable(guid) }), 5000),
   journals: arr(obj({ id: guid, periodId: guid, periodCode: text, journalNumber: text, sourceKind: text, sourceKey: text,
-    sourceRevision: nat, postingPurpose: text, currency: text, status: text, createdByUserId: guid,
+    sourceRevision: nat, postingPurpose: text, currency: text, status: oneOf('DRAFT', 'REVIEW_REQUIRED', 'APPROVED', 'POSTED', 'CANCELLED'), createdByUserId: guid,
     approvedByUserId: nullable(guid), createdAt: instant, approvedAt: nullable(instant), postedAt: nullable(instant),
     supportingEvidenceFileName: nullable(text), supportingEvidenceSha256: nullable(text),
     lines: arr(obj({ firmAccountId: guid, accountCode: text, accountName: text, description: text, debit: text, credit: text }), 200) }), 50) });
@@ -260,6 +260,7 @@ interface PendingClose {
                 @if (j.status === 'REVIEW_REQUIRED' && l.canReviewJournals && !journalPreparedByCurrentUser(j.createdByUserId)) { <button matButton="filled" (click)="actOnJournal(j.id, 'review')" [disabled]="journalActionLocked()">Review and approve</button> }
                 @if (j.status === 'REVIEW_REQUIRED' && l.canReviewJournals && journalPreparedByCurrentUser(j.createdByUserId)) { <span>Prepared by you; another reviewer must approve</span> }
                 @if (j.status === 'APPROVED' && l.canPostJournals) { <button matButton="filled" (click)="actOnJournal(j.id, 'post')" [disabled]="journalActionLocked()">Post</button> }
+                @if (j.status === 'CANCELLED') { <span>Cancelled; retained as immutable journal history</span> }
               </td></tr>
             <tr><td colspan="7"><details><summary>Review {{ j.journalNumber }} lines</summary>
               <div class="table-scroll"><table><caption>Lines for {{ j.journalNumber }}</caption><thead><tr><th scope="col">Account</th><th scope="col">Description</th><th scope="col" class="number">Debit</th><th scope="col" class="number">Credit</th></tr></thead>

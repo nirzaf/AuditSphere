@@ -133,7 +133,7 @@ public static partial class LedgerService
     if (profile is null || !string.Equals(profile.FunctionalCurrency, request.Currency.Trim(), StringComparison.OrdinalIgnoreCase))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "An approved finance profile in the journal currency is required.");
 
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var lockedPeriod = await LoadPeriodForUpdateAsync(db, actor.FirmId, request.PeriodId, ct);
@@ -156,7 +156,7 @@ public static partial class LedgerService
       if (MatchesJournalRequest(existingSource, existingLines, request, sourceKind, purpose) &&
           await MatchesEndOfServiceBasisAsync(db, actor.FirmId, existingSource.Id, request.EndOfServiceBasis, ct))
       {
-        await tx.CommitAsync(ct);
+        if (tx is not null) await tx.CommitAsync(ct);
         return CommandResult<Guid>.Ok(existingSource.Id);
       }
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict,
@@ -213,7 +213,7 @@ public static partial class LedgerService
     if (treatment is not null)
       db.FirmEndOfServiceAccruals.Add(EndOfServiceAccrualFor(journal, treatment, request));
     await db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(journal.Id);
   }
 
@@ -227,6 +227,12 @@ public static partial class LedgerService
     TransitionJournalAsync(db, actor, journalId, LedgerStates.JournalReviewRequired,
       LedgerStates.JournalApproved, ReviewerRoles, actor.UserId, validateBalanced: true, ct);
 
+  internal static Task<CommandResult> CancelFirmJournalAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid journalId, CancellationToken ct = default) =>
+    TransitionJournalAsync(db, actor, journalId,
+      [LedgerStates.JournalReviewRequired, LedgerStates.JournalApproved], LedgerStates.JournalCancelled,
+      ReviewerRoles, forbidActor: null, validateBalanced: false, ct);
+
   public static async Task<CommandResult<Guid>> PostFirmJournalAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid journalId, CancellationToken ct = default)
   {
@@ -235,7 +241,7 @@ public static partial class LedgerService
     if (journal is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeFirmAsync(db, actor, ManagerRoles, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var period = await LoadPeriodForUpdateAsync(db, actor.FirmId, journal.PeriodId, ct);
@@ -244,10 +250,12 @@ public static partial class LedgerService
     // Re-evaluate current grants and session after all mutation locks, including replay.
     auth = await AuthorizeFirmAsync(db, actor, ManagerRoles, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (await IsRejectedExpenseJournalAsync(db, actor.FirmId, lockedJournal.Id, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "A rejected expense journal cannot be posted.");
     if (lockedJournal.Status == LedgerStates.JournalPosted)
     {
       var existing = await db.FirmPostings.SingleAsync(x => x.FirmId == actor.FirmId && x.JournalId == journalId, ct);
-      await tx.CommitAsync(ct);
+      if (tx is not null) await tx.CommitAsync(ct);
       return CommandResult<Guid>.Ok(existing.Id);
     }
     if (period.Status != LedgerStates.PeriodOpen)
@@ -311,7 +319,7 @@ public static partial class LedgerService
     {
       return CommandResult<Guid>.Fail("ledger.conflict", "The posting identity changed; reload the journal.");
     }
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(posting.Id);
   }
 
@@ -420,8 +428,8 @@ public static partial class LedgerService
     if (period.Status != LedgerStates.PeriodOpen)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only an open period can be closed.");
     if (await db.FirmJournals.AnyAsync(x => x.FirmId == actor.FirmId && x.PeriodId == periodId &&
-        x.Status != LedgerStates.JournalPosted, ct))
-      return CommandResult.Fail(ErrorCodes.GateBlocked, "All journals must be posted before period close.");
+        x.Status != LedgerStates.JournalPosted && x.Status != LedgerStates.JournalCancelled, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "All journals must be posted or cancelled before period close.");
     var closedAt = DateTimeOffset.UtcNow;
     var periodUpdated = await db.FirmPeriods
       .Where(x => x.Id == period.Id && x.FirmId == actor.FirmId && x.Status == LedgerStates.PeriodOpen)
@@ -482,13 +490,18 @@ public static partial class LedgerService
   private static async Task<CommandResult> TransitionJournalAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid journalId, string expected, string next,
     string[] roles, Guid? forbidActor, bool validateBalanced, CancellationToken ct)
+    => await TransitionJournalAsync(db, actor, journalId, [expected], next, roles, forbidActor, validateBalanced, ct);
+
+  private static async Task<CommandResult> TransitionJournalAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid journalId, string[] expected, string next,
+    string[] roles, Guid? forbidActor, bool validateBalanced, CancellationToken ct)
   {
     var journal = await db.FirmJournals.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == journalId && x.FirmId == actor.FirmId, ct);
     if (journal is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeFirmAsync(db, actor, roles, ct);
     if (!auth.Succeeded) return auth;
-    await using var tx = await db.Database.BeginTransactionAsync(ct);
+    await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var period = await LoadPeriodForUpdateAsync(db, actor.FirmId, journal.PeriodId, ct);
@@ -497,8 +510,10 @@ public static partial class LedgerService
     // Re-evaluate current grants and session after all mutation locks, including replay.
     auth = await AuthorizeFirmAsync(db, actor, roles, ct);
     if (!auth.Succeeded) return auth;
+    if (next == LedgerStates.JournalApproved && await IsRejectedExpenseJournalAsync(db, actor.FirmId, locked.Id, ct))
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "A rejected expense journal cannot be approved.");
     if (locked.Status == next) return CommandResult.Ok();
-    if (period.Status != LedgerStates.PeriodOpen || locked.Status != expected)
+    if (period.Status != LedgerStates.PeriodOpen || !expected.Contains(locked.Status, StringComparer.Ordinal))
       return CommandResult.Fail(ErrorCodes.ProtectedState, "The journal or period is not in the required state.");
     if (forbidActor.HasValue && locked.CreatedByUserId == forbidActor.Value)
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Journal preparers cannot approve their own journal.");
@@ -510,18 +525,23 @@ public static partial class LedgerService
       if (balance is not null) return CommandResult.Fail("ledger.unbalanced", balance);
     }
     var changed = next == LedgerStates.JournalApproved
-      ? await db.FirmJournals.Where(x => x.Id == locked.Id && x.FirmId == actor.FirmId && x.Status == expected)
+      ? await db.FirmJournals.Where(x => x.Id == locked.Id && x.FirmId == actor.FirmId && expected.Contains(x.Status))
         .ExecuteUpdateAsync(setters => setters
           .SetProperty(x => x.Status, next)
           .SetProperty(x => x.ApprovedByUserId, actor.UserId)
           .SetProperty(x => x.ApprovedAt, DateTimeOffset.UtcNow), ct)
-      : await db.FirmJournals.Where(x => x.Id == locked.Id && x.FirmId == actor.FirmId && x.Status == expected)
+      : await db.FirmJournals.Where(x => x.Id == locked.Id && x.FirmId == actor.FirmId && expected.Contains(x.Status))
         .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.Status, next), ct);
     if (changed != 1)
       return CommandResult.Fail("ledger.conflict", "The journal state changed; reload the journal.");
-    await tx.CommitAsync(ct);
+    if (tx is not null) await tx.CommitAsync(ct);
     return CommandResult.Ok();
   }
+
+  private static Task<bool> IsRejectedExpenseJournalAsync(
+    IAuditSphereDbContext db, Guid firmId, Guid journalId, CancellationToken ct) =>
+    db.FirmExpenses.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.JournalId == journalId &&
+      x.Status == FirmExpenseStates.Rejected, ct);
 
   private static async Task<CommandResult> AuthorizeFirmAsync(
     IAuditSphereDbContext db, ActorContext actor, string[] roles, CancellationToken ct) =>

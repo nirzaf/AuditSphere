@@ -4,6 +4,7 @@ using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Audit;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
@@ -598,71 +599,178 @@ public static class FirmExpenseService
   /// <summary>Submits the expense and drafts its balanced journal (Dr expense, Cr payment account) for review.</summary>
   public static async Task<CommandResult> SubmitAsync(IClientAccountingDbContext db, ActorContext actor, Guid expenseId, CancellationToken ct = default)
   {
-    var expense = await db.FirmExpenses.SingleOrDefaultAsync(x => x.Id == expenseId && x.FirmId == actor.FirmId, ct);
-    if (expense is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await AuthorizeAsync(db, actor, Preparers, ct);
-    if (!auth.Succeeded) return auth;
-    if (expense.Status != FirmExpenseStates.Draft) return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft expense can be submitted.");
-    var periodCode = expense.ExpenseDate.ToString("yyyy-MM", CultureInfo.InvariantCulture);
-    var period = await db.FirmPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.PeriodCode == periodCode, ct);
-    if (period is null) return CommandResult.Fail(ErrorCodes.GateBlocked, $"Open the firm period {periodCode} first.");
-    var journalNumber = $"EXP-{expense.ExpenseDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}-{expense.Id.ToString("N", CultureInfo.InvariantCulture).ToUpperInvariant()}";
-    var journal = await LedgerService.CreateFirmJournalDraftAsync(db, actor, new CreateFirmJournalDraftRequest(period.Id, journalNumber,
-      "EXPENSE", expense.Id.ToString("D"), 1, $"Firm expense: {expense.Category.ToLowerInvariant().Replace('_', ' ')}", expense.Currency,
-      [new FirmJournalLineRequest(expense.ExpenseAccountId, $"{expense.Payee}: {expense.Description}", expense.Amount, 0m),
-       new FirmJournalLineRequest(expense.PaymentAccountId, $"{expense.Payee}: {expense.Description}", 0m, expense.Amount)]), ct);
-    if (!journal.Succeeded) return CommandResult.Fail(journal.ErrorCode!, journal.Message!);
-    var submitted = await LedgerService.SubmitFirmJournalAsync(db, actor, journal.Value, ct);
-    if (!submitted.Succeeded) return submitted;
-    var live = await db.FirmExpenses.SingleAsync(x => x.Id == expenseId, ct);
-    live.JournalId = journal.Value;
-    live.Status = FirmExpenseStates.Submitted;
-    await db.SaveChangesAsync(ct);
-    return CommandResult.Ok();
+    var result = await WithLockedExpenseAsync(db, actor, expenseId, Preparers, async (expense, period) =>
+    {
+      if (expense.Status != FirmExpenseStates.Draft)
+        return CommandResult<bool>.Fail(ErrorCodes.ProtectedState, "Only a draft expense can be submitted.");
+      if (period.Status != LedgerStates.PeriodOpen)
+        return CommandResult<bool>.Fail(ErrorCodes.GateBlocked, "A closed period cannot receive an expense journal.");
+      var journalNumber = $"EXP-{expense.ExpenseDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}-{expense.Id.ToString("N", CultureInfo.InvariantCulture).ToUpperInvariant()}";
+      var journal = await LedgerService.CreateFirmJournalDraftAsync(db, actor, new CreateFirmJournalDraftRequest(period.Id, journalNumber,
+        "EXPENSE", expense.Id.ToString("D"), 1, $"Firm expense: {expense.Category.ToLowerInvariant().Replace('_', ' ')}", expense.Currency,
+        [new FirmJournalLineRequest(expense.ExpenseAccountId, $"{expense.Payee}: {expense.Description}", expense.Amount, 0m),
+         new FirmJournalLineRequest(expense.PaymentAccountId, $"{expense.Payee}: {expense.Description}", 0m, expense.Amount)]), ct);
+      if (!journal.Succeeded) return CommandResult<bool>.Fail(journal.ErrorCode!, journal.Message!);
+      var submitted = await LedgerService.SubmitFirmJournalAsync(db, actor, journal.Value, ct);
+      if (!submitted.Succeeded) return CommandResult<bool>.Fail(submitted.ErrorCode!, submitted.Message!);
+      var updated = await db.FirmExpenses.Where(x => x.Id == expense.Id && x.FirmId == actor.FirmId &&
+          x.Status == FirmExpenseStates.Draft)
+        .ExecuteUpdateAsync(setters => setters
+          .SetProperty(x => x.JournalId, journal.Value)
+          .SetProperty(x => x.Status, FirmExpenseStates.Submitted), ct);
+      return updated == 1
+        ? CommandResult<bool>.Ok(true)
+        : CommandResult<bool>.Fail(ErrorCodes.ProtectedState, "The expense changed; reload before continuing.");
+    }, ct);
+    return WithoutValue(result);
   }
 
   public static async Task<CommandResult> ReviewAsync(IClientAccountingDbContext db, ActorContext actor, Guid expenseId, bool approve, string? comment, CancellationToken ct = default)
   {
-    var expense = await db.FirmExpenses.SingleOrDefaultAsync(x => x.Id == expenseId && x.FirmId == actor.FirmId, ct);
-    if (expense is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var auth = await AuthorizeAsync(db, actor, Reviewers, ct);
-    if (!auth.Succeeded) return auth;
-    if (expense.PreparedByUserId == actor.UserId) return CommandResult.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review their own expense.");
-    if (expense.Status != FirmExpenseStates.Submitted) return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a submitted expense can be reviewed.");
     if (!approve && string.IsNullOrWhiteSpace(comment)) return CommandResult.Fail("expense.invalid", "Explain why the expense is rejected.");
     var normalizedComment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim();
     if (normalizedComment?.Length > MaxReviewCommentLength)
       return CommandResult.Fail("expense.invalid", $"The review comment must be {MaxReviewCommentLength} characters or fewer.");
-    if (approve)
+    var result = await WithLockedExpenseAsync(db, actor, expenseId, Reviewers, async (expense, period) =>
     {
-      var approved = await LedgerService.ApproveFirmJournalAsync(db, actor, expense.JournalId!.Value, ct);
-      if (!approved.Succeeded) return approved;
-    }
-    var live = await db.FirmExpenses.SingleAsync(x => x.Id == expenseId, ct);
-    live.Status = approve ? FirmExpenseStates.Approved : FirmExpenseStates.Rejected;
-    live.ReviewedByUserId = actor.UserId;
-    live.ReviewedAt = DateTimeOffset.UtcNow;
-    live.ReviewComment = normalizedComment;
-    await db.SaveChangesAsync(ct);
-    return CommandResult.Ok();
+      if (expense.PreparedByUserId == actor.UserId)
+        return CommandResult<bool>.Fail(ErrorCodes.ScopeDenied, "The preparer cannot review their own expense.");
+      if (approve && expense.Status != FirmExpenseStates.Submitted)
+        return CommandResult<bool>.Fail(ErrorCodes.ProtectedState, "Only a submitted expense can be approved.");
+      if (!approve && expense.Status is not (FirmExpenseStates.Submitted or FirmExpenseStates.Approved))
+        return CommandResult<bool>.Fail(ErrorCodes.ProtectedState, "Only a submitted or approved, unposted expense can be rejected.");
+      if (period.Status != LedgerStates.PeriodOpen)
+        return CommandResult<bool>.Fail(ErrorCodes.GateBlocked, "A closed period cannot receive an expense review transition.");
+      if (expense.JournalId is not { } journalId)
+        return CommandResult<bool>.Fail(ErrorCodes.ProtectedState, "The expense has no linked review journal.");
+      var journalResult = approve
+        ? await LedgerService.ApproveFirmJournalAsync(db, actor, journalId, ct)
+        : await LedgerService.CancelFirmJournalAsync(db, actor, journalId, ct);
+      if (!journalResult.Succeeded) return CommandResult<bool>.Fail(journalResult.ErrorCode!, journalResult.Message!);
+      var reviewedAt = DateTimeOffset.UtcNow;
+      var expectedStatus = expense.Status;
+      var updated = await db.FirmExpenses.Where(x => x.Id == expense.Id && x.FirmId == actor.FirmId && x.Status == expectedStatus)
+        .ExecuteUpdateAsync(setters => setters
+          .SetProperty(x => x.Status, approve ? FirmExpenseStates.Approved : FirmExpenseStates.Rejected)
+          .SetProperty(x => x.ReviewedByUserId, actor.UserId)
+          .SetProperty(x => x.ReviewedAt, reviewedAt)
+          .SetProperty(x => x.ReviewComment, normalizedComment), ct);
+      return updated == 1
+        ? CommandResult<bool>.Ok(true)
+        : CommandResult<bool>.Fail(ErrorCodes.ProtectedState, "The expense changed; reload before continuing.");
+    }, ct);
+    return WithoutValue(result);
   }
 
   public static async Task<CommandResult<Guid>> PostAsync(IClientAccountingDbContext db, ActorContext actor, Guid expenseId, CancellationToken ct = default)
   {
-    var auth = await AuthorizeAsync(db, actor, Preparers, ct);
-    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    var expense = await db.FirmExpenses.AsNoTracking().SingleOrDefaultAsync(x => x.Id == expenseId && x.FirmId == actor.FirmId, ct);
-    if (expense is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    if (expense.Status == FirmExpenseStates.Posted) return CommandResult<Guid>.Ok(expense.PostingId!.Value);
-    if (expense.Status != FirmExpenseStates.Approved) return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "Only an approved expense can be posted.");
-    var posting = await LedgerService.PostFirmJournalAsync(db, actor, expense.JournalId!.Value, ct);
-    if (!posting.Succeeded) return posting;
-    var live = await db.FirmExpenses.SingleAsync(x => x.Id == expenseId, ct);
-    live.Status = FirmExpenseStates.Posted;
-    live.PostingId = posting.Value;
-    await db.SaveChangesAsync(ct);
-    return posting;
+    return await WithLockedExpenseAsync(db, actor, expenseId, Preparers, async (expense, _) =>
+    {
+      if (expense.Status == FirmExpenseStates.Posted && expense.PostingId is { } existingPosting)
+        return CommandResult<Guid>.Ok(existingPosting);
+      if (expense.Status != FirmExpenseStates.Approved)
+        return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "Only an approved expense can be posted.");
+      if (expense.JournalId is not { } journalId)
+        return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The expense has no linked review journal.");
+      var posting = await LedgerService.PostFirmJournalAsync(db, actor, journalId, ct);
+      if (!posting.Succeeded) return posting;
+      var updated = await db.FirmExpenses.Where(x => x.Id == expense.Id && x.FirmId == actor.FirmId &&
+          x.Status == FirmExpenseStates.Approved)
+        .ExecuteUpdateAsync(setters => setters
+          .SetProperty(x => x.Status, FirmExpenseStates.Posted)
+          .SetProperty(x => x.PostingId, posting.Value), ct);
+      return updated == 1
+        ? posting
+        : CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The expense changed; reload before continuing.");
+    }, ct);
   }
+
+  private static async Task<CommandResult<T>> WithLockedExpenseAsync<T>(IClientAccountingDbContext db, ActorContext actor,
+    Guid expenseId, string[] roles, Func<FirmExpense, FirmPeriod, Task<CommandResult<T>>> command, CancellationToken ct)
+  {
+    var snapshot = await db.FirmExpenses.AsNoTracking().SingleOrDefaultAsync(x => x.Id == expenseId && x.FirmId == actor.FirmId, ct);
+    if (snapshot is null) return CommandResult<T>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var auth = await AuthorizeAsync(db, actor, roles, ct);
+    if (!auth.Succeeded) return CommandResult<T>.Fail(auth.ErrorCode!, auth.Message!);
+
+    return await InExpenseTransactionAsync(db, async () =>
+    {
+      if (await LockExpenseFirmAsync(db, actor.FirmId, ct) is null)
+        return CommandResult<T>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
+      var periodCode = snapshot.ExpenseDate.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+      var periodSnapshot = await db.FirmPeriods.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.PeriodCode == periodCode, ct);
+      if (periodSnapshot is null)
+      {
+        auth = await AuthorizeAsync(db, actor, roles, ct);
+        return auth.Succeeded
+          ? CommandResult<T>.Fail(ErrorCodes.GateBlocked, $"Open the firm period {periodCode} first.")
+          : CommandResult<T>.Fail(auth.ErrorCode!, auth.Message!);
+      }
+      var period = await LockExpensePeriodAsync(db, actor.FirmId, periodSnapshot.Id, ct);
+      var expense = await LockExpenseAsync(db, actor.FirmId, expenseId, ct);
+      auth = await AuthorizeAsync(db, actor, roles, ct);
+      if (!auth.Succeeded) return CommandResult<T>.Fail(auth.ErrorCode!, auth.Message!);
+      if (period is null || expense is null) return CommandResult<T>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+      if (expense.ExpenseDate != snapshot.ExpenseDate ||
+          !string.Equals(expense.ExpenseDate.ToString("yyyy-MM", CultureInfo.InvariantCulture), period.PeriodCode, StringComparison.Ordinal))
+        return CommandResult<T>.Fail(ErrorCodes.GenerationStale, "The expense period changed; reload before continuing.");
+      return await command(expense, period);
+    }, ct);
+  }
+
+  private static async Task<CommandResult<T>> InExpenseTransactionAsync<T>(IClientAccountingDbContext db,
+    Func<Task<CommandResult<T>>> command, CancellationToken ct)
+  {
+    await using var ownedTransaction = db.Database.CurrentTransaction is null
+      ? await db.Database.BeginTransactionAsync(ct)
+      : null;
+    var transaction = db.Database.CurrentTransaction!;
+    var savepoint = "firm_expense_" + Guid.NewGuid().ToString("N");
+    await transaction.CreateSavepointAsync(savepoint, ct);
+    var savepointActive = true;
+    var completed = false;
+    try
+    {
+      var result = await command();
+      if (!result.Succeeded) return result;
+      await transaction.ReleaseSavepointAsync(savepoint, ct);
+      savepointActive = false;
+      if (ownedTransaction is not null) await ownedTransaction.CommitAsync(ct);
+      completed = true;
+      return result;
+    }
+    finally
+    {
+      if (!completed)
+      {
+        try
+        {
+          if (savepointActive) await transaction.RollbackToSavepointAsync(savepoint, CancellationToken.None);
+        }
+        finally
+        {
+          if (ownedTransaction is not null) await ownedTransaction.RollbackAsync(CancellationToken.None);
+        }
+      }
+    }
+  }
+
+  private static CommandResult WithoutValue<T>(CommandResult<T> result) => result.Succeeded
+    ? CommandResult.Ok()
+    : CommandResult.Fail(result.ErrorCode!, result.Message!);
+
+  private static Task<FirmSafetyState?> LockExpenseFirmAsync(IClientAccountingDbContext db, Guid firmId, CancellationToken ct) =>
+    db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE")
+      .AsTracking().SingleOrDefaultAsync(ct);
+
+  private static Task<FirmPeriod?> LockExpensePeriodAsync(IClientAccountingDbContext db, Guid firmId, Guid periodId, CancellationToken ct) =>
+    db.FirmPeriods.FromSqlInterpolated($"SELECT * FROM firm_periods WHERE id = {periodId} AND firm_id = {firmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
+
+  private static Task<FirmExpense?> LockExpenseAsync(IClientAccountingDbContext db, Guid firmId, Guid expenseId, CancellationToken ct) =>
+    db.FirmExpenses.FromSqlInterpolated($"SELECT * FROM firm_expenses WHERE id = {expenseId} AND firm_id = {firmId} FOR UPDATE")
+      .AsNoTracking().SingleOrDefaultAsync(ct);
 
   public static async Task<IReadOnlyList<FirmExpense>> ListAsync(IClientAccountingDbContext db, ActorContext actor, CancellationToken ct = default,
     int page = 1, Guid? expenseId = null, bool includeContinuation = false)

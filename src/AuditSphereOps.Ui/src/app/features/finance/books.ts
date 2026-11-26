@@ -11,9 +11,9 @@ import { SHARED } from '../../core/ui';
 import { decodeExpenseCreateLookup, decodeExpenseId, ExpenseCreateReference, expenseCreateReference, hashExpenseCreation } from './books-contracts';
 
 const expense = obj({ id: guid, expenseDate: date, category: text, payee: text, description: text, amount: dec, currency: str(3),
-  evidenceFileName: text, evidenceSha256: text, status: text, reviewComment: nullable(text), preparedByMe: bool });
-type ExpenseAction = { expenseId: string; action: 'submit'; target: null } |
-  { expenseId: string; action: 'review'; target: 'APPROVED' | 'REJECTED' };
+  evidenceFileName: text, evidenceSha256: text, status: oneOf('DRAFT', 'SUBMITTED', 'APPROVED', 'POSTED', 'REJECTED'), reviewComment: nullable(text), preparedByMe: bool });
+type ExpenseAction = { expenseId: string; action: 'submit'; previousStatus: 'DRAFT'; target: null } |
+  { expenseId: string; action: 'review'; previousStatus: 'SUBMITTED' | 'APPROVED'; target: 'APPROVED' | 'REJECTED' };
 type ExpenseActionReconciliation = 'APPLIED' | 'UNCHANGED' | 'UNVERIFIABLE' | null;
 export const decodeBooks = obj({
   accessMode: nullable(oneOf('READ_ONLY', 'OPERATIONAL')),
@@ -36,9 +36,9 @@ export const decodeTrialBalance = obj({ fromPeriod: text, toPeriod: text, rows: 
   selector: 'audit-firm-expense-rejection-dialog',
   imports: [FormsModule, MatButtonModule, MatDialogModule],
   template: `
-    <h2 mat-dialog-title>Return expense for correction</h2>
+    <h2 mat-dialog-title>Reject expense</h2>
     <mat-dialog-content>
-      <p>Explain what needs to be corrected. This reason will be retained with the review.</p>
+      <p>The reason will be retained with the review, and the linked unposted journal will be cancelled.</p>
       <label for="expense-rejection-reason">Rejection reason</label>
       <textarea id="expense-rejection-reason" name="reason" [(ngModel)]="reason" [attr.maxlength]="maxLength" rows="4"
         required aria-describedby="expense-rejection-help"></textarea>
@@ -125,6 +125,7 @@ export class FirmExpenseRejectionDialog {
                     <button matButton (click)="review(e.id, true)" [disabled]="cmd.busy() || cmd.uncertain()">Approve</button>
                     <button matButton (click)="review(e.id, false, b.maxReviewCommentLength)" [disabled]="cmd.busy() || cmd.uncertain()">Reject</button>
                   }
+                  @if (e.status === 'APPROVED' && b.canReview && !e.preparedByMe) { <button matButton (click)="review(e.id, false, b.maxReviewCommentLength)" [disabled]="cmd.busy() || cmd.uncertain()">Reject before posting</button> }
                   @if (e.status === 'APPROVED' && b.canPrepare) { <button matButton (click)="act(e.id, 'post', 'Posted to the firm ledger.')" [disabled]="cmd.busy() || cmd.uncertain()">Post to ledger</button> }
                 </td></tr>
             } @empty { <tr><td colspan="7">No firm expenses recorded yet.</td></tr> }
@@ -504,7 +505,7 @@ export class FirmBooks {
       this.postReconciliation.set(null);
       this.postVerificationMessage.set('');
     } else {
-      this.pendingExpenseAction.set({ expenseId: id, action, target: null });
+      this.pendingExpenseAction.set({ expenseId: id, action, previousStatus: 'DRAFT', target: null });
       this.expenseActionReconciliation.set(null);
       this.expenseActionVerificationMessage.set('');
     }
@@ -514,22 +515,25 @@ export class FirmBooks {
     }).finally(() => this.books.reload());
   }
   review(id: string, approve: boolean, maxReviewCommentLength = 1000): void {
+    const previousStatus = this.books.data()?.expenses.find(expense => expense.id === id)?.status;
+    if (previousStatus !== 'SUBMITTED' && previousStatus !== 'APPROVED') return;
+    if (approve && previousStatus !== 'SUBMITTED') return;
     if (approve) {
-      this.submitReview(id, true, 'Agreed to the source document.');
+      this.submitReview(id, true, 'Agreed to the source document.', 'SUBMITTED');
       return;
     }
 
     this.dialog.open(FirmExpenseRejectionDialog, {
       width: 'min(560px, calc(100vw - 32px))',
-      ariaLabel: 'Return expense for correction',
+      ariaLabel: 'Reject expense',
       data: maxReviewCommentLength,
     }).afterClosed().subscribe((reason: string | undefined) => {
-      if (reason) this.submitReview(id, false, reason);
+      if (reason) this.submitReview(id, false, reason, previousStatus);
     });
   }
 
-  private submitReview(id: string, approve: boolean, comment: string): void {
-    this.pendingExpenseAction.set({ expenseId: id, action: 'review', target: approve ? 'APPROVED' : 'REJECTED' });
+  private submitReview(id: string, approve: boolean, comment: string, previousStatus: 'SUBMITTED' | 'APPROVED'): void {
+    this.pendingExpenseAction.set({ expenseId: id, action: 'review', previousStatus, target: approve ? 'APPROVED' : 'REJECTED' });
     this.expenseActionReconciliation.set(null);
     this.expenseActionVerificationMessage.set('');
     this.cmd.run(`/api/ui/finance/books/expenses/${id}/review`, { approve, comment },
@@ -555,7 +559,7 @@ export class FirmBooks {
         const applied = pending.action === 'submit'
           ? ['SUBMITTED', 'APPROVED', 'REJECTED', 'POSTED'].includes(target.status)
           : target.status === pending.target || pending.target === 'APPROVED' && target.status === 'POSTED';
-        const unchanged = pending.action === 'submit' ? target.status === 'DRAFT' : target.status === 'SUBMITTED';
+        const unchanged = target.status === pending.previousStatus;
         if (applied) {
           this.expenseActionReconciliation.set('APPLIED');
           this.expenseActionVerificationMessage.set('The exact expense was found in refreshed persisted firm-books state.');

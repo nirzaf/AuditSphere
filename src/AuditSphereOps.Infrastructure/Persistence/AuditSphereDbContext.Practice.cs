@@ -306,7 +306,7 @@ public sealed partial class AuditSphereDbContext
     b.Entity<FirmJournal>().ToTable("firm_journals", t =>
     {
       t.HasCheckConstraint("ck_firm_journal_values",
-        "length(journal_number) > 0 AND length(source_kind) > 0 AND length(source_key) > 0 AND source_revision >= 1 AND length(posting_purpose) > 0 AND currency ~ '^[A-Z]{3}$' AND status IN ('DRAFT','REVIEW_REQUIRED','APPROVED','POSTED')");
+        "length(journal_number) > 0 AND length(source_kind) > 0 AND length(source_key) > 0 AND source_revision >= 1 AND length(posting_purpose) > 0 AND currency ~ '^[A-Z]{3}$' AND status IN ('DRAFT','REVIEW_REQUIRED','APPROVED','POSTED','CANCELLED')");
       t.HasCheckConstraint("ck_firm_journal_supporting_evidence",
         "(supporting_evidence_content IS NULL AND supporting_evidence_file_name IS NULL AND supporting_evidence_content_type IS NULL AND supporting_evidence_sha256 IS NULL AND supporting_evidence_uploaded_by_user_id IS NULL AND supporting_evidence_uploaded_at IS NULL) OR (supporting_evidence_content IS NOT NULL AND octet_length(supporting_evidence_content) BETWEEN 1 AND 5242880 AND length(supporting_evidence_file_name) BETWEEN 1 AND 255 AND length(supporting_evidence_content_type) BETWEEN 1 AND 255 AND supporting_evidence_sha256 ~ '^[0-9a-f]{64}$' AND supporting_evidence_uploaded_by_user_id IS NOT NULL AND supporting_evidence_uploaded_at IS NOT NULL)");
     });

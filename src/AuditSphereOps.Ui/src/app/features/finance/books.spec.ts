@@ -6,6 +6,23 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { SessionService } from '../../core/session';
+import { decode } from '../../core/decode';
+import { decodeLedger } from './ledger';
+
+describe('firm ledger cancelled journal contract', () => {
+  it('accepts CANCELLED as a retained terminal status and rejects unknown statuses', () => {
+    const response = { canCreateSetup: false, canClosePeriod: false, canReviewJournals: true, accessMode: 'OPERATIONAL',
+      canPostJournals: true, canCreateJournals: true, canReversePostings: false, canReopenPeriod: false,
+      periods: [], accounts: [], postings: [], journals: [{ id: '11111111-1111-4111-8111-111111111111',
+        periodId: '22222222-2222-4222-8222-222222222222', periodCode: '2026-01', journalNumber: 'EXP-1', sourceKind: 'EXPENSE',
+        sourceKey: '33333333-3333-4333-8333-333333333333', sourceRevision: 1, postingPurpose: 'EXPENSE', currency: 'QAR',
+        status: 'CANCELLED', createdByUserId: '44444444-4444-4444-8444-444444444444', approvedByUserId: null,
+        createdAt: '2026-01-01T00:00:00Z', approvedAt: null, postedAt: null, supportingEvidenceFileName: null,
+        supportingEvidenceSha256: null, lines: [] }] };
+    expect(decode(decodeLedger, response).journals[0].status).toBe('CANCELLED');
+    expect(() => decode(decodeLedger, { ...response, journals: [{ ...response.journals[0], status: 'UNKNOWN' }] })).toThrow();
+  });
+});
 
 describe('firm expense rejection reason', () => {
   beforeEach(() => TestBed.configureTestingModule({
@@ -46,6 +63,26 @@ describe('firm expense rejection reason', () => {
 });
 
 describe('firm expense paging and exact recovery', () => {
+  it('offers rejection for an approved unposted expense only to an independent reviewer', async () => {
+    TestBed.configureTestingModule({ imports: [FirmBooks], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
+    const userId = '11111111-1111-4111-8111-111111111111';
+    TestBed.inject(SessionService).current.set({ userId, firmId: userId, generation: '1', staff: true });
+    const fixture = TestBed.createComponent(FirmBooks), http = TestBed.inject(HttpTestingController);
+    const id = '22222222-2222-4222-8222-222222222222';
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne('/api/ui/finance/books').flush({ accounts: [], categories: ['OTHER'], canPrepare: false, canReview: true,
+        accessMode: 'OPERATIONAL', maxEvidenceBytes: 5242880, maxReviewCommentLength: 1000, expensePage: 1, hasMoreExpenses: false,
+        expenses: [{ id, expenseDate: '2026-01-01', category: 'OTHER', payee: 'Synthetic supplier', description: 'Pending payment',
+          amount: '1.00', currency: 'QAR', evidenceFileName: 'source.pdf', evidenceSha256: 'a'.repeat(64), status: 'APPROVED',
+          reviewComment: 'Approved', preparedByMe: false }] });
+      TestBed.tick(); fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('Reject before posting');
+      expect(fixture.nativeElement.textContent).not.toContain('Post to ledger');
+      http.verify();
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
+  });
+
   it('navigates continuation and recovers a posting by exact identity independently of the visible page', async () => {
     TestBed.configureTestingModule({ imports: [FirmBooks], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
     const userId = '11111111-1111-4111-8111-111111111111';

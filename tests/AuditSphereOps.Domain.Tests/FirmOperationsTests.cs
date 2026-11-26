@@ -547,7 +547,7 @@ public sealed partial class FirmOperationsTests
       Assert.True(posted.Succeeded, posted.Message);
       return expense.Value;
     }
-    await ExpenseAsync(new DateOnly(2026, 1, 31), FirmExpenseCategories.Salaries, salaries, 18_000m, "Payroll");
+    var postedExpenseId = await ExpenseAsync(new DateOnly(2026, 1, 31), FirmExpenseCategories.Salaries, salaries, 18_000m, "Payroll");
     await ExpenseAsync(new DateOnly(2026, 2, 1), FirmExpenseCategories.Rent, rent, 6_500m, "West Bay Towers");
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -686,6 +686,23 @@ public sealed partial class FirmOperationsTests
       var listed = await FirmExpenseService.ListAsync(db, reviewer);
       Assert.All(listed, x => Assert.Equal(FirmExpenseStates.Posted, x.Status));
 
+      var postedBefore = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == postedExpenseId);
+      var postedJournalBefore = await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == postedBefore.JournalId);
+      var postedCountBefore = await db.FirmPostings.CountAsync(x => x.JournalId == postedBefore.JournalId);
+      Assert.Equal(ErrorCodes.ProtectedState,
+        (await FirmExpenseService.ReviewAsync(db, reviewer, postedExpenseId, false, "This was already posted.")).ErrorCode);
+      var postedAfter = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == postedExpenseId);
+      var postedJournalAfter = await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == postedBefore.JournalId);
+      Assert.Equal((postedBefore.Status, postedBefore.ReviewedByUserId, postedBefore.ReviewedAt, postedBefore.ReviewComment,
+          postedBefore.JournalId, postedBefore.PostingId),
+        (postedAfter.Status, postedAfter.ReviewedByUserId, postedAfter.ReviewedAt, postedAfter.ReviewComment,
+          postedAfter.JournalId, postedAfter.PostingId));
+      Assert.Equal((postedJournalBefore.Status, postedJournalBefore.ApprovedByUserId, postedJournalBefore.ApprovedAt,
+          postedJournalBefore.PostedAt),
+        (postedJournalAfter.Status, postedJournalAfter.ApprovedByUserId, postedJournalAfter.ApprovedAt,
+          postedJournalAfter.PostedAt));
+      Assert.Equal(postedCountBefore, await db.FirmPostings.CountAsync(x => x.JournalId == postedBefore.JournalId));
+
       var returned = await FirmExpenseService.RecordAsync(db, finance, new(new DateOnly(2026, 2, 3), FirmExpenseCategories.Rent,
         "Synthetic property manager", "February rent", 6_500m, "QAR", rent, cash, "return.pdf", "application/pdf", "%PDF source"u8.ToArray()));
       Assert.True(returned.Succeeded, returned.Message);
@@ -701,6 +718,38 @@ public sealed partial class FirmOperationsTests
       var rejected = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == returned.Value);
       Assert.Equal(FirmExpenseStates.Rejected, rejected.Status);
       Assert.Equal("Missing receipt date.", rejected.ReviewComment);
+      Assert.NotNull(rejected.JournalId);
+      var rejectedJournal = await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == rejected.JournalId);
+      Assert.Equal(LedgerStates.JournalCancelled, rejectedJournal.Status);
+      Assert.Equal(ErrorCodes.ProtectedState, (await LedgerService.ApproveFirmJournalAsync(db, reviewer, rejectedJournal.Id)).ErrorCode);
+      Assert.Equal(ErrorCodes.ProtectedState, (await LedgerService.PostFirmJournalAsync(db, finance, rejectedJournal.Id)).ErrorCode);
+      Assert.Equal(ErrorCodes.ProtectedState, (await FirmExpenseService.PostAsync(db, finance, rejected.Id)).ErrorCode);
+      Assert.Empty(await db.FirmPostings.Where(x => x.JournalId == rejectedJournal.Id).ToListAsync());
+
+      var march = await LedgerService.CreateFirmPeriodAsync(db, finance, new CreateFirmPeriodRequest("2026-03"));
+      Assert.True(march.Succeeded, march.Message);
+      var cancelledOnly = await FirmExpenseService.RecordAsync(db, finance,
+        new(new DateOnly(2026, 3, 5), FirmExpenseCategories.Other, "Synthetic supplier", "Cancelled-only period", 25m,
+          "QAR", rent, cash, "march.pdf", "application/pdf", "%PDF march"u8.ToArray()));
+      Assert.True(cancelledOnly.Succeeded, cancelledOnly.Message);
+      Assert.True((await FirmExpenseService.SubmitAsync(db, finance, cancelledOnly.Value)).Succeeded);
+      Assert.True((await FirmExpenseService.ReviewAsync(db, reviewer, cancelledOnly.Value, false, "Duplicate supplier request.")).Succeeded);
+      var cancelledOnlyExpense = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == cancelledOnly.Value);
+      var cancelledOnlyJournal = await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == cancelledOnlyExpense.JournalId);
+      Assert.Equal(LedgerStates.JournalCancelled, cancelledOnlyJournal.Status);
+      Assert.True((await LedgerService.CloseFiscalPeriodAsync(db, reviewer, march.Value, "Only rejected expenses; linked journals cancelled.")).Succeeded);
+
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE firm_journals SET status = 'APPROVED' WHERE id = {cancelledOnlyJournal.Id}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM firm_journals WHERE id = {cancelledOnlyJournal.Id}"));
+      var cancelledLine = await db.FirmJournalLines.AsNoTracking().FirstAsync(x => x.JournalId == cancelledOnlyJournal.Id);
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE firm_journal_lines SET description = 'changed' WHERE id = {cancelledLine.Id}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM firm_journal_lines WHERE id = {cancelledLine.Id}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+        $"INSERT INTO firm_postings (id, firm_id, period_id, journal_id, currency, posted_by_user_id, posted_at) VALUES ({Guid.NewGuid()}, {w.FirmId}, {march.Value}, {cancelledOnlyJournal.Id}, 'QAR', {finance.UserId}, {DateTimeOffset.UtcNow})"));
       var fixtureBytes = "%PDF synthetic paging"u8.ToArray();
       for (var i = 0; i < 201; i++)
         db.FirmExpenses.Add(new FirmExpense { Id = Guid.NewGuid(), FirmId = w.FirmId,
@@ -780,6 +829,200 @@ public sealed partial class FirmOperationsTests
         Assert.True(view.PositionReconciles);
       }
     }
+  }
+
+  [Fact]
+  public async Task FirmExpenses_TransitionsRollBackJournalAndExpenseTogether()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var finance = w.A("finance", "FinanceManager");
+    var reviewer = w.A("reviewer", "FinanceReviewer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var cash = (await LedgerService.CreateFirmAccountAsync(db, finance,
+      new("ATOMIC-CASH", "Bank", LedgerStates.AccountAsset, LedgerStates.Debit))).Value;
+    var expenseAccount = (await LedgerService.CreateFirmAccountAsync(db, finance,
+      new("ATOMIC-EXPENSE", "Operating expense", LedgerStates.AccountExpense, LedgerStates.Debit))).Value;
+    Assert.True((await LedgerService.CreateFirmPeriodAsync(db, finance, new("2026-04"))).Succeeded);
+    var expense = await FirmExpenseService.RecordAsync(db, finance,
+      new(new DateOnly(2026, 4, 3), FirmExpenseCategories.Other, "Synthetic supplier", "Atomic transition", 125m,
+        "QAR", expenseAccount, cash, "atomic.pdf", "application/pdf", "%PDF atomic"u8.ToArray()));
+    Assert.True(expense.Succeeded, expense.Message);
+
+    async Task BlockExpenseStateUpdatesAsync() => await db.Database.ExecuteSqlRawAsync("""
+      CREATE FUNCTION fail_test_firm_expense_status_update()
+      RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        RAISE EXCEPTION 'Injected expense transition failure.' USING ERRCODE = 'P0001';
+      END;
+      $$;
+      CREATE TRIGGER test_firm_expense_status_update
+        BEFORE UPDATE OF status ON firm_expenses
+        FOR EACH ROW WHEN (NEW.status IS DISTINCT FROM OLD.status)
+        EXECUTE FUNCTION fail_test_firm_expense_status_update();
+      """);
+    async Task AllowExpenseStateUpdatesAsync() => await db.Database.ExecuteSqlRawAsync("""
+      DROP TRIGGER IF EXISTS test_firm_expense_status_update ON firm_expenses;
+      DROP FUNCTION IF EXISTS fail_test_firm_expense_status_update();
+      """);
+
+    await BlockExpenseStateUpdatesAsync();
+    await Assert.ThrowsAnyAsync<Exception>(() => FirmExpenseService.SubmitAsync(db, finance, expense.Value));
+    await AllowExpenseStateUpdatesAsync();
+    var afterSubmitFailure = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == expense.Value);
+    Assert.Equal(FirmExpenseStates.Draft, afterSubmitFailure.Status);
+    Assert.Null(afterSubmitFailure.JournalId);
+    Assert.False(await db.FirmJournals.AnyAsync(x => x.SourceKind == "EXPENSE" && x.SourceKey == expense.Value.ToString("D")));
+
+    Assert.True((await FirmExpenseService.SubmitAsync(db, finance, expense.Value)).Succeeded);
+    var submitted = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == expense.Value);
+    var submittedJournal = await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == submitted.JournalId);
+    Assert.Equal(LedgerStates.JournalReviewRequired, submittedJournal.Status);
+
+    await BlockExpenseStateUpdatesAsync();
+    await Assert.ThrowsAnyAsync<Exception>(() => FirmExpenseService.ReviewAsync(db, reviewer, expense.Value, true, "Approved."));
+    await AllowExpenseStateUpdatesAsync();
+    var afterApprovalFailure = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == expense.Value);
+    var journalAfterApprovalFailure = await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == submittedJournal.Id);
+    Assert.Equal(FirmExpenseStates.Submitted, afterApprovalFailure.Status);
+    Assert.Equal(LedgerStates.JournalReviewRequired, journalAfterApprovalFailure.Status);
+    Assert.Null(journalAfterApprovalFailure.ApprovedByUserId);
+
+    Assert.True((await FirmExpenseService.ReviewAsync(db, reviewer, expense.Value, true, "Approved." )).Succeeded);
+    var approved = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == expense.Value);
+    var approvedJournal = await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == submittedJournal.Id);
+    Assert.Equal(FirmExpenseStates.Approved, approved.Status);
+    Assert.Equal(LedgerStates.JournalApproved, approvedJournal.Status);
+
+    await BlockExpenseStateUpdatesAsync();
+    await Assert.ThrowsAnyAsync<Exception>(() => FirmExpenseService.ReviewAsync(db, reviewer, expense.Value, false, "Reject."));
+    await AllowExpenseStateUpdatesAsync();
+    var afterRejectionFailure = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == expense.Value);
+    var journalAfterRejectionFailure = await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == submittedJournal.Id);
+    Assert.Equal(FirmExpenseStates.Approved, afterRejectionFailure.Status);
+    Assert.Equal(approved.ReviewedByUserId, afterRejectionFailure.ReviewedByUserId);
+    Assert.Equal(LedgerStates.JournalApproved, journalAfterRejectionFailure.Status);
+    Assert.Equal(approvedJournal.ApprovedByUserId, journalAfterRejectionFailure.ApprovedByUserId);
+
+    await BlockExpenseStateUpdatesAsync();
+    await Assert.ThrowsAnyAsync<Exception>(() => FirmExpenseService.PostAsync(db, finance, expense.Value));
+    await AllowExpenseStateUpdatesAsync();
+    var afterPostFailure = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == expense.Value);
+    var journalAfterPostFailure = await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == submittedJournal.Id);
+    Assert.Equal(FirmExpenseStates.Approved, afterPostFailure.Status);
+    Assert.Null(afterPostFailure.PostingId);
+    Assert.Equal(LedgerStates.JournalApproved, journalAfterPostFailure.Status);
+    Assert.Null(journalAfterPostFailure.PostedAt);
+    Assert.Empty(await db.FirmPostings.Where(x => x.JournalId == submittedJournal.Id).ToListAsync());
+    var posted = await FirmExpenseService.PostAsync(db, finance, expense.Value);
+    Assert.True(posted.Succeeded, posted.Message);
+    Assert.Equal(posted.Value, (await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == expense.Value)).PostingId);
+  }
+
+  [Fact]
+  public async Task FirmExpenses_PostAndRejectSerializeToOneValidOutcome()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var finance = w.A("finance", "FinanceManager");
+    var reviewer = w.A("reviewer", "FinanceReviewer");
+    Guid expenseId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var cash = (await LedgerService.CreateFirmAccountAsync(db, finance,
+        new("RACE-CASH", "Bank", LedgerStates.AccountAsset, LedgerStates.Debit))).Value;
+      var expenseAccount = (await LedgerService.CreateFirmAccountAsync(db, finance,
+        new("RACE-EXPENSE", "Operating expense", LedgerStates.AccountExpense, LedgerStates.Debit))).Value;
+      Assert.True((await LedgerService.CreateFirmPeriodAsync(db, finance, new("2026-05"))).Succeeded);
+      var expense = await FirmExpenseService.RecordAsync(db, finance,
+        new(new DateOnly(2026, 5, 3), FirmExpenseCategories.Other, "Synthetic supplier", "Concurrent post or reject", 125m,
+          "QAR", expenseAccount, cash, "race.pdf", "application/pdf", "%PDF race"u8.ToArray()));
+      Assert.True(expense.Succeeded, expense.Message);
+      expenseId = expense.Value;
+      Assert.True((await FirmExpenseService.SubmitAsync(db, finance, expenseId)).Succeeded);
+      Assert.True((await FirmExpenseService.ReviewAsync(db, reviewer, expenseId, true, "Approved for posting.")).Succeeded);
+    }
+
+    var start = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var postTask = Task.Run(async () =>
+    {
+      await start.Task;
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var result = await FirmExpenseService.PostAsync(db, finance, expenseId);
+      return (Action: "post", result.Succeeded, result.ErrorCode);
+    });
+    var rejectTask = Task.Run(async () =>
+    {
+      await start.Task;
+      await using var db = new AuditSphereDbContext(pg.Options);
+      var result = await FirmExpenseService.ReviewAsync(db, reviewer, expenseId, false, "Cancelled before posting.");
+      return (Action: "reject", result.Succeeded, result.ErrorCode);
+    });
+    start.SetResult(true);
+    var outcomes = await Task.WhenAll(postTask, rejectTask);
+    Assert.Equal(1, outcomes.Count(x => x.Succeeded));
+    Assert.All(outcomes.Where(x => !x.Succeeded), x => Assert.Equal(ErrorCodes.ProtectedState, x.ErrorCode));
+
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var finalExpense = await verify.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == expenseId);
+    var finalJournal = await verify.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == finalExpense.JournalId);
+    var postings = await verify.FirmPostings.CountAsync(x => x.JournalId == finalJournal.Id);
+    if (finalExpense.Status == FirmExpenseStates.Posted)
+    {
+      Assert.Equal(LedgerStates.JournalPosted, finalJournal.Status);
+      Assert.Equal(1, postings);
+    }
+    else
+    {
+      Assert.Equal(FirmExpenseStates.Rejected, finalExpense.Status);
+      Assert.Equal(LedgerStates.JournalCancelled, finalJournal.Status);
+      Assert.Equal(0, postings);
+    }
+  }
+
+  [Fact]
+  public async Task FirmExpenses_LegacyRejectedRowsCannotBeApprovedOrPosted()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var finance = w.A("finance", "FinanceManager");
+    var reviewer = w.A("reviewer", "FinanceReviewer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var cash = (await LedgerService.CreateFirmAccountAsync(db, finance,
+      new("LEGACY-CASH", "Bank", LedgerStates.AccountAsset, LedgerStates.Debit))).Value;
+    var expenseAccount = (await LedgerService.CreateFirmAccountAsync(db, finance,
+      new("LEGACY-EXPENSE", "Operating expense", LedgerStates.AccountExpense, LedgerStates.Debit))).Value;
+    Assert.True((await LedgerService.CreateFirmPeriodAsync(db, finance, new("2026-06"))).Succeeded);
+
+    async Task<Guid> CreateSubmittedExpenseAsync(string suffix)
+    {
+      var expense = await FirmExpenseService.RecordAsync(db, finance,
+        new(new DateOnly(2026, 6, 3), FirmExpenseCategories.Other, "Synthetic supplier", suffix, 50m,
+          "QAR", expenseAccount, cash, $"{suffix}.pdf", "application/pdf", Encoding.UTF8.GetBytes($"%PDF {suffix}")));
+      Assert.True(expense.Succeeded, expense.Message);
+      Assert.True((await FirmExpenseService.SubmitAsync(db, finance, expense.Value)).Succeeded);
+      return expense.Value;
+    }
+
+    var legacyReviewRequiredId = await CreateSubmittedExpenseAsync("legacy-review-required");
+    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE firm_expenses SET status = 'REJECTED' WHERE id = {legacyReviewRequiredId}");
+    var legacyReviewRequired = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == legacyReviewRequiredId);
+    var legacyReviewJournal = await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == legacyReviewRequired.JournalId);
+    Assert.Null(legacyReviewRequired.ReviewedByUserId);
+    Assert.Equal(ErrorCodes.ProtectedState,
+      (await LedgerService.ApproveFirmJournalAsync(db, reviewer, legacyReviewJournal.Id)).ErrorCode);
+    Assert.Equal(LedgerStates.JournalReviewRequired,
+      (await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == legacyReviewJournal.Id)).Status);
+
+    var legacyApprovedId = await CreateSubmittedExpenseAsync("legacy-approved");
+    var legacyApproved = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == legacyApprovedId);
+    Assert.True((await LedgerService.ApproveFirmJournalAsync(db, reviewer, legacyApproved.JournalId!.Value)).Succeeded);
+    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE firm_expenses SET status = 'REJECTED' WHERE id = {legacyApprovedId}");
+    Assert.Equal(ErrorCodes.ProtectedState,
+      (await LedgerService.PostFirmJournalAsync(db, finance, legacyApproved.JournalId!.Value)).ErrorCode);
+    Assert.Equal(LedgerStates.JournalApproved,
+      (await db.FirmJournals.AsNoTracking().SingleAsync(x => x.Id == legacyApproved.JournalId)).Status);
+    Assert.Empty(await db.FirmPostings.Where(x => x.JournalId == legacyApproved.JournalId).ToListAsync());
   }
 
   [Fact]
