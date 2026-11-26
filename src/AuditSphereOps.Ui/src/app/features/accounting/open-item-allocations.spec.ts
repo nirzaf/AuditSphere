@@ -7,6 +7,8 @@ import { SessionService } from '../../core/session';
 const client = '11111111-1111-4111-8111-111111111111';
 const otherClient = '99999999-9999-4999-8999-999999999999';
 const period = '22222222-2222-4222-8222-222222222222';
+const alternatePeriod = '23232323-2323-4323-8323-232323232323';
+const reportingPeriods = [{ id: period, code: 'FY26', startDate: '2020-01-01', endDate: '2030-12-31', currency: 'QAR' }];
 const sourceId = '33333333-3333-4333-8333-333333333333';
 const sourceDocumentId = '44444444-4444-4444-8444-444444444444';
 const partyId = '55555555-5555-4555-8555-555555555555';
@@ -20,6 +22,15 @@ const originalAllocationLineId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 function openItem(kind: string, id: string, documentId: string, original: string, open: string) {
   return { kind, openItemId: id, sourceDocumentId: documentId, counterpartyId: partyId, counterpartyName: 'Synthetic customer',
     currency: 'QAR', originalAmount: original, appliedAmount: '0.000000', openAmount: open, dueDate: null, asOfDate: '2026-01-01', status: 'OPEN' };
+}
+function flushControlReconciliation(http: HttpTestingController, clientId = client, periodId = period, asOf = new Date().toISOString().slice(0, 10)) {
+  http.expectOne(request => request.url.endsWith('/open-item-control-reconciliation') && request.params.get('periodId') === periodId &&
+    request.params.get('asOf') === asOf).flush({
+    clientId, periodId, periodCode: 'FY26', currency: 'QAR', asOfDate: asOf,
+    ledgerBasis: 'POSTED_NATIVE_CLIENT_JOURNALS_TO_AS_OF_DATE',
+    allocationBasis: 'CURRENT_APPROVED_ALLOCATIONS_NO_SEPARATE_EFFECTIVE_DATE',
+    openingDetailStatus: 'NO_APPROVED_OPENING', unlinkedOpenItemCount: 0, accounts: [], reconciled: true
+  });
 }
 function retainedPreview() {
   return { submissionId, digest: 'b'.repeat(64), disposition: 'ALLOCATE', sourceKind: 'SALES_RECEIPT', sourceItemId: sourceId,
@@ -41,8 +52,9 @@ describe('approved allocation unallocation', () => {
   afterEach(() => { try { http.verify({ ignoreCancelled: true }); } finally { TestBed.resetTestingModule(); sessionStorage.clear(); } });
   async function openHistory() {
     const fixture = TestBed.createComponent(OpenItemAllocations);
-    fixture.componentRef.setInput('clientId', client); fixture.detectChanges();
+    fixture.componentRef.setInput('clientId', client); fixture.componentRef.setInput('periods', reportingPeriods); fixture.detectChanges();
     http.expectOne(request => request.url.endsWith('/open-item-balances')).flush([]);
+    flushControlReconciliation(http);
     http.expectOne(request => request.url.endsWith('/manual-settlement-options')).flush({ periods: [], counterparties: [], cashAccounts: [] });
     http.expectOne(request => request.url.endsWith('/open-item-allocation-submissions')).flush([]);
     await fixture.whenStable();
@@ -119,14 +131,20 @@ describe('client open-item control reconciliation', () => {
     const component = fixture.componentInstance;
     component.asOfDate = '2026-02-01';
     fixture.componentRef.setInput('clientId', client);
-    fixture.componentRef.setInput('periods', [{ id: period, code: 'FY26', startDate: '2026-01-01', endDate: '2026-12-31', currency: 'QAR' }]);
+    fixture.componentRef.setInput('periods', [
+      { id: period, code: 'FY26', startDate: '2026-01-01', endDate: '2026-12-31', currency: 'QAR' },
+      { id: alternatePeriod, code: 'ALT-26', startDate: '2026-01-01', endDate: '2026-06-30', currency: 'QAR' }
+    ]);
+    component.reportingPeriodId = alternatePeriod;
     fixture.detectChanges();
 
-    http.expectOne(request => request.url.endsWith('/open-item-balances') && request.params.get('asOf') === '2026-02-01').flush([]);
+    const balanceRequest = http.expectOne(request => request.url.endsWith('/open-item-balances') && request.params.get('asOf') === '2026-02-01');
+    expect(balanceRequest.request.params.get('periodId')).toBe(alternatePeriod);
+    balanceRequest.flush([]);
     http.expectOne(request => request.url.endsWith('/manual-settlement-options')).flush({ periods: [], counterparties: [], cashAccounts: [] });
     http.expectOne(request => request.url.endsWith('/open-item-control-reconciliation') &&
-      request.params.get('periodId') === period && request.params.get('asOf') === '2026-02-01').flush({
-      clientId: client, periodId: period, periodCode: 'FY26', currency: 'QAR', asOfDate: '2026-02-01',
+      request.params.get('periodId') === alternatePeriod && request.params.get('asOf') === '2026-02-01').flush({
+      clientId: client, periodId: alternatePeriod, periodCode: 'ALT-26', currency: 'QAR', asOfDate: '2026-02-01',
       ledgerBasis: 'POSTED_NATIVE_CLIENT_JOURNALS_TO_AS_OF_DATE',
       allocationBasis: 'CURRENT_APPROVED_ALLOCATIONS_NO_SEPARATE_EFFECTIVE_DATE',
       openingDetailStatus: 'NO_APPROVED_OPENING', unlinkedOpenItemCount: 0, accounts: [], reconciled: true
@@ -135,6 +153,20 @@ describe('client open-item control reconciliation', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('AR/AP balances reconcile.');
     expect(fixture.nativeElement.textContent).toContain('No approved cutover opening applies to this period.');
+    expect(fixture.nativeElement.textContent).toContain('Reporting period');
+    component.reportingPeriodId = period;
+    component.reportingContextChanged();
+    expect(component.reconciliation()).toBeNull();
+    const refreshedBalances = http.expectOne(request => request.url.endsWith('/open-item-balances'));
+    expect(refreshedBalances.request.params.get('periodId')).toBe(period);
+    refreshedBalances.flush([]);
+    http.expectOne(request => request.url.endsWith('/open-item-control-reconciliation') && request.params.get('periodId') === period &&
+      request.params.get('asOf') === '2026-02-01').flush({
+      clientId: client, periodId: period, periodCode: 'FY26', currency: 'QAR', asOfDate: '2026-02-01',
+      ledgerBasis: 'POSTED_NATIVE_CLIENT_JOURNALS_TO_AS_OF_DATE', allocationBasis: 'CURRENT_APPROVED_ALLOCATIONS_NO_SEPARATE_EFFECTIVE_DATE',
+      openingDetailStatus: 'NO_APPROVED_OPENING', unlinkedOpenItemCount: 0, accounts: [], reconciled: true
+    });
+    http.expectOne(request => request.url.endsWith('/open-item-allocation-submissions')).flush([]);
     http.verify();
     fixture.destroy();
   });
@@ -149,12 +181,14 @@ describe('client open-item allocation manifest assent', () => {
     session.current.set({ userId: reviewerId, firmId: client, generation: '4', staff: true });
     const fixture = TestBed.createComponent(OpenItemAllocations);
     fixture.componentRef.setInput('clientId', client);
+    fixture.componentRef.setInput('periods', reportingPeriods);
     await fixture.whenStable();
     http.expectOne(request => request.url.endsWith('/open-item-balances')).flush([
       openItem('SALES_RECEIPT', sourceId, sourceDocumentId, '150.000000', '150.000000'),
       openItem('SALES_INVOICE', targetId, targetId, '200.000000', '200.000000'),
       openItem('SALES_INVOICE', secondTargetId, secondTargetId, '300.000000', '300.000000')
     ]);
+    flushControlReconciliation(http);
     http.expectOne(request => request.url.endsWith('/manual-settlement-options')).flush({ periods: [], counterparties: [], cashAccounts: [] });
     http.expectOne('/api/ui/accounting/clients/' + client + '/open-item-allocation-submissions').flush([retainedPreview()]);
     await fixture.whenStable();
@@ -259,11 +293,13 @@ describe('client open-item allocation manifest assent', () => {
     component.acknowledgeRecovery(reviewRecovery);
     expect(component.hasUnresolvedReview(submissionId)).toBe(false);
     http.expectOne(request => request.url.endsWith('/open-item-balances')).flush([]);
+    flushControlReconciliation(http);
     http.expectOne(request => request.url.endsWith('/open-item-allocation-submissions')).flush([]);
 
     session.current.set({ userId: nextReviewerId, firmId: client, generation: '4', staff: true });
     await fixture.whenStable();
     http.expectOne(request => request.url.endsWith('/open-item-balances')).flush([]);
+    flushControlReconciliation(http);
     http.expectOne(request => request.url.endsWith('/manual-settlement-options')).flush({ periods: [], counterparties: [], cashAccounts: [] });
     http.expectOne(request => request.url.endsWith('/open-item-allocation-submissions')).flush([retainedPreview()]);
     await fixture.whenStable();
@@ -273,8 +309,10 @@ describe('client open-item allocation manifest assent', () => {
     http.expectNone(request => request.method === 'POST' && request.url.endsWith('/open-item-allocation-reviews'));
 
     fixture.componentRef.setInput('clientId', otherClient);
+    fixture.componentRef.setInput('periods', [{ ...reportingPeriods[0], id: alternatePeriod }]);
     await fixture.whenStable();
     http.expectOne(request => request.url.endsWith('/open-item-balances')).flush([]);
+    flushControlReconciliation(http, otherClient, alternatePeriod);
     http.expectOne(request => request.url.endsWith('/manual-settlement-options')).flush({ periods: [], counterparties: [], cashAccounts: [] });
     http.expectOne('/api/ui/accounting/clients/' + otherClient + '/open-item-allocation-submissions').flush([]);
     await fixture.whenStable();
@@ -297,8 +335,10 @@ describe('manual settlement draft recovery', () => {
 
     let fixture = TestBed.createComponent(OpenItemAllocations);
     fixture.componentRef.setInput('clientId', client);
+    fixture.componentRef.setInput('periods', reportingPeriods);
     await fixture.whenStable();
     http.expectOne(request => request.url.endsWith('/open-item-balances')).flush([]);
+    flushControlReconciliation(http);
     http.expectOne(request => request.url.endsWith('/manual-settlement-options')).flush({ periods: [], counterparties: [], cashAccounts: [] });
     http.expectOne('/api/ui/accounting/clients/' + client + '/open-item-allocation-submissions').flush([]);
     await fixture.whenStable();
@@ -328,6 +368,7 @@ describe('manual settlement draft recovery', () => {
 
     fixture = TestBed.createComponent(OpenItemAllocations);
     fixture.componentRef.setInput('clientId', client);
+    fixture.componentRef.setInput('periods', reportingPeriods);
     await fixture.whenStable();
     expect(fixture.componentInstance.hasUnresolvedSettlement()).toBe(true);
     expect((fixture.componentInstance as unknown as { settlementCommandId: string }).settlementCommandId).not.toBe(commandId);
@@ -340,6 +381,7 @@ describe('manual settlement draft recovery', () => {
     lookup.flush({ found: true, clientId: client, actorUserId: reviewerId, commandId, intentHash,
       receipt: { commandId, journalId, outcome: 'DRAFT' } });
     http.expectOne(request => request.url.endsWith('/open-item-balances')).flush([]);
+    flushControlReconciliation(http);
     http.expectOne(request => request.url.endsWith('/manual-settlement-options')).flush({ periods: [], counterparties: [], cashAccounts: [] });
     http.expectOne('/api/ui/accounting/clients/' + client + '/open-item-allocation-submissions').flush([]);
     await fixture.whenStable();

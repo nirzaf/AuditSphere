@@ -18,6 +18,72 @@ namespace AuditSphereOps.Api.Tests;
 public sealed class ClientManualSettlementsApiTests
 {
   [Fact]
+  public async Task OpenItemBalancesBindExactOverlappingPeriodAndRejectForeignOrInvalidContext()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-OPEN-ITEM-PERIOD-CONTEXT");
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var foreign = await PbcSeed.SeedAsync(pg);
+    var (periodId, _) = await SeedNativeSupplierBookkeeping(pg, fixture);
+    Guid alternatePeriodId, foreignPeriodId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var alternate = await ClientAccountingService.CreatePeriodAsync(db, PbcSeed.Actor(fixture.Staff, "AccountingPreparer"),
+        new(fixture.ClientId, "2026-H1", new(2026, 1, 1), new(2026, 6, 30), "ALTERNATE", "QAR"));
+      Assert.True(alternate.Succeeded, alternate.Message);
+      alternatePeriodId = alternate.Value;
+      foreignPeriodId = Guid.CreateVersion7();
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = foreignPeriodId, FirmId = foreign.FirmId, ClientId = foreign.ClientId, PeriodCode = "FOREIGN-2026",
+        StartDate = new(2026, 1, 1), EndDate = new(2026, 12, 31), Basis = "STATUTORY", Currency = "QAR",
+        CreatedByUserId = foreign.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
+    {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
+      ["DevelopmentIdentity:Enabled"] = "true",
+      ["DevelopmentIdentity:TenantId"] = fixture.Staff.TenantId,
+      ["DevelopmentIdentity:Subject"] = fixture.Staff.Subject,
+      ["Application:AllowSimulationAdapters"] = "true",
+      ["ExternalEffects:Enabled"] = "false"
+    });
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
+    await SignIn(client);
+    var basePath = $"/api/ui/accounting/clients/{fixture.ClientId}/open-item-balances?asOf=2026-02-01";
+
+    using (var omitted = await client.GetAsync(basePath))
+    {
+      Assert.Equal(HttpStatusCode.BadRequest, omitted.StatusCode);
+      using var body = JsonDocument.Parse(await omitted.Content.ReadAsStringAsync());
+      Assert.Equal("gate.blocked", body.RootElement.GetProperty("code").GetString());
+    }
+    foreach (var selected in new[] { periodId, alternatePeriodId })
+      Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"{basePath}&periodId={selected:D}")).StatusCode);
+
+    using (var foreignPeriod = await client.GetAsync($"{basePath}&periodId={foreignPeriodId:D}"))
+    {
+      Assert.Equal(HttpStatusCode.Forbidden, foreignPeriod.StatusCode);
+      using var body = JsonDocument.Parse(await foreignPeriod.Content.ReadAsStringAsync());
+      Assert.Equal("scope.denied", body.RootElement.GetProperty("code").GetString());
+    }
+    using (var outside = await client.GetAsync($"/api/ui/accounting/clients/{fixture.ClientId}/open-item-balances?asOf=2026-07-01&periodId={alternatePeriodId:D}"))
+    {
+      Assert.Equal(HttpStatusCode.BadRequest, outside.StatusCode);
+      using var body = JsonDocument.Parse(await outside.Content.ReadAsStringAsync());
+      Assert.Equal("gate.blocked", body.RootElement.GetProperty("code").GetString());
+    }
+    using (var empty = await client.GetAsync($"{basePath}&periodId={Guid.Empty:D}"))
+    {
+      Assert.Equal(HttpStatusCode.BadRequest, empty.StatusCode);
+      using var body = JsonDocument.Parse(await empty.Content.ReadAsStringAsync());
+      Assert.Equal("request.invalid", body.RootElement.GetProperty("code").GetString());
+    }
+  }
+
+  [Fact]
   public async Task PreviewRechecksSessionAfterReadingAndReturnsNoPreviewOrIntentHashAfterRevocation()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-MANUAL-SETTLEMENT-PREVIEW-EPOCH");

@@ -1,4 +1,5 @@
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -521,6 +522,115 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(2, await db.ClientOpenItemAllocationSubmissions.CountAsync());
       Assert.Equal(2, await db.ClientOpenItemAllocationDecisions.CountAsync());
       Assert.Empty(await db.FirmJournals.ToListAsync());
+    }
+  }
+
+  [Fact]
+  public async Task OpenItemBalancesRequireExplicitPeriodWhenCoverageOverlapsAndUseItsOpening()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    Guid annualPeriodId, alternatePeriodId, foreignPeriodId, partyId;
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.AcceptanceDecisions.Add(new AcceptanceDecision
+      {
+        Id = Guid.CreateVersion7(), FirmId = scope.FirmId, PracticeClientId = scope.ClientA,
+        ServiceRoute = "BOOKKEEPING", Decision = "Accepted", Generation = 1,
+        Rationale = "Approved client bookkeeping test fixture", EvaluationTemplateVersion = "TEST-1",
+        EvaluationSnapshotDigest = new string('f', 64), DecidedByUserId = scope.Reviewer.Id, DecidedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      var profile = await ClientAccountingService.CreateProfileAsync(db, reviewer,
+        new(scope.ClientA, "QA", "QAR", 1, 1, "AUDITSPHERE", "PERIOD-CONTEXT", ClientAccountingSourceModes.NativeBookkeeping));
+      Assert.True(profile.Succeeded, profile.Message);
+      annualPeriodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new(scope.ClientA, "FY26", new(2026, 1, 1), new(2026, 12, 31), "STATUTORY", "QAR"))).Value;
+      var alternate = await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new(scope.ClientA, "H1-26", new(2026, 1, 1), new(2026, 6, 30), "ALTERNATE", "QAR"));
+      Assert.True(alternate.Succeeded, alternate.Message);
+      alternatePeriodId = alternate.Value;
+
+      var chartId = (await ClientAccountingService.CreateChartVersionAsync(db, preparer, scope.ClientA,
+        "PERIOD-CONTEXT", new(2026, 1, 1))).Value;
+      var accounts = await ClientAccountingService.AddAccountsAsync(db, preparer, chartId,
+      [
+        new("cash", "1000", "Cash", "ASSET", "DEBIT", true),
+        new("ar", "1100", "Receivables", "ASSET", "DEBIT", true),
+        new("equity", "3000", "Opening equity", "EQUITY", "CREDIT", true)
+      ]);
+      Assert.True(accounts.Succeeded, accounts.Message);
+      Assert.True((await ClientAccountingService.PublishChartVersionAsync(db, reviewer, chartId)).Succeeded);
+      var ar = await db.ClientAccounts.SingleAsync(x => x.ChartVersionId == chartId && x.AccountCode == "1100");
+      var proposedRole = await ClientAccountRoleWorkspace.ProposeAsync(db, preparer, scope.ClientA,
+        new(chartId, ar.Id, "AR", new(2026, 1, 1), null, "Reviewed client AR control"));
+      Assert.True(proposedRole.Succeeded, proposedRole.Message);
+      Assert.True((await ClientAccountRoleWorkspace.ReviewAsync(db, reviewer, scope.ClientA,
+        proposedRole.Value, "APPROVE", "Independent client AR control review")).Succeeded);
+      var party = await ClientBookkeepingCounterpartyWorkspace.CreateAsync(db, preparer, scope.ClientA,
+        new("Period-context customer", "Period-context customer", "CUSTOMER", "QA address", "QA", "", "", "", "", "TEST-SYSTEM", "PERIOD-CONTEXT-CUSTOMER"));
+      Assert.True(party.Succeeded, party.Message);
+      partyId = party.Value;
+
+      foreignPeriodId = Guid.CreateVersion7();
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = foreignPeriodId, FirmId = scope.FirmId, ClientId = scope.ClientB, PeriodCode = "FOREIGN-26",
+        StartDate = new(2026, 1, 1), EndDate = new(2026, 12, 31), Basis = "STATUTORY", Currency = "QAR",
+        CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var annualOpening = await ClientOperationalOpeningBalanceWorkspace.CreateAsync(db, preparer,
+        new(scope.ClientA, annualPeriodId, 1, new(2026, 1, 1), "QAR", "approved annual opening", new string('a', 64),
+          [new("1000", 100m, 0m), new("1100", 125m, 0m), new("3000", 0m, 225m)],
+          [new("AR", partyId, "ANNUAL-OPEN-1", new(2026, 2, 10), "1100", 125m)]));
+      Assert.True(annualOpening.Succeeded, annualOpening.Message);
+      var annualView = (await ClientOperationalOpeningBalanceWorkspace.GetAsync(db, preparer, scope.ClientA, annualPeriodId)).Value!;
+      Assert.True((await ClientOperationalOpeningBalanceWorkspace.ApproveAsync(db, reviewer, scope.ClientA,
+        annualOpening.Value, 1, annualView.ManifestSha256)).Succeeded);
+
+      var alternateOpening = await ClientOperationalOpeningBalanceWorkspace.CreateAsync(db, preparer,
+        new(scope.ClientA, alternatePeriodId, 1, new(2026, 1, 1), "QAR", "approved alternate-basis opening", new string('b', 64),
+          [new("1000", 100m, 0m), new("1100", 200m, 0m), new("3000", 0m, 300m)],
+          [new("AR", partyId, "ALTERNATE-OPEN-1", new(2026, 2, 10), "1100", 200m)]));
+      Assert.True(alternateOpening.Succeeded, alternateOpening.Message);
+      var alternateView = (await ClientOperationalOpeningBalanceWorkspace.GetAsync(db, preparer, scope.ClientA, alternatePeriodId)).Value!;
+      Assert.True((await ClientOperationalOpeningBalanceWorkspace.ApproveAsync(db, reviewer, scope.ClientA,
+        alternateOpening.Value, 1, alternateView.ManifestSha256)).Succeeded);
+
+      var ambiguous = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA, new(2026, 1, 31));
+      Assert.False(ambiguous.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, ambiguous.ErrorCode);
+      var annual = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA,
+        annualPeriodId, new(2026, 1, 31));
+      Assert.True(annual.Succeeded, annual.Message);
+      Assert.Equal("125.000000", Assert.Single(annual.Value!).OpenAmount);
+      var alternate = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA,
+        alternatePeriodId, new(2026, 1, 31));
+      Assert.True(alternate.Succeeded, alternate.Message);
+      Assert.Equal("200.000000", Assert.Single(alternate.Value!).OpenAmount);
+
+      var legacyUnique = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA, new(2026, 7, 1));
+      Assert.True(legacyUnique.Succeeded, legacyUnique.Message);
+      Assert.Equal("125.000000", Assert.Single(legacyUnique.Value!).OpenAmount);
+      var noCoverage = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA, new(2025, 1, 1));
+      Assert.False(noCoverage.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, noCoverage.ErrorCode);
+      var foreign = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA,
+        foreignPeriodId, new(2026, 1, 31));
+      Assert.False(foreign.Succeeded);
+      Assert.Equal(ErrorCodes.ScopeDenied, foreign.ErrorCode);
+      var outside = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA,
+        alternatePeriodId, new(2026, 7, 1));
+      Assert.False(outside.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, outside.ErrorCode);
     }
   }
 }

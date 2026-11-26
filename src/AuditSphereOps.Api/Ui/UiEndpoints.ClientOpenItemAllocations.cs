@@ -32,14 +32,17 @@ public static partial class UiEndpoints
       return true;
     }
 
-    group.MapGet("/accounting/clients/{clientId:guid}/open-item-balances", async (Guid clientId, string asOf,
+    group.MapGet("/accounting/clients/{clientId:guid}/open-item-balances", async (Guid clientId, string asOf, Guid? periodId,
       HttpContext http, TrustedActorResolver resolver, IDbContextFactory<AuditSphereDbContext> factory) =>
     {
       var actor = await resolver.ResolveAsync(http.User, http.RequestAborted);
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
-      if (!DateOnly.TryParseExact(asOf, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)) return Failure("request.invalid");
+      if (!DateOnly.TryParseExact(asOf, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ||
+          periodId == Guid.Empty) return Failure("request.invalid");
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, actor, clientId, date, http.RequestAborted);
+      var result = periodId.HasValue
+        ? await ClientOpenItemAllocationWorkflow.BalancesAsync(db, actor, clientId, periodId.Value, date, http.RequestAborted)
+        : await ClientOpenItemAllocationWorkflow.BalancesAsync(db, actor, clientId, date, http.RequestAborted);
       if (await resolver.ResolveAsync(http.User, http.RequestAborted) is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       return result.Succeeded ? Results.Ok(result.Value) : Failure(result.ErrorCode);
     }).Produces<IReadOnlyList<ClientOpenItemBalance>>()

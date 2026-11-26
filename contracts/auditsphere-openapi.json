@@ -21063,6 +21063,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "periodId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {

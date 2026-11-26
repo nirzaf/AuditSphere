@@ -55,10 +55,35 @@ public static class ClientOpenItemAllocationWorkflow
   {
     if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded)
       return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var periodId = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId &&
-      x.StartDate <= asOfDate && x.EndDate >= asOfDate).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
-    var latestOpening = periodId.HasValue ? await db.ClientOperationalOpeningBalances.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
-      x.ClientId == clientId && x.PeriodId == periodId.Value && x.ApprovedByUserId != null, ct) : null;
+    var coveringPeriods = await db.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId &&
+      x.StartDate <= asOfDate && x.EndDate >= asOfDate).OrderBy(x => x.Id).Select(x => x.Id).Take(2).ToListAsync(ct);
+    if (coveringPeriods.Count != 1)
+      return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.GateBlocked,
+        coveringPeriods.Count == 0
+          ? "Choose a reporting period that covers the selected as-of date."
+          : "Choose an explicit reporting period because more than one authorized period covers the selected date.");
+    return await BalancesAsync(db, actor, clientId, coveringPeriods[0], asOfDate, ct);
+  }
+
+  public static async Task<CommandResult<IReadOnlyList<ClientOpenItemBalance>>> BalancesAsync(IClientAccountingDbContext db,
+    ActorContext actor, Guid clientId, Guid periodId, DateOnly asOfDate, CancellationToken ct = default)
+  {
+    if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded)
+      return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (periodId == Guid.Empty)
+      return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.GateBlocked, "Choose a reporting period.");
+    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.Id == periodId, ct);
+    if (period is null)
+      return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.GateBlocked, "The selected reporting period is unavailable.");
+    if (period.FirmId != actor.FirmId || period.ClientId != clientId)
+      return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (asOfDate < period.StartDate || asOfDate > period.EndDate)
+      return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.GateBlocked,
+        "The selected as-of date is outside the reporting period.");
+
+    var periodIdForOpening = period.Id;
+    var latestOpening = await db.ClientOperationalOpeningBalances.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+      x.ClientId == clientId && x.PeriodId == periodIdForOpening && x.ApprovedByUserId != null, ct);
     if (latestOpening is not null && !ClientOperationalOpeningBalanceWorkspace.ValidManifest(latestOpening))
       return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.ProtectedState,
         "The approved opening schedule failed integrity validation; refresh and resolve the retained source before using ageing.");
@@ -67,7 +92,7 @@ public static class ClientOpenItemAllocationWorkflow
       var current = await ClientOperationalOpeningBalanceWorkspace.CheckSuccessorConsumptionAsync(db, actor, latestOpening, ct);
       if (!current.Succeeded) return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(current.ErrorCode!, current.Message!);
     }
-    var resolvedItems = await OpenItems(db, actor, clientId, ct, asOfDate, periodId);
+    var resolvedItems = await OpenItems(db, actor, clientId, ct, asOfDate, periodIdForOpening);
     if (!resolvedItems.Succeeded) return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(resolvedItems.ErrorCode!, resolvedItems.Message!);
     var items = resolvedItems.Value!;
     var applied = await EffectiveLines(db, actor.FirmId, clientId, ct);

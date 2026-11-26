@@ -187,8 +187,13 @@ function decodeAllocationCommandLookup(value: unknown): AllocationCommandLookup 
         @if (recoveryMatched()[ref.kind + ':' + ref.commandId]) { <button matButton type="button" [disabled]="busy()" (click)="acknowledgeRecovery(ref)">Acknowledge confirmed outcome and clear fence</button> }
       </article> }
     </section> }
-    <label>Ageing as of <input type="date" [(ngModel)]="asOfDate" name="asOfDate" /></label>
+    <label>Ageing as of <input type="date" [(ngModel)]="asOfDate" name="asOfDate" (ngModelChange)="reportingContextChanged()" /></label>
+    <label>Reporting period <select [(ngModel)]="reportingPeriodId" name="reportingPeriodId" (ngModelChange)="reportingContextChanged()" required>
+      <option value="">Choose a period covering this date</option>
+      @for (period of reportingPeriodsForDate(); track period.id) { <option [value]="period.id">{{ period.code }} · {{ period.currency }} · {{ period.startDate }} to {{ period.endDate }}</option> }
+    </select></label>
     <button matButton type="button" [disabled]="busy()" (click)="load()">Refresh balances</button>
+    @if (reportingContextError()) { <p role="alert">{{ reportingContextError() }}</p> }
     @if (reconciliation(); as recon) { <section aria-label="Receivables and payables control reconciliation"><h4>AR/AP control reconciliation · {{ recon.periodCode }} · {{ recon.asOfDate }}</h4>
       <p>Ledger basis: approved opening position and posted native client journals through the selected date. Current approved allocations are included because they have no separate effective date.
         @if (recon.openingDetailStatus === 'REVIEWED_OPENING_DETAIL_INCLUDED') { Reviewed opening invoice detail is included in ageing and control totals, and can be used as a target for independently reviewed settlements. }
@@ -205,7 +210,7 @@ function decodeAllocationCommandLookup(value: unknown): AllocationCommandLookup 
     @if (busy()) { <p role="status">Updating client balances…</p> }
     <div class="table-scroll"><table><caption>Open client items and as-of ageing</caption><thead><tr><th>Type</th><th>Party</th><th>Document</th><th>Due</th><th>Currency</th><th>Original</th><th>Applied</th><th>Open</th><th>Status</th></tr></thead><tbody>
       @for (row of balances(); track row.openItemId) { <tr><td>{{ row.kind.replaceAll('_', ' ') }}</td><td>{{ row.counterpartyName }}</td><td>{{ row.sourceDocumentId }}</td><td>{{ row.dueDate ?? '—' }}</td><td>{{ row.currency }}</td><td>{{ row.originalAmount }}</td><td>{{ row.appliedAmount }}</td><td>{{ row.openAmount }}</td><td>{{ row.status }}</td></tr> }
-      @empty { <tr><td colspan="9">No posted open items are available for this client and date.</td></tr> }
+      @empty { <tr><td colspan="9">No posted open items are available for this client, reporting period, and date.</td></tr> }
     </tbody></table></div>
     <section aria-label="Record client settlement">
       <h4>Record a settlement already made</h4>
@@ -311,6 +316,7 @@ export class OpenItemAllocations {
   readonly allocationHistory = signal<AllocationHistoryPage | null>(null); readonly historyBusy = signal(false); readonly historyError = signal('');
   readonly selectedReversal = signal<AllocationHistoryLine | null>(null);
   readonly reconciliation = signal<Reconciliation | null>(null);
+  readonly reportingContextError = signal('');
   readonly busy = signal(false); readonly error = signal(''); readonly receipt = signal('');
   readonly settlementOptions = signal<SettlementOptions | null>(null); readonly settlementPreview = signal<SettlementPreview | null>(null); readonly settlementReceipt = signal('');
   readonly settlementRecoveries = signal<SettlementRecoveryRef[]>([]);
@@ -318,7 +324,7 @@ export class OpenItemAllocations {
   readonly settlementRecoveryMatched = signal<Record<string, boolean>>({});
   readonly settlementRecoveryBusy = signal<Record<string, boolean>>({});
   readonly settlementRecoveryStorageUnavailable = signal(false);
-  asOfDate = new Date().toISOString().slice(0, 10); sourceId = ''; targetId = ''; amount = ''; reference = ''; reason = ''; reviewed = false;
+  asOfDate = new Date().toISOString().slice(0, 10); reportingPeriodId = ''; sourceId = ''; targetId = ''; amount = ''; reference = ''; reason = ''; reviewed = false;
   previewIntent: AllocationIntent | null = null;
   settlementKind = 'SALES_RECEIPT'; settlementDate = new Date().toISOString().slice(0, 10); settlementPeriodId = ''; settlementPartyId = ''; settlementCashCode = '';
   settlementAmount = ''; settlementReference = ''; settlementEvidence = ''; settlementNumber = ''; settlementDescription = ''; settlementReviewed = false;
@@ -331,7 +337,7 @@ export class OpenItemAllocations {
   readonly recoveryNotFound = signal<Record<string, boolean>>({});
   readonly recoveryStorageUnavailable = signal(false);
   private readonly http = inject(HttpClient); private readonly destroyRef = inject(DestroyRef); private readonly session = inject(SessionService); private operation?: Subscription;
-  private balanceRequest = 0; private pendingRequest = 0; private allocationRequest = 0; private reviewRequest = 0; private historyRequest = 0; private historyOperation?: Subscription; private historyScope = '';
+  private balanceRequest = 0; private reconciliationRequest = 0; private pendingRequest = 0; private allocationRequest = 0; private reviewRequest = 0; private historyRequest = 0; private historyOperation?: Subscription; private historyScope = '';
   private previewContext = ''; private makerAssentKey = '';
   private settlementPreviewRequest = '';
   private readonly inMemorySubmitBodies = new Map<string, Record<string, unknown>>();
@@ -343,6 +349,21 @@ export class OpenItemAllocations {
   currentScopeKey(): string {
     const actor = this.session.current();
     return [this.clientId(), actor?.firmId ?? '', actor?.userId ?? '', actor?.generation ?? '', this.session.invalidation()].join('|');
+  }
+  reportingPeriodsForDate(): { id: string; code: string; startDate: string; endDate: string; currency: string }[] {
+    return this.periods().filter(period => this.asOfDate >= period.startDate && this.asOfDate <= period.endDate);
+  }
+  private syncReportingPeriod(): void {
+    const matches = this.reportingPeriodsForDate();
+    if (matches.some(period => period.id === this.reportingPeriodId)) return;
+    this.reportingPeriodId = matches.length === 1 ? matches[0].id : '';
+  }
+  reportingContextChanged(): void {
+    this.syncReportingPeriod();
+    this.balances.set([]); this.reconciliation.set(null); this.reportingContextError.set('');
+    this.operation?.unsubscribe();
+    this.balanceRequest++; this.reconciliationRequest++;
+    this.load();
   }
   visibleRecoveries(): AllocationRecoveryRef[] {
     const actor = this.session.current();
@@ -621,28 +642,38 @@ export class OpenItemAllocations {
   }
   load(): void {
     const client = this.clientId(); if (!guidPattern.test(client)) return;
-    const context = this.currentScopeKey(), request = ++this.balanceRequest;
+    this.syncReportingPeriod();
+    const periodId = this.reportingPeriodId;
+    const context = this.currentScopeKey(), reportingContext = this.reportingContextKey(), request = ++this.balanceRequest;
     this.busy.set(true); this.error.set(""); this.invalidateMakerPreview(); this.receipt.set("");
     this.pending.set([]); this.pendingLoadedFor.set(""); this.reviewAssents.set({});
     this.operation?.unsubscribe();
-    this.operation = this.http.get<unknown>("/api/ui/accounting/clients/" + client + "/open-item-balances", { params: { asOf: this.asOfDate } }).pipe(timeout(15000)).subscribe({
+    if (!periodId || !this.reportingPeriodsForDate().some(period => period.id === periodId)) {
+      this.balances.set([]); this.reconciliation.set(null);
+      this.reportingContextError.set(this.reportingPeriodsForDate().length > 1
+        ? 'Choose which overlapping reporting period to use for these balances.'
+        : 'Choose a reporting period that covers the selected as-of date.');
+      this.busy.set(false); this.loadPending(client, context); return;
+    }
+    this.reportingContextError.set('');
+    this.operation = this.http.get<unknown>("/api/ui/accounting/clients/" + client + "/open-item-balances", { params: { asOf: this.asOfDate, periodId } }).pipe(timeout(15000)).subscribe({
       next: value => {
-        if (request !== this.balanceRequest || context !== this.currentScopeKey()) return;
-        try { this.balances.set(decodeBalances(value)); this.loadReconciliation(client); this.loadPending(client, context); }
+        if (request !== this.balanceRequest || context !== this.currentScopeKey() || reportingContext !== this.reportingContextKey()) return;
+        try { this.balances.set(decodeBalances(value)); this.loadReconciliation(client, periodId, this.asOfDate, reportingContext); this.loadPending(client, context); }
         catch { this.busy.set(false); this.error.set("The client balance response was not valid. Refresh the client and review persisted postings."); }
       },
       error: () => {
-        if (request !== this.balanceRequest || context !== this.currentScopeKey()) return;
+        if (request !== this.balanceRequest || context !== this.currentScopeKey() || reportingContext !== this.reportingContextKey()) return;
         this.busy.set(false); this.error.set("Client balances could not be loaded.");
       }
     });
   }
-  private loadReconciliation(client: string): void {
-    const period = this.periods().find(x => x.currency === this.balances()[0]?.currency && this.asOfDate >= x.startDate && this.asOfDate <= x.endDate) ??
-      this.periods().find(x => this.asOfDate >= x.startDate && this.asOfDate <= x.endDate);
-    if (!period) { this.reconciliation.set(null); return; }
-    this.http.get<Reconciliation>(`/api/ui/accounting/clients/${client}/open-item-control-reconciliation`, { params: { periodId: period.id, asOf: this.asOfDate } }).pipe(timeout(15000)).subscribe({
-      next: value => this.reconciliation.set(value), error: () => this.reconciliation.set(null)
+  private reportingContextKey(): string { return `${this.currentScopeKey()}|${this.reportingPeriodId}|${this.asOfDate}`; }
+  private loadReconciliation(client: string, periodId: string, asOfDate: string, context: string): void {
+    const request = ++this.reconciliationRequest;
+    this.http.get<Reconciliation>(`/api/ui/accounting/clients/${client}/open-item-control-reconciliation`, { params: { periodId, asOf: asOfDate } }).pipe(timeout(15000)).subscribe({
+      next: value => { if (request === this.reconciliationRequest && context === this.reportingContextKey()) this.reconciliation.set(value); },
+      error: () => { if (request === this.reconciliationRequest && context === this.reportingContextKey()) this.reconciliation.set(null); }
     });
   }
   private loadPending(client: string, context: string): void {
