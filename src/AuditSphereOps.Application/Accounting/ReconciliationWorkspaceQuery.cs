@@ -113,7 +113,11 @@ public static class ReconciliationWorkspaceQuery
     var proof = await db.AccountingReconciliationProofs.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == r.ClientId &&
       x.EngagementId == r.EngagementId && x.ReconciliationId == r.Id).OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
     var currentItemsTotal = MoneyPolicy.Normalize(allItems.Sum(x => x.SignedAmount));
-    var proofCurrent = proof is not null && proof.FormulaVersion == AccountingAnalysisService.ReconciliationProofFormulaVersion &&
+    // AccountingReconciliation retains one selected TB or GL source. There is no second
+    // control-population identity in this contract, so a numerically current proof is not
+    // evidence of an independent reconciliation.
+    const bool independentControlAvailable = false;
+    var proofCurrent = independentControlAvailable && proof is not null && proof.FormulaVersion == AccountingAnalysisService.ReconciliationProofFormulaVersion &&
       sourceAvailable && Digest(r.SourceHash) == currentHash && generation == r.InputGeneration &&
       proof.ItemManifestDigest == manifest && linkedJournalsCurrent && proof.ItemCount == allItems.Count && proof.SourceHash == r.SourceHash &&
       proof.InputGeneration == r.InputGeneration && proof.SourceTotal == r.SourceTotal && proof.GlTotal == r.GlTotal && proof.Residual == r.Residual &&
@@ -121,6 +125,8 @@ public static class ReconciliationWorkspaceQuery
       proof.IsReconciled == (proof.Residual == 0m);
     var blockers = new List<string>();
     var recordedHash = Digest(r.SourceHash);
+    if (!independentControlAvailable)
+      blockers.Add("A distinct independently evidenced control population is not retained; this source-only reconciliation cannot support current readiness.");
     if (!sourceAvailable) blockers.Add("The exact accepted and sealed source is unavailable or no longer matches the reporting context.");
     if (recordedHash is null || currentHash != recordedHash) blockers.Add("The retained source digest differs from the current exact source. Prepare new source-bound evidence.");
     if (generation is null || generation != r.InputGeneration) blockers.Add("The client input generation changed or is unavailable. Retained approval cannot be reused.");
@@ -132,7 +138,7 @@ public static class ReconciliationWorkspaceQuery
       blockers.Add("A retained item has a different currency or a date after the reconciliation. Current reuse is blocked.");
     if (r.Status == "APPROVED" && (r.ReviewedByUserId is null || r.ReviewedAt is null || r.ReviewedByUserId == r.CreatedByUserId))
       blockers.Add("An independent retained approval is unavailable.");
-    var stale = !sourceAvailable || recordedHash is null || currentHash != recordedHash || generation is null || generation != r.InputGeneration ||
+    var stale = !independentControlAvailable || !sourceAvailable || recordedHash is null || currentHash != recordedHash || generation is null || generation != r.InputGeneration ||
       r.Status == "STALE" || !linkedJournalsCurrent || proof is not null && !proofCurrent;
     var rows = allItems.Skip(page * PageSize).Take(PageSize).Select(x => new ReconciliationItemReview(x.Id, x.StableItemId, Exact(x.SignedAmount), x.Currency,
       x.ItemDate, x.Reason, x.EvidenceReference, x.Disposition, x.DateBasis, x.AgingBucket, x.IsCredit, x.SettlementDate,

@@ -42,6 +42,8 @@ public static class ReconciliationPreparationWorkspace
 {
   private const int SourceLimit = 100;
   private const int MaxCodes = 100;
+  private const string IndependentControlBlocker =
+    "A distinct independently evidenced control population is missing; a selected TB or GL source cannot reconcile itself.";
   private static CommandResult<T> Fail<T>(string code, string message) => CommandResult<T>.Fail(code, message);
   private static Task<CommandResult> Authorize(IClientAccountingDbContext db, ActorContext actor, Guid clientId,
     Guid engagementId, CancellationToken ct) => AccountingPreparationAuthorization.AuthorizeAsync(db, actor,
@@ -140,6 +142,7 @@ public static class ReconciliationPreparationWorkspace
     if (period.Status is not ("ACTIVE" or "DRAFT")) blockers.Add("The reporting period is closed.");
     if (frozen) blockers.Add("The engagement file is frozen.");
     if (importedAt > DateTimeOffset.UtcNow.AddMinutes(5)) blockers.Add("The source import timestamp is invalid.");
+    blockers.Add(IndependentControlBlocker);
     var stateBasis = Hashing.Sha256Hex(JsonSerializer.Serialize(new { actor.FirmId, actor.UserId, actor.SessionEpoch,
       Engagement = new { engagement.Id, engagement.PracticeClientId, engagement.Status },
       Period = new { period.Id, period.PeriodCode, period.StartDate, period.EndDate, period.Currency, period.Basis, period.Status, period.Revision },
@@ -161,6 +164,8 @@ public static class ReconciliationPreparationWorkspace
     var state = await StateAsync(db, actor, engagementId, fields.SourceKind, fields.SourceId, ct);
     if (!state.Succeeded) return Fail<ReconciliationPreparationPreview>(state.ErrorCode!, state.Message!);
     var s = state.Value!;
+    if (s.Blockers.Contains(IndependentControlBlocker, StringComparer.Ordinal))
+      return Fail<ReconciliationPreparationPreview>(ErrorCodes.GateBlocked, IndependentControlBlocker);
     if (!s.CanPrepare || request.ReviewBasis != s.ReviewBasis || fields.PeriodId != s.PeriodId || fields.BookId != s.BookId ||
         fields.AsOfDate < await db.ClientReportingPeriods.AsNoTracking().Where(x => x.Id == s.PeriodId && x.FirmId == actor.FirmId)
           .Select(x => x.StartDate).SingleAsync(ct))
@@ -214,6 +219,8 @@ public static class ReconciliationPreparationWorkspace
     var before = await StateAsync(db, actor, engagementId, fields.SourceKind, fields.SourceId, ct);
     if (!before.Succeeded) return Fail<ReconciliationPreparationReceipt>(before.ErrorCode!, before.Message!);
     var state = before.Value!;
+    if (state.Blockers.Contains(IndependentControlBlocker, StringComparer.Ordinal))
+      return Fail<ReconciliationPreparationReceipt>(ErrorCodes.GateBlocked, IndependentControlBlocker);
     if (!state.CanPrepare || state.ReviewBasis != request.ReviewBasis || fields.PeriodId != state.PeriodId || fields.BookId != state.BookId)
       return Fail<ReconciliationPreparationReceipt>(ErrorCodes.StaleRevision, "The reviewed source context changed. Refresh and review again.");
     await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
@@ -276,40 +283,12 @@ public static class ReconciliationPreparationWorkspace
         r.SourceHash, row.ActorId, r.CreatedAt));
 
   private sealed record Totals(decimal SourceTotal, decimal GlTotal);
-  private static async Task<CommandResult<Totals>> CalculateAsync(IClientAccountingDbContext db, ActorContext actor,
+  private static Task<CommandResult<Totals>> CalculateAsync(IClientAccountingDbContext db, ActorContext actor,
     ReconciliationPreparationState state, ReconciliationPreparationFields fields, CancellationToken ct)
   {
     if (!ValidFields(fields) || fields.SourceKind != state.SourceKind || fields.SourceId != state.SourceId)
-      return Fail<Totals>(ErrorCodes.Accounting.ReconciliationRejected, "The source and account selection are invalid.");
-    var codes = CanonicalCodes(fields.AccountCodes);
-    decimal sourceTotal; decimal glTotal;
-    if (fields.SourceKind == "TRIAL_BALANCE")
-    {
-      var source = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == state.ClientId &&
-        x.EngagementId == state.EngagementId && x.Id == fields.SourceId && x.PeriodId == fields.PeriodId && x.BookId == fields.BookId &&
-        x.ValidationStatus == "Accepted" && x.ImportState == TrialBalanceImportStates.Sealed, ct);
-      if (source is null || source.Basis != state.Basis || source.Currency != state.Currency)
-        return Fail<Totals>(ErrorCodes.ScopeDenied, "The selected trial balance is unavailable in this scope.");
-      var rows = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == source.Id && codes.Contains(x.AccountCode)).ToListAsync(ct);
-      if (rows.Select(x => x.AccountCode).Distinct(StringComparer.Ordinal).Count() != codes.Length)
-        return Fail<Totals>(ErrorCodes.Accounting.ReconciliationRejected, "The selected source does not contain every requested account code.");
-      sourceTotal = MoneyPolicy.Normalize(rows.Sum(x => x.Amount)); glTotal = sourceTotal;
-    }
-    else
-    {
-      var batch = await db.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == state.ClientId &&
-        x.EngagementId == state.EngagementId && x.Id == fields.SourceId && x.PeriodId == fields.PeriodId && x.BookId == fields.BookId &&
-        x.SourceKind == AccountingSourceKinds.GeneralLedger && x.Status == "SEALED" && x.Currency == state.Currency, ct);
-      if (batch is null) return Fail<Totals>(ErrorCodes.ScopeDenied, "The selected general ledger is unavailable in this scope.");
-      var lines = await db.GeneralLedgerLines.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == state.ClientId &&
-        x.EngagementId == state.EngagementId && x.ImportBatchId == batch.Id && codes.Contains(x.AccountCode)).ToListAsync(ct);
-      if (lines.Select(x => x.AccountCode).Distinct(StringComparer.OrdinalIgnoreCase).Count() != codes.Length)
-        return Fail<Totals>(ErrorCodes.Accounting.ReconciliationRejected, "The selected ledger does not contain every requested account code.");
-      sourceTotal = MoneyPolicy.Normalize(lines.Sum(x => x.FunctionalAmount));
-      glTotal = MoneyPolicy.Normalize(lines.Sum(x => x.Debit - x.Credit));
-    }
-    var auth = await Authorize(db, actor, state.ClientId, state.EngagementId, ct);
-    return auth.Succeeded ? CommandResult<Totals>.Ok(new(sourceTotal, glTotal)) : Fail<Totals>(auth.ErrorCode!, auth.Message!);
+      return Task.FromResult(Fail<Totals>(ErrorCodes.Accounting.ReconciliationRejected, "The source and account selection are invalid."));
+    return Task.FromResult(Fail<Totals>(ErrorCodes.GateBlocked, IndependentControlBlocker));
   }
 
   private static bool ValidRequest(ReconciliationPreparationRequest? request) => request is not null && request.RequestId != Guid.Empty &&

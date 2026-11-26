@@ -192,6 +192,10 @@ public static partial class ClientAccountingService
       x.PeriodId == period.Id && x.Status != AccountingWorkflowStates.Approved, ct);
     if (unresolved)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Unapproved accounting reconciliations block period close.");
+    if (await db.AccountingReconciliations.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == period.ClientId &&
+          x.PeriodId == period.Id && x.Status == AccountingWorkflowStates.Approved, ct))
+      return CommandResult.Fail(ErrorCodes.GateBlocked,
+        "An approved generic reconciliation has no retained identity for a distinct independent control source; current period close is blocked.");
     var unreviewedEcl = await db.EclAssessments.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == period.ClientId &&
       x.Status != AccountingWorkflowStates.Approved && x.Status != AccountingWorkflowStates.Rejected &&
       db.AccountingReconciliations.Any(r => r.Id == x.ReconciliationId && r.PeriodId == period.Id), ct);

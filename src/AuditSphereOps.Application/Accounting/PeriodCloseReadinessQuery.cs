@@ -65,6 +65,10 @@ public static class PeriodCloseReadinessQuery
             x.ClientId == period.ClientId && x.PeriodId == period.Id && x.Status != AccountingWorkflowStates.Approved, ct))
         blockers.Add(new PeriodCloseBlocker("reconciliations.unapproved",
           "Unapproved accounting reconciliations block period close."));
+      if (await db.AccountingReconciliations.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+            x.ClientId == period.ClientId && x.PeriodId == period.Id && x.Status == AccountingWorkflowStates.Approved, ct))
+        blockers.Add(new PeriodCloseBlocker("reconciliations.independent-control-missing",
+          "An approved generic reconciliation has no retained identity for a distinct independent control source; current period-close readiness is blocked."));
       var unreviewedEcl = await db.EclAssessments.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
         x.ClientId == period.ClientId && x.Status != AccountingWorkflowStates.Approved &&
         x.Status != AccountingWorkflowStates.Rejected &&

@@ -179,10 +179,10 @@ public sealed partial class ClientAccountingTests
         new ClientAccountingProfileRequest(scope.ClientB, "QA", "QAR", 4, 1, "LEDGER-B", "B-1"))).Succeeded);
     }
 
-    Guid periodId, chartId, openingBridgeId;
+    Guid periodId, priorPeriodId, chartId, openingBridgeId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var priorPeriodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
+      priorPeriodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
         new ReportingPeriodRequest(scope.ClientA, "2025", new DateOnly(2025, 1, 1), new DateOnly(2025, 12, 31), "STATUTORY", "QAR"))).Value;
       Assert.True((await ClientAccountingService.ClosePeriodAsync(db, reviewer, priorPeriodId, "Reviewed prior closing for opening evidence")).Succeeded);
       periodId = (await ClientAccountingService.CreatePeriodAsync(db, preparer,
@@ -355,13 +355,19 @@ public sealed partial class ClientAccountingTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var close = await ClientAccountingService.ClosePeriodAsync(db, reviewer, periodId, "All reconciliations approved");
-      Assert.True(close.Succeeded, close.Message);
+      Assert.False(close.Succeeded);
+      Assert.Equal(ErrorCodes.GateBlocked, close.ErrorCode);
+      Assert.NotEqual(AccountingWorkflowStates.Closed,
+        await db.ClientReportingPeriods.Where(x => x.Id == periodId).Select(x => x.Status).SingleAsync());
+      var readiness = await PeriodCloseReadinessQuery.GetReadinessAsync(db, reviewer, periodId);
+      Assert.False(readiness.Value!.CanClose);
+      Assert.Contains(readiness.Value.Blockers, x => x.Code == "reconciliations.independent-control-missing");
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var blocked = await ClientAccountingService.ImportGeneralLedgerAsync(db, preparer,
-        new GeneralLedgerImportRequest(scope.ClientA, scope.EngagementA, periodId, null, "csv-v1", "gl-v1", new string('b', 64),
-          "CLIENT-A", "QAR", "receipt-b", [new("J-2", "INV-2", new DateOnly(2026, 7, 1), null, "user-a", "LEDGER-A", null, false, false,
+        new GeneralLedgerImportRequest(scope.ClientA, scope.EngagementA, priorPeriodId, null, "csv-v1", "gl-v1", new string('b', 64),
+          "CLIENT-A", "QAR", "receipt-b", [new("J-2", "INV-2", new DateOnly(2025, 7, 1), null, "user-a", "LEDGER-A", null, false, false,
             [new("J-2-L1", "1000", 10m, 0m, "QAR", 10m, 10m), new("J-2-L2", "4000", 0m, 10m, "QAR", -10m, -10m)])]));
       Assert.False(blocked.Succeeded);
       Assert.Equal(ErrorCodes.ProtectedState, blocked.ErrorCode);

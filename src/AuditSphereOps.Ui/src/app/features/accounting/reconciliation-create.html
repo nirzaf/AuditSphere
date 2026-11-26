@@ -1,6 +1,6 @@
 <a [routerLink]="['/app/engagements',id()]">← Back to engagement</a>
 <audit-page-header title="Prepare reconciliation" eyebrow="Reviewed accounting evidence"
-  description="Choose one accepted and sealed source, select exact account codes and review the server calculation before saving a new reconciliation revision." />
+  description="Generic TB/GL source-only reconciliation is blocked until a distinct independently evidenced control population can be selected. Native AR/AP and typed bank workflows remain separately available." />
 <button matButton="outlined" type="button" (click)="refresh()" [disabled]="busy()">Refresh source context</button>
 <audit-state [loading]="context.loading()" [error]="context.error()" label="reconciliation sources" />
 @if(message()){<p role="status">{{message()}}</p>}
@@ -42,8 +42,8 @@
       </fieldset></form>
     </section>}
     @if(preview();as p){<section class="panel"><h2>Review before saving</h2><p>{{p.area}} · {{p.accountSelection}} · {{model().reason}} · {{model().evidenceReference}}</p>
-      <dl><dt>Source total</dt><dd>{{p.sourceTotal}} {{p.currency}}</dd><dt>General ledger total</dt><dd>{{p.glTotal}} {{p.currency}}</dd>
-        <dt>Residual</dt><dd>{{p.residual}} {{p.currency}}</dd><dt>Result</dt><dd>{{p.resultStatus}}</dd><dt>Source digest</dt><dd class="digest">{{p.sourceHash}}</dd></dl>
+      <p>A source-derived amount is not an independent control total. No generic reconciliation preview is available without a distinct control population.</p>
+      <p>Source digest: <span class="digest">{{p.sourceHash}}</span></p>
       <label><input type="checkbox" [checked]="reviewed()" (change)="reviewed.set($any($event.target).checked)" [disabled]="busy()||!p.canProceed" /> I reviewed this exact source, account selection, date, calculation and evidence reference.</label>
       <button matButton="filled" (click)="execute()" [disabled]="busy()||!reviewed()||!p.canProceed">Save reviewed reconciliation</button>
     </section>}
