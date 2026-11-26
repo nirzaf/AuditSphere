@@ -1,6 +1,14 @@
 import { Injectable, inject } from '@angular/core';
 import { SessionService } from './session';
 
+export type DraftOwnerSnapshot = Readonly<{
+  firmId: string;
+  userId: string;
+  generation: string;
+  staff: boolean;
+  invalidation: number;
+}>;
+
 /**
  * Unsubmitted form drafts kept in this browser only, keyed by firm, user and scope so a different signed-in identity
  * never sees another user's draft. Drafts are cleared after a confirmed submission and on sign-out; storage failures
@@ -27,6 +35,12 @@ export class Drafts {
     const key = this.key(scope);
     if (!key) return;
     try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable or full */ }
+  }
+  saveForSession(scope: string, value: unknown, owner: DraftOwnerSnapshot): void {
+    const current = this.session.current();
+    if (!current || this.session.invalidation() !== owner.invalidation || current.firmId !== owner.firmId ||
+        current.userId !== owner.userId || current.generation !== owner.generation || current.staff !== owner.staff) return;
+    this.save(scope, value);
   }
   clear(scope: string): void {
     const key = this.key(scope);

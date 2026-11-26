@@ -12,6 +12,8 @@ import { int64String, TimeEntryChangePanel } from './time-entry-change';
 import { decodeTime, PracticeTime, supportedBudgetPhases } from './time';
 
 const userId = '11111111-1111-4111-8111-111111111111';
+const nextUserId = '44444444-4444-4444-8444-444444444444';
+const nextFirmId = '55555555-5555-4555-8555-555555555555';
 const taskId = '22222222-2222-4222-8222-222222222222';
 const entryId = '33333333-3333-4333-8333-333333333333';
 const workspace = {
@@ -44,6 +46,84 @@ async function settleFlushedRead(fixture: { whenStable(): Promise<unknown>; dete
 }
 
 describe('foreground practice time tracker integration', () => {
+  it('clears task and manual-time drafts on identity changes and fences queued autosaves', async () => {
+    vi.useFakeTimers();
+    const oldTaskKey = `auditsphere-draft:${userId}:${userId}:practice-task`;
+    const oldTimeKey = `auditsphere-draft:${userId}:${userId}:practice-time-draft`;
+    const nextTaskKey = `auditsphere-draft:${nextFirmId}:${nextUserId}:practice-task`;
+    const nextTimeKey = `auditsphere-draft:${nextFirmId}:${nextUserId}:practice-time-draft`;
+    for (const key of [oldTaskKey, oldTimeKey, nextTaskKey, nextTimeKey]) localStorage.removeItem(key);
+    const scheduledAutosaves: Array<() => void> = [];
+    const scheduleTimer = globalThis.setTimeout.bind(globalThis);
+    const timerSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation((handler, timeout, ...args) => {
+      const timer = scheduleTimer(handler, timeout, ...args);
+      if (timeout === 800 && typeof handler === 'function') scheduledAutosaves.push(() => handler(...args));
+      return timer;
+    });
+    const { fixture, component, http, session } = open();
+    try {
+      component.task = { ...component.task, title: 'Old actor task draft', period: 'old-period' };
+      component.draft = { ...component.draft, narrative: 'Old actor time draft', task: taskId };
+      component.touchTask();
+      component.touchDraft();
+
+      session.current.set({ userId: nextUserId, firmId: nextFirmId, generation: '2', staff: true });
+      session.invalidation.update(value => value + 1);
+      TestBed.tick();
+      http.expectOne('/api/ui/practice/time').flush(workspace);
+      TestBed.tick();
+
+      expect(component.task).toEqual({ title: '', period: '', engagement: '', phase: '', fsli: '', due: '' });
+      expect(component.draft).toMatchObject({ task: '', startTime: '09:00', minutes: 60, narrative: '' });
+      expect(component.trackerTask()).toBe('');
+      expect(component.taskContextNotice()).toBe('');
+      expect(component.timeChangeNotice()).toBe('');
+
+      // Cancellation normally suppresses these callbacks. Invoking captured callbacks models a timer
+      // already queued when the identity fence ran.
+      vi.advanceTimersByTime(800);
+      scheduledAutosaves.forEach(save => save());
+      expect(localStorage.getItem(nextTaskKey)).toBeNull();
+      expect(localStorage.getItem(nextTimeKey)).toBeNull();
+      expect(localStorage.getItem(oldTaskKey)).toBeNull();
+      expect(localStorage.getItem(oldTimeKey)).toBeNull();
+
+      component.task.title = 'Next actor task draft';
+      component.draft.narrative = 'Next actor time draft';
+      session.current.set({ ...session.current()! });
+      TestBed.tick();
+      http.expectOne('/api/ui/practice/time').flush(workspace);
+      TestBed.tick();
+      expect(component.task.title).toBe('Next actor task draft');
+      expect(component.draft.narrative).toBe('Next actor time draft');
+
+      component.touchTask();
+      component.touchDraft();
+      vi.advanceTimersByTime(800);
+      expect(JSON.parse(localStorage.getItem(nextTaskKey)!).title).toBe('Next actor task draft');
+      expect(JSON.parse(localStorage.getItem(nextTimeKey)!).narrative).toBe('Next actor time draft');
+
+      localStorage.removeItem(nextTaskKey);
+      localStorage.removeItem(nextTimeKey);
+      component.task.title = 'Destroyed component task';
+      component.draft.narrative = 'Destroyed component time';
+      component.touchTask();
+      component.touchDraft();
+      fixture.destroy();
+      vi.advanceTimersByTime(800);
+      scheduledAutosaves.slice(-2).forEach(save => save());
+      expect(localStorage.getItem(nextTaskKey)).toBeNull();
+      expect(localStorage.getItem(nextTimeKey)).toBeNull();
+    } finally {
+      if (!fixture.componentRef.hostView.destroyed) fixture.destroy();
+      http.verify({ ignoreCancelled: true });
+      timerSpy.mockRestore();
+      vi.useRealTimers();
+      TestBed.resetTestingModule();
+      for (const key of [oldTaskKey, oldTimeKey, nextTaskKey, nextTimeKey]) localStorage.removeItem(key);
+    }
+  });
+
   it('defaults legacy time-change flags closed and accepts only exact Int64 revision strings', () => {
     const savedEntry = {
       id: entryId, workDate: '2026-10-15', taskId, taskTitle: 'Prepare lead schedule', userId,

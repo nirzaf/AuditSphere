@@ -93,6 +93,7 @@ The Hostinger image workflow records Buildx registry digests per image and assem
 - `Application/Practice/PracticeTimeChangeQuery.cs`: bounded retained history and actor-owned receipt recovery, snapshot reads with current-scope rechecks; public values exclude private cost/rate data.
 - `Domain/Practice/TimeEntryChangeReceipt.cs` and `Infrastructure/Persistence/AuditSphereDbContext.TimeEntryChanges.cs`: immutable before/after snapshots, request/revision identity and same-firm constraints. Migration `TimeEntryChangeReceipts` adds publication/append-only guards without historical actor backfill.
 - `Api/Ui/UiEndpoints.TimeChanges.cs`; Angular `features/practice/time-entry-change.ts`, integrated by `time.ts`: exact review, explicit unknown-outcome lookup/retry, retained history and keyboard focus.
+- Angular `features/practice/time.ts` resets task/manual-time forms and cancels autosaves on session identity/epoch changes; `core/drafts.ts` fences each delayed save to its captured session while preserving the existing storage key. `time-tracker-ui.spec.ts` covers identity switches, stale callbacks and component destruction.
 - Focused tests live in existing `PracticeTimeTests`, `BillingTests`, `PracticeTimeStartMinuteApiTests`, `time-tracker-ui.spec.ts` and `AngularPracticeTimeScopeParityJourneyTests`. Observed verification and separate release gates remain in `docs/execution/status.json`.
 
 ## Reviewed accounting period maintenance

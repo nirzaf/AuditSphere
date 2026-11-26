@@ -5,7 +5,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { Api, CommandState } from '../../core/api';
-import { Drafts } from '../../core/drafts';
+import { Drafts, type DraftOwnerSnapshot } from '../../core/drafts';
 import { arr, bool, date, DecodeError, Decoder, guid, instant, nat, nullable, obj, str, text } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { NavigationProtected } from '../../core/unsaved-changes';
@@ -21,6 +21,10 @@ export const supportedBudgetPhases = [
 ] as const;
 const unassignedBudgetPhase = 'UNASSIGNED';
 type SupportedBudgetPhase = typeof supportedBudgetPhases[number]['value'];
+type PracticeTaskDraft = { title: string; period: string; engagement: string; phase: string; fsli: string; due: string };
+type PracticeManualTimeDraft = { task: string; date: string; startTime: string; minutes: number; role: string; activity: string; billable: boolean; narrative: string };
+const emptyTaskDraft = (): PracticeTaskDraft => ({ title: '', period: '', engagement: '', phase: '', fsli: '', due: '' });
+const emptyManualTimeDraft = (): PracticeManualTimeDraft => ({ task: '', date: new Date().toISOString().slice(0, 10), startTime: '09:00', minutes: 60, role: 'Staff', activity: 'Fieldwork', billable: true, narrative: '' });
 const isSupportedBudgetPhase = (value: unknown): value is SupportedBudgetPhase =>
   supportedBudgetPhases.some(phase => phase.value === value);
 
@@ -311,8 +315,8 @@ export class PracticeTime implements NavigationProtected {
   readonly cmd = new CommandState(this.api);
   readonly budgetPhases = supportedBudgetPhases;
   phaseLabel(phase: string): string { return supportedBudgetPhases.find(x => x.value === phase)?.label ?? phase; }
-  task = { title: '', period: '', engagement: '', phase: '', fsli: '', due: '' };
-  draft = { task: '', date: new Date().toISOString().slice(0, 10), startTime: '09:00', minutes: 60, role: 'Staff', activity: 'Fieldwork', billable: true, narrative: '' };
+  task = emptyTaskDraft();
+  draft = emptyManualTimeDraft();
   readonly tracker = signal<TrackerState>(emptyTracker());
   readonly trackerTask = signal('');
   readonly clockNow = signal(Date.now());
@@ -370,6 +374,13 @@ export class PracticeTime implements NavigationProtected {
       const identity = this.sessionIdentity();
       if (invalidation !== this.lastSessionInvalidation || identity !== this.lastSessionIdentity) {
         clearTimeChangeRequestsOutsideSession(this.session.current());
+        this.cancelAutosaves();
+        this.task = emptyTaskDraft();
+        this.draft = emptyManualTimeDraft();
+        this.taskContextNotice.set('');
+        this.timeChangeNotice.set('');
+        this.activeTimeChange.set(null);
+        this.linkedTaskResolved = false;
         this.resetTracker();
         this.approvalPositions.set([null]);
         this.entriesPositions.set([null]);
@@ -409,14 +420,24 @@ export class PracticeTime implements NavigationProtected {
     document.addEventListener('visibilitychange', visibilityChanged);
     window.addEventListener('pagehide', pageHidden);
     this.destroyRef.onDestroy(() => {
-      clearTimeout(this.taskTimer); clearTimeout(this.draftTimer); this.stopTicker();
+      this.cancelAutosaves(); this.stopTicker();
       document.removeEventListener('visibilitychange', visibilityChanged);
       window.removeEventListener('pagehide', pageHidden);
     });
   }
   touchTask(): void {
     clearTimeout(this.taskTimer);
-    this.taskTimer = setTimeout(() => this.drafts.save('practice-task', this.task), 800);
+    this.taskTimer = undefined;
+    const owner = this.draftOwner();
+    if (!owner) return;
+    const snapshot = Object.freeze({ ...this.task });
+    let timer: ReturnType<typeof setTimeout>;
+    timer = setTimeout(() => {
+      if (this.taskTimer === timer) this.taskTimer = undefined;
+      if (this.destroyRef.destroyed || !this.matchesTaskDraft(snapshot)) return;
+      this.drafts.saveForSession('practice-task', snapshot, owner);
+    }, 800);
+    this.taskTimer = timer;
   }
   selectedEngagement() {
     return this.view.data()?.engagements.find((x) => x.id === this.task.engagement) ?? null;
@@ -427,7 +448,41 @@ export class PracticeTime implements NavigationProtected {
   }
   touchDraft(): void {
     clearTimeout(this.draftTimer);
-    this.draftTimer = setTimeout(() => this.drafts.save('practice-time-draft', this.draft), 800);
+    this.draftTimer = undefined;
+    const owner = this.draftOwner();
+    if (!owner) return;
+    const snapshot = Object.freeze({ ...this.draft });
+    let timer: ReturnType<typeof setTimeout>;
+    timer = setTimeout(() => {
+      if (this.draftTimer === timer) this.draftTimer = undefined;
+      if (this.destroyRef.destroyed || !this.matchesManualTimeDraft(snapshot)) return;
+      this.drafts.saveForSession('practice-time-draft', snapshot, owner);
+    }, 800);
+    this.draftTimer = timer;
+  }
+
+  private cancelAutosaves(): void {
+    clearTimeout(this.taskTimer);
+    clearTimeout(this.draftTimer);
+    this.taskTimer = undefined;
+    this.draftTimer = undefined;
+  }
+
+  private draftOwner(): DraftOwnerSnapshot | null {
+    const current = this.session.current();
+    return current ? Object.freeze({ firmId: current.firmId, userId: current.userId, generation: current.generation,
+      staff: current.staff, invalidation: this.session.invalidation() }) : null;
+  }
+
+  private matchesTaskDraft(snapshot: Readonly<PracticeTaskDraft>): boolean {
+    return this.task.title === snapshot.title && this.task.period === snapshot.period && this.task.engagement === snapshot.engagement &&
+      this.task.phase === snapshot.phase && this.task.fsli === snapshot.fsli && this.task.due === snapshot.due;
+  }
+
+  private matchesManualTimeDraft(snapshot: Readonly<PracticeManualTimeDraft>): boolean {
+    return this.draft.task === snapshot.task && this.draft.date === snapshot.date && this.draft.startTime === snapshot.startTime &&
+      this.draft.minutes === snapshot.minutes && this.draft.role === snapshot.role && this.draft.activity === snapshot.activity &&
+      this.draft.billable === snapshot.billable && this.draft.narrative === snapshot.narrative;
   }
 
   readonly approvalNavigationBlocked = computed(() => this.view.loading() || this.cmd.busy() || !!this.returningTimeId() || !!this.activeTimeChange());
