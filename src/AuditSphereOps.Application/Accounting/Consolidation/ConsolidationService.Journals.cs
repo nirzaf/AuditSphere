@@ -110,7 +110,21 @@ public static partial class ConsolidationService
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     if (freshJournal is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var journal = TrackFreshJournal(db, freshJournal);
+    if (db is not DbContext context)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "The consolidation journal cannot be safely refreshed in this context.");
+    var journalEntry = context.ChangeTracker.Entries<ConsolidationJournal>()
+      .SingleOrDefault(x => x.Entity.Id == freshJournal.Id);
+    ConsolidationJournal journal;
+    if (journalEntry is not null)
+    {
+      if (journalEntry.State != EntityState.Unchanged)
+        return CommandResult.Fail(ErrorCodes.StaleRevision, "The consolidation journal has pending changes; reload before approval.");
+      journalEntry.CurrentValues.SetValues(freshJournal);
+      journalEntry.OriginalValues.SetValues(freshJournal);
+      journal = journalEntry.Entity;
+    }
+    else
+      journal = db.ConsolidationJournals.Attach(freshJournal).Entity;
     if (journal.Status != AccountingWorkflowStates.Submitted || journal.CreatedByUserId == actor.UserId ||
         journal.ApprovedByUserId is not null || journal.ApprovedAt is not null)
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Only a separate reviewer can approve a submitted consolidation journal.");
@@ -187,16 +201,6 @@ public static partial class ConsolidationService
     return cause is DbException && causeType.FullName == "Npgsql.PostgresException" &&
       causeType.GetProperty("SqlState")?.GetValue(cause) is "23505" &&
       causeType.GetProperty("ConstraintName")?.GetValue(cause) is "pk_consolidation_match_reservations";
-  }
-
-  private static ConsolidationJournal TrackFreshJournal(
-    IClientAccountingDbContext db, ConsolidationJournal fresh)
-  {
-    var tracked = db.ConsolidationJournals.Local.SingleOrDefault(x => x.Id == fresh.Id);
-    if (tracked is not null)
-      db.ConsolidationJournals.Local.Remove(tracked);
-    db.ConsolidationJournals.Attach(fresh);
-    return fresh;
   }
 
   /// <summary>Reviewer return: a submitted group journal goes back to the preparer with a
