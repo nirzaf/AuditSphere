@@ -158,7 +158,7 @@ Preserve the repository's established project-reference pattern when implementin
 
 ### ARCH-02 Version baseline and compatibility
 
-The supplied .NET 10 / C# 14, EF Core 10, Angular 22 / Material-CDK and PostgreSQL 18 stack is a viable retained baseline. Microsoft lists .NET 10 as LTS through 14 November 2028; the official PostgreSQL release notes confirm 18.6 is a released version. Pin exact compatible SDK, framework, Npgsql provider, Node, TypeScript and package-lock versions after inspecting the repository. Do not upgrade merely to make a document say “latest”. [R1](#ref-dotnet) [R2](#ref-angular) [R3](#ref-postgres)
+This section's original .NET 10 / C# 14, Angular 22 and PostgreSQL 18 version baseline is a proposal-era compatibility note prepared on 24 October 2026, not current implementation status or an approved framework target. The verified repository stack at `ba6c2fb5083b5bb020b88ffe817cb2298996c5a5` is .NET 11 / C# 15, ASP.NET Core 11, EF Core 10.0.12 / Npgsql 10.0.0, Angular 22.2.1 and PostgreSQL 19.x; see [current architecture](../architecture/auditsphere-architecture-current-architecture.md) and [README](../../README.md). The proposed behavior remains unapproved. Pin exact compatible dependencies only through an authorized source change and prove them in CI. [R1](#ref-dotnet) [R2](#ref-angular) [R3](#ref-postgres)
 
 At this review date the official Angular compatibility table lists Angular 22.0.x with Node `^22.22.3 || ^24.15.0 || ^26.0.0`, TypeScript `>=6.0.0 <6.1.0` and RxJS `^6.5.3 || ^7.4.0`. Use the row matching the exact installed Angular minor; these are compatibility ranges, not observed repository versions. Lock releases and prove the combination in CI.
 

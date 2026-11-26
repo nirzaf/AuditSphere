@@ -2,9 +2,9 @@
 
 Configuration is deployment-owned. Inject values through the approved secret/configuration store or process environment; do not commit production values. ASP.NET Core maps double underscores to nested keys, so `ExternalEffects__Enabled` means `ExternalEffects:Enabled`.
 
-## Application hosts (`AuditSphereOps.Api` primary · `AuditSphereOps.Web` rollback)
+## Application host (`AuditSphereOps.Api` serving Angular)
 
-The source defaults are in the primary Api [`appsettings.json`](https://github.com/nirzaf/AuditSphere/blob/master/src/AuditSphereOps.Api/appsettings.json); the legacy Blazor rollback host uses the equivalent [`appsettings.json`](https://github.com/nirzaf/AuditSphere/blob/13f31321d9abc270703a3d6ac74a2ffe30b2efc3/src/AuditSphereOps.Web/appsettings.json). Both hosts read the same `Application`, `Setup`, `Identity`, `DataProtection`, `TenantConsent`, `DirectoryReader`, `SelectedSite`, `ExternalEffects`, `FeatureActivation`, `ReleaseSafety` and `Telemetry` key groups. The Api checked-in file omits `Identity`, `DataProtection` and `SelectedSite` sections because those are supplied only through the environment/secret store; the same keys apply to the primary Api host. Production must override local defaults explicitly.
+The source defaults are in the API [`appsettings.json`](../../src/AuditSphereOps.Api/appsettings.json). The former Blazor host is absent from the current project graph; the API host reads the `Application`, `Setup`, `Identity`, `DataProtection`, `TenantConsent`, `DirectoryReader`, `SelectedSite`, `ExternalEffects`, `FeatureActivation`, `ReleaseSafety` and `Telemetry` key groups. Its checked-in file omits `Identity`, `DataProtection` and `SelectedSite` sections because those are supplied only through the environment/secret store. Production must override local defaults explicitly.
 
 | Key | Development | Production requirement |
 | --- | --- | --- |
@@ -16,23 +16,23 @@ The source defaults are in the primary Api [`appsettings.json`](https://github.c
 | `Application__AllowSimulationAdapters` | `true` only for supported local development | `false`; production startup validation rejects simulation adapters |
 | `Identity__TenantId` | Usually unset when DevelopmentIdentity is used | Approved workforce tenant GUID |
 | `Identity__ClientId` | Usually unset when DevelopmentIdentity is used | Production web OIDC client ID |
-| `Identity__ClientSecret` | Never use a production value locally | Runtime-injected client secret from an approved secret store; the current web code consumes a secret value |
+| `Identity__ClientSecret` | Never use a production value locally | Runtime-injected client secret from an approved secret store; the current API host consumes a secret value |
 | `Identity__CallbackPath` | `/signin-oidc` | Exact path registered in Entra; default `/signin-oidc` |
 | `DataProtection__KeyDirectory` | Framework-managed local keys | Existing absolute directory for the persistent web key ring; grant only the authorized web instances access |
 | `DataProtection__CertificatePath` | Unset | Absolute path to the approved PKCS#12 certificate mount used to encrypt the key ring |
 | `DataProtection__CertificatePassword` | Unset | Inject privately from the approved secret store; never commit or log the value |
 | `DataProtection__PreviousCertificates__0__Path` | Unset | During rotation, mount the prior PKCS#12 certificate at an absolute path; add numbered entries for every still-required prior certificate |
 | `DataProtection__PreviousCertificates__0__Password` | Unset | Inject that prior certificate password privately; a partial entry refuses startup |
-| `ExternalEffects__Enabled` | `false` | Keep `false` until the approved live provider composition exists; current web code refuses startup with it enabled |
+| `ExternalEffects__Enabled` | `false` | Keep `false` until the approved live provider composition exists; current API code refuses startup with it enabled |
 | `ExternalEffects__DeploymentEpoch` | Unset or local | Positive deployment/recovery epoch when an approved live composition supports it |
-| `Telemetry__Otlp__Endpoint` | Unset is valid | Optional absolute HTTP(S) collector URL without embedded credentials, query or fragment; a malformed configured value refuses Web or Worker startup |
+| `Telemetry__Otlp__Endpoint` | Unset is valid | Optional absolute HTTP(S) collector URL without embedded credentials, query or fragment; a malformed configured value refuses API or Worker startup |
 
-Production application-host startup (primary Api; the Web rollback host behaves the same) rejects missing or invalid Data Protection settings or a current certificate without a currently usable private key. Use the same protected key directory and certificate profile on authorized instances of one installation; a different tenant or installation has a separate application namespace. The current implementation is in [`ProductionDataProtection.cs`](https://github.com/nirzaf/AuditSphere/blob/358ef694aee92aa8a9aa767b3eba75f2890bb083/src/AuditSphereOps.Web/Authentication/ProductionDataProtection.cs).
+Production API startup rejects missing or invalid Data Protection settings or a current certificate without a currently usable private key. Use the same protected key directory and certificate profile on authorized API instances of one installation; a different tenant or installation has a separate application namespace. The current implementation is in [ProductionDataProtection](../../src/AuditSphereOps.Api/Authentication/ProductionDataProtection.cs).
 
 ### Certificate rotation (administrator-only)
 
 1. In the approved private certificate mount and secret store, stage the replacement PKCS#12 and retain the existing certificate with its private key. Do not overwrite the old mount.
-2. Point `CertificatePath` and `CertificatePassword` to the replacement. Add each still-required old certificate as a numbered `PreviousCertificates` path/password pair. Apply the same profile to authorized Web instances and restart them. Expected: startup succeeds; if it refuses, restore the prior configuration while preserving the key ring and investigate privately.
+2. Point `CertificatePath` and `CertificatePassword` to the replacement. Add each still-required old certificate as a numbered `PreviousCertificates` path/password pair. Apply the same profile to authorized API instances and restart them. Expected: startup succeeds; if it refuses, restore the prior configuration while preserving the key ring and investigate privately.
 3. In the deployment rehearsal, verify existing protected sessions remain readable and new Data Protection keys are encrypted to the replacement. Keep prior keys and certificates under approved custody until the recovery and expiration policy permits retirement; early removal can make protected data unreadable. Backup, access, rotation, and restore remain unverified for production until recorded in deployment evidence.
 
 ## Protected one-time setup
@@ -65,13 +65,13 @@ These are independent gates. `LiveAuditRelease=true` requires external effects a
 
 ## Records settings
 
-There is currently no `Records:*` appsettings section consumed by the web or worker startup code. Records profiles and actions are persisted in PostgreSQL and exposed through [`RecordsArchive.razor`](https://github.com/nirzaf/AuditSphere/blob/13f31321d9abc270703a3d6ac74a2ffe30b2efc3/src/AuditSphereOps.Web/Components/Pages/RecordsArchive.razor), [`RecordsArchiveService.cs`](https://github.com/nirzaf/AuditSphere/blob/13f31321d9abc270703a3d6ac74a2ffe30b2efc3/src/AuditSphereOps.Application/Records/RecordsArchiveService.cs), and the existing provider/evidence boundaries.
+There is currently no `Records:*` appsettings section consumed by the API or worker startup code. Records profiles and actions are persisted in PostgreSQL and exposed through the [Angular engagement archive handoff](../../src/AuditSphereOps.Ui/src/app/features/audit/engagement-archive-handoff.ts), [records endpoints](../../src/AuditSphereOps.Api/Ui/UiEndpoints.AuditRecords.cs), [RecordsArchiveService](../../src/AuditSphereOps.Application/Records/RecordsArchiveService.cs), and the existing provider/evidence boundaries.
 
 Do not invent `Records__ProfileId`, retention duration, label ID, or legal-hold settings and assume they work. Preserve exact uploaded evidence, SHA-256 identities, human decisions, and release/archive manifests. A saved local profile is not external provider acceptance.
 
 ## Worker (`AuditSphereOps.Worker`)
 
-The source defaults are in [`src/AuditSphereOps.Worker/appsettings.json`](https://github.com/nirzaf/AuditSphere/blob/13f31321d9abc270703a3d6ac74a2ffe30b2efc3/src/AuditSphereOps.Worker/appsettings.json).
+The source defaults are in the [Worker appsettings](../../src/AuditSphereOps.Worker/appsettings.json).
 
 ```text
 ConnectionStrings__AuditSphere=<runtime-injected-worker-connection>
@@ -85,7 +85,7 @@ Mail__Provider=GRAPH|SMTP|RESEND
 
 The worker validates a non-empty firm ID, a positive deployment epoch, bounded lease settings, and an approved environment/composition. Current code permits live effects only in an isolated `Acceptance` mail composition; ordinary production worker startup is intentionally refused until an approved live composition is implemented.
 
-The optional `Telemetry__Otlp__Endpoint` is validated identically by Web and Worker; an unset value leaves export disabled. The Web metrics pipeline includes built-in ASP.NET HTTP request measurements. The endpoint URL is not a place for credentials. See [`TelemetryEndpoint.cs`](https://github.com/nirzaf/AuditSphere/blob/831be33dd28eaa27e2b41725a93ae1c319716deb/src/AuditSphereOps.Application/Diagnostics/TelemetryEndpoint.cs). A configured exporter alone is not an accepted dashboard, alert, or privacy review.
+The optional `Telemetry__Otlp__Endpoint` is validated by API and Worker; an unset value leaves export disabled. The API metrics pipeline includes built-in ASP.NET HTTP request measurements. The endpoint URL is not a place for credentials. See [TelemetryEndpoint](../../src/AuditSphereOps.Application/Diagnostics/TelemetryEndpoint.cs). A configured exporter alone is not an accepted dashboard, alert, or privacy review.
 
 ### Mail provider settings
 

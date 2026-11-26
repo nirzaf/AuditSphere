@@ -18,7 +18,7 @@ The current code implements the local control plane:
 - records archive manifests, exact uploaded signed-document evidence, and append-only observations;
 - durable outbox/worker fencing, release-safety validation, and health probes.
 
-The Production application host — the ASP.NET Core `AuditSphereOps.Api` serving the Angular `AuditSphereOps.Ui` frontend (the legacy `AuditSphereOps.Web` Blazor Interactive Server composes the same API runtime and remains the rollback host while migration parity and retirement acceptance stay open) — refuses startup without complete OIDC settings (`Identity:TenantId`, `Identity:ClientId`, and `Identity:ClientSecret`) or the persistent, certificate-protected Data Protection profile in [Production Environment Settings](auditsphere-m365-reference-production-environment-current.md). Development/Test may use their explicitly configured local profiles. The current host composition intentionally refuses startup with `ExternalEffects:Enabled=true` until an approved live provider composition is supplied. The local Development/Test harness is not production acceptance. Live SharePoint effects, recovery, and independent review remain separate gates. Purview and eSignature provider integrations are outside the approved product scope.
+The Production application host is the ASP.NET Core `AuditSphereOps.Api`, which serves the Angular `AuditSphereOps.Ui` frontend; the former Blazor `AuditSphereOps.Web` host was removed from the project graph. The API refuses startup without complete OIDC settings (`Identity:TenantId`, `Identity:ClientId`, and `Identity:ClientSecret`) or the persistent, certificate-protected Data Protection profile in [Production Environment Settings](auditsphere-m365-reference-production-environment-current.md). Development/Test may use their explicitly configured local profiles. The current host composition intentionally refuses startup with `ExternalEffects:Enabled=true` until an approved live provider composition is supplied. The local Development/Test harness is not production acceptance. Live SharePoint effects, recovery, and independent review remain separate gates. Purview and eSignature provider integrations are outside the approved product scope.
 
 ## Deployment order
 
@@ -26,14 +26,14 @@ The Production application host — the ASP.NET Core `AuditSphereOps.Api` servin
 2. Register the Microsoft Entra web application and configure exact OIDC settings. See [Production Entra ID Configuration](auditsphere-m365-runbook-client-tenant-current.md).
 3. Keep the web and worker processes separated. Give document/records workers only approved selected-resource permissions. See [Production SharePoint Configuration](auditsphere-m365-sharepoint-runbook-current.md).
 4. Start with `ExternalEffects__Enabled=false`; run database migrations and local health checks.
-5. Use `/ui/setup/microsoft365` for the one-time owner bootstrap (the Blazor rollback host serves the same flow at `/setup/microsoft365`). This route records a local draft; it does not grant Entra, Graph, or SharePoint permissions.
+5. Use the canonical `/setup/microsoft365` Angular route for the one-time owner bootstrap. The `/ui/setup/microsoft365` compatibility route is also served. This route records a local draft; it does not grant Entra, Graph, or SharePoint permissions.
 6. The authorized Microsoft administrator performs consent and selected-resource grants outside the application. Record the exact tenant, app, site/library/root, role, owner, and date in the deployment evidence store.
 7. Run positive and negative provider tests with the exact runtime identity and resource bindings. Do not convert a successful consent screen or local simulation into a production pass.
 8. Run the [Production Readiness Checklist](auditsphere-deployment-readiness-checklist-current.md), obtain independent approvals, and only then activate the approved provider composition.
 
 ## One-time tenant administrator onboarding
 
-The protected routes are served by the primary Angular host under `/ui/setup/microsoft365` and `/ui/app/administration/microsoft365`. The equivalent Blazor rollback implementation and the Application services are in [`Microsoft365Setup.razor`](https://github.com/nirzaf/AuditSphere/blob/dd5425d/src/AuditSphereOps.Web/Components/Pages/Microsoft365Setup.razor), [`Microsoft365OnboardingService.cs`](https://github.com/nirzaf/AuditSphere/blob/dd5425d/src/AuditSphereOps.Application/Microsoft365/Microsoft365OnboardingService.cs), and [`Microsoft365ConfigurationService.cs`](https://github.com/nirzaf/AuditSphere/blob/13f31321d9abc270703a3d6ac74a2ffe30b2efc3/src/AuditSphereOps.Application/Microsoft365/Microsoft365ConfigurationService.cs).
+The protected setup and administration routes are served by Angular and the API. Their current owners are the [Angular route table](../../src/AuditSphereOps.Ui/src/app/app.routes.ts), [initial administrator page](../../src/AuditSphereOps.Ui/src/app/features/admin/bootstrap.ts), [setup endpoints](../../src/AuditSphereOps.Api/Ui/UiEndpoints.TenantSetup.cs), [onboarding service](../../src/AuditSphereOps.Application/Microsoft365/Microsoft365OnboardingService.cs), and [Microsoft 365 configuration service](../../src/AuditSphereOps.Application/Microsoft365/Microsoft365ConfigurationService.cs).
 
 1. The installation owner creates a strong out-of-band bootstrap proof and stores only its hash in `Setup:BootstrapProofHash`.
 2. The owner gives the proof to the nominated administrator through an approved secure channel. Do not place it in the Wiki, an issue, a URL, or browser storage.
@@ -70,12 +70,12 @@ Authentication and authorization are separate:
 - Entra authentication establishes the tenant/object identity.
 - `RoleAdministrationService` creates or revokes local application grants; it never creates Entra directory roles.
 - Every command/query checks the actor's firm, client, and engagement scope before resolving business data or requesting provider bytes.
-- Supported role codes currently include `Administrator`, `Partner`, `Manager`, `Senior`, `Staff`, `RelationshipManager`, `FinanceManager`, `FinanceReviewer`, and `ClientUser`.
+- The complete supported role catalogue and its exact authorization boundaries are maintained in the [current roles and privileges reference](../architecture/auditsphere-architecture-user-roles-and-privileges-current.md).
 - Grants use an explicit `FIRM_WIDE`, `CLIENT`, or `ENGAGEMENT` scope with matching identifiers. An empty scope never means firm-wide.
 - Grant changes increment session state, retain evidence, prevent self-elevation, and protect the last firm administrator.
 - A client/engagement grant does not grant sibling clients, sibling engagements, shared permanent records, or direct SharePoint rights automatically.
 
-The implementation is in [`RoleAdministrationService.cs`](https://github.com/nirzaf/AuditSphere/blob/13f31321d9abc270703a3d6ac74a2ffe30b2efc3/src/AuditSphereOps.Application/Security/RoleAdministrationService.cs), [`AuthorizationDecision.cs`](https://github.com/nirzaf/AuditSphere/blob/13f31321d9abc270703a3d6ac74a2ffe30b2efc3/src/AuditSphereOps.Application/Security/AuthorizationDecision.cs), and [`TrustedActorResolver.cs`](https://github.com/nirzaf/AuditSphere/blob/13f31321d9abc270703a3d6ac74a2ffe30b2efc3/src/AuditSphereOps.Web/Authentication/TrustedActorResolver.cs).
+The implementation is in [RoleAdministrationService](../../src/AuditSphereOps.Application/Security/RoleAdministrationService.cs), [AuthorizationDecision](../../src/AuditSphereOps.Application/Security/AuthorizationDecision.cs), and the API's [TrustedActorResolver](../../src/AuditSphereOps.Api/Authentication/TrustedActorResolver.cs).
 
 ## External-effects rule
 

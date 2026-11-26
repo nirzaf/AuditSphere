@@ -1,6 +1,6 @@
 # AuditSphere — Enterprise Target Architecture Specification
 
-**Status: PROPOSED.** Repository-grounded target: retain and harden the implemented .NET 10 + Angular 22 + PostgreSQL 18 modular monolith. This document proposes no framework rewrite and changes no `CURRENT`/`APPROVED` authority. Binding architecture remains [current architecture](auditsphere-architecture-current-architecture.md); binding rules remain [AGENTS.md](../../AGENTS.md); verified state remains [status.json](../execution/status.json). Sections marked *(adopt)* become enforceable only through an approved ADR and a verified slice.
+**Status: PROPOSED.** This proposal's original stack description was drafted against the October 2026 .NET 10/Angular 22/PostgreSQL 18 baseline; it is historical context, not current implementation status. The repository's verified stack at `ba6c2fb5083b5bb020b88ffe817cb2298996c5a5` is .NET 11/C# 15, ASP.NET Core 11, Angular 22.2.1, EF Core 10.0.12/Npgsql 10.0.0, and PostgreSQL 19.x. This document proposes no framework rewrite and changes no `CURRENT`/`APPROVED` authority. Binding architecture remains [current architecture](auditsphere-architecture-current-architecture.md); binding rules remain [AGENTS.md](../../AGENTS.md); observed state remains [status.json](../execution/status.json). Sections marked *(adopt)* become enforceable only through an approved ADR and a verified slice.
 
 ## 1. Retain decision
 
@@ -12,7 +12,7 @@ flowchart LR
   A -->|static capability services| APP["Application \u2014 commands, queries, RoleGrants"]
   APP --> D["Domain \u2014 pure models, calculators"]
   APP --> I["Infrastructure \u2014 EF Core 10, Npgsql, partial DbContext"]
-  I --> DB[("PostgreSQL 18.6 \u2014 append-only evidence")]
+  I --> DB[("PostgreSQL 19.x \u2014 repository target; append-only evidence")]
   A -->|enqueue| DB
   W["Worker \u2014 durable outbox"] -->|SKIP LOCKED claims| DB
   A -.->|fail-closed| X["Graph/SharePoint \u2014 BLOCKED_EXTERNAL"]

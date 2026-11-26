@@ -16,15 +16,13 @@ Use this checklist in order. Mark an item complete only with observed evidence f
 - [ ] PostgreSQL backup and restore owner are named.
 - [ ] Connection uses the approved production database and TLS/credential policy.
 - [ ] Review migration SQL before application; do not allow startup to silently apply destructive DDL.
-- [ ] Apply migrations with the controlled deployment command:
+- [ ] Apply migrations only through the approved source-bound deployment procedure and its migration service. For Hostinger acceptance Compose, follow the [deployment runbook](../../infra/hostinger-acceptance/auditsphere-deployment-hostinger-acceptance-current.md), verify image pins and recovery prerequisites, then run the existing migration service:
 
   ```bash
-  dotnet ef database update \
-    --project src/AuditSphereOps.Infrastructure \
-    --startup-project src/AuditSphereOps.Api
+  docker compose --profile migration run --rm migrate
   ```
 
-  Use the primary Api host as the startup project (the legacy `AuditSphereOps.Web` rollback host also works).
+  Do not point a local `dotnet ef database update` command at production. Run `dotnet ef migrations has-pending-model-changes` only as a source/model check; it does not establish live database migration state.
 
 - [ ] Run `dotnet ef migrations has-pending-model-changes` against the intended source/configuration.
 - [ ] Verify schema version, migration history, database ownership, indexes, and backup coverage.

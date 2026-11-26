@@ -231,13 +231,13 @@ The **Angular UI is canonical**. The former Blazor/Web rollback host was physica
 
 ### 1. Toolchain
 
-Use the **exact versions pinned by this checkout**, not whichever SDK is newest.
+Use the exact versions pinned by the reviewed committed source baseline, not whichever SDK is newest. Individual worktree dependency edits are not a supported baseline until the lockfiles and CI evidence are synchronized.
 
 | Tool | Repository pin or requirement |
 | --- | --- |
 | .NET SDK | **11.0.100** (STS), exact match via `global.json` |
 | C# | **15** by default for `net11.0`. Nullable references and warnings as errors are enabled centrally. |
-| EF Core / Npgsql | EF Core and `dotnet-ef` **10.0.12**, Npgsql EF provider **10.0.0**. Upgrade the EF packages, provider and tool together once the stable provider supports the next major. |
+| EF Core / Npgsql | EF Core **10.0.12**, Npgsql EF provider and driver **10.0.0**, and `dotnet-ef` **10.0.12**, from central package/tool pins and locked restores. |
 | Node.js | **26.13.0 (LTS)** from `src/AuditSphereOps.Ui/.nvmrc` |
 | npm | **11.20.0** declared in Angular `package.json` |
 | Angular / Material/CDK | **22.2.1** dependency pins; Angular CLI **22.2.3** |

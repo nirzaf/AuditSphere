@@ -79,9 +79,9 @@ Registered Administrator oversight GETs are gated at response publication by `Ui
 ## 3. Rate-Limit Policy Catalog
 
 Native ASP.NET Core rate limiting (`AddRateLimiter`/`UseRateLimiter`) is configured as one
-chained global limiter (`src/AuditSphereOps.Api/HttpBoundary/ApiRateLimiter.cs`) — .NET 10
-removed the partition factories that return chained limiters, so the chain lives at the global
-level and each stage no-ops outside its class. Only `/api` and `/auth` paths are limited;
+chained global limiter (`src/AuditSphereOps.Api/HttpBoundary/ApiRateLimiter.cs`). The repository
+targets ASP.NET Core 11; the limiter chain is global because partition factories cannot return
+chained policies, and each stage no-ops outside its class. Only `/api` and `/auth` paths are limited;
 static assets, health probes and the SPA shell are not.
 
 | Class | Window (per identity) | Concurrency | Assignment |

@@ -7,7 +7,7 @@
 | **Date** | 25 October 2026 |
 | **Repository** | [`nirzaf/AuditSphere`](https://github.com/nirzaf/AuditSphere) |
 | **Inspected source baseline** | `master` at `afc52301d9ccf9349af30c6c69cd9d28b6fadb36`; recheck the implementation checkout before edits |
-| **Technology** | Retain existing .NET 10 / ASP.NET Core / Angular / EF Core / PostgreSQL / isolated .NET Worker |
+| **Technology** | The inspected October 2026 source baseline is historical. Current repository stack at `ba6c2fb5083b5bb020b88ffe817cb2298996c5a5`: .NET 11 / ASP.NET Core 11, Angular 22.2.1, EF Core 10.0.12 / Npgsql 10.0.0, PostgreSQL 19.x, isolated .NET Worker. This proposal remains unapproved. |
 | **Primary goal** | Store **working-document bytes** in existing SharePoint and **document metadata** in PostgreSQL, allowing safe reclamation of no-longer-needed VPS staging files |
 | **Hard requirement** | **No business-function, UI-flow, SharePoint provisioning, access/permission, identity, folder-structure, approval, archive, API-route or integration-policy changes** |
 | **Evidence level** | Targeted code and requirements inspection. No tests, real-tenant operations, disk cleanup or deployment performed for this revision |
@@ -331,7 +331,7 @@ No new decision is needed to reverse ADR-0006, because **ADR-0006 is not being c
 ## 17. Codex/AI-agent execution brief
 
 ```text
-Project: nirzaf/AuditSphere (existing .NET 10 + Angular + PostgreSQL).
+Project context at the inspected 2026-10-25 source baseline: AuditSphere (.NET 10 + Angular + PostgreSQL). That version description is historical; see the current stack in the table above. This proposal remains unapproved.
 Assignment: SharePoint-primary WORKING DOCUMENT STORAGE, STRICT FUNCTIONAL PARITY.
 Read current AGENTS.md, approved ADR-0006/ADR-0009 and the code map before edits.
 Re-check actual checkout against inspected baseline afc52301d9ccf9349af30c6c69cd9d28b6fadb36.

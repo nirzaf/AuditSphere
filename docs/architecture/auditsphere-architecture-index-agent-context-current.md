@@ -1,12 +1,12 @@
 # AuditSphere architecture guide
 
-**Status: CURRENT · Consolidated architecture navigation · Reconciled 2026-11-08**
+**Status: CURRENT · Consolidated architecture navigation · Reconciled 2026-11-26**
 
 This page is a category guide, not an approval source. Follow [`AGENTS.md`](../../AGENTS.md), the current architecture, and each applicable ADR's own status. The [documentation index](../auditsphere-docs-index.md) defines document authority and the wider category map.
 
 ## Runtime and code ownership
 
-AuditSphere is a .NET modular monolith with an ASP.NET Core API, Angular 22 UI, PostgreSQL persistence, and a .NET worker. Business rules, authorization, and state transitions remain in Domain/Application; Infrastructure owns EF Core and providers; API owns authenticated HTTP/OpenAPI boundaries; Angular presents server-authorized projections; Worker owns durable background processing. See the [current architecture](auditsphere-architecture-current-architecture.md) and [capability code map](auditsphere-architecture-code-map.md) for implementation ownership.
+The committed `master` source reviewed on 2026-11-26 targets .NET 11/C# 15 and ASP.NET Core 11, Angular 22.2.1, EF Core 10.0.12/Npgsql 10.0.0, PostgreSQL 19.x, and a .NET worker. It is a modular monolith: business rules, authorization, and state transitions remain in Domain/Application; Infrastructure owns EF Core and providers; API owns authenticated HTTP/OpenAPI boundaries; Angular presents server-authorized projections; Worker owns durable background processing. Exact source pins are in [`global.json`](../../global.json), [`Directory.Packages.props`](../../Directory.Packages.props), the Angular [`package.json`](../../src/AuditSphereOps.Ui/package.json), and [`README.md`](../../README.md). See the [current architecture](auditsphere-architecture-current-architecture.md) and [capability code map](auditsphere-architecture-code-map.md) for implementation ownership.
 
 Preserve three separate financial domains: the firm's own ledger, each client's accounting books, and group consolidation. Consolidation does not post to component books; client books do not post into the firm's ledger. VAT/tax is separately scoped. Payments, external filing, payroll execution, procurement, and inventory are not implied by a practice-management feature.
 
