@@ -62,7 +62,19 @@ public sealed class BillingWorkspaceApiTests
     Assert.Empty(initial.GetProperty("creditNotes").EnumerateArray());
 
     var receiptRequestId = Guid.NewGuid();
-    var receiptBody = new { requestId = receiptRequestId, amount = "40.125", reference = "SYN-BANK-001", reviewed = true };
+    const string receivedAtWire = "2026-11-27T08:15:20.345Z";
+    var expectedReceivedAt = DateTimeOffset.ParseExact(receivedAtWire, "yyyy-MM-dd'T'HH:mm:ss.fff'Z'",
+      CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
+    foreach (var invalidReceivedAt in new[] { "2026-11-27T08:15:20.345+03:00", "2026-11-27T08:15:20Z" })
+    {
+      using var invalidReceipt = await PostAsync(client, $"/api/ui/finance/billing-accounts/{accountId:D}/receipts",
+        JsonContent.Create(new { requestId = Guid.NewGuid(), amount = "1", reference = "SYN-INVALID-DATE", reviewed = true, receivedAt = invalidReceivedAt }), proof);
+      Assert.Equal(HttpStatusCode.BadRequest, invalidReceipt.StatusCode);
+      Assert.Equal("billing.invalid", (await invalidReceipt.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+    }
+    await using (var noInvalidReceipt = new AuditSphereDbContext(pg.Options))
+      Assert.Empty(await noInvalidReceipt.Receipts.AsNoTracking().ToListAsync());
+    var receiptBody = new { requestId = receiptRequestId, amount = "40.125", reference = "SYN-BANK-001", reviewed = true, receivedAt = receivedAtWire };
     Assert.Equal(HttpStatusCode.Forbidden,
       (await PostAsync(client, $"/api/ui/finance/billing-accounts/{accountId:D}/receipts", JsonContent.Create(receiptBody), null)).StatusCode);
     using var recorded = await PostAsync(client, $"/api/ui/finance/billing-accounts/{accountId:D}/receipts", JsonContent.Create(receiptBody), proof);
@@ -78,6 +90,11 @@ public sealed class BillingWorkspaceApiTests
     using var receiptConflict = await PostAsync(client, $"/api/ui/finance/billing-accounts/{accountId:D}/receipts",
       JsonContent.Create(new { requestId = receiptRequestId, amount = "40.13", reference = "SYN-BANK-001", reviewed = true }), proof);
     Assert.Equal(HttpStatusCode.Conflict, receiptConflict.StatusCode);
+    using var receivedAtConflict = await PostAsync(client, $"/api/ui/finance/billing-accounts/{accountId:D}/receipts",
+      JsonContent.Create(new { requestId = receiptRequestId, amount = "40.125", reference = "SYN-BANK-001", reviewed = true, receivedAt = "2026-11-27T08:15:20.346Z" }), proof);
+    Assert.Equal(HttpStatusCode.Conflict, receivedAtConflict.StatusCode);
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      Assert.Equal(expectedReceivedAt, (await db.Receipts.AsNoTracking().SingleAsync(x => x.Id == receiptId)).ReceivedAt);
 
     var allocationBody = new { requestId = Guid.NewGuid(), invoiceId, amount = "25.125", reviewed = true };
     Assert.Equal(HttpStatusCode.Forbidden,

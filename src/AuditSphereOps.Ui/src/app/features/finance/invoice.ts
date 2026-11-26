@@ -8,6 +8,16 @@ import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
 
 const positiveAmount = Validators.pattern(/^\d+(?:\.\d{1,6})?$/);
+const receivedAtUtcPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}$/;
+const currentUtcDateTimeLocal = (): string => new Date().toISOString().slice(0, 23);
+const receivedAtUtcValue = (value: unknown): string | null => {
+  if (typeof value !== 'string' || !receivedAtUtcPattern.test(value)) return null;
+  const parsed = new Date(`${value}Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 23) === value
+    ? `${value}Z`
+    : null;
+};
+const receivedAtUtc = (control: AbstractControl) => receivedAtUtcValue(control.value) ? null : { receivedAtUtc: true };
 
 const invoiceLine = obj({ id: nullable(guid), description: text, quantity: dec, unitPrice: dec, lineTotal: dec,
   source: nullable(obj({ lineId: guid, kind: oneOf('MANUAL', 'FEE_MILESTONE', 'TIME', 'SOURCE'),
@@ -176,8 +186,12 @@ type PendingBillingCommand = { requestId: string; url: string; body: Record<stri
             <label for="receipt-reference">Bank or cheque transaction reference</label>
             <input id="receipt-reference" formControlName="reference" maxlength="200" autocomplete="off" />
             @if (receiptForm.controls.reference.touched && receiptForm.controls.reference.invalid) { <p role="alert">Enter a transaction reference up to 200 characters.</p> }
-            <p>Review: record {{ receiptForm.controls.amount.value || '—' }} {{ i.currency ?? '' }} against {{ i.invoiceNumber }}'s billing account, reference “{{ receiptForm.controls.reference.value || '—' }}”.</p>
-            <label class="check"><input type="checkbox" formControlName="reviewed" /> I reviewed the payment amount and transaction reference.</label>
+            <label for="receipt-received-at">Received at (UTC)</label>
+            <input id="receipt-received-at" type="datetime-local" step="0.001" formControlName="receivedAt" />
+            <small>Enter the time as UTC. The displayed clock fields are sent with a Z suffix and are not converted from your browser's local timezone.</small>
+            @if (receiptForm.controls.receivedAt.touched && receiptForm.controls.receivedAt.invalid) { <p role="alert">Enter a valid UTC receipt time, including milliseconds.</p> }
+            <p>Review: record {{ receiptForm.controls.amount.value || '—' }} {{ i.currency ?? '' }} against {{ i.invoiceNumber }}'s billing account, reference “{{ receiptForm.controls.reference.value || '—' }}”, received {{ receiptForm.controls.receivedAt.value || '—' }} UTC.</p>
+            <label class="check"><input type="checkbox" formControlName="reviewed" /> I reviewed the amount, transaction reference and received time.</label>
             <button matButton="filled" type="submit" [disabled]="busy() || uncertain() || receiptForm.invalid">Record receipt</button>
           </form>
           </details>
@@ -336,7 +350,7 @@ export class InvoiceDetail {
   readonly pendingBillingCommand = signal<PendingBillingCommand | null>(null);
   readonly message = signal('');
   readonly failed = signal(false);
-  readonly receiptForm = this.fb.group({ amount: ['', [Validators.required, positiveAmount]], reference: ['', [Validators.required, Validators.maxLength(200)]], reviewed: [false, Validators.requiredTrue] });
+  readonly receiptForm = this.fb.group({ amount: ['', [Validators.required, positiveAmount]], reference: ['', [Validators.required, Validators.maxLength(200)]], receivedAt: [currentUtcDateTimeLocal(), [Validators.required, receivedAtUtc]], reviewed: [false, Validators.requiredTrue] });
   readonly allocationForm = this.fb.group({ receiptId: ['', Validators.required], amount: ['', [Validators.required, positiveAmount]], reviewed: [false, Validators.requiredTrue] });
   readonly creditForm = this.fb.group({ noteNumber: ['', [Validators.required, Validators.maxLength(64)]], amount: ['', [Validators.required, positiveAmount]], reason: ['', [Validators.required, Validators.maxLength(1000)]], reviewed: [false, Validators.requiredTrue] });
   readonly termsForm = this.fb.group({ dueDate: ['', Validators.required], basis: ['CONTRACTUAL_DUE_DATE', Validators.required],
@@ -556,8 +570,10 @@ export class InvoiceDetail {
     if (this.receiptForm.invalid || this.busy() || this.uncertain()) { this.receiptForm.markAllAsTouched(); return; }
     const input = this.receiptForm.getRawValue();
     const requestId = crypto.randomUUID();
-    await this.run(`/api/ui/finance/billing-accounts/${i.billingAccountId}/receipts`, { ...input, requestId },
-      'Receipt recorded. Refresh or allocate it to a posted invoice when ready.', () => this.receiptForm.reset({ amount: '', reference: '', reviewed: false }));
+    const receivedAt = receivedAtUtcValue(input.receivedAt);
+    if (!receivedAt) { this.receiptForm.controls.receivedAt.markAsTouched(); return; }
+    await this.run(`/api/ui/finance/billing-accounts/${i.billingAccountId}/receipts`, { ...input, receivedAt, requestId },
+      'Receipt recorded. Refresh or allocate it to a posted invoice when ready.', () => this.receiptForm.reset({ amount: '', reference: '', receivedAt: currentUtcDateTimeLocal(), reviewed: false }));
   }
 
   async allocate(i: ReturnType<typeof decodeInvoice>): Promise<void> {
@@ -700,7 +716,7 @@ export class InvoiceDetail {
   }
 
   private resetVisitDrafts(): void {
-    this.receiptForm.reset({ amount: '', reference: '', reviewed: false });
+    this.receiptForm.reset({ amount: '', reference: '', receivedAt: currentUtcDateTimeLocal(), reviewed: false });
     this.allocationForm.reset({ receiptId: '', amount: '', reviewed: false });
     this.creditForm.reset({ noteNumber: '', amount: '', reason: '', reviewed: false });
     this.termsForm.reset({ dueDate: '', basis: 'CONTRACTUAL_DUE_DATE', termsDescription: '', evidenceReference: '', reviewed: false });
@@ -713,7 +729,7 @@ export class InvoiceDetail {
 
   clearUnresolved(): void {
     if (!this.reconciliationLoaded() || this.busy() || this.pendingBillingCommand()) return;
-    this.receiptForm.reset({ amount: '', reference: '', reviewed: false });
+    this.receiptForm.reset({ amount: '', reference: '', receivedAt: currentUtcDateTimeLocal(), reviewed: false });
     this.allocationForm.reset({ receiptId: '', amount: '', reviewed: false });
     this.creditForm.reset({ noteNumber: '', amount: '', reason: '', reviewed: false });
     this.termsForm.reset({ dueDate: '', basis: 'CONTRACTUAL_DUE_DATE', termsDescription: '', evidenceReference: '', reviewed: false });

@@ -23,7 +23,7 @@ public static partial class UiEndpoints
   public sealed record FirmJournalActionInput(bool Confirmed);
   public sealed record FiscalCloseInput(string Reason);
   public sealed record ReversePostingInput(Guid PeriodId, string Reason);
-  public sealed record ReceiptInput(Guid RequestId, string Amount, string Reference, bool Reviewed);
+  public sealed record ReceiptInput(Guid RequestId, string Amount, string Reference, bool Reviewed, string? ReceivedAt = null);
   public sealed record ReceiptAllocationInput(Guid RequestId, Guid InvoiceId, string Amount, bool Reviewed);
   public sealed record CreditNoteInput(Guid RequestId, string NoteNumber, string Amount, string Reason, bool Reviewed);
   public sealed record PaymentTermsInput(DateOnly DueDate, string Basis, string TermsDescription, string EvidenceReference, long ExpectedRevision, bool Reviewed);
@@ -31,6 +31,21 @@ public static partial class UiEndpoints
   public sealed record AllocationReversalInput(string Amount, string Reference, string Reason, long ExpectedRevision, bool Reviewed);
   public sealed record AllocationReversalReviewInput(bool Approve, string Reason, bool Reviewed);
   public sealed record ReceivablesAgingExportInput(string AsOfDate);
+
+  internal static bool TryReceivedAtUtc(string? value, out DateTimeOffset? receivedAt)
+  {
+    receivedAt = null;
+    if (value is null) return true;
+    const string format = "yyyy-MM-dd'T'HH:mm:ss.fff'Z'";
+    if (value.Length != 24 ||
+        !DateTimeOffset.TryParseExact(value, format, CultureInfo.InvariantCulture,
+          DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed) ||
+        parsed.Offset != TimeSpan.Zero ||
+        !string.Equals(parsed.ToString(format, CultureInfo.InvariantCulture), value, StringComparison.Ordinal))
+      return false;
+    receivedAt = parsed;
+    return true;
+  }
   public sealed record FinanceWorkspaceResponse(
     bool CanCreateSetup, bool CanClosePeriod, bool CanReviewJournals, bool CanPostJournals,
     bool CanCreateJournals, bool CanReversePostings, bool CanReopenPeriod,
@@ -282,9 +297,11 @@ public static partial class UiEndpoints
       {
         if (input.RequestId == Guid.Empty)
           return Task.FromResult(CommandResult<Guid>.Fail("billing.command-invalid", "A valid billing request identity is required."));
-        if (!input.Reviewed || !TryDecimal(input.Amount, out var amount) || string.IsNullOrWhiteSpace(input.Reference) || input.Reference.Trim().Length > 200)
+        if (!input.Reviewed || !TryDecimal(input.Amount, out var amount) || string.IsNullOrWhiteSpace(input.Reference) || input.Reference.Trim().Length > 200 ||
+            !TryReceivedAtUtc(input.ReceivedAt, out var receivedAt))
           return Task.FromResult(CommandResult<Guid>.Fail("billing.invalid", "Review a positive receipt amount and a transaction reference of at most 200 characters."));
-        return BillingService.RecordReceiptAsync(db, actor, new RecordReceiptRequest(id, amount, input.Reference.Trim(), RequestId: input.RequestId), ct);
+        return BillingService.RecordReceiptAsync(db, actor,
+          new RecordReceiptRequest(id, amount, input.Reference.Trim(), receivedAt, input.RequestId), ct);
       })), includeConflict: true);
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<ReceiptAllocationCommandOutcome>>(group.MapPost("/finance/receipts/{id:guid}/allocations", (Guid id, ReceiptAllocationInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) =>

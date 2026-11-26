@@ -1624,8 +1624,8 @@ public sealed class CommercialWorkflowTests
     // Gate same-source callers before either can observe the payment source. Both payment
     // kinds use the same firm-fence and recovery assertions.
     async Task<(CommandResult<AdvancePaymentOutcome> Manager, CommandResult<AdvancePaymentOutcome> Reviewer)> RunConcurrentPaymentAsync(
-      Func<AuditSphereDbContext, ActorContext, decimal, string, CancellationToken, Task<CommandResult<AdvancePaymentOutcome>>> recordPayment,
-      decimal amount, string reference)
+      Func<AuditSphereDbContext, ActorContext, decimal, string, DateTimeOffset?, CancellationToken, Task<CommandResult<AdvancePaymentOutcome>>> recordPayment,
+      decimal amount, string reference, DateTimeOffset? receivedAt = null)
     {
       var bothPaymentCallersBlocked = false;
       await using (var paymentGate = new AuditSphereDbContext(pg.Options))
@@ -1647,8 +1647,8 @@ public sealed class CommercialWorkflowTests
         {
           await paymentGate.FirmSafetyStates.FromSqlInterpolated(
             $"SELECT * FROM firm_safety_states WHERE id = {w.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(paymentTimeout.Token);
-          managerTask = recordPayment(managerPaymentDb, w.FinanceManager, amount, reference, paymentTimeout.Token);
-          reviewerTask = recordPayment(reviewerPaymentDb, w.FinanceReviewer, amount, reference, paymentTimeout.Token);
+          managerTask = recordPayment(managerPaymentDb, w.FinanceManager, amount, reference, receivedAt, paymentTimeout.Token);
+          reviewerTask = recordPayment(reviewerPaymentDb, w.FinanceReviewer, amount, reference, receivedAt, paymentTimeout.Token);
 
           var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
           while (DateTimeOffset.UtcNow < deadline)
@@ -1706,9 +1706,11 @@ public sealed class CommercialWorkflowTests
       }
     }
 
+    var advanceReceivedAt = new DateTimeOffset(2026, 11, 27, 8, 15, 20, 345, TimeSpan.Zero);
     var (partial, reviewerPartial) = await RunConcurrentPaymentAsync(
-      (paymentDb, actor, paymentAmount, reference, ct) => FeeAgreementService.RecordAdvancePaymentAsync(
-        paymentDb, actor, agreementId, paymentAmount, reference, ct: ct), 4000m, "TT-1");
+      (paymentDb, actor, paymentAmount, reference, receivedAt, ct) => FeeAgreementService.RecordAdvancePaymentAsync(
+        paymentDb, actor, agreementId, paymentAmount, reference, receivedAt: receivedAt, ct: ct),
+      4000m, "TT-1", advanceReceivedAt);
 
     Assert.True(partial.Succeeded, partial.Message);
     Assert.True(reviewerPartial.Succeeded, reviewerPartial.Message);
@@ -1723,9 +1725,13 @@ public sealed class CommercialWorkflowTests
     var partialAllocation = await db.ReceiptAllocations.AsNoTracking().SingleAsync(x =>
       x.FirmId == w.FirmId && x.ReceiptId == partial.Value.ReceiptId && x.InvoiceId == advanceInvoice.Value);
     Assert.Equal(4000m, partialAllocation.Amount);
+    Assert.Equal(advanceReceivedAt, (await db.Receipts.AsNoTracking().SingleAsync(x => x.Id == partial.Value.ReceiptId)).ReceivedAt);
     Assert.Equal(4000m, await BillingService.GetNetAppliedToInvoiceAsync(db, w.FirmId, advanceInvoice.Value));
-    var repeated = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 4000m, "TT-1");
+    var repeated = await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 4000m, "TT-1",
+      receivedAt: advanceReceivedAt);
     Assert.Equal(partial.Value.ReceiptId, repeated.Value!.ReceiptId);
+    Assert.Equal("fee.reference-conflict", (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager,
+      agreementId, 4000m, "TT-1", receivedAt: advanceReceivedAt.AddMilliseconds(1))).ErrorCode);
     Assert.Equal(1, await db.Receipts.CountAsync(x => x.FirmId == w.FirmId));
     Assert.Equal("fee.reference-conflict", (await FeeAgreementService.RecordAdvancePaymentAsync(db, w.FinanceManager, agreementId, 3999m, "TT-1")).ErrorCode);
     Assert.Equal(1, await db.Receipts.CountAsync(x => x.FirmId == w.FirmId));
@@ -2099,7 +2105,7 @@ public sealed class CommercialWorkflowTests
     // converge on one receipt, allocation, voucher, and settlement dispatch.
     var balanceMilestoneId = view.Milestones.Single(x => x.Milestone.Kind == FeeMilestoneKinds.Balance).Milestone.Id;
     var (balPaid, reviewerBalPaid) = await RunConcurrentPaymentAsync(
-      (paymentDb, actor, paymentAmount, reference, ct) => FeeAgreementService.RecordBalancePaymentAsync(
+      (paymentDb, actor, paymentAmount, reference, receivedAt, ct) => FeeAgreementService.RecordBalancePaymentAsync(
         paymentDb, actor, agreementId, paymentAmount, reference, ct: ct), 6000m, "TT-BAL-2");
     Assert.True(balPaid.Succeeded, balPaid.Message);
     Assert.True(reviewerBalPaid.Succeeded, reviewerBalPaid.Message);

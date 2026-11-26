@@ -14,7 +14,7 @@ public static partial class UiEndpoints
   internal static bool AutomaticDraftingEnabled(IConfiguration configuration) =>
     configuration.GetValue<bool>("AutomaticFeeInvoices:Enabled");
 
-  public sealed record FeePaymentInput(string Amount, string Reference, bool Reviewed);
+  public sealed record FeePaymentInput(string Amount, string Reference, bool Reviewed, string? ReceivedAt = null);
   public sealed record FeeLinkInput(Guid EngagementId, bool Reviewed);
   public sealed record FeeReviewInput(bool Reviewed);
   /// <summary>Describes the payment handler's existing flattened receipt and delivery fields.</summary>
@@ -100,9 +100,11 @@ public static partial class UiEndpoints
       try { await csrf.ValidateRequestAsync(http); }
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
       if (!input.Reviewed || !DecimalInput(input.Amount, out var amount) || string.IsNullOrWhiteSpace(input.Reference)
-        || input.Reference.Length > 120) return Results.Json(new { code = "request.invalid" }, statusCode: 400);
+        || input.Reference.Length > 120 || !TryReceivedAtUtc(input.ReceivedAt, out var receivedAt))
+        return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await FeeAgreementService.RecordAdvancePaymentAsync(db, actor, id, amount, input.Reference, ct: http.RequestAborted);
+      var result = await FeeAgreementService.RecordAdvancePaymentAsync(db, actor, id, amount, input.Reference,
+        receivedAt: receivedAt, ct: http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value!.ReceiptId, paid = result.Value.MilestonePaid,
         receiptDocumentId = result.Value.ReceiptDocumentId, emailQueued = result.Value.EmailQueued,
         voucherDocumentId = result.Value.VoucherDocumentId, voucherEmailQueued = result.Value.VoucherEmailQueued })
@@ -120,9 +122,11 @@ public static partial class UiEndpoints
       try { await csrf.ValidateRequestAsync(http); }
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
       if (!input.Reviewed || !DecimalInput(input.Amount, out var amount) || string.IsNullOrWhiteSpace(input.Reference)
-        || input.Reference.Length > 120) return Results.Json(new { code = "request.invalid" }, statusCode: 400);
+        || input.Reference.Length > 120 || !TryReceivedAtUtc(input.ReceivedAt, out var receivedAt))
+        return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
-      var result = await FeeAgreementService.RecordBalancePaymentAsync(db, actor, id, amount, input.Reference, ct: http.RequestAborted);
+      var result = await FeeAgreementService.RecordBalancePaymentAsync(db, actor, id, amount, input.Reference,
+        receivedAt: receivedAt, ct: http.RequestAborted);
       return result.Succeeded ? Results.Ok(new { id = result.Value!.ReceiptId, paid = result.Value.MilestonePaid,
         receiptDocumentId = result.Value.ReceiptDocumentId, emailQueued = result.Value.EmailQueued,
         voucherDocumentId = result.Value.VoucherDocumentId, voucherEmailQueued = result.Value.VoucherEmailQueued })

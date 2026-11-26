@@ -137,6 +137,7 @@ describe('Fee agreement contract', () => {
 });
 describe('Advance invoice preparation display', () => {
   function setup(dialogOpen = vi.fn()): HttpTestingController {
+    sessionStorage.clear();
     TestBed.configureTestingModule({
       imports: [FeeAgreement],
       providers: [
@@ -148,6 +149,7 @@ describe('Advance invoice preparation display', () => {
     return TestBed.inject(HttpTestingController);
   }
   afterEach(() => {
+    sessionStorage.clear();
     TestBed.inject(HttpTestingController).verify({ ignoreCancelled: true });
     TestBed.resetTestingModule();
   });
@@ -215,10 +217,12 @@ describe('Advance invoice preparation display', () => {
       const component = f.componentInstance;
       component.amount = '4000';
       component.reference = 'SYN-MILESTONE-' + kind + '-' + paid;
+      component.receivedAt = '2026-11-27T08:15:20.345';
       component.reviewed = true;
       component.payment(kind);
       const request = http.expectOne('/api/ui/fee-agreements/' + financeAgreementId + '/' + kind + '-payment');
       expect(request.request.body.reference).toBe(component.reference);
+      expect(request.request.body.receivedAt).toBe('2026-11-27T08:15:20.345Z');
       request.flush({ id, paid, emailQueued: paid, receiptDocumentId: paid ? id : null,
         voucherDocumentId: id, voucherEmailQueued: true });
       const expected = paid
@@ -232,6 +236,55 @@ describe('Advance invoice preparation display', () => {
       await f.whenStable();
     }
     f.destroy();
+  });
+
+  it('retains the exact received time across an unknown response and remounts only for explicit same-intent recovery', async () => {
+    const http = setup();
+    const original = TestBed.createComponent(FeeAgreement);
+    original.componentRef.setInput('agreementId', financeAgreementId);
+    original.detectChanges();
+    http.expectOne('/api/ui/finance/fee-agreements/' + financeAgreementId).flush(financeWorkspace());
+    await original.whenStable();
+
+    original.componentInstance.amount = '4000';
+    original.componentInstance.reference = 'SYN-FEE-UNKNOWN-TIME';
+    original.componentInstance.receivedAt = '2026-11-27T08:15:20.345';
+    original.componentInstance.reviewed = true;
+    original.componentInstance.payment('advance');
+    const first = http.expectOne('/api/ui/fee-agreements/' + financeAgreementId + '/advance-payment');
+    const originalBody = first.request.body;
+    expect(originalBody.receivedAt).toBe('2026-11-27T08:15:20.345Z');
+    first.error(new ProgressEvent('error'));
+    http.expectOne('/api/ui/finance/fee-agreements/' + financeAgreementId).flush(financeWorkspace());
+    await original.whenStable();
+    expect(original.componentInstance.uncertain()).toBe(true);
+    expect(original.componentInstance.pendingFeePaymentIntent()?.receivedAt).toBe('2026-11-27T08:15:20.345Z');
+    http.expectNone(r => r.method === 'POST');
+    original.destroy();
+
+    const recovered = TestBed.createComponent(FeeAgreement);
+    recovered.componentRef.setInput('agreementId', financeAgreementId);
+    recovered.detectChanges();
+    http.expectOne('/api/ui/finance/fee-agreements/' + financeAgreementId).flush(financeWorkspace());
+    await recovered.whenStable();
+    expect(recovered.componentInstance.uncertain()).toBe(true);
+    expect(recovered.componentInstance.receivedAt).toBe('2026-11-27T08:15:20.345');
+    expect(recovered.nativeElement.querySelector('[data-testid="fee-payment-unknown"]')?.textContent).toContain('2026-11-27T08:15:20.345Z');
+    http.expectNone(r => r.method === 'POST');
+
+    recovered.componentInstance.acknowledge();
+    recovered.componentInstance.reviewed = true;
+    recovered.componentInstance.payment('advance');
+    const retry = http.expectOne('/api/ui/fee-agreements/' + financeAgreementId + '/advance-payment');
+    expect(retry.request.body).toEqual(originalBody);
+    retry.flush({ id, paid: false, emailQueued: false, receiptDocumentId: null,
+      voucherDocumentId: id, voucherEmailQueued: true });
+    http.expectOne('/api/ui/finance/fee-agreements/' + financeAgreementId).flush(financeWorkspace());
+    await recovered.whenStable();
+    expect(recovered.componentInstance.uncertain()).toBe(false);
+    expect(recovered.componentInstance.pendingFeePaymentIntent()).toBeNull();
+    expect(sessionStorage.length).toBe(0);
+    recovered.destroy();
   });
 
   it('accepts and retains the finance reconciliation flag from the server contract', async () => {
@@ -287,7 +340,7 @@ describe('Advance invoice preparation display', () => {
     component.reference = 'SYN-FEE-RETRY';
     component.reviewed = true;
     expect(component.saveFinanceTabDraft()).toBe(true);
-    expect(component.financeTabDraft.recover()).toEqual({ amount: '4000.00', reference: 'SYN-FEE-RETRY' });
+    expect(component.financeTabDraft.recover()).toEqual({ amount: '4000.00', reference: 'SYN-FEE-RETRY', receivedAt: component.receivedAt });
     f.destroy();
 
     const recovered = TestBed.createComponent(FeeAgreement);
@@ -300,6 +353,7 @@ describe('Advance invoice preparation display', () => {
     recovered.componentInstance.recoverFinanceTabDraft();
     expect(recovered.componentInstance.amount).toBe('4000.00');
     expect(recovered.componentInstance.reference).toBe('SYN-FEE-RETRY');
+    expect(recovered.componentInstance.receivedAt).toBe(component.receivedAt);
     expect(recovered.componentInstance.engagementId).toBe('');
     expect(recovered.componentInstance.reviewed).toBe(false);
   });
@@ -321,7 +375,7 @@ describe('Advance invoice preparation display', () => {
       .toBe(`finance-fee:${financeAgreementId}`);
 
     const component = f.componentInstance;
-    const retainedFields = { amount: '3000.00', reference: 'SYN-PREVIOUS-DRAFT' };
+    const retainedFields = { amount: '3000.00', reference: 'SYN-PREVIOUS-DRAFT', receivedAt: component.receivedAt };
     component.amount = retainedFields.amount;
     component.reference = retainedFields.reference;
     expect(component.saveFinanceTabDraft()).toBe(true);
@@ -351,7 +405,7 @@ describe('Advance invoice preparation display', () => {
     const saveNavigation = component.confirmNavigation();
     choice.next('save');
     expect(await saveNavigation).toBe(true);
-    expect(component.financeTabDraft.recover()).toEqual({ amount: '6000.00', reference: 'SYN-FEE-NAVIGATION' });
+    expect(component.financeTabDraft.recover()).toEqual({ amount: '6000.00', reference: 'SYN-FEE-NAVIGATION', receivedAt: component.receivedAt });
     const discardNavigation = component.confirmNavigation();
     choice.next('discard');
     expect(await discardNavigation).toBe(true);

@@ -59,6 +59,47 @@ export interface AdvancePreparation {
   reconciliationRequired: boolean;
 }
 const guid = (v: unknown): v is string => typeof v === 'string' && guidPattern.test(v);
+type FeePaymentKind = 'advance' | 'balance';
+interface PendingFeePaymentIntent {
+  version: 1;
+  firmId: string;
+  userId: string;
+  generation: string;
+  agreementId: string;
+  kind: FeePaymentKind;
+  amount: string;
+  reference: string;
+  receivedAt: string;
+}
+const receivedAtUtcPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}$/;
+const receivedAtWirePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const currentUtcDateTimeLocal = (): string => new Date().toISOString().slice(0, 23);
+const receivedAtUtcWire = (value: unknown): string | null => {
+  if (typeof value !== 'string' || !receivedAtUtcPattern.test(value)) return null;
+  const parsed = new Date(`${value}Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 23) === value
+    ? `${value}Z`
+    : null;
+};
+const receivedAtUtcLocal = (value: unknown): string | null => {
+  if (typeof value !== 'string' || !receivedAtWirePattern.test(value)) return null;
+  const local = value.slice(0, -1);
+  return receivedAtUtcWire(local) ? local : null;
+};
+function feeDraftFields(value: unknown, includeEngagement: boolean): Record<string, string> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const fields = value as Record<string, unknown>;
+  const compatible = {
+    ...fields,
+    // Existing saved fee drafts predate timestamp capture. Keep their amount/reference, but make
+    // the new required timestamp visibly empty until the finance user supplies and reviews it.
+    receivedAt: typeof fields['receivedAt'] === 'string' ? fields['receivedAt'] : '',
+  };
+  return includeEngagement
+    ? textFields(compatible, { amount: 40, reference: 120, engagementId: 36, receivedAt: 23 })
+    : textFields(compatible, { amount: 40, reference: 120, receivedAt: 23 });
+}
+
 const advancePreparationValid = (value: unknown): boolean => {
   if (!value || typeof value !== 'object') return false;
   const p = value as Record<string, unknown>;
@@ -205,7 +246,7 @@ function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string):
         </p>
         <label
           ><input type="checkbox" [(ngModel)]="reviewed" (ngModelChange)="feeAssentChanged()" [disabled]="busy()" />I reviewed this fee,
-          milestone and selected action.</label
+          milestone, payment details and selected action.</label
         >
         @if (!w.agreementId) {
           <p>
@@ -298,17 +339,20 @@ function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string):
                       [(ngModel)]="amount"
                       (ngModelChange)="feeFieldsChanged()"
                       inputmode="decimal"
-                      [disabled]="busy()"
+                      [disabled]="busy() || !!pendingFeePaymentIntent()"
                   /></label>
                   <label
                     >Bank or transfer reference<input
                       [(ngModel)]="reference"
                       (ngModelChange)="feeFieldsChanged()"
                       maxlength="120"
-                      [disabled]="busy()"
+                      [disabled]="busy() || !!pendingFeePaymentIntent()"
                   /></label>
+                  <label>Received at (UTC)<input type="datetime-local" step="0.001" [(ngModel)]="receivedAt"
+                    (ngModelChange)="feeFieldsChanged()" [disabled]="busy() || !!pendingFeePaymentIntent()" /></label>
+                  <p>Review: {{ amount || '—' }} {{ w.currency }} · reference “{{ reference || '—' }}” · received {{ receivedAt || '—' }} UTC.</p>
                   <p>
-                    A reference records one payment. Reusing it with a different amount is refused.
+                    A reference records one payment. Reusing it with a different amount or received time is refused.
                     A fully paid advance may generate a receipt and queue one notification; queued
                     does not mean delivered.
                   </p>
@@ -361,15 +405,18 @@ function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string):
                       [(ngModel)]="amount"
                       (ngModelChange)="feeFieldsChanged()"
                       inputmode="decimal"
-                      [disabled]="busy()"
+                      [disabled]="busy() || !!pendingFeePaymentIntent()"
                   /></label>
                   <label
                     >Bank or transfer reference<input
                       [(ngModel)]="reference"
                       (ngModelChange)="feeFieldsChanged()"
                       maxlength="120"
-                      [disabled]="busy()"
+                      [disabled]="busy() || !!pendingFeePaymentIntent()"
                   /></label>
+                  <label>Received at (UTC)<input type="datetime-local" step="0.001" [(ngModel)]="receivedAt"
+                    (ngModelChange)="feeFieldsChanged()" [disabled]="busy() || !!pendingFeePaymentIntent()" /></label>
+                  <p>Review: {{ amount || '—' }} {{ w.currency }} · reference “{{ reference || '—' }}” · received {{ receivedAt || '—' }} UTC.</p>
                   <button
                     matButton
                     [disabled]="
@@ -435,7 +482,13 @@ function decodeFinanceFeeAgreement(value: unknown, expectedAgreementId: string):
           }
         }
         @if (uncertain()) {
-          <button matButton [disabled]="busy()" (click)="acknowledge()">
+          @if (pendingFeePaymentIntent(); as pending) {
+            <p role="alert" data-testid="fee-payment-unknown">Payment outcome is unconfirmed. The exact amount, reference and received time ({{ pending.receivedAt }}) are retained. Refresh the workspace, then review and resubmit this same payment to reconcile it.</p>
+          }
+          @if (pendingPaymentRecoveryBlocked()) {
+            <p role="alert">The saved fee payment recovery details could not be verified. Do not submit another payment; ask an administrator to investigate the stored recovery state.</p>
+          }
+          <button matButton [disabled]="busy() || pendingPaymentRecoveryBlocked()" (click)="acknowledge()">
             I reviewed the persisted fee outcome
           </button>
         }
@@ -475,13 +528,15 @@ export class FeeAgreement implements NavigationProtected {
   readonly busy = signal(false);
   readonly uncertain = signal(false);
   readonly message = signal('');
+  readonly pendingFeePaymentIntent = signal<PendingFeePaymentIntent | null>(null);
+  readonly pendingPaymentRecoveryBlocked = signal(false);
   readonly tabDraft = new CommercialFormDraft(
-    () => ({ amount: this.amount, reference: this.reference, engagementId: this.engagementId }),
-    (v) => textFields(v, { amount: 40, reference: 120, engagementId: 36 }),
+    () => ({ amount: this.amount, reference: this.reference, engagementId: this.engagementId, receivedAt: this.receivedAt }),
+    (v) => feeDraftFields(v, true),
   );
   readonly financeTabDraft = new CommercialFormDraft(
-    () => ({ amount: this.amount, reference: this.reference }),
-    (v) => textFields(v, { amount: 40, reference: 120 }),
+    () => ({ amount: this.amount, reference: this.reference, receivedAt: this.receivedAt }),
+    (v) => feeDraftFields(v, false),
   );
   saveTabDraft(): boolean {
     if (this.financeMode() || !this.data()?.canFinance || this.busy() || this.uncertain()) return false;
@@ -508,8 +563,9 @@ export class FeeAgreement implements NavigationProtected {
     if (!this.financeMode() || !w?.canFinance || this.busy() || this.uncertain()) return;
     const fields = this.financeTabDraft.recover();
     if (fields) {
-      this.amount = fields.amount;
-      this.reference = fields.reference;
+      this.amount = fields['amount'];
+      this.reference = fields['reference'];
+      this.receivedAt = fields['receivedAt'];
       this.engagementId = '';
       this.reviewed = false;
       this.message.set('Fee settlement fields recovered. Review the current milestone and action again.');
@@ -521,11 +577,12 @@ export class FeeAgreement implements NavigationProtected {
     const fields = this.tabDraft.recover();
     if (
       fields &&
-      (!fields.engagementId || w.engagements.some((e) => e.id === fields.engagementId))
+      (!fields['engagementId'] || w.engagements.some((e) => e.id === fields['engagementId']))
     ) {
-      this.amount = fields.amount;
-      this.reference = fields.reference;
-      this.engagementId = fields.engagementId;
+      this.amount = fields['amount'];
+      this.reference = fields['reference'];
+      this.receivedAt = fields['receivedAt'];
+      this.engagementId = fields['engagementId'];
       this.reviewed = false;
       this.message.set('Fee fields recovered. Review the current milestone and action again.');
     } else this.message.set('No compatible fee tab draft is available.');
@@ -533,6 +590,7 @@ export class FeeAgreement implements NavigationProtected {
   reviewed = false;
   amount = '';
   reference = '';
+  receivedAt = currentUtcDateTimeLocal();
   engagementId = '';
   private identity(): { mode: 'proposal' | 'agreement'; id: string } | null {
     const proposalId = this.proposalId();
@@ -552,7 +610,8 @@ export class FeeAgreement implements NavigationProtected {
       scope: scope && [scope.entity, scope.baseRevision],
       workspace: this.data(),
       draft: this.financeTabDraft.recover(),
-      fields: [this.amount, this.reference, this.engagementId],
+      fields: [this.amount, this.reference, this.receivedAt, this.engagementId],
+      pendingPayment: this.pendingFeePaymentIntent(),
       reviewed: this.reviewed,
       busy: this.busy(),
       uncertain: this.uncertain(),
@@ -569,6 +628,13 @@ export class FeeAgreement implements NavigationProtected {
     this.closeNavigationDialog();
   }
   feeFieldsChanged(): void {
+    const pending = this.pendingFeePaymentIntent();
+    if (pending) {
+      this.amount = pending.amount;
+      this.reference = pending.reference;
+      this.receivedAt = receivedAtUtcLocal(pending.receivedAt) ?? '';
+      return;
+    }
     this.reviewed = false;
     if (this.navigationDialogOwner()) this.closeNavigationDialog();
   }
@@ -641,9 +707,12 @@ export class FeeAgreement implements NavigationProtected {
         this.loading.set(false);
         this.busy.set(false);
         this.uncertain.set(false);
+        this.pendingFeePaymentIntent.set(null);
+        this.pendingPaymentRecoveryBlocked.set(false);
         this.message.set('');
         this.reviewed = false;
         this.amount = this.reference = this.engagementId = '';
+        this.receivedAt = currentUtcDateTimeLocal();
         if (staff) this.load();
       });
     });
@@ -661,9 +730,9 @@ export class FeeAgreement implements NavigationProtected {
     if (this.data() && !this.busy()) {
       this.uncertain.set(false);
       this.reviewed = false;
-      this.message.set(
-        'Persisted fee state reviewed. Review the current action before proceeding.',
-      );
+      this.message.set(this.pendingFeePaymentIntent()
+        ? 'The current fee state is refreshed. The retained payment details are locked; review them and resubmit with the same reference and received time to reconcile the outcome.'
+        : 'Persisted fee state reviewed. Review the current action before proceeding.');
     }
   }
   create(): void {
@@ -679,16 +748,121 @@ export class FeeAgreement implements NavigationProtected {
         reviewed: this.reviewed,
       });
   }
+  private feePaymentStorageKey(session: { firmId: string; userId: string; generation: string }, agreementId: string): string {
+    return `auditsphere:fee-payment:v1:${session.firmId}:${session.userId}:${session.generation}:${agreementId}`;
+  }
+  private storePendingFeePayment(intent: PendingFeePaymentIntent): boolean {
+    const session = this.session.current();
+    if (!session?.staff || !this.data()?.canFinance || this.data()?.agreementId !== intent.agreementId ||
+        session.firmId !== intent.firmId || session.userId !== intent.userId || session.generation !== intent.generation ||
+        !exactDecimal(intent.amount) || !intent.reference.trim() || intent.reference.length > 120 ||
+        !receivedAtUtcLocal(intent.receivedAt)) return false;
+    try {
+      sessionStorage.setItem(this.feePaymentStorageKey(session, intent.agreementId), JSON.stringify(intent));
+      this.pendingFeePaymentIntent.set(intent);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  private clearPendingFeePaymentIntent(): void {
+    const intent = this.pendingFeePaymentIntent();
+    const session = this.session.current();
+    if (intent && session && session.firmId === intent.firmId && session.userId === intent.userId &&
+        session.generation === intent.generation) {
+      try { sessionStorage.removeItem(this.feePaymentStorageKey(session, intent.agreementId)); }
+      catch { /* If cleanup is unavailable, a later same-reference recovery remains idempotent. */ }
+    }
+    this.pendingFeePaymentIntent.set(null);
+    this.pendingPaymentRecoveryBlocked.set(false);
+  }
+  private restorePendingFeePaymentIntent(workspace: Workspace): void {
+    if (this.pendingFeePaymentIntent() || !workspace.canFinance || !workspace.agreementId) return;
+    const session = this.session.current();
+    if (!session?.staff) return;
+    let raw: string | null;
+    try { raw = sessionStorage.getItem(this.feePaymentStorageKey(session, workspace.agreementId)); }
+    catch {
+      this.pendingPaymentRecoveryBlocked.set(true);
+      this.uncertain.set(true);
+      this.message.set('Fee payment recovery storage could not be read. Do not record another payment until it is checked.');
+      return;
+    }
+    if (raw === null) return;
+    try {
+      const value = JSON.parse(raw) as Record<string, unknown>;
+      const localReceivedAt = receivedAtUtcLocal(value['receivedAt']);
+      if (value['version'] !== 1 || value['firmId'] !== session.firmId || value['userId'] !== session.userId ||
+          value['generation'] !== session.generation || value['agreementId'] !== workspace.agreementId ||
+          !['advance', 'balance'].includes(String(value['kind'])) || !exactDecimal(value['amount']) ||
+          typeof value['reference'] !== 'string' || !value['reference'].trim() || value['reference'].length > 120 ||
+          !localReceivedAt) throw new Error('Invalid retained payment intent');
+      const intent: PendingFeePaymentIntent = {
+        version: 1,
+        firmId: session.firmId,
+        userId: session.userId,
+        generation: session.generation,
+        agreementId: workspace.agreementId,
+        kind: value['kind'] as FeePaymentKind,
+        amount: value['amount'] as string,
+        reference: value['reference'],
+        receivedAt: value['receivedAt'] as string,
+      };
+      this.pendingFeePaymentIntent.set(intent);
+      this.amount = intent.amount;
+      this.reference = intent.reference;
+      this.receivedAt = localReceivedAt;
+      this.reviewed = false;
+      this.uncertain.set(true);
+      this.message.set('A fee payment may have completed before the response was lost. Review the persisted state and reconcile using the retained exact reference and received time.');
+    } catch {
+      this.pendingPaymentRecoveryBlocked.set(true);
+      this.uncertain.set(true);
+      this.message.set('The saved fee payment recovery details could not be verified. Do not submit another payment.');
+    }
+  }
   payment(kind: 'advance' | 'balance' = 'advance'): void {
     const w = this.data();
     if (!w?.agreementId || !w.canFinance) return;
+    if (!this.reviewed || this.busy() || this.uncertain()) return;
     if (!exactDecimal(this.amount)) {
       this.message.set('Enter an exact decimal amount.');
       return;
     }
+    const pending = this.pendingFeePaymentIntent();
+    if (this.pendingPaymentRecoveryBlocked()) return;
+    if (pending && pending.kind !== kind) {
+      this.message.set('Resolve the retained payment with its original milestone before recording another payment.');
+      return;
+    }
+    const receivedAt = receivedAtUtcWire(this.receivedAt);
+    if (!receivedAt) {
+      this.message.set('Enter a valid UTC received time including milliseconds.');
+      return;
+    }
+    const intent = pending ?? {
+      version: 1 as const,
+      firmId: this.session.current()?.firmId ?? '',
+      userId: this.session.current()?.userId ?? '',
+      generation: this.session.current()?.generation ?? '',
+      agreementId: w.agreementId,
+      kind,
+      amount: this.amount,
+      reference: this.reference,
+      receivedAt,
+    };
+    if (!pending && !this.storePendingFeePayment(intent)) {
+      this.message.set('The exact payment details could not be retained for recovery. No payment was sent.');
+      return;
+    }
+    if (intent.agreementId !== w.agreementId || intent.amount !== this.amount || intent.reference !== this.reference ||
+        intent.receivedAt !== receivedAt || intent.kind !== kind) {
+      this.message.set('The retained payment details changed. Refresh and recover the original payment before proceeding.');
+      return;
+    }
     this.command(
       '/api/ui/fee-agreements/' + w.agreementId + '/' + kind + '-payment',
-      { amount: this.amount, reference: this.reference, reviewed: this.reviewed },
+      { amount: intent.amount, reference: intent.reference, receivedAt: intent.receivedAt, reviewed: this.reviewed },
       false,
       kind,
     );
@@ -757,8 +931,11 @@ export class FeeAgreement implements NavigationProtected {
               : 'Fee action recorded. Invoice drafts still require finance review and posting.') + voucher,
           );
           if (payment) {
+            this.clearPendingFeePaymentIntent();
             this.reference = '';
+            this.receivedAt = currentUtcDateTimeLocal();
             if (this.financeMode()) this.financeTabDraft.submitted();
+            else this.tabDraft.submitted();
           }
           this.load();
         },
@@ -767,6 +944,7 @@ export class FeeAgreement implements NavigationProtected {
           this.busy.set(false);
           this.reviewed = false;
           this.uncertain.set(!(failure.status >= 400 && failure.status < 500));
+          if (!this.uncertain()) this.clearPendingFeePaymentIntent();
           this.data.set(null);
           this.message.set(
             this.uncertain()
@@ -774,6 +952,7 @@ export class FeeAgreement implements NavigationProtected {
               : 'Action not completed. Refresh persisted invoices/payments and check finance scope, accepted fee, invoice status, payment reference or final-release prerequisites.',
           );
           if (failure.status === 401) this.session.clear();
+          else if (this.uncertain() || payment) this.load();
         },
       });
   }
@@ -810,6 +989,7 @@ export class FeeAgreement implements NavigationProtected {
               this.amount = w.milestones.find((m) => m.kind === 'ADVANCE')?.outstanding ?? '';
             if (identity.mode === 'proposal') void this.tabDraft.bind(`commercial-fee:${w.proposalId}`, w);
             else void this.financeTabDraft.bind(`finance-fee:${w.agreementId}`, w);
+            this.restorePendingFeePaymentIntent(w);
           } catch {
             this.error.set('Unsupported fee agreement response.');
           }

@@ -134726,6 +134726,12 @@
           },
           "reviewed": {
             "type": "boolean"
+          },
+          "receivedAt": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -158924,6 +158930,12 @@
           },
           "reviewed": {
             "type": "boolean"
+          },
+          "receivedAt": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

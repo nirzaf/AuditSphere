@@ -113,12 +113,17 @@ public sealed class BillingTests
       Assert.Equal(ErrorCodes.IdempotencyConflict,
         (await BillingService.IssueCreditNoteAsync(db, fixture.ManagerActor, creditRequest with { Amount = 21 })).ErrorCode);
 
-      var receiptRequest = new RecordReceiptRequest(accountId, 200, "BANK-100", RequestId: Guid.NewGuid());
+      var receivedAt = new DateTimeOffset(2026, 11, 27, 8, 15, 20, 345, TimeSpan.Zero);
+      var receiptRequest = new RecordReceiptRequest(accountId, 200, "BANK-100", receivedAt, Guid.NewGuid());
       var recorded = await BillingService.RecordReceiptAsync(db, fixture.ManagerActor, receiptRequest);
       receiptId = recorded.Value;
       Assert.Equal(receiptId, (await BillingService.RecordReceiptAsync(db, fixture.ManagerActor, receiptRequest)).Value);
+      Assert.Equal(receivedAt, (await db.Receipts.AsNoTracking().SingleAsync(x => x.Id == receiptId)).ReceivedAt);
       Assert.Equal(ErrorCodes.IdempotencyConflict,
         (await BillingService.RecordReceiptAsync(db, fixture.ManagerActor, receiptRequest with { Amount = 201 })).ErrorCode);
+      Assert.Equal(ErrorCodes.IdempotencyConflict,
+        (await BillingService.RecordReceiptAsync(db, fixture.ManagerActor,
+          receiptRequest with { ReceivedAt = receivedAt.AddMilliseconds(1) })).ErrorCode);
 
       var allocationRequest = new AllocateReceiptRequest(receiptId, invoiceId, 200, Guid.NewGuid());
       var allocation = await BillingService.AllocateReceiptCommandAsync(db, fixture.ManagerActor, allocationRequest);

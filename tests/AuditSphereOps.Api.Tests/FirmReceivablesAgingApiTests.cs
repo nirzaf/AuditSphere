@@ -24,7 +24,7 @@ public sealed class FirmReceivablesAgingApiTests
     var instant = DateTimeOffset.UtcNow;
     var now = new DateTimeOffset(instant.Ticks - instant.Ticks % 10, TimeSpan.Zero);
     var asOf = DateOnly.FromDateTime(now.UtcDateTime).AddDays(1);
-    Guid accountId, invoiceId;
+    Guid accountId, invoiceId, agreementId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       db.RoleGrants.AddRange(
@@ -95,6 +95,7 @@ public sealed class FirmReceivablesAgingApiTests
 
       var agreement = await FeeAgreementService.CreateAgreementAsync(db, PbcSeed.Actor(seed.Admin, "Partner"), proposal.Id);
       Assert.True(agreement.Succeeded, agreement.Message);
+      agreementId = agreement.Value;
       var advanceInvoice = await FeeAgreementService.IssueAdvanceInvoiceAsync(db, manager, agreement.Value);
       Assert.True(advanceInvoice.Succeeded, advanceInvoice.Message);
       invoiceId = advanceInvoice.Value;
@@ -196,6 +197,42 @@ public sealed class FirmReceivablesAgingApiTests
     var csvText = await csv.Content.ReadAsStringAsync();
     Assert.Contains("OVERDUE_31_60", csvText);
     Assert.Contains("CURRENCY TOTAL", csvText);
+
+    var paymentReceivedAt = $"{asOf.AddDays(1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}T08:15:20.345Z";
+    using (var invalidFeePayment = await PostAsync(managerClient, $"/api/ui/fee-agreements/{agreementId:D}/advance-payment",
+      JsonContent.Create(new { amount = "1", reference = "SYN-FEE-TIME-API", reviewed = true, receivedAt = "2026-11-27T08:15:20.345+03:00" }), proof))
+    {
+      Assert.Equal(HttpStatusCode.BadRequest, invalidFeePayment.StatusCode);
+      Assert.Equal("request.invalid", (await invalidFeePayment.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+    }
+    using (var feePayment = await PostAsync(managerClient, $"/api/ui/fee-agreements/{agreementId:D}/advance-payment",
+      JsonContent.Create(new { amount = "1", reference = "SYN-FEE-TIME-API", reviewed = true, receivedAt = paymentReceivedAt }), proof))
+      Assert.Equal(HttpStatusCode.OK, feePayment.StatusCode);
+    using (var changedFeeTime = await PostAsync(managerClient, $"/api/ui/fee-agreements/{agreementId:D}/advance-payment",
+      JsonContent.Create(new { amount = "1", reference = "SYN-FEE-TIME-API", reviewed = true, receivedAt = $"{asOf.AddDays(1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}T08:15:20.346Z" }), proof))
+    {
+      Assert.Equal(HttpStatusCode.BadRequest, changedFeeTime.StatusCode);
+      Assert.Equal("fee.reference-conflict", (await changedFeeTime.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+    }
+    var storedFeeReference = $"ADV-{agreementId.ToString("N").ToUpperInvariant()}-SYN-FEE-TIME-API";
+    await using (var feeReceiptDb = new AuditSphereDbContext(pg.Options))
+    {
+      var storedFeeReceipt = await feeReceiptDb.Receipts.AsNoTracking().SingleAsync(x => x.Reference == storedFeeReference);
+      Assert.Equal(DateTimeOffset.ParseExact(paymentReceivedAt, "yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture,
+        DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal), storedFeeReceipt.ReceivedAt);
+    }
+
+    var beforeLegacyFeePayment = DateTimeOffset.UtcNow;
+    using (var legacyFeePayment = await PostAsync(managerClient, $"/api/ui/fee-agreements/{agreementId:D}/advance-payment",
+      JsonContent.Create(new { amount = "1", reference = "SYN-FEE-LEGACY-TIME-API", reviewed = true }), proof))
+      Assert.Equal(HttpStatusCode.OK, legacyFeePayment.StatusCode);
+    var afterLegacyFeePayment = DateTimeOffset.UtcNow;
+    var legacyFeeReference = $"ADV-{agreementId.ToString("N").ToUpperInvariant()}-SYN-FEE-LEGACY-TIME-API";
+    await using (var legacyReceiptDb = new AuditSphereDbContext(pg.Options))
+    {
+      var legacyReceipt = await legacyReceiptDb.Receipts.AsNoTracking().SingleAsync(x => x.Reference == legacyFeeReference);
+      Assert.InRange(legacyReceipt.ReceivedAt, beforeLegacyFeePayment.AddMinutes(-1), afterLegacyFeePayment.AddMinutes(1));
+    }
 
     using var scopedFactory = Factory(pg, seed.Staff.Subject);
     using var scopedClient = scopedFactory.CreateClient(new() { AllowAutoRedirect = false });

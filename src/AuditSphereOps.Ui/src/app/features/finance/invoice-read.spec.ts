@@ -82,10 +82,10 @@ describe('Invoice exact read and allocation pagination', () => {
     expect(panel.open).toBe(false);
     panel.querySelector('summary')!.click();
     expect(panel.open).toBe(true);
-    f.componentInstance.receiptForm.patchValue({ amount: '12.340001', reference: 'Exact receipt', reviewed: true });
+    f.componentInstance.receiptForm.patchValue({ amount: '12.340001', reference: 'Exact receipt', receivedAt: '2026-11-27T08:15:20.345', reviewed: true });
     panel.querySelector('summary')!.click();
     panel.querySelector('summary')!.click();
-    expect(f.componentInstance.receiptForm.getRawValue()).toEqual({ amount: '12.340001', reference: 'Exact receipt', reviewed: true });
+    expect(f.componentInstance.receiptForm.getRawValue()).toEqual({ amount: '12.340001', reference: 'Exact receipt', receivedAt: '2026-11-27T08:15:20.345', reviewed: true });
     http.expectNone(r => r.method !== 'GET');
   });
   it('rejects a wrong returned identity through HTTP without rendering invoice content or actions', () => {
@@ -190,10 +190,11 @@ describe('Invoice exact read and allocation pagination', () => {
 
   it('restores after reload and retries only the retained billing request after an unknown outcome', async () => {
     const f = open(); const original = f.componentInstance;
-    original.receiptForm.patchValue({ amount: '12.00', reference: 'SYN-RETRY-001', reviewed: true });
+    original.receiptForm.patchValue({ amount: '12.00', reference: 'SYN-RETRY-001', receivedAt: '2026-11-27T08:15:20.345', reviewed: true });
     const firstAttempt = original.recordReceipt(original.invoice.data()!);
     const first = http.expectOne(r => r.method === 'POST' && r.url === `/api/ui/finance/billing-accounts/${id(50)}/receipts`);
-    const originalBody = first.request.body as { requestId: string; amount: string; reference: string; reviewed: boolean };
+    const originalBody = first.request.body as { requestId: string; amount: string; reference: string; receivedAt: string; reviewed: boolean };
+    expect(originalBody.receivedAt).toBe('2026-11-27T08:15:20.345Z');
     first.error(new ProgressEvent('error'));
     await firstAttempt; TestBed.tick();
     expect(original.uncertain()).toBe(true);
@@ -277,6 +278,9 @@ describe('Invoice exact read and allocation pagination', () => {
     expect(c.receiptForm.controls.reviewed.value).toBe(false);
     c.receiptForm.controls.reviewed.setValue(true);
     c.receiptForm.controls.reference.setValue('SYN-RECEIPT-2');
+    expect(c.receiptForm.controls.reviewed.value).toBe(false);
+    c.receiptForm.controls.reviewed.setValue(true);
+    c.receiptForm.controls.receivedAt.setValue('2026-11-27T08:15:20.345');
     expect(c.receiptForm.controls.reviewed.value).toBe(false);
 
     c.termsReviewForm.patchValue({ reason: 'Verified exact terms.', reviewed: true });

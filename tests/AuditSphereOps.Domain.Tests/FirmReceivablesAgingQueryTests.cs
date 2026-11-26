@@ -310,25 +310,23 @@ public sealed class FirmReceivablesAgingQueryTests
       });
 
       var receivedBefore = now.AddDays(-1);
-      var oldReceipt = new Receipt
-      {
-        Id = Guid.NewGuid(), FirmId = seed.FirmId, BillingAccountId = accountId, Amount = 30m,
-        Currency = "QAR", Reference = "SYN-AGING-RECEIPT-OLD", Status = BillingStates.ReceiptRecorded,
-        RecordedByUserId = seed.Admin.Id, ReceivedAt = receivedBefore
-      };
+      var recordedBefore = await BillingService.RecordReceiptAsync(db, manager,
+        new RecordReceiptRequest(accountId, 30m, "SYN-AGING-RECEIPT-OLD", receivedBefore, Guid.NewGuid()));
+      Assert.True(recordedBefore.Succeeded, recordedBefore.Message);
+      var oldReceiptId = recordedBefore.Value;
       var futureReceipt = new Receipt
       {
         Id = Guid.NewGuid(), FirmId = seed.FirmId, BillingAccountId = accountId, Amount = 40m,
         Currency = "QAR", Reference = "SYN-AGING-RECEIPT-FUTURE", Status = BillingStates.ReceiptRecorded,
         RecordedByUserId = seed.Admin.Id, ReceivedAt = now.AddDays(5)
       };
-      db.Receipts.AddRange(oldReceipt, futureReceipt);
-      var oldAllocation = new ReceiptAllocation { Id = Guid.NewGuid(), FirmId = seed.FirmId, ReceiptId = oldReceipt.Id,
-        InvoiceId = invoiceId, Amount = 20m, CreatedAt = receivedBefore };
-      oldAllocationId = oldAllocation.Id;
-      db.ReceiptAllocations.AddRange(oldAllocation,
-        new ReceiptAllocation { Id = Guid.NewGuid(), FirmId = seed.FirmId, ReceiptId = futureReceipt.Id,
-          InvoiceId = invoiceId, Amount = 40m, CreatedAt = now.AddDays(5) });
+      db.Receipts.Add(futureReceipt);
+      var oldAllocation = await BillingService.AllocateReceiptCommandAsync(db, manager,
+        new AllocateReceiptRequest(oldReceiptId, invoiceId, 20m, Guid.NewGuid()));
+      Assert.True(oldAllocation.Succeeded, oldAllocation.Message);
+      oldAllocationId = oldAllocation.Value!.AllocationId;
+      db.ReceiptAllocations.Add(new ReceiptAllocation { Id = Guid.NewGuid(), FirmId = seed.FirmId, ReceiptId = futureReceipt.Id,
+        InvoiceId = invoiceId, Amount = 40m, CreatedAt = now.AddDays(5) });
       db.CreditNotes.AddRange(
         new CreditNote { Id = Guid.NewGuid(), FirmId = seed.FirmId, BillingAccountId = accountId,
           InvoiceId = invoiceId, NoteNumber = "SYN-AGING-CREDIT-OLD", Currency = "QAR", Amount = 10m,
@@ -351,7 +349,7 @@ public sealed class FirmReceivablesAgingQueryTests
       Assert.True((await ReceiptAllocationReversalService.ReviewAsync(db, reviewer, reversal.Value,
         new ReviewReceiptAllocationReversal(true, "Verified the allocation and bank correction evidence.", true))).Succeeded);
       Assert.Equal(55m, await BillingService.GetNetAppliedToInvoiceAsync(db, seed.FirmId, invoiceId));
-      Assert.Equal(15m, await BillingService.GetNetAppliedToReceiptAsync(db, seed.FirmId, oldReceipt.Id));
+      Assert.Equal(15m, await BillingService.GetNetAppliedToReceiptAsync(db, seed.FirmId, oldReceiptId));
       var excessiveReversal = await ReceiptAllocationReversalService.SubmitAsync(db, manager, oldAllocationId,
         new RequestReceiptAllocationReversal(16m, "SYN-OVER-REVERSAL", "Must exceed the unapplied amount.", 1, true));
       Assert.Equal("billing.reversal-over-allocation", excessiveReversal.ErrorCode);
