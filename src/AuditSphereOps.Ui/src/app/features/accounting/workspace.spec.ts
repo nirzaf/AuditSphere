@@ -299,4 +299,43 @@ describe('Accounting workspace mode and period navigation', () => {
     workspace.saveProfile();
     http.expectNone(request => request.method === 'POST' && request.url.endsWith('/profile'));
   });
+
+  it('bounds period and book setup fields and keeps a refused form available for correction', async () => {
+    const fixture = await open();
+    const workspace = fixture.componentInstance;
+    const periodId = guid(33);
+    await select(fixture, clientA, clientWorkspace(clientA, 'Client A', guid(31), [period(periodId, 'FY26')]));
+
+    const maxLength = (name: string) => (fixture.nativeElement.querySelector(`[name="${name}"]`) as HTMLInputElement).maxLength;
+    expect(maxLength('periodCode')).toBe(50);
+    expect(maxLength('periodBasis')).toBe(50);
+    expect(maxLength('rollCode')).toBe(50);
+    expect(maxLength('rollBasis')).toBe(50);
+    expect(maxLength('bookCode')).toBe(50);
+    expect(maxLength('bookBasis')).toBe(50);
+    expect(maxLength('bookInclusion')).toBe(100);
+
+    workspace.period = { code: 'P'.repeat(51), start: '2027-01-01', end: '2027-12-31', basis: 'B'.repeat(51), currency: 'QAR', prior: '' };
+    workspace.periodReviewed = true;
+    workspace.createPeriod();
+    const periodRequest = http.expectOne(`/api/ui/accounting/clients/${clientA}/periods`);
+    periodRequest.flush({ code: 'accounting.mapping-invalid' }, { status: 400, statusText: 'Bad Request' });
+    await settle(fixture);
+    expect(workspace.period.code).toHaveLength(51);
+    expect(workspace.period.basis).toHaveLength(51);
+    expect(workspace.periodReviewed).toBe(false);
+    expect(workspace.uncertain()).toBe(false);
+
+    workspace.book = { periodId, code: 'C'.repeat(51), basis: 'B'.repeat(51), inclusionRule: 'I'.repeat(101), currency: 'QAR' };
+    workspace.bookReviewed = true;
+    workspace.createBook();
+    const bookRequest = http.expectOne(`/api/ui/accounting/clients/${clientA}/books`);
+    bookRequest.flush({ code: 'accounting.mapping-invalid' }, { status: 400, statusText: 'Bad Request' });
+    await settle(fixture);
+    expect(workspace.book.code).toHaveLength(51);
+    expect(workspace.book.basis).toHaveLength(51);
+    expect(workspace.book.inclusionRule).toHaveLength(101);
+    expect(workspace.bookReviewed).toBe(false);
+    expect(workspace.uncertain()).toBe(false);
+  });
 });

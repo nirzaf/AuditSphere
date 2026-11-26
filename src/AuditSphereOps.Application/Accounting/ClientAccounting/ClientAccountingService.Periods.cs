@@ -13,9 +13,11 @@ public static partial class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, ReportingPeriodRequest request,
     CancellationToken ct = default)
   {
+    var periodCode = request.PeriodCode?.Trim();
+    var basis = request.Basis?.Trim();
     var currency = (string.IsNullOrWhiteSpace(request.Currency) ? AccountingDefaults.DefaultCurrency : request.Currency).Trim().ToUpperInvariant();
-    if (request.ClientId == Guid.Empty || string.IsNullOrWhiteSpace(request.PeriodCode) ||
-        request.StartDate > request.EndDate || string.IsNullOrWhiteSpace(request.Basis) ||
+    if (request.ClientId == Guid.Empty || periodCode is null || periodCode.Length is < 1 or > 50 ||
+        request.StartDate > request.EndDate || basis is null || basis.Length is < 1 or > 50 ||
         currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z'))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "A valid reporting period is required.");
     var auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
@@ -30,14 +32,14 @@ public static partial class ClientAccountingService
         x.Id == request.PriorPeriodId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The prior period is outside the client scope.");
     var duplicate = await db.ClientReportingPeriods.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
-      x.PeriodCode == request.PeriodCode.Trim() && x.Basis == request.Basis.Trim(), ct);
+      x.PeriodCode == periodCode && x.Basis == basis, ct);
     if (duplicate)
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The reporting period already exists.");
     var period = new ClientReportingPeriod
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId,
-      PeriodCode = request.PeriodCode.Trim(), StartDate = request.StartDate, EndDate = request.EndDate,
-      Basis = request.Basis.Trim(), Currency = currency, PriorPeriodId = request.PriorPeriodId,
+      PeriodCode = periodCode, StartDate = request.StartDate, EndDate = request.EndDate,
+      Basis = basis, Currency = currency, PriorPeriodId = request.PriorPeriodId,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.ClientReportingPeriods.Add(period);
@@ -60,10 +62,14 @@ public static partial class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, RollForwardPeriodRequest request,
     CancellationToken ct = default)
   {
+    var periodCode = request.PeriodCode?.Trim();
+    var basis = request.Basis?.Trim();
     var currency = (string.IsNullOrWhiteSpace(request.Currency) ? AccountingDefaults.DefaultCurrency : request.Currency).Trim().ToUpperInvariant();
     var sourceHash = request.SourceHash.Trim().ToLowerInvariant();
-    if (request.ClientId == Guid.Empty || request.PriorPeriodId == Guid.Empty || string.IsNullOrWhiteSpace(request.PeriodCode) ||
-        request.StartDate > request.EndDate || string.IsNullOrWhiteSpace(request.Basis) ||
+    if (periodCode is null || periodCode.Length is < 1 or > 50 || basis is null || basis.Length is < 1 or > 50)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "A reporting period code and basis must fit their stored limits.");
+    if (request.ClientId == Guid.Empty || request.PriorPeriodId == Guid.Empty ||
+        request.StartDate > request.EndDate ||
         currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z') ||
         !IsSha256(sourceHash) || string.IsNullOrWhiteSpace(request.EvidenceReference) ||
         request.PriorClosingAmount != MoneyPolicy.Normalize(request.PriorClosingAmount) ||
@@ -89,7 +95,7 @@ public static partial class ClientAccountingService
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid,
         "The next period must follow the closed period and use the same reporting currency.");
     if (await db.ClientReportingPeriods.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
-        x.PeriodCode == request.PeriodCode.Trim() && x.Basis == request.Basis.Trim(), ct))
+        x.PeriodCode == periodCode && x.Basis == basis, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The reporting period already exists.");
 
     if (request.SourcePackageId is { } sourcePackageId)
@@ -110,8 +116,8 @@ public static partial class ClientAccountingService
     var current = new ClientReportingPeriod
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId,
-      PeriodCode = request.PeriodCode.Trim(), StartDate = request.StartDate, EndDate = request.EndDate,
-      Basis = request.Basis.Trim(), Currency = currency, PriorPeriodId = prior.Id,
+      PeriodCode = periodCode, StartDate = request.StartDate, EndDate = request.EndDate,
+      Basis = basis, Currency = currency, PriorPeriodId = prior.Id,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.ClientReportingPeriods.Add(current);

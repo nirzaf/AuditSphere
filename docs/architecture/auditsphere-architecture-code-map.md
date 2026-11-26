@@ -141,6 +141,7 @@ Posted movement lines exclude opening balances and imported GL; the official nat
 - Persistence: `Infrastructure/Persistence/AuditSphereDbContext.ClientAccounting.cs`, `.ClientAccountingSchedules.cs`
 
 - Current API/Angular: `src/AuditSphereOps.Api/Ui/UiEndpoints.Accounting.cs`, `UiEndpoints.PeriodMaintenance.cs`; `src/AuditSphereOps.Ui/src/app/features/accounting/workspace.ts`, `period.ts`, `rollforward.ts`, `restatements.ts`.
+- Period setup and roll-forward normalize code/basis before enforcing the stored 50-character bounds; book setup applies 50-character code/basis and 100-character inclusion-rule bounds. API schemas and Angular forms match these limits, while definite 400 setup refusals preserve entered values and require fresh review. `ClientAccountingTests.Profiles.AccountingSetup_DefaultsBlankCurrencyToQar` and `workspace.spec.ts` cover the boundaries.
 - Historical Blazor screens (pinned pre-removal source only): `Web/Components/Pages/AccountingWorkspace.razor`, `AccountingPeriod.razor`, `PeriodRollforward.razor`, `PeriodRestatements.razor`.
 
 - Tests: `tests/.../ClientAccountingTests/ClientAccountingTests.{Profiles,PeriodClose,ChartAndTaxonomy}.cs`

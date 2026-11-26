@@ -223,10 +223,10 @@ function isProfileSaveAcknowledgement(value: unknown, profile: Profile | null): 
         }
         <h3>Reporting periods</h3>@if (!w.periods.length) { <p>No reporting periods configured.</p> }
         <form #periodForm="ngForm" (ngSubmit)="periodForm.valid && createPeriod()"><h4>Create reporting period</h4>
-          <label>Period code <input name="periodCode" [(ngModel)]="period.code" required maxlength="100" /></label>
+          <label>Period code <input name="periodCode" [(ngModel)]="period.code" required maxlength="50" /></label>
           <label>Start date <input name="periodStart" type="date" [(ngModel)]="period.start" required /></label>
           <label>End date <input name="periodEnd" type="date" [(ngModel)]="period.end" required /></label>
-          <label>Reporting basis <input name="periodBasis" [(ngModel)]="period.basis" required maxlength="100" /></label>
+          <label>Reporting basis <input name="periodBasis" [(ngModel)]="period.basis" required maxlength="50" /></label>
           <label>Reporting currency <input name="periodCurrency" [(ngModel)]="period.currency" required pattern="[A-Z]{3}" maxlength="3" /></label>
           <label>Prior period <select name="priorPeriod" [(ngModel)]="period.prior"><option value="">None</option>
             @for (p of w.periods; track p.id) { <option [value]="p.id">{{ p.code }} · {{ p.basis }} · {{ p.end }}</option> }</select></label>
@@ -250,10 +250,10 @@ function isProfileSaveAcknowledgement(value: unknown, profile: Profile | null): 
             @if (!result.length) { <p>No validated packages match this closed prior period and currency.</p> }
             @if (moreSources()) { <p>Showing the first 100 matching packages.</p> }
           }
-          <label>New period code <input name="rollCode" [(ngModel)]="roll.code" required maxlength="100" /></label>
+          <label>New period code <input name="rollCode" [(ngModel)]="roll.code" required maxlength="50" /></label>
           <label>Next start date <input name="rollStart" type="date" [(ngModel)]="roll.start" required /></label>
           <label>Next end date <input name="rollEnd" type="date" [(ngModel)]="roll.end" required /></label>
-          <label>Next reporting basis <input name="rollBasis" [(ngModel)]="roll.basis" required maxlength="100" /></label>
+          <label>Next reporting basis <input name="rollBasis" [(ngModel)]="roll.basis" required maxlength="50" /></label>
           <label>Next reporting currency <input name="rollCurrency" [(ngModel)]="roll.currency" required pattern="[A-Z]{3}" maxlength="3" /></label>
           <label>Prior closing amount <input name="rollClosing" [(ngModel)]="roll.closing" required pattern="-?[0-9]+(\\.[0-9]{1,2})?" inputmode="decimal" /></label>
           <label>Current opening amount <input name="rollOpening" [(ngModel)]="roll.opening" required pattern="-?[0-9]+(\\.[0-9]{1,2})?" inputmode="decimal" /></label>
@@ -296,9 +296,9 @@ function isProfileSaveAcknowledgement(value: unknown, profile: Profile | null): 
         <form #bookForm="ngForm" (ngSubmit)="bookForm.valid && createBook()"><h4>Create reporting book</h4>
           <label for="book-period">Period</label><select id="book-period" name="bookPeriod" [(ngModel)]="book.periodId" required><option value="">Choose period</option>
             @for (p of w.periods; track p.id) { <option [value]="p.id" [disabled]="p.status === 'CLOSED'">{{ p.code }} · {{ p.basis }} · {{ p.status }}</option> }</select>
-          <label>Book code <input name="bookCode" [(ngModel)]="book.code" required maxlength="100" /></label>
-          <label>Basis <input name="bookBasis" [(ngModel)]="book.basis" required maxlength="100" /></label>
-          <label>Inclusion rule <input name="bookInclusion" [(ngModel)]="book.inclusionRule" required maxlength="200" /></label>
+          <label>Book code <input name="bookCode" [(ngModel)]="book.code" required maxlength="50" /></label>
+          <label>Basis <input name="bookBasis" [(ngModel)]="book.basis" required maxlength="50" /></label>
+          <label>Inclusion rule <input name="bookInclusion" [(ngModel)]="book.inclusionRule" required maxlength="100" /></label>
           <label>Currency <input name="bookCurrency" [(ngModel)]="book.currency" required pattern="[A-Z]{3}" maxlength="3" /></label>
           <label><input name="bookReviewed" type="checkbox" [(ngModel)]="bookReviewed" /> I reviewed the client, period and book configuration.</label>
           <button matButton type="submit" [disabled]="bookForm.invalid || !bookReviewed || saving() || writeBlocked()">Create book</button>
@@ -537,8 +537,17 @@ export class AccountingWorkspace {
       currency: this.period.currency, priorPeriodId: this.period.prior || null, reviewed: true,
     }).pipe(timeout(15000)).subscribe({
       next: () => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.select(w.clientId); },
-      error: failure => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.openingReviewed = ''; this.openingReason = ''; this.rollReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false;
-        this.uncertain.set(true); this.error.set('Period creation was not confirmed. Select the client again to inspect persisted periods.'); if (failure.status === 401) this.session.clear(); },
+      error: failure => {
+        if (generation !== this.session.invalidation()) return;
+        this.saving.set(false);
+        if (failure.status === 400) {
+          this.periodReviewed = false;
+          this.error.set('Period setup was refused. Correct the fields and review them again before submitting.');
+          return;
+        }
+        this.openingReviewed = ''; this.openingReason = ''; this.rollReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.book = { periodId: '', code: '', basis: '', inclusionRule: '', currency: '' }; this.periodReviewed = false;
+        this.uncertain.set(true); this.error.set('Period creation was not confirmed. Select the client again to inspect persisted periods.'); if (failure.status === 401) this.session.clear();
+      },
     });
   }
   createBook(): void {
@@ -548,8 +557,17 @@ export class AccountingWorkspace {
     this.saving.set(true); this.error.set('');
     this.write = this.http.post('/api/ui/accounting/clients/' + w.clientId + '/books', { ...this.book, reviewed: true }).pipe(timeout(15000)).subscribe({
       next: () => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.select(w.clientId); },
-      error: failure => { if (generation !== this.session.invalidation()) return; this.saving.set(false); this.openingReviewed = ''; this.openingReason = ''; this.rollReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.uncertain.set(true);
-        this.error.set('Book creation was not confirmed. Select the client again to inspect persisted books.'); if (failure.status === 401) this.session.clear(); },
+      error: failure => {
+        if (generation !== this.session.invalidation()) return;
+        this.saving.set(false);
+        if (failure.status === 400) {
+          this.bookReviewed = false;
+          this.error.set('Book setup was refused. Correct the fields and review them again before submitting.');
+          return;
+        }
+        this.openingReviewed = ''; this.openingReason = ''; this.rollReviewed = false; this.roll = { prior: '', code: '', start: '', end: '', basis: '', currency: '', closing: '', opening: '', hash: '', evidence: '' }; this.bookReviewed = false; this.uncertain.set(true);
+        this.error.set('Book creation was not confirmed. Select the client again to inspect persisted books.'); if (failure.status === 401) this.session.clear();
+      },
     });
   }
 

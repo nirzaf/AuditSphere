@@ -103840,12 +103840,15 @@
             "format": "uuid"
           },
           "code": {
+            "maxLength": 50,
             "type": "string"
           },
           "basis": {
+            "maxLength": 50,
             "type": "string"
           },
           "inclusionRule": {
+            "maxLength": 100,
             "type": "string"
           },
           "currency": {
@@ -104857,6 +104860,7 @@
         "type": "object",
         "properties": {
           "code": {
+            "maxLength": 50,
             "type": "string"
           },
           "start": {
@@ -104866,6 +104870,7 @@
             "type": "string"
           },
           "basis": {
+            "maxLength": 50,
             "type": "string"
           },
           "currency": {
@@ -105194,6 +105199,7 @@
             "type": "string"
           },
           "code": {
+            "maxLength": 50,
             "type": "string"
           },
           "start": {
@@ -105203,6 +105209,7 @@
             "type": "string"
           },
           "basis": {
+            "maxLength": 50,
             "type": "string"
           },
           "currency": {

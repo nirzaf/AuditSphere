@@ -242,6 +242,60 @@ public sealed partial class ClientAccountingTests
         "STATUTORY", "", "PARTNER", "BOOKKEEPING", "BOOKKEEPING_CONDITIONAL"));
     Assert.False(conditional.Succeeded);
     Assert.Equal(ErrorCodes.GateBlocked, conditional.ErrorCode);
+
+    var periodCodeAtLimit = new string('P', 50);
+    var periodBasisAtLimit = new string('B', 50);
+    var boundaryPeriod = await ClientAccountingService.CreatePeriodAsync(db, preparer,
+      new ReportingPeriodRequest(scope.ClientA, $" {periodCodeAtLimit} ", new DateOnly(2027, 1, 1), new DateOnly(2027, 12, 31),
+        $" {periodBasisAtLimit} ", "QAR"));
+    Assert.True(boundaryPeriod.Succeeded, boundaryPeriod.Message);
+    var storedBoundaryPeriod = await db.ClientReportingPeriods.SingleAsync(x => x.Id == boundaryPeriod.Value);
+    Assert.Equal(periodCodeAtLimit, storedBoundaryPeriod.PeriodCode);
+    Assert.Equal(periodBasisAtLimit, storedBoundaryPeriod.Basis);
+    var periodsBeforeInvalid = await db.ClientReportingPeriods.CountAsync(x => x.ClientId == scope.ClientA);
+    foreach (var invalid in new[]
+    {
+      (Code: new string('P', 51), Basis: "B"),
+      (Code: "P", Basis: new string('B', 51))
+    })
+    {
+      var refused = await ClientAccountingService.CreatePeriodAsync(db, preparer,
+        new ReportingPeriodRequest(scope.ClientA, invalid.Code, new DateOnly(2028, 1, 1), new DateOnly(2028, 12, 31), invalid.Basis, "QAR"));
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, refused.ErrorCode);
+    }
+    Assert.Equal(periodsBeforeInvalid, await db.ClientReportingPeriods.CountAsync(x => x.ClientId == scope.ClientA));
+
+    var bookCodeAtLimit = new string('C', 50);
+    var bookBasisAtLimit = new string('B', 50);
+    var inclusionRuleAtLimit = new string('I', 100);
+    var boundaryBook = await ClientAccountingService.CreateBookAsync(db, preparer,
+      new ReportingBookRequest(scope.ClientA, periodId, $" {bookCodeAtLimit} ", $" {bookBasisAtLimit} ", $" {inclusionRuleAtLimit} ", "QAR"));
+    Assert.True(boundaryBook.Succeeded, boundaryBook.Message);
+    var storedBoundaryBook = await db.ClientReportingBooks.SingleAsync(x => x.Id == boundaryBook.Value);
+    Assert.Equal(bookCodeAtLimit, storedBoundaryBook.Code);
+    Assert.Equal(bookBasisAtLimit, storedBoundaryBook.Basis);
+    Assert.Equal(inclusionRuleAtLimit, storedBoundaryBook.InclusionRule);
+    var booksBeforeInvalid = await db.ClientReportingBooks.CountAsync(x => x.ClientId == scope.ClientA);
+    foreach (var invalid in new[]
+    {
+      (Code: new string('C', 51), Basis: "B", Inclusion: "I"),
+      (Code: "C", Basis: new string('B', 51), Inclusion: "I"),
+      (Code: "C", Basis: "B", Inclusion: new string('I', 101))
+    })
+    {
+      var refused = await ClientAccountingService.CreateBookAsync(db, preparer,
+        new ReportingBookRequest(scope.ClientA, periodId, invalid.Code, invalid.Basis, invalid.Inclusion, "QAR"));
+      Assert.False(refused.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.MappingInvalid, refused.ErrorCode);
+    }
+    Assert.Equal(booksBeforeInvalid, await db.ClientReportingBooks.CountAsync(x => x.ClientId == scope.ClientA));
+
+    var invalidRollForward = await ClientAccountingService.RollForwardPeriodAsync(db, preparer,
+      new RollForwardPeriodRequest(scope.ClientA, Guid.NewGuid(), new string('P', 51), new DateOnly(2028, 1, 1),
+        new DateOnly(2028, 12, 31), "B", "QAR", new string('a', 64), 0m, 0m, "Synthetic evidence", null, 1));
+    Assert.False(invalidRollForward.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.MappingInvalid, invalidRollForward.ErrorCode);
   }
 
   [Fact]

@@ -12,9 +12,12 @@ public static partial class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, ReportingBookRequest request,
     CancellationToken ct = default)
   {
+    var code = request.Code?.Trim();
+    var basis = request.Basis?.Trim();
+    var inclusionRule = request.InclusionRule?.Trim();
     var currency = (string.IsNullOrWhiteSpace(request.Currency) ? AccountingDefaults.DefaultCurrency : request.Currency).Trim().ToUpperInvariant();
-    if (request.ClientId == Guid.Empty || request.PeriodId == Guid.Empty || string.IsNullOrWhiteSpace(request.Code) ||
-        string.IsNullOrWhiteSpace(request.Basis) || string.IsNullOrWhiteSpace(request.InclusionRule) ||
+    if (request.ClientId == Guid.Empty || request.PeriodId == Guid.Empty || code is null || code.Length is < 1 or > 50 ||
+        basis is null || basis.Length is < 1 or > 50 || inclusionRule is null || inclusionRule.Length is < 1 or > 100 ||
         currency.Length != 3 || currency.Any(c => c is < 'A' or > 'Z'))
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "A reporting book must identify its basis and inclusion rule.");
     var auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
@@ -31,13 +34,13 @@ public static partial class ClientAccountingService
     if (period.Status == AccountingWorkflowStates.Closed)
       return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "A closed period cannot receive a new book.");
     if (await db.ClientReportingBooks.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
-        x.PeriodId == request.PeriodId && x.Code == request.Code.Trim(), ct))
+        x.PeriodId == request.PeriodId && x.Code == code, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.IdempotencyConflict, "The reporting book already exists.");
     var book = new ClientReportingBook
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId,
-      PeriodId = request.PeriodId, Code = request.Code.Trim(), Basis = request.Basis.Trim(),
-      InclusionRule = request.InclusionRule.Trim(), Currency = currency,
+      PeriodId = request.PeriodId, Code = code, Basis = basis,
+      InclusionRule = inclusionRule, Currency = currency,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.ClientReportingBooks.Add(book);

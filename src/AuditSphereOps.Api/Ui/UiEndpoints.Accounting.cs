@@ -26,15 +26,17 @@ public static partial class UiEndpoints
     int FiscalMonth, int FiscalDay, string SourceSystem, string SourceIdentifier, bool Reviewed,
     string SourceMode = ClientAccountingSourceModes.ExternalSource,
     [property: MaxLength(2000)] string? Reason = null);
-  public sealed record AccountingPeriodInput(string Code, string Start, string End, string Basis, string Currency,
+  public sealed record AccountingPeriodInput([property: MaxLength(50)] string Code, string Start, string End,
+    [property: MaxLength(50)] string Basis, string Currency,
     Guid? PriorPeriodId, bool Reviewed);
-  public sealed record AccountingBookInput(Guid PeriodId, string Code, string Basis, string InclusionRule, string Currency, bool Reviewed);
+  public sealed record AccountingBookInput(Guid PeriodId, [property: MaxLength(50)] string Code,
+    [property: MaxLength(50)] string Basis, [property: MaxLength(100)] string InclusionRule, string Currency, bool Reviewed);
   public sealed record AccountingPeriodDecisionInput(string Revision, string Reason, bool Reviewed);
   /// <summary>Review exact opening evidence against the displayed prior close; revalidation retains a reason.</summary>
   public sealed record AccountingOpeningApprovalInput(string SourceHash, bool Reviewed, string? PriorRevision = null,
     [property: MaxLength(2000)] string? Reason = null);
-  public sealed record AccountingRollforwardInput(Guid PriorPeriodId, string Revision, string Code, string Start,
-    string End, string Basis, string Currency, string SourceHash, string PriorClosing, string CurrentOpening,
+  public sealed record AccountingRollforwardInput(Guid PriorPeriodId, string Revision, [property: MaxLength(50)] string Code, string Start,
+    string End, [property: MaxLength(50)] string Basis, string Currency, string SourceHash, string PriorClosing, string CurrentOpening,
     string Evidence, Guid? SourcePackageId, bool Reviewed);
   private static void MapAccountingEndpoints(RouteGroupBuilder group)
   {
@@ -94,7 +96,7 @@ public static partial class UiEndpoints
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
       if (!input.Reviewed || input.PriorPeriodId == Guid.Empty ||
         !long.TryParse(input.Revision, NumberStyles.None, CultureInfo.InvariantCulture, out var revision) || revision < 1 ||
-        string.IsNullOrWhiteSpace(input.Code) || input.Code.Length > 100 || string.IsNullOrWhiteSpace(input.Basis) || input.Basis.Length > 100 ||
+        string.IsNullOrWhiteSpace(input.Code) || input.Code.Trim().Length > 50 || string.IsNullOrWhiteSpace(input.Basis) || input.Basis.Trim().Length > 50 ||
         input.Currency is not { Length: 3 } || input.SourceHash is not { Length: 64 } ||
         string.IsNullOrWhiteSpace(input.Evidence) || input.Evidence.Length > 2000 ||
         !DateOnly.TryParseExact(input.Start, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) ||
@@ -158,9 +160,9 @@ public static partial class UiEndpoints
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       try { await csrf.ValidateRequestAsync(http); }
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
-      if (!input.Reviewed || input.PeriodId == Guid.Empty || string.IsNullOrWhiteSpace(input.Code) || input.Code.Length > 100 ||
-        string.IsNullOrWhiteSpace(input.Basis) || input.Basis.Length > 100 ||
-        string.IsNullOrWhiteSpace(input.InclusionRule) || input.InclusionRule.Length > 200 || input.Currency is not { Length: 3 })
+      if (!input.Reviewed || input.PeriodId == Guid.Empty || string.IsNullOrWhiteSpace(input.Code) || input.Code.Trim().Length > 50 ||
+        string.IsNullOrWhiteSpace(input.Basis) || input.Basis.Trim().Length > 50 ||
+        string.IsNullOrWhiteSpace(input.InclusionRule) || input.InclusionRule.Trim().Length > 100 || input.Currency is not { Length: 3 })
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       var result = await ClientAccountingService.CreateBookAsync(db, actor,
@@ -178,8 +180,8 @@ public static partial class UiEndpoints
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
       try { await csrf.ValidateRequestAsync(http); }
       catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
-      if (!input.Reviewed || string.IsNullOrWhiteSpace(input.Code) || input.Code.Length > 100 ||
-        string.IsNullOrWhiteSpace(input.Basis) || input.Basis.Length > 100 || input.Currency is not { Length: 3 } ||
+      if (!input.Reviewed || string.IsNullOrWhiteSpace(input.Code) || input.Code.Trim().Length > 50 ||
+        string.IsNullOrWhiteSpace(input.Basis) || input.Basis.Trim().Length > 50 || input.Currency is not { Length: 3 } ||
         !DateOnly.TryParseExact(input.Start, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) ||
         !DateOnly.TryParseExact(input.End, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end))
         return Results.Json(new { code = "request.invalid" }, statusCode: 400);
