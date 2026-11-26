@@ -92,7 +92,7 @@ public static class ClientPurchaseCreditNoteWorkflow
       originalPeriod = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.Id == draft.PeriodId, ct);
       supplierId = open.SupplierId; currency = open.Currency; originalAmount = open.OriginalAmount; originalHash = submission.ManifestHash;
     }
-    var period = await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={r.PeriodId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var period = await db.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={r.PeriodId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (period is null || period.Status == AccountingWorkflowStates.Closed || r.PostingDate < period.StartDate || r.PostingDate > period.EndDate ||
         period.Currency != currency || profile.FunctionalCurrency != currency || originalPeriod is null && r.OriginalInvoiceId is not null)
       return CommandResult<Original>.Fail(ErrorCodes.GateBlocked, "Choose an open client period in the supplier credit currency containing its posting date.");
@@ -217,7 +217,7 @@ public static class ClientPurchaseCreditNoteWorkflow
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded || !await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db, actor.FirmId, clientId, ct: ct))
       return CommandResult<ClientPurchaseCreditReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var client = await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var client = await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (client is null) return CommandResult<ClientPurchaseCreditReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var replay = await db.ClientPurchaseCreditNoteSubmissions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.CreatedByUserId == actor.UserId && x.CommandId == request.CommandId, ct);
     if (replay is not null) return replay.IntentHash == intent ? CommandResult<ClientPurchaseCreditReceipt>.Ok(Receipt(replay)) : CommandResult<ClientPurchaseCreditReceipt>.Fail(ErrorCodes.IdempotencyConflict, "This credit command key is bound to different content.");
@@ -299,7 +299,7 @@ public static class ClientPurchaseCreditNoteWorkflow
     var intent = Hash(JsonSerializer.Serialize(new { Version = "client-purchase-credit-review-v1", actor.FirmId, clientId, actor.UserId, Request = request with { Decision = decision, Reason = reason, DuplicateResolutionReason = duplicateReason } }));
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!(await Authorize(db, actor, clientId, Reviewers, ct)).Succeeded || !await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db, actor.FirmId, clientId, ct: ct)) return CommandResult<ClientPurchaseCreditReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
     var submission = await db.ClientPurchaseCreditNoteSubmissions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.Id == request.SubmissionId, ct);
     if (submission is null || submission.CreatedByUserId == actor.UserId) return CommandResult<ClientPurchaseCreditReceipt>.Fail(ErrorCodes.ScopeDenied, "An independent scoped reviewer is required.");
     var replay = await db.ClientPurchaseCreditNoteDecisions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.ActorUserId == actor.UserId && x.CommandId == request.CommandId, ct);
@@ -308,7 +308,7 @@ public static class ClientPurchaseCreditNoteWorkflow
     if (!preview.Succeeded || preview.Value!.Digest != request.PreviewDigest || decision == "APPROVE" && !preview.Value.CanPost || decision == "APPROVE" && preview.Value.DuplicateWarning && duplicateReason.Length == 0)
       return CommandResult<ClientPurchaseCreditReceipt>.Fail(ErrorCodes.StaleRevision, "Refresh the exact credit posting and resolve any duplicate warning with a rationale.");
     if (await db.ClientPurchaseCreditNoteDecisions.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.SubmissionId == submission.Id, ct)) return CommandResult<ClientPurchaseCreditReceipt>.Fail(ErrorCodes.IdempotencyConflict, "This supplier credit already has a decision.");
-    var journal = await db.ClientOperationalJournals.FromSqlInterpolated($"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={submission.JournalId} FOR UPDATE").SingleAsync(ct);
+    var journal = await db.ClientOperationalJournals.FromSql($"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={submission.JournalId} FOR UPDATE").SingleAsync(ct);
     var now = DateTimeOffset.UtcNow;
     var retained = new ClientPurchaseCreditNoteDecision { Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId,
       SubmissionId = submission.Id, CommandId = request.CommandId, IntentHash = intent, Decision = decision, Reason = reason,

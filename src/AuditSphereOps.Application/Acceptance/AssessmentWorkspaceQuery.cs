@@ -41,20 +41,20 @@ public static class AssessmentWorkspaceQuery
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded) return Denied();
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     // Use the same firm -> client -> actor order as reviewed administration commands.
-    if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE")
+    if (await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return Denied();
-    if (await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id={clientId} AND firm_id={actor.FirmId} FOR SHARE")
+    if (await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE id={clientId} AND firm_id={actor.FirmId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return Denied();
-    if (await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE id={actor.UserId} AND firm_id={actor.FirmId} FOR SHARE")
+    if (await db.Users.FromSql($"SELECT * FROM users WHERE id={actor.UserId} AND firm_id={actor.FirmId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return Denied();
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded) return Denied();
-    var target = engagementId.HasValue ? await db.Engagements.FromSqlInterpolated(
+    var target = engagementId.HasValue ? await db.Engagements.FromSql(
       $"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND practice_client_id={clientId} AND id={engagementId.Value} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct) : null;
     if (engagementId.HasValue && (target is null || string.IsNullOrWhiteSpace(target.ServiceRoute) ||
       !DateOnly.TryParseExact(target.PeriodStart, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) ||
       !DateOnly.TryParseExact(target.PeriodEnd, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end) || start > end)) return Denied();
-    var targetOpportunity = opportunityId.HasValue ? await db.Opportunities.FromSqlInterpolated(
+    var targetOpportunity = opportunityId.HasValue ? await db.Opportunities.FromSql(
       $"SELECT * FROM opportunities WHERE firm_id={actor.FirmId} AND acceptance_client_id={clientId} AND id={opportunityId.Value} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct) : null;
     if (opportunityId.HasValue && (targetOpportunity is null || targetOpportunity.EntityScopeConfirmedByUserId is null ||

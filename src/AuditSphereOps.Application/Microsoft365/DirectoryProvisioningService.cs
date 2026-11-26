@@ -334,7 +334,7 @@ public static partial class DirectoryProvisioningService
     IAuditSphereDbContext db, ActorContext actor, Guid operationId, DateTimeOffset now, CancellationToken ct)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var operation = await db.Microsoft365ExternalOperations.FromSqlInterpolated($"""
+    var operation = await db.Microsoft365ExternalOperations.FromSql($"""
       SELECT * FROM m365_external_operations WHERE firm_id = {actor.FirmId} AND id = {operationId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (operation is null || !await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct))
@@ -451,7 +451,7 @@ public static partial class DirectoryProvisioningService
     Func<Task<string?>>? duplicateCheck = null, string? memberObjectId = null)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE")
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct))
       return TenantAdministration.Denied<Microsoft365ExternalOperation>();
@@ -490,7 +490,7 @@ public static partial class DirectoryProvisioningService
     DateTimeOffset now, CancellationToken ct, Func<Task<bool>>? admissionCheck = null)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var operation = await db.Microsoft365ExternalOperations.FromSqlInterpolated($"""
+    var operation = await db.Microsoft365ExternalOperations.FromSql($"""
       SELECT * FROM m365_external_operations WHERE firm_id = {actor.FirmId} AND id = {operationId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     // Re-check authority immediately before the external side effect.
@@ -512,7 +512,7 @@ public static partial class DirectoryProvisioningService
     DateTimeOffset now, CancellationToken ct)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var operation = await db.Microsoft365ExternalOperations.FromSqlInterpolated($"""
+    var operation = await db.Microsoft365ExternalOperations.FromSql($"""
       SELECT * FROM m365_external_operations WHERE firm_id = {actor.FirmId} AND id = {operationId} FOR UPDATE
       """).SingleAsync(ct);
     var previous = operation.State;

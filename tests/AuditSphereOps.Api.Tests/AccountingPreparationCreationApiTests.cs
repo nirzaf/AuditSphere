@@ -46,8 +46,8 @@ public sealed class AccountingPreparationCreationApiTests
     Assert.True(readReceipt.GetProperty("found").GetBoolean());
     var storedRecon=await db.AccountingReconciliationPreparations.SingleAsync(x=>x.RequestId==recon.RequestId);
     Assert.Contains("1000",storedRecon.InputJson);Assert.Equal(f.Staff.Id,storedRecon.ActorId);
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE accounting_reconciliation_preparations SET reason='changed' WHERE id={storedRecon.Id}"));
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM accounting_reconciliation_preparations WHERE id={storedRecon.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE accounting_reconciliation_preparations SET reason='changed' WHERE id={storedRecon.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"DELETE FROM accounting_reconciliation_preparations WHERE id={storedRecon.Id}"));
 
     var specialistUrl=$"/api/ui/engagements/{f.EngagementId}/specialist-preparation";
     var specialistState=await Read(client,$"{specialistUrl}/state?periodId={periodId}&area=ASSETS");
@@ -70,8 +70,8 @@ public sealed class AccountingPreparationCreationApiTests
     Assert.True(specialistLookup.GetProperty("found").GetBoolean());
     var storedSchedule=await db.SpecialistSchedulePreparations.SingleAsync(x=>x.RequestId==specialist.RequestId);
     Assert.Contains("STRAIGHT_LINE",storedSchedule.InputJson);
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE specialist_schedule_preparations SET reason='changed' WHERE id={storedSchedule.Id}"));
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM specialist_schedule_preparations WHERE id={storedSchedule.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE specialist_schedule_preparations SET reason='changed' WHERE id={storedSchedule.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"DELETE FROM specialist_schedule_preparations WHERE id={storedSchedule.Id}"));
     Assert.Single(await db.AccountingReconciliationPreparations.Where(x=>x.RequestId==recon.RequestId).ToListAsync());
     Assert.Single(await db.SpecialistSchedulePreparations.Where(x=>x.RequestId==specialist.RequestId).ToListAsync());
   }

@@ -70,11 +70,11 @@ public static class ApprovalService
     }
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var firm = await db.FirmSafetyStates.FromSqlInterpolated(
+    var firm = await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (firm is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
-    var client = await db.ClientSafetyStates.FromSqlInterpolated(
+    var client = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {target.ClientId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (client is null)
@@ -148,9 +148,9 @@ public static class ApprovalService
       return CommandResult<ApprovalApplicabilityResult>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var firm = await db.FirmSafetyStates.FromSqlInterpolated(
+    var firm = await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
-    var client = await db.ClientSafetyStates.FromSqlInterpolated(
+    var client = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {approval.ClientId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     var current = await LoadTargetAsync(db, actor.FirmId, approval.TargetKind, approval.TargetId, forUpdate: true, ct);
@@ -224,7 +224,7 @@ public static class ApprovalService
     if (targetKind == ReleaseTargetKinds.Workpaper)
     {
       var workpaper = forUpdate
-        ? await db.Workpapers.FromSqlInterpolated($"SELECT * FROM workpapers WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
+        ? await db.Workpapers.FromSql($"SELECT * FROM workpapers WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
           .AsNoTracking().SingleOrDefaultAsync(ct)
         : await db.Workpapers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == firmId, ct);
       return workpaper is null ? null : new ApprovalTarget(targetKind, workpaper.Id, workpaper.ClientId,
@@ -234,7 +234,7 @@ public static class ApprovalService
     if (targetKind == ReleaseTargetKinds.FinancialPackage)
     {
       var package = forUpdate
-        ? await db.FinancialPackages.FromSqlInterpolated($"SELECT * FROM financial_packages WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
+        ? await db.FinancialPackages.FromSql($"SELECT * FROM financial_packages WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
           .AsNoTracking().SingleOrDefaultAsync(ct)
         : await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == firmId, ct);
       return package is null ? null : new ApprovalTarget(targetKind, package.Id, package.ClientId,

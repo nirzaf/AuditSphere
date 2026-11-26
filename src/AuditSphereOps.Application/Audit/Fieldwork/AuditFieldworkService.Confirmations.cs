@@ -308,7 +308,7 @@ public static partial class AuditFieldworkService
       return CommandResult<ConfirmationValue>.Fail(auth.ErrorCode!, auth.Message!);
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     await LockConfirmationScopeAsync(db, actor, existing!.EngagementId, ct);
-    var locked = await db.AuditConfirmationCases.FromSqlInterpolated($"SELECT * FROM audit_confirmation_cases WHERE firm_id = {actor.FirmId} AND id = {request.ConfirmationCaseId} FOR UPDATE")
+    var locked = await db.AuditConfirmationCases.FromSql($"SELECT * FROM audit_confirmation_cases WHERE firm_id = {actor.FirmId} AND id = {request.ConfirmationCaseId} FOR UPDATE")
       .AsNoTracking().SingleAsync(ct);
     auth = await AuthorizeEntityAsync(db, actor, locked, ReviewRoles, ct);
     if (!auth.Succeeded)
@@ -362,7 +362,7 @@ public static partial class AuditFieldworkService
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId, Guid caseId, CancellationToken ct)
   {
     await LockConfirmationScopeAsync(db, actor, engagementId, ct);
-    await db.AuditConfirmationCases.FromSqlInterpolated(
+    await db.AuditConfirmationCases.FromSql(
       $"SELECT * FROM audit_confirmation_cases WHERE firm_id = {actor.FirmId} AND engagement_id = {engagementId} AND id = {caseId} FOR UPDATE")
       .AsNoTracking().LoadAsync(ct);
   }

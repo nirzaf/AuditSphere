@@ -196,8 +196,8 @@ public static class AuditOpeningBalanceWorkspace
   {
     var digest = Hashing.Sha256Hex(JsonSerializer.Serialize(new { Namespace = "opening-balance-command-v1", actor.FirmId, actor.UserId, requestId }));
     var key = unchecked((long)Convert.ToUInt64(digest[..16], 16));
-    if (write) await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", ct);
-    else await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
+    if (write) await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({key})", ct);
+    else await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
   }
   internal static async Task<CommandResult<OpeningBalanceCommandLookup>> ResolveAsync(IClientAccountingDbContext db, ActorContext actor, Guid engagementId, OpeningBalanceReceiptContext context, CancellationToken ct)
   {

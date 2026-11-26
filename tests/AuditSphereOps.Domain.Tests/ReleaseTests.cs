@@ -227,10 +227,10 @@ public sealed class ReleaseTests
       db.ChangeTracker.Clear();
       Assert.Equal(ReleaseStates.Issued, (await db.ReleaseCandidates.AsNoTracking().SingleAsync(x => x.Id == candidateId)).Status);
 
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         UPDATE releases SET manifest_digest = {new string('c', 64)} WHERE firm_id = {fixture.FirmId} AND id = {issued.Value}
         """));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         DELETE FROM releases WHERE firm_id = {fixture.FirmId} AND id = {issued.Value}
         """));
     }
@@ -280,13 +280,13 @@ public sealed class ReleaseTests
         .SingleAsync(x => x.ReleaseCandidateId == candidateId)));
 
       var checkpointMutation = await Assert.ThrowsAsync<PostgresException>(() =>
-        db.Database.ExecuteSqlInterpolatedAsync($"""
+        db.Database.ExecuteSqlAsync($"""
           UPDATE release_checkpoints SET verifier = 'tampered'
           WHERE firm_id = {fixture.FirmId} AND id = {created.Value}
           """));
       Assert.Equal("55000", checkpointMutation.SqlState);
       var checkpointDelete = await Assert.ThrowsAsync<PostgresException>(() =>
-        db.Database.ExecuteSqlInterpolatedAsync($"""
+        db.Database.ExecuteSqlAsync($"""
           DELETE FROM release_checkpoints WHERE firm_id = {fixture.FirmId} AND id = {created.Value}
           """));
       Assert.Equal("55000", checkpointDelete.SqlState);

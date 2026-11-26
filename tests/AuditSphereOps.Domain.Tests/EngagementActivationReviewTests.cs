@@ -24,7 +24,7 @@ public sealed class EngagementActivationReviewTests
     Assert.Equal(("Active",false,9007199254740994L),(e.Status,e.ProfessionalWorkBlocked,e.Generation));
     Assert.Equal(receipt,(await EngagementActivationWorkspace.LookupAsync(db,a,f.EngagementId,r.RequestId,p.RequestHash)).Value!.Receipt);
     Assert.Equal(receipt,(await EngagementActivationWorkspace.ExecuteAsync(db,a,f.EngagementId,r)).Value);
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE engagement_activations SET review_basis={new string('b',64)} WHERE id={receipt.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE engagement_activations SET review_basis={new string('b',64)} WHERE id={receipt.Id}"));
     var migrations=db.Database.GetMigrations().ToArray();var at=Array.FindIndex(migrations,x=>x.EndsWith("_NativeEngagementActivationReview",StringComparison.Ordinal));Assert.True(at>0);
     await Assert.ThrowsAsync<PostgresException>(()=>db.GetService<IMigrator>().MigrateAsync(migrations[at-1]));
     Assert.Single(await db.EngagementActivations.ToListAsync());

@@ -191,7 +191,7 @@ public sealed class AuditProgramWorkflowTests
       new DecideProcedureApplicabilityRequest(second.Id, AuditApplicabilityStatuses.Applicable, null,
         second.CurrentApplicabilityRevision, second.CurrentDefinitionRevision, Guid.NewGuid()));
     Assert.True(secondDecision.Succeeded);
-    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE client_safety_states SET input_generation = 2 WHERE id = {scope.ClientId}");
+    await db.Database.ExecuteSqlAsync($"UPDATE client_safety_states SET input_generation = 2 WHERE id = {scope.ClientId}");
     var stale = await AuditProgramService.SubmitResultAsync(db, scope.Actor,
       new SubmitProcedureResultRequest(second.Id, 1, "Stale input check.", "{\"result\":\"PASS\"}",
         ["source:bank-list-2"], "No exception noted."));
@@ -504,11 +504,11 @@ public sealed class AuditProgramWorkflowTests
       db, scope.FirmId, scope.ClientId, scope.EngagementId, procedure.Id, CancellationToken.None);
     Assert.Equal("MISSING_REVIEW", currentEvidenceAfterResubmit.State);
 
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE audit_procedure_definition_revisions SET rationale = rationale WHERE id = {tailoredDefinition.Id}"));
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"DELETE FROM audit_procedure_definition_revisions WHERE id = {tailoredDefinition.Id}"));
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE audit_procedures SET source_wording = 'legacy writer must be rejected' WHERE id = {procedure.Id}"));
   }
 
@@ -645,7 +645,7 @@ public sealed class AuditProgramWorkflowTests
     Assert.Equal(ErrorCodes.IdempotencyConflict, changedIntent.ErrorCode);
     Assert.Equal(4, await db.AuditProcedureApplicabilityDecisions.CountAsync(x => x.AuditProcedureId == procedure.Id));
 
-    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE client_safety_states SET input_generation = input_generation + 1 WHERE id = {scope.ClientId}");
+    await db.Database.ExecuteSqlAsync($"UPDATE client_safety_states SET input_generation = input_generation + 1 WHERE id = {scope.ClientId}");
     var refreshedProcedure = await db.AuditProcedures.AsNoTracking().SingleAsync(x => x.Id == procedure.Id);
     var current = await AuditProgramService.CurrentApplicabilityDecisionsAsync(db, scope.FirmId, scope.ClientId,
       scope.EngagementId, [refreshedProcedure], CancellationToken.None);
@@ -671,7 +671,7 @@ public sealed class AuditProgramWorkflowTests
     Assert.Equal(AuditApplicabilityStatuses.Applicable, applicable.Value!.Status);
     Assert.Equal(5, await db.AuditProcedureApplicabilityDecisions.CountAsync(x => x.AuditProcedureId == procedure.Id));
 
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE audit_procedure_applicability_decisions SET rationale = 'tampered' WHERE id = {proposal.Value.DecisionId}"));
   }
 
@@ -812,7 +812,7 @@ public sealed class AuditProgramWorkflowTests
       scope.FirmId, scope.ClientId, scope.EngagementId, CancellationToken.None);
     Assert.DoesNotContain($"procedure:{procedure.SourceProcedureId}:unreviewed", complete.Value!.Blockers);
 
-    await db.Database.ExecuteSqlInterpolatedAsync(
+    await db.Database.ExecuteSqlAsync(
       $"UPDATE client_safety_states SET input_generation = input_generation + 1 WHERE id = {scope.ClientId}");
     var staleProgram = await EngagementAuditProgramQuery.GetProgramAsync(db, scope.Actor, scope.EngagementId);
     Assert.Equal(0, staleProgram.Value!.Sections.Single(x => x.SectionNumber == 8).Reviewed);
@@ -824,7 +824,7 @@ public sealed class AuditProgramWorkflowTests
       scope.FirmId, scope.ClientId, scope.EngagementId, CancellationToken.None);
     Assert.Contains($"procedure:{procedure.SourceProcedureId}:stale-generation", staleComplete.Value!.Blockers);
 
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE audit_procedure_command_receipts SET result_status = 'TAMPERED' WHERE id = {receipt.Value.Id}"));
   }
 

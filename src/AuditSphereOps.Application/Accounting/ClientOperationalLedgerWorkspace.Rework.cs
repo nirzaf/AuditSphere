@@ -30,7 +30,7 @@ public static partial class ClientOperationalLedgerWorkspace
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var auth = await AuthorizeAsync(db, actor, clientId, Preparers, ct);
     if (!auth.Succeeded) return auth;
-    var journal = await db.ClientOperationalJournals.FromSqlInterpolated(
+    var journal = await db.ClientOperationalJournals.FromSql(
       $"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={journalId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (journal is null || journal.CreatedByUserId != actor.UserId)
@@ -44,7 +44,7 @@ public static partial class ClientOperationalLedgerWorkspace
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Full reversal drafts retain exact original accounting sides; general draft editing is unavailable.");
     var profile = await NativeProfileAsync(db, actor, clientId, ct);
     if (!profile.Succeeded) return CommandResult.Fail(profile.ErrorCode!, profile.Message!);
-    var period = await db.ClientReportingPeriods.FromSqlInterpolated(
+    var period = await db.ClientReportingPeriods.FromSql(
       $"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={journal.PeriodId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (period is null || period.Status == AccountingWorkflowStates.Closed || request.PostingDate < period.StartDate ||

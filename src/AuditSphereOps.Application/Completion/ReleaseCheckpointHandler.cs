@@ -71,7 +71,7 @@ public sealed class ReleaseCheckpointHandler(
 
   public async Task LockTargetAsync(IAuditSphereDbContext db, DurableOperation op, CancellationToken ct)
   {
-    var candidates = await db.ReleaseCandidates.FromSqlInterpolated($"""
+    var candidates = await db.ReleaseCandidates.FromSql($"""
       SELECT * FROM release_candidates WHERE firm_id = {op.FirmId} AND id = {op.TargetId}
         AND client_id = {op.ClientId} AND engagement_id = {op.EngagementId} FOR UPDATE
       """).ToListAsync(ct);

@@ -173,7 +173,7 @@ public static class AnnualEngagementPreparationWorkspace
     EngagementCreationFields fields, bool lockSource, CancellationToken ct)
   {
     if (fields.AnnualSourceEngagementId is not { } sourceId) return CommandResult.Ok();
-    var query = lockSource ? db.Engagements.FromSqlInterpolated(
+    var query = lockSource ? db.Engagements.FromSql(
       $"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND practice_client_id={clientId} AND id={sourceId} FOR SHARE").AsNoTracking()
       : db.Engagements.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.PracticeClientId == clientId && x.Id == sourceId);
     var source = await query.SingleOrDefaultAsync(ct);
@@ -183,7 +183,7 @@ public static class AnnualEngagementPreparationWorkspace
     if (fields.AnnualTemplateRevisionId is { } revisionId)
     {
       // Publication and archive commands lock the template root; keep the reviewed choice stable through creation.
-      if (lockSource && await db.WorkflowTemplates.FromSqlInterpolated(
+      if (lockSource && await db.WorkflowTemplates.FromSql(
         $"SELECT * FROM workflow_templates WHERE firm_id={actor.FirmId} AND id=(SELECT template_id FROM workflow_template_revisions WHERE firm_id={actor.FirmId} AND id={revisionId}) FOR SHARE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null)
         return CommandResult.Fail(ErrorCodes.GenerationStale, "The selected annual template changed. Refresh and review again.");

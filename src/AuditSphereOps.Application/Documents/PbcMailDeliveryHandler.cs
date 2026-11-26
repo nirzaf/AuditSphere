@@ -50,7 +50,7 @@ public sealed class PbcMailDeliveryHandler(
 
   public async Task LockTargetAsync(IAuditSphereDbContext db, DurableOperation op, CancellationToken ct)
   {
-    var mail = await db.PbcCommunications.FromSqlInterpolated($"""
+    var mail = await db.PbcCommunications.FromSql($"""
       SELECT * FROM pbc_communications WHERE firm_id = {op.FirmId} AND id = {op.TargetId}
         AND client_id = {op.ClientId} AND engagement_id = {op.EngagementId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);

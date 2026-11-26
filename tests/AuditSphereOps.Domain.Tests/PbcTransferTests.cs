@@ -379,16 +379,16 @@ public sealed partial class PbcTransferTests
       Assert.Equal(PbcStates.Accepted, accepted.State);
       Assert.Equal(receipt.AcceptedAt, accepted.AcceptedAt);
       Assert.Equal(receipt.ReviewerUserId, accepted.AcceptedByUserId);
-      var receiptMutation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+      var receiptMutation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlAsync(
         $"UPDATE pbc_acceptance_receipts SET file_name = 'rewritten.pdf' WHERE id = {receipt.Id}"));
       Assert.Equal("55000", receiptMutation.SqlState);
-      var sourceMutation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+      var sourceMutation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlAsync(
         $"UPDATE pbc_upload_intents SET file_name = 'rewritten.pdf' WHERE id = {receipt.PbcUploadIntentId}"));
       Assert.Equal("55000", sourceMutation.SqlState);
-      var requestMutation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+      var requestMutation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlAsync(
         $"UPDATE pbc_requests SET accepted_by_user_id = {transfer.Fixture.Staff.Id} WHERE id = {transfer.RequestId}"));
       Assert.Equal("55000", requestMutation.SqlState);
-      var requestContentMutation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+      var requestContentMutation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlAsync(
         $"UPDATE pbc_requests SET objective = 'rewritten after acceptance' WHERE id = {transfer.RequestId}"));
       Assert.Equal("55000", requestContentMutation.SqlState);
     }

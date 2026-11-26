@@ -201,7 +201,7 @@ public static partial class OperationRecoveryService
     if (authority.Value!.OperatingMode != "LOCAL_ONLY")
       return CommandResult.Fail(ErrorCodes.Operations.Quarantined,
         "Recovery requires the firm to be in the local-only operating mode.");
-    var locked = await db.DurableOperations.FromSqlInterpolated($"""
+    var locked = await db.DurableOperations.FromSql($"""
       SELECT * FROM durable_operations WHERE id = {input.OperationId} AND firm_id = {actor.FirmId} FOR UPDATE
       """).AsNoTracking().ToListAsync(ct);
     if (locked.Count == 0)
@@ -213,7 +213,7 @@ public static partial class OperationRecoveryService
     if (op.LeaseOwner is not null || op.LeaseExpiresAt is not null)
       return CommandResult.Fail(ErrorCodes.Operations.Lease, "The operation still holds an active lease.");
 
-    var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
+    var count = await db.Database.ExecuteSqlAsync($"""
       UPDATE durable_operations SET status = 'RETRY_WAIT', error_code = NULL,
         is_reconciliation = is_reconciliation OR status = 'RESULT_UNCERTAIN',
         next_attempt_at = statement_timestamp() + make_interval(secs => 5),
@@ -260,7 +260,7 @@ public static partial class OperationRecoveryService
       "SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'", ct);
     var authority = await LockAuthorityAsync(db, actor, false, ct);
     if (!authority.Succeeded) return CommandResult.Fail(authority.ErrorCode!, authority.Message!);
-    var locked = await db.DurableOperations.FromSqlInterpolated($"""
+    var locked = await db.DurableOperations.FromSql($"""
       SELECT * FROM durable_operations WHERE id = {input.OperationId} AND firm_id = {actor.FirmId} FOR UPDATE
       """).AsNoTracking().ToListAsync(ct);
     if (locked.Count == 0)
@@ -276,7 +276,7 @@ public static partial class OperationRecoveryService
         "Only queued work without an active lease can be cancelled safely.");
 
     var disposition = input.Disposition.Trim();
-    var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
+    var count = await db.Database.ExecuteSqlAsync($"""
       UPDATE durable_operations SET status = 'CANCELLED_WITH_DISPOSITION', error_code = 'operator-cancelled',
         cancellation_disposition = {disposition}, next_attempt_at = statement_timestamp()
       WHERE id = {op.Id} AND firm_id = {actor.FirmId} AND attempt_token = {op.AttemptToken}
@@ -344,7 +344,7 @@ public static partial class OperationRecoveryService
       CreatedAt = DateTimeOffset.UtcNow
     };
     db.RecoverySessions.Add(session);
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
+    await db.Database.ExecuteSqlAsync($"""
       UPDATE firm_safety_states
       SET operating_mode = 'RECOVERY_QUARANTINE', recovery_epoch = {input.ExternalEpoch}
       WHERE id = {actor.FirmId}
@@ -377,7 +377,7 @@ public static partial class OperationRecoveryService
     var latest = await CurrentSessionAsync(db, actor.FirmId, ct);
     if (latest is null || latest.Id != input.SessionId || latest.ExternalEpoch != authority.Value!.RecoveryEpoch)
       return CommandResult.Fail(ErrorCodes.Operations.Conflict, "Approve only the current recovery session and exact recovery epoch.");
-    var session = await db.RecoverySessions.FromSqlInterpolated($"""
+    var session = await db.RecoverySessions.FromSql($"""
       SELECT * FROM recovery_sessions WHERE firm_id = {actor.FirmId} AND id = {input.SessionId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (session is null)
@@ -391,7 +391,7 @@ public static partial class OperationRecoveryService
     session.ApprovedRestartAt = DateTimeOffset.UtcNow;
     session.ApprovedByUserId = actor.UserId;
     await db.SaveChangesAsync(ct);
-    var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
+    var count = await db.Database.ExecuteSqlAsync($"""
       UPDATE firm_safety_states
       SET operating_mode = 'LOCAL_ONLY', deployment_epoch = deployment_epoch + 1
       WHERE id = {actor.FirmId} AND operating_mode = 'RECOVERY_QUARANTINE'
@@ -441,7 +441,7 @@ public static partial class OperationRecoveryService
       return CommandResult.Fail(ErrorCodes.Operations.RecoveryInvalid,
         "Approve the current recovery session and findings before lifting quarantine.");
 
-    var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
+    var count = await db.Database.ExecuteSqlAsync($"""
       UPDATE firm_safety_states
       SET operating_mode = 'LOCAL_ONLY', deployment_epoch = deployment_epoch + 1
       WHERE id = {actor.FirmId} AND operating_mode = 'RECOVERY_QUARANTINE'
@@ -484,9 +484,9 @@ public static partial class OperationRecoveryService
     IAuditSphereDbContext db, ActorContext actor, bool exclusive, CancellationToken ct)
   {
     var safety = exclusive
-      ? await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct)
-      : await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-    var user = await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id = {actor.FirmId} AND id = {actor.UserId} FOR SHARE")
+      ? await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct)
+      : await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var user = await db.Users.FromSql($"SELECT * FROM users WHERE firm_id = {actor.FirmId} AND id = {actor.UserId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     var auth = await AuthorizeAsync(db, actor, ct);
     return safety is not null && user is not null && auth.Succeeded

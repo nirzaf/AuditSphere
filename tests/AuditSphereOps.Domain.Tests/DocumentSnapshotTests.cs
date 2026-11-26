@@ -49,11 +49,11 @@ public sealed class DocumentSnapshotTests
       Assert.Equal("v2", snapshots[1].VersionId);
       Assert.All(snapshots, x => Assert.Matches("^[0-9a-f]{64}$", x.Sha256Hex));
 
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         UPDATE document_snapshots SET sha256_hex = {new string('0', 64)}
         WHERE firm_id = {fixture.FirmId} AND document_reference_id = {fixture.DocumentReferenceId}
         """));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         DELETE FROM document_snapshots
         WHERE firm_id = {fixture.FirmId} AND document_reference_id = {fixture.DocumentReferenceId}
         """));

@@ -73,7 +73,7 @@ public static class AuditScheduleSourceBindingService
         "Internal schedule binding requires an existing transaction.");
     await using var tx = ownTransaction ? await db.Database.BeginTransactionAsync(ct) : null;
     await AuditFieldworkService.LockConfirmationScopeAsync(db, actor, snapshot.EngagementId, ct);
-    var current = await db.AuditSchedules.FromSqlInterpolated(
+    var current = await db.AuditSchedules.FromSql(
       $"SELECT * FROM audit_schedules WHERE firm_id = {actor.FirmId} AND client_id = {snapshot.ClientId} AND engagement_id = {snapshot.EngagementId} AND id = {scheduleId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (current is null)

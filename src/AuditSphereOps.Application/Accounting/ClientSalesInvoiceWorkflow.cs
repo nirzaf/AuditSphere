@@ -16,7 +16,7 @@ public sealed record ClientSalesInvoiceReviewPreview(Guid InvoiceId, Guid Submis
 public static partial class ClientSalesInvoiceWorkflow
 {
   private static async Task<bool> LockClient(IClientAccountingDbContext db,ActorContext actor,Guid clientId,CancellationToken ct)=>
-    await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct) is not null;
+    await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct) is not null;
   private static Task<ClientSalesInvoiceDraft?> LatestDraft(IClientAccountingDbContext db,Guid firmId,Guid clientId,Guid invoiceId,CancellationToken ct)=>
     db.ClientSalesInvoiceDrafts.AsNoTracking().Where(x=>x.FirmId==firmId&&x.ClientId==clientId&&x.InvoiceId==invoiceId).OrderByDescending(x=>x.Revision).FirstOrDefaultAsync(ct);
   private static Task<ClientSalesInvoiceSubmission?> LatestSubmission(IClientAccountingDbContext db,Guid firmId,Guid clientId,Guid invoiceId,CancellationToken ct)=>
@@ -65,7 +65,7 @@ public static partial class ClientSalesInvoiceWorkflow
     }
     else
     {
-      journal=await db.ClientOperationalJournals.FromSqlInterpolated($"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={previous.JournalId} FOR UPDATE").SingleAsync(ct);
+      journal=await db.ClientOperationalJournals.FromSql($"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={previous.JournalId} FOR UPDATE").SingleAsync(ct);
       if(journal.Status!="RETURNED" || journal.CreatedByUserId!=actor.UserId)return CommandResult<ClientSalesInvoiceCommandReceipt>.Fail(ErrorCodes.StaleRevision,"The linked journal is no longer returned to this maker.");
       journal.Status="DRAFT";journal.Revision++;await db.SaveChangesAsync(ct);
       journal.PeriodId=draft.PeriodId;journal.PostingDate=DateOnly.ParseExact(snapshot.AccountingDate,"yyyy-MM-dd",CultureInfo.InvariantCulture);journal.Currency=draft.Currency;journal.Description="Client sales invoice "+draft.DraftReference;
@@ -128,7 +128,7 @@ public static partial class ClientSalesInvoiceWorkflow
     var preview=await ReviewPreviewCore(db,actor,clientId,source,ct);
     if(!preview.Succeeded || preview.Value!.Digest!=r.PreviewDigest || (r.Decision=="APPROVE"&&!preview.Value.CanPost))return CommandResult<ClientSalesInvoiceCommandReceipt>.Fail(ErrorCodes.StaleRevision,"Preview the exact submitted invoice and current posting context before deciding.");
     if(!await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db,actor.FirmId,clientId,ct:ct))return CommandResult<ClientSalesInvoiceCommandReceipt>.Fail(ErrorCodes.GateBlocked,"Current accepted bookkeeping service is required.");
-    var journal=await db.ClientOperationalJournals.FromSqlInterpolated($"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={source.JournalId} FOR UPDATE").SingleAsync(ct);
+    var journal=await db.ClientOperationalJournals.FromSql($"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={source.JournalId} FOR UPDATE").SingleAsync(ct);
     if(await db.ClientSalesInvoiceDecisions.AnyAsync(x=>x.FirmId==actor.FirmId&&x.ClientId==clientId&&x.SubmissionId==source.Id,ct))return CommandResult<ClientSalesInvoiceCommandReceipt>.Fail(ErrorCodes.IdempotencyConflict,"This submitted invoice already has a decision.");
     if(r.Decision=="APPROVE" && await db.ClientOperationalPostingReceipts.AnyAsync(x=>x.FirmId==actor.FirmId&&x.ClientId==clientId&&x.CommandId==r.CommandId,ct))return CommandResult<ClientSalesInvoiceCommandReceipt>.Fail(ErrorCodes.IdempotencyConflict,"The posting command key already exists.");
     var now=DateTimeOffset.UtcNow;

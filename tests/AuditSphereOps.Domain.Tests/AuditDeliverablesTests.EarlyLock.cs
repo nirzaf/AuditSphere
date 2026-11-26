@@ -180,7 +180,7 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(1, await db.FileFreezeEarlyLocks.CountAsync(x => x.FreezeId == freezeId));
 
       // The lock evidence is append-only.
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE file_freeze_early_locks SET rationale = 'rewritten' WHERE id = {evidence.Id}"));
     }
   }

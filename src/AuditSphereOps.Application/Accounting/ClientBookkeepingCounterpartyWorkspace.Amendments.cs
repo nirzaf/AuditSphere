@@ -24,7 +24,7 @@ public static partial class ClientBookkeepingCounterpartyWorkspace
     await db.ClientCounterpartyAmendmentDecisions.Where(x => x.FirmId == firmId && x.ClientId == clientId && x.CounterpartyId == partyId && x.Decision == "APPROVE")
       .Select(x => (long?)x.Revision).MaxAsync(ct) ?? 1;
   private static async Task<bool> LockClient(IClientAccountingDbContext db, ActorContext actor, Guid clientId, CancellationToken ct) =>
-    await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct) is not null;
+    await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct) is not null;
 
   public static async Task<CommandResult<Guid>> ProposeAmendmentAsync(IClientAccountingDbContext db, ActorContext actor,
     Guid clientId, Guid partyId, CounterpartyAmendmentRequest request, CancellationToken ct = default)

@@ -536,7 +536,7 @@ public static class FirmExpenseService
     await using var transaction = request.RequestId is null ? null : await db.Database.BeginTransactionAsync(ct);
     if (request.RequestId is { } requestId)
     {
-      var lockedActor = await db.Users.FromSqlInterpolated(
+      var lockedActor = await db.Users.FromSql(
         $"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       if (lockedActor is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");

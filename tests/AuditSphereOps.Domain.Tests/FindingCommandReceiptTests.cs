@@ -219,7 +219,7 @@ public sealed class FindingCommandReceiptTests
     await using var pg=await PgTestSchema.CreateAsync();var w=await FindingCommandReceiptSeed.SeedAsync(pg);FindingCommandRequest r;
     await using(var setup=new AuditSphereDbContext(pg.Options))r=await FindingCommandReceiptSeed.ReviewAsync(setup,w.Staff,w.FindingId,FindingCommandReceiptSeed.Fields(FindingCommandActions.RecordResponse));
     await using var revoke=new AuditSphereDbContext(pg.Options);await using var tx=await revoke.Database.BeginTransactionAsync();
-    await revoke.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={w.Fixture.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
+    await revoke.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={w.Fixture.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
     await using var writer=new AuditSphereDbContext(pg.Options);using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(30));
     var pending=FindingCommandWorkspace.ExecuteAsync(writer,w.Staff,w.FindingId,r,timeout.Token);await WaitForLock(revoke,timeout.Token);
     await revoke.RoleGrants.Where(x=>x.UserId==w.Staff.UserId).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.RevokedAt,DateTimeOffset.UtcNow));await tx.CommitAsync();
@@ -247,7 +247,7 @@ public sealed class FindingCommandReceiptTests
   public async Task DatabaseRejectsDirectTransitionsAndForgedEventsAndProtectsImmutableEvidence()
   {
     await using var pg=await PgTestSchema.CreateAsync();var w=await FindingCommandReceiptSeed.SeedAsync(pg);await using var db=new AuditSphereDbContext(pg.Options);
-    Assert.Equal("55000",(await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE findings SET management_response='fabricated',revision=revision+1 WHERE id={w.FindingId}"))).SqlState);
+    Assert.Equal("55000",(await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE findings SET management_response='fabricated',revision=revision+1 WHERE id={w.FindingId}"))).SqlState);
     var r=await FindingCommandReceiptSeed.ReviewAsync(db,w.Staff,w.FindingId,FindingCommandReceiptSeed.Fields(FindingCommandActions.RecordResponse));var saved=await FindingCommandWorkspace.ExecuteAsync(db,w.Staff,w.FindingId,r);Assert.True(saved.Succeeded,saved.Message);
     foreach(var commands in new[]{("UPDATE finding_amendments SET created_at=created_at+interval '1 second'","DELETE FROM finding_amendments"),("UPDATE finding_command_receipts SET created_at=created_at+interval '1 second'","DELETE FROM finding_command_receipts")})
     {

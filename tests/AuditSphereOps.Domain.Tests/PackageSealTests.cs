@@ -68,7 +68,7 @@ public sealed class PackageSealTests
       Assert.Equal(1, await db.FinancialPackageSeals.CountAsync(x => x.FinancialPackageId == fixture.PackageId));
 
       // The sealed record is immutable at the database level.
-      var tamper = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      var tamper = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE financial_package_seals SET artifact_count = 99 WHERE id = {sealId}"));
       Assert.Equal("55000", tamper.SqlState);
 

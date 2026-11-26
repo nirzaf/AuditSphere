@@ -88,10 +88,10 @@ public static class AssessmentCommandWorkspace
   private static async Task<bool> LockAsync(IAuditSphereDbContext db, ActorContext a, Guid id, string kind, CancellationToken ct)
   {
     if (!await AcceptanceCommandAuthority.LockFirmAsync(db, a, ct)) return false;
-    if (await db.ClientSafetyStates.FromSqlInterpolated(
+    if (await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
     // Serialize this actor's request namespace even when two requests name different client rows.
-    if (await db.Users.FromSqlInterpolated(
+    if (await db.Users.FromSql(
       $"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
     return (await AcceptanceCommandAuthority.CheckAsync(db, a, Authority(a, id, kind), ct)).Succeeded;
   }
@@ -103,7 +103,7 @@ public static class AssessmentCommandWorkspace
     if (Exact(generation) != f.Generation) return CommandResult<AssessmentCommandPreview>.Fail(ErrorCodes.GenerationStale, "Reload the current evaluation before review.");
     var client = await db.PracticeClients.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == a.FirmId && x.Id == id, ct);
     if (client is null) return Unavailable<AssessmentCommandPreview>();
-    var engagement = f.EngagementId is { } engagementId ? await db.Engagements.FromSqlInterpolated(
+    var engagement = f.EngagementId is { } engagementId ? await db.Engagements.FromSql(
       $"SELECT * FROM engagements WHERE firm_id={a.FirmId} AND practice_client_id={id} AND id={engagementId} AND service_route={f.ServiceRoute} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct) : null;
     if (f.EngagementId.HasValue && engagement is null) return Unavailable<AssessmentCommandPreview>();

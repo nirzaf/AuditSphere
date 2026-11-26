@@ -62,7 +62,7 @@ public static class CurrencyConfigurationWorkspace
     var auth = await Auth(db, a, true, ct); if (!auth.Succeeded) return CommandResult<T>.Fail(auth.ErrorCode!, auth.Message!);
     if (!reviewed) return CommandResult<T>.Fail(ErrorCodes.StaleRevision, "Review the exact current currency configuration before submitting.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var firm = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {a.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var firm = await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {a.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (firm is null) return CommandResult<T>.Fail(ErrorCodes.GateBlocked, "The firm safety guard is unavailable.");
     auth = await Auth(db, a, true, ct); if (!auth.Succeeded) return CommandResult<T>.Fail(auth.ErrorCode!, auth.Message!);
     var revision = await current(); if (!revision.Succeeded) return CommandResult<T>.Fail(revision.ErrorCode!, revision.Message!);

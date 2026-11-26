@@ -56,16 +56,16 @@ public static partial class AuditProgramService
     if (snapshot is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     // Shared safety locks precede the engagement/procedure locks, matching result submission.
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE")
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
-    await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={snapshot.ClientId} FOR SHARE")
+    await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={snapshot.ClientId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE")
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId);
     if (scope.Denied is not null) return CommandResult.Fail(scope.Denied, scope.Message);
 
-    var procedure = await db.AuditProcedures.FromSqlInterpolated($"""
+    var procedure = await db.AuditProcedures.FromSql($"""
       SELECT * FROM audit_procedures
       WHERE id={request.AuditProcedureId} AND firm_id={actor.FirmId}
       FOR UPDATE

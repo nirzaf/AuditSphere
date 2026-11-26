@@ -13,16 +13,16 @@ public static partial class ClientAccountingService
   // Parent safety -> actor -> period -> restatement -> ordered packages. No workspace-owned transaction.
   private static async Task LockMaintenancePeriodAsync(IClientAccountingDbContext db, ActorContext a, Guid clientId, Guid periodId, CancellationToken ct)
   {
-    await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id={a.FirmId} AND client_id={clientId} AND id={periodId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE firm_id={a.FirmId} AND client_id={clientId} AND id={periodId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
   }
   private static async Task LockMaintenanceRestatementAsync(IClientAccountingDbContext db, ActorContext a, Guid clientId, Guid id, CancellationToken ct)
   {
-    await db.ClientPeriodRestatements.FromSqlInterpolated($"SELECT * FROM client_period_restatements WHERE firm_id={a.FirmId} AND client_id={clientId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.ClientPeriodRestatements.FromSql($"SELECT * FROM client_period_restatements WHERE firm_id={a.FirmId} AND client_id={clientId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
   }
   private static async Task LockMaintenancePackagesAsync(IClientAccountingDbContext db, ActorContext a, Guid clientId, IEnumerable<Guid> ids, CancellationToken ct)
   {
     foreach (var id in ids.Distinct().OrderBy(x => x))
-      await db.FinancialPackages.FromSqlInterpolated($"SELECT * FROM financial_packages WHERE firm_id={a.FirmId} AND client_id={clientId} AND id={id} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+      await db.FinancialPackages.FromSql($"SELECT * FROM financial_packages WHERE firm_id={a.FirmId} AND client_id={clientId} AND id={id} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
   }
 
   public static async Task<CommandResult<PeriodMaintenanceReceiptView>> ExecuteReviewedPeriodMaintenanceAsync(
@@ -39,9 +39,9 @@ public static partial class ClientAccountingService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     try
     {
-      var firm = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-      var client = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
-      var user = await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+      var firm = await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+      var client = await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+      var user = await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
       if (firm is null || client is null || user is null) return Fail(ErrorCodes.ScopeDenied, "Access denied.");
       auth = await PeriodMaintenanceWorkspace.AuthorizeAsync(db, actor, clientId, r.Action, ct);
       if (!auth.Succeeded) return Fail(auth.ErrorCode!, auth.Message!);
@@ -81,7 +81,7 @@ public static partial class ClientAccountingService
       if (r.RollForward?.SourcePackageId is { } source) packageIds.Add(source);
       await LockMaintenancePackagesAsync(db, actor, clientId, packageIds, ct);
       if (r.Action == PeriodMaintenanceActions.RollForward)
-        await db.ClientReportingBooks.FromSqlInterpolated($"SELECT * FROM client_reporting_books WHERE firm_id={actor.FirmId} AND client_id={clientId} AND period_id={p.Id} ORDER BY id FOR SHARE").AsNoTracking().ToListAsync(ct);
+        await db.ClientReportingBooks.FromSql($"SELECT * FROM client_reporting_books WHERE firm_id={actor.FirmId} AND client_id={clientId} AND period_id={p.Id} ORDER BY id FOR SHARE").AsNoTracking().ToListAsync(ct);
       var preview = await PeriodMaintenanceWorkspace.PreviewAsync(db, actor, clientId, r, ct);
       if (!preview.Succeeded) return Fail(preview.ErrorCode!, preview.Message!);
       if (!preview.Value!.State.CanProceed) return Fail(ErrorCodes.GateBlocked, preview.Value.State.Blockers.First());

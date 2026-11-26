@@ -641,14 +641,14 @@ public static class WorkflowTemplateService
       new AuthorizationRequest(actor.FirmId, RequiredRoles: roles, InternalOnly: true, RequireFirmWide: true), ct);
 
   private static Task<FirmSafetyState?> LockFirmAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
-    db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
 
   private static Task<WorkflowTemplate?> LockTemplateAsync(IAuditSphereDbContext db, Guid firmId, Guid templateId, CancellationToken ct) =>
-    db.WorkflowTemplates.FromSqlInterpolated($"SELECT * FROM workflow_templates WHERE firm_id = {firmId} AND id = {templateId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    db.WorkflowTemplates.FromSql($"SELECT * FROM workflow_templates WHERE firm_id = {firmId} AND id = {templateId} FOR UPDATE").SingleOrDefaultAsync(ct);
 
   private static Task<WorkflowTemplateRevision?> LockRevisionAsync(IAuditSphereDbContext db, Guid firmId,
     Guid templateId, Guid revisionId, CancellationToken ct) =>
-    db.WorkflowTemplateRevisions.FromSqlInterpolated($"SELECT * FROM workflow_template_revisions WHERE firm_id = {firmId} AND template_id = {templateId} AND id = {revisionId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    db.WorkflowTemplateRevisions.FromSql($"SELECT * FROM workflow_template_revisions WHERE firm_id = {firmId} AND template_id = {templateId} AND id = {revisionId} FOR UPDATE").SingleOrDefaultAsync(ct);
 
   private sealed record WorkflowTemplateDefinition(string Name, string ServiceRoute, string? IndustryKey,
     IReadOnlyList<WorkflowTemplateStepDraft> Steps);

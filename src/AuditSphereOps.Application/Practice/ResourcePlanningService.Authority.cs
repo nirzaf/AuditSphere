@@ -12,14 +12,14 @@ public static partial class ResourcePlanningService
   internal static async Task<bool> LockPublicationAsync(IAuditSphereDbContext db, ActorContext actor, Guid targetUser,
     AuthorizationRequest request, CancellationToken ct)
   {
-    if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
+    if (await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
-    if (request.ClientId is Guid client && await db.ClientSafetyStates.FromSqlInterpolated(
+    if (request.ClientId is Guid client && await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={client} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
-    if (await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR UPDATE")
+    if (await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
-    var user = await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={targetUser} FOR UPDATE")
+    var user = await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={targetUser} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     return user is { Disabled:false, UserKind:"Staff" } &&
       (await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded;

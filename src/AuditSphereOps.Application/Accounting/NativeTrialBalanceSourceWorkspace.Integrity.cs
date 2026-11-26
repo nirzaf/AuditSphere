@@ -107,7 +107,7 @@ public static partial class NativeTrialBalanceSourceWorkspace
       return CommandResult.Fail(ErrorCodes.GateBlocked, "A complete reporting-period source requires its actual approved opening and period-end cutoff. Activity-only or interim evidence remains historical source evidence, not a complete reporting source.");
     var periodQuery = accounting.Database.CurrentTransaction is null
       ? accounting.ClientReportingPeriods.AsNoTracking().Where(x => x.FirmId == source.FirmId && x.ClientId == source.ClientId && x.Id == m.PeriodId)
-      : accounting.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id={source.FirmId} AND client_id={source.ClientId} AND id={m.PeriodId} FOR SHARE").AsNoTracking();
+      : accounting.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE firm_id={source.FirmId} AND client_id={source.ClientId} AND id={m.PeriodId} FOR SHARE").AsNoTracking();
     var period = await periodQuery.SingleOrDefaultAsync(ct);
     if (period is null || period.StartDate != m.PeriodStart || period.EndDate != m.PeriodEnd ||
         period.Basis != m.Basis || period.Currency != m.Currency || !PeriodRevisionMatches(period, m.PeriodRevision))

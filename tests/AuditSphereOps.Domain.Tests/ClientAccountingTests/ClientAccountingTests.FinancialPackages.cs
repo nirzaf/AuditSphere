@@ -154,7 +154,7 @@ public sealed partial class ClientAccountingTests
     }
 
     await using var verify = new AuditSphereDbContext(pg.Options);
-    var mutation = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+    var mutation = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlAsync(
       $"UPDATE financial_package_review_decisions SET comment = {"tampered"} WHERE id = {managementDecisionId}"));
     Assert.Equal("55000", mutation.SqlState);
   }

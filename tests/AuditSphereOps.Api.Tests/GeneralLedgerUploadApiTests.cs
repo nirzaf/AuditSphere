@@ -56,7 +56,7 @@ public sealed class GeneralLedgerUploadApiTests
             {
                 Assert.True(await db.SourceImportBatches.AnyAsync(x => x.FirmId == firmId, ct));
                 Assert.True(await db.GeneralLedgerLines.AnyAsync(x => x.FirmId == firmId, ct));
-                Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync(
+                Assert.Equal(1, await db.Database.ExecuteSqlAsync(
                     $"UPDATE users SET session_epoch = session_epoch + 1 WHERE firm_id = {firmId} AND id = {userId}", ct));
                 Applied = true;
             }

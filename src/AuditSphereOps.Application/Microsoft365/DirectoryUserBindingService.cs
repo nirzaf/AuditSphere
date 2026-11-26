@@ -87,9 +87,9 @@ public static class DirectoryUserBindingService
       return Denied<DirectoryBindingReconciliation>();
 
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
-    var firm = await db.FirmSafetyStates.FromSqlInterpolated(
+    var firm = await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-    var currentActor = await db.Users.FromSqlInterpolated(
+    var currentActor = await db.Users.FromSql(
       $"SELECT * FROM users WHERE firm_id = {actor.FirmId} AND id = {actor.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (firm is null || currentActor is null ||
         !(await AuthorizationDecision.AuthorizeAsync(db, actor, authority, ct)).Succeeded)

@@ -26,7 +26,7 @@ public static partial class ClientAccountingService
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var clients = await db.PracticeClients
-      .FromSqlInterpolated($"SELECT * FROM practice_clients WHERE id = {request.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .FromSql($"SELECT * FROM practice_clients WHERE id = {request.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .ToListAsync(ct);
     if (clients.Count != 1)
       return CommandResult<DimensionSchemaDraftReceiptDto>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -44,7 +44,7 @@ public static partial class ClientAccountingService
         return CommandResult<DimensionSchemaDraftReceiptDto>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
       var lockedDraftRows = await db.ClientAccountingDimensionSchemaRevisions
-        .FromSqlInterpolated($"SELECT * FROM client_accounting_dimension_schema_revisions WHERE id = {draftId} AND firm_id = {actor.FirmId} AND client_id = {request.ClientId} FOR UPDATE")
+        .FromSql($"SELECT * FROM client_accounting_dimension_schema_revisions WHERE id = {draftId} AND firm_id = {actor.FirmId} AND client_id = {request.ClientId} FOR UPDATE")
         .ToListAsync(ct);
       editable = lockedDraftRows.SingleOrDefault(x => x.Id == draftId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId);
       if (editable is null)
@@ -173,7 +173,7 @@ public static partial class ClientAccountingService
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var clients = await db.PracticeClients
-      .FromSqlInterpolated($"SELECT * FROM practice_clients WHERE id = {request.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .FromSql($"SELECT * FROM practice_clients WHERE id = {request.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .ToListAsync(ct);
     if (clients.Count != 1)
       return CommandResult<DimensionSchemaPublicationReceiptDto>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -183,7 +183,7 @@ public static partial class ClientAccountingService
       return CommandResult<DimensionSchemaPublicationReceiptDto>.Fail(auth.ErrorCode!, auth.Message!);
 
     var lockedRows = await db.ClientAccountingDimensionSchemaRevisions
-      .FromSqlInterpolated($"SELECT * FROM client_accounting_dimension_schema_revisions WHERE id = {draftId} AND firm_id = {actor.FirmId} AND client_id = {request.ClientId} FOR UPDATE")
+      .FromSql($"SELECT * FROM client_accounting_dimension_schema_revisions WHERE id = {draftId} AND firm_id = {actor.FirmId} AND client_id = {request.ClientId} FOR UPDATE")
       .ToListAsync(ct);
     var lockedDraft = lockedRows.SingleOrDefault(x => x.Id == draftId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId);
     if (lockedDraft is null)

@@ -266,13 +266,13 @@ public static class ClientPortalService
     if (snapshot is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
-    if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE")
+    if (await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null ||
-        await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {snapshot.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE")
+        await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE id = {snapshot.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE")
           .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
-    var delegation = await db.PbcRequestDelegations.FromSqlInterpolated($"""
+    var delegation = await db.PbcRequestDelegations.FromSql($"""
       SELECT * FROM pbc_request_delegations WHERE firm_id = {actor.FirmId} AND id = {delegationId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (delegation is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -282,7 +282,7 @@ public static class ClientPortalService
         delegation.EngagementId != snapshot.EngagementId || delegation.PbcRequestId != snapshot.PbcRequestId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
-    var request = await db.PbcRequests.FromSqlInterpolated($"""
+    var request = await db.PbcRequests.FromSql($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {delegation.PbcRequestId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     if (request is null || request.ClientId != delegation.ClientId || request.EngagementId != delegation.EngagementId)

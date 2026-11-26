@@ -6,7 +6,7 @@
 
 | Rule | Detail |
 | --- | --- |
-| Engine | PostgreSQL 19.x via Npgsql 10 / EF Core 10 for local development, CI, and self-managed deployments. Azure is reserved for Microsoft Entra and SharePoint; Azure database hosting is out of scope and existing database templates remain unchanged. One `AuditSphereDbContext`; `OnModelCreating` calls one `Configure<Module>(b)` per partial file. |
+| Engine | PostgreSQL 19.x via Npgsql 11 / EF Core 11 for local development, CI, and self-managed deployments. Azure is reserved for Microsoft Entra and SharePoint; Azure database hosting is out of scope and existing database templates remain unchanged. One `AuditSphereDbContext`; `OnModelCreating` calls one `Configure<Module>(b)` per partial file. |
 | Money | `decimal` in C#, `numeric(19,6)` in PostgreSQL, banker's rounding (`MidpointRounding.ToEven`) and `MoneyPolicy.Normalize` (R2R-ADR-03). Never `double`. API and Angular carry decimals as exact strings. |
 | States | String constants in static classes (`PbcStates`, `RiskBands`, `FileFreezeStates`, …) backed by database check constraints. Adding a state means updating the constant class, the check constraint (migration) and every Angular decoder that enumerates it. |
 | Append-only history | Enforced in the database, not only in C#: the migrations install many `BEFORE UPDATE/DELETE` triggers. Raw SQL for the larger trigger sets lives beside the migrations in `*Sql.cs` helpers (for example `ClientSalesInvoiceWorkflowSql.cs`). A change that needs to "edit" history must add a revision, amendment or reversal row instead. |

@@ -50,9 +50,9 @@ public static class MailAuthorizationEvidenceEnrollment
     }
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE")
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE")
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct))
       return TenantAdministration.Denied<Guid>();

@@ -30,8 +30,8 @@ public static class ReviewPointCommandWorkspace
   {
     var digest = Hashing.Sha256Hex(JsonSerializer.Serialize(new { Namespace = "review-point-command-request-v1", a.FirmId, a.UserId, requestId }));
     var key = unchecked((long)Convert.ToUInt64(digest[..16], 16));
-    if (publish) await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", ct);
-    else await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
+    if (publish) await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({key})", ct);
+    else await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
   }
   internal static async Task<IReadOnlyList<string>> WriteBlockersAsync(IAuditSphereDbContext db,ActorContext a,ReviewPoint f,CancellationToken ct)
   {
@@ -142,7 +142,7 @@ public static class ReviewPointCommandWorkspace
       if (hash != request.ExpectedRequestHash) return Fail<ReviewPointCommandReceiptView>(ErrorCodes.IdempotencyConflict, "The submitted intent differs from its exact preview hash.");
       var scope = await AuditPlanningService.LockedEngagementAsync(db, a, reviewPoint.EngagementId, ct, reviewPoint.ClientId, requireProfessionalWork:false);
       if (scope.Denied is not null) return Fail<ReviewPointCommandReceiptView>(scope.Denied, scope.Message);
-      var current = await db.ReviewPoints.FromSqlInterpolated($"SELECT * FROM review_points WHERE firm_id={a.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+      var current = await db.ReviewPoints.FromSql($"SELECT * FROM review_points WHERE firm_id={a.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
       if (current is null || current.ClientId != reviewPoint.ClientId || current.EngagementId != reviewPoint.EngagementId) return Fail<ReviewPointCommandReceiptView>(ErrorCodes.ScopeDenied, "Access denied.");
       var preview = await PreviewAsync(db, a, id, request with { Fields = fields }, ct);
       if (!preview.Succeeded) return Fail<ReviewPointCommandReceiptView>(preview.ErrorCode!, preview.Message!);

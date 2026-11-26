@@ -91,7 +91,7 @@ public static class PbcRepositoryProvisioningService
     {
       await using var failureTx = await db.Database.BeginTransactionAsync(ct);
       if (!await LockWorkspacePublicationAsync(db, actor.FirmId, config.TenantId, config.DriveId, ct)) return Fail(ErrorCodes.GateBlocked, "The firm workspace guard is unavailable.");
-      var current = await db.ClientWorkspaces.FromSqlInterpolated($"SELECT * FROM client_workspaces WHERE id = {workspace.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
+      var current = await db.ClientWorkspaces.FromSql($"SELECT * FROM client_workspaces WHERE id = {workspace.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
       if (current?.Revision != workspaceRevision || reviewedToken is not null && !await ReviewMatchesAsync(db, actor, practiceClientId, false, reviewedToken, ct, rolloutPolicy))
@@ -109,7 +109,7 @@ public static class PbcRepositoryProvisioningService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!await LockWorkspacePublicationAsync(db, actor.FirmId, config.TenantId, config.DriveId, ct)) return Fail(ErrorCodes.GateBlocked, "The firm workspace guard is unavailable.");
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
-    var locked = await db.ClientWorkspaces.FromSqlInterpolated($"SELECT * FROM client_workspaces WHERE id = {workspace.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
+    var locked = await db.ClientWorkspaces.FromSql($"SELECT * FROM client_workspaces WHERE id = {workspace.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     var latest = await ActiveSiteAsync(db, actor.FirmId, ct, practiceClientId, rolloutPolicy);
     if (locked?.Revision != workspaceRevision || !latest.Succeeded || !SameBinding(active.Value, latest.Value) ||
@@ -190,7 +190,7 @@ public static class PbcRepositoryProvisioningService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!await LockWorkspacePublicationAsync(db, actor.FirmId, config.TenantId, config.DriveId, ct)) return Fail(ErrorCodes.GateBlocked, "The firm workspace guard is unavailable.");
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied<WorkspaceProvisioningResult>();
-    var locked = await db.ClientWorkspaces.FromSqlInterpolated($"SELECT * FROM client_workspaces WHERE id = {workspace.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
+    var locked = await db.ClientWorkspaces.FromSql($"SELECT * FROM client_workspaces WHERE id = {workspace.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     var latest = await ActiveSiteAsync(db, actor.FirmId, ct, engagement.PracticeClientId, rolloutPolicy);
     var templateId = await db.FolderTemplateVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Purpose == FolderTemplatePurposes.EngagementWorkspace && x.ApprovedAt != null)
@@ -374,11 +374,11 @@ public static class PbcRepositoryProvisioningService
   // accidentally claiming one remote client folder without disclosing the other firm's identity.
   internal static async Task<bool> LockWorkspacePublicationAsync(IAuditSphereDbContext db, Guid firmId, string tenantId, string driveId, CancellationToken ct)
   {
-    var guard = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR SHARE")
+    var guard = await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (guard is null) return false;
     var resourceKey = JsonSerializer.Serialize(new[] { tenantId, driveId });
-    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({resourceKey}, 137921))", ct);
+    await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({resourceKey}, 137921))", ct);
     return true;
   }
 

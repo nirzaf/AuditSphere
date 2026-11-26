@@ -555,7 +555,7 @@ public sealed class CashFlowContractTests
     verify.FinancialPackageCashFlowLines.Add(openMovement);
     await verify.SaveChangesAsync();
 
-    var lateAllocation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync($@"
+    var lateAllocation = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlAsync($@"
       INSERT INTO financial_package_cash_flow_allocations
         (id, firm_id, client_id, engagement_id, financial_package_id, cash_flow_line_id,
          general_ledger_line_id, general_ledger_transaction_id, source_import_batch_id, created_by_user_id,
@@ -568,7 +568,7 @@ public sealed class CashFlowContractTests
 
     // The build lock normally seals this package at commit. Keeping this persisted probe package unsealed
     // emulates the in-transaction build window so the composite package/movement constraint is exercised.
-    var crossPackageMovement = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync($@"
+    var crossPackageMovement = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlAsync($@"
       INSERT INTO financial_package_cash_flow_allocations
         (id, firm_id, client_id, engagement_id, financial_package_id, cash_flow_line_id,
          general_ledger_line_id, general_ledger_transaction_id, source_import_batch_id, created_by_user_id,
@@ -580,7 +580,7 @@ public sealed class CashFlowContractTests
     Assert.Equal("23503", crossPackageMovement.SqlState);
 
     // A same-package movement cannot claim an unrelated GL row while retaining the accepted batch/transaction IDs.
-    var unrelatedGlLine = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync($@"
+    var unrelatedGlLine = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlAsync($@"
       INSERT INTO financial_package_cash_flow_allocations
         (id, firm_id, client_id, engagement_id, financial_package_id, cash_flow_line_id,
          general_ledger_line_id, general_ledger_transaction_id, source_import_batch_id, created_by_user_id,
@@ -591,7 +591,7 @@ public sealed class CashFlowContractTests
         {original.Currency}, {DateTimeOffset.UtcNow})"));
     Assert.Equal("23503", unrelatedGlLine.SqlState);
 
-    var unrelatedCreator = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync($@"
+    var unrelatedCreator = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlAsync($@"
       INSERT INTO financial_package_cash_flow_allocations
         (id, firm_id, client_id, engagement_id, financial_package_id, cash_flow_line_id,
          general_ledger_line_id, general_ledger_transaction_id, source_import_batch_id, created_by_user_id,
@@ -605,7 +605,7 @@ public sealed class CashFlowContractTests
     var firstReview = await CashFlowSourceReviewCall.RecordAsync(verify, reviewer, firstPackageId, "APPROVED", null);
     Assert.True(firstReview.Succeeded, firstReview.Message);
     var previousReviewId = firstReview.Value;
-    var crossPackagePredecessor = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync($@"
+    var crossPackagePredecessor = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => verify.Database.ExecuteSqlAsync($@"
       INSERT INTO financial_package_cash_flow_source_reviews
         (id, firm_id, client_id, engagement_id, financial_package_id, decision, reason,
          source_import_batch_id, reviewed_by_user_id, reviewed_at, previous_review_id)
@@ -1194,7 +1194,7 @@ public sealed class CashFlowContractTests
     // Another session holds the package lock and revokes the reviewer while the decision waits for it.
     await using var locker = new AuditSphereDbContext(pg.Options);
     await using var lockTx = await locker.Database.BeginTransactionAsync();
-    await locker.FinancialPackages.FromSqlInterpolated($"SELECT * FROM financial_packages WHERE id = {packageId} FOR UPDATE")
+    await locker.FinancialPackages.FromSql($"SELECT * FROM financial_packages WHERE id = {packageId} FOR UPDATE")
       .AsNoTracking().ToListAsync();
     var intent = Guid.NewGuid();
     await using (var grants = new AuditSphereDbContext(pg.Options))
@@ -1281,7 +1281,7 @@ public sealed class CashFlowContractTests
     var reviewId = recorded.Value;
 
     // Copy the stored decision with a new row identity but the same request identity: the partial unique index refuses it.
-    var duplicate = Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync($@"
+    var duplicate = Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlAsync($@"
       INSERT INTO financial_package_cash_flow_source_reviews (id, firm_id, client_id, engagement_id, financial_package_id, decision, reason,
         source_import_batch_id, reviewed_by_user_id, reviewed_at, request_id, request_hash, link_digest, previous_review_id)
       SELECT gen_random_uuid(), firm_id, client_id, engagement_id, financial_package_id, decision, reason, source_import_batch_id,
@@ -1290,7 +1290,7 @@ public sealed class CashFlowContractTests
     Assert.Contains("ux_financial_package_cash_source_review_request", (await duplicate).ToString(), StringComparison.Ordinal);
 
     // A row with a request identity but no hash, or no identity but a hash, is refused by the intent check constraint.
-    var partial = Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync($@"
+    var partial = Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlAsync($@"
       INSERT INTO financial_package_cash_flow_source_reviews (id, firm_id, client_id, engagement_id, financial_package_id, decision, reason,
         source_import_batch_id, reviewed_by_user_id, reviewed_at, request_id, request_hash, link_digest, previous_review_id)
       SELECT gen_random_uuid(), firm_id, client_id, engagement_id, financial_package_id, decision, reason, source_import_batch_id,

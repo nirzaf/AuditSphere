@@ -304,7 +304,7 @@ public sealed class ClientPortalOnboardingTests
 
     // Staff are not client identities and cannot record a portal sign-in; the record itself is immutable.
     Assert.Equal(ErrorCodes.ScopeDenied, (await ClientPortalService.CompleteFirstSignInAsync(db, PbcSeed.Actor(f.Staff, "Staff"), true)).ErrorCode);
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM client_portal_first_sign_ins WHERE id = {memberRecord.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"DELETE FROM client_portal_first_sign_ins WHERE id = {memberRecord.Id}"));
   }
 
   [Fact]
@@ -515,7 +515,7 @@ public sealed class ClientPortalOnboardingTests
 
     await using var invalidWrite = new AuditSphereDbContext(pg.Options);
     var denied = await Assert.ThrowsAsync<PostgresException>(async () =>
-      await invalidWrite.Database.ExecuteSqlInterpolatedAsync($"""
+      await invalidWrite.Database.ExecuteSqlAsync($"""
         INSERT INTO pbc_request_delegations
           (id, firm_id, client_id, engagement_id, pbc_request_id, delegator_user_id, delegate_user_id, created_at)
         VALUES
@@ -802,7 +802,7 @@ public sealed class ClientPortalOnboardingTests
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
     await using var requestBlocker = new AuditSphereDbContext(pg.Options);
     await using var requestBlockerTx = await requestBlocker.Database.BeginTransactionAsync(timeout.Token);
-    await requestBlocker.PbcRequests.FromSqlInterpolated($"""
+    await requestBlocker.PbcRequests.FromSql($"""
       SELECT * FROM pbc_requests WHERE firm_id = {f.FirmId} AND id = {requestId} FOR UPDATE
       """).AsNoTracking().SingleAsync(timeout.Token);
     var requestBlockerPid = ((NpgsqlConnection)requestBlocker.Database.GetDbConnection()).ProcessID;
@@ -866,7 +866,7 @@ public sealed class ClientPortalOnboardingTests
 
     await using var delegationBlocker = new AuditSphereDbContext(pg.Options);
     await using var delegationBlockerTx = await delegationBlocker.Database.BeginTransactionAsync(timeout.Token);
-    await delegationBlocker.PbcRequestDelegations.FromSqlInterpolated($"""
+    await delegationBlocker.PbcRequestDelegations.FromSql($"""
       SELECT * FROM pbc_request_delegations WHERE firm_id = {f.FirmId} AND id = {delegationId} FOR UPDATE
       """).AsNoTracking().SingleAsync(timeout.Token);
     var delegationBlockerPid = ((NpgsqlConnection)delegationBlocker.Database.GetDbConnection()).ProcessID;

@@ -56,7 +56,7 @@ public sealed partial class ClientAccountingTests
     Assert.Equal(AccountingPackageStates.PackageValidated,
       await verify.FinancialPackages.Where(x => x.Id == revisedPackageId).Select(x => x.Status).SingleAsync());
     var tampered = "tampered";
-    var mutation = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync($"UPDATE client_period_restatements SET reason = {tampered} WHERE id = {restatementId}"));
+    var mutation = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlAsync($"UPDATE client_period_restatements SET reason = {tampered} WHERE id = {restatementId}"));
     Assert.Equal("55000", mutation.SqlState);
   }
 
@@ -157,7 +157,7 @@ public sealed partial class ClientAccountingTests
     Assert.Equal(2, amendments.Count);
     Assert.Equal((2L, 3L), (amendments[0].PreviousRevision, amendments[0].AmendmentRevision));
     Assert.Equal((4L, 5L), (amendments[1].PreviousRevision, amendments[1].AmendmentRevision));
-    var mutation = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+    var mutation = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlAsync(
       $"UPDATE client_period_amendments SET reason = {"tampered"} WHERE id = {amendmentId}"));
     Assert.Equal("55000", mutation.SqlState);
   }
@@ -494,10 +494,10 @@ public sealed partial class ClientAccountingTests
       .OrderBy(x => x.PriorPeriodRevision).Select(x => x.PriorPeriodRevision).ToArrayAsync());
     Assert.True((await PeriodCloseReadinessQuery.GetReadinessAsync(verify, reviewer, nextPeriodId)).Value!.CanClose);
     Assert.True((await ClientAccountingService.ClosePeriodAsync(verify, reviewer, nextPeriodId, "Corrected opening independently revalidated")).Succeeded);
-    var immutable = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+    var immutable = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlAsync(
       $"UPDATE opening_balance_bridge_reviews SET reason = {"tampered"} WHERE bridge_id = {opening.Id}"));
     Assert.Equal("55000", immutable.SqlState);
-    var originalImmutable = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+    var originalImmutable = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlAsync(
       $"UPDATE opening_balance_bridges SET source_hash = {new string('b', 64)} WHERE id = {opening.Id}"));
     Assert.Equal("55000", originalImmutable.SqlState);
   }

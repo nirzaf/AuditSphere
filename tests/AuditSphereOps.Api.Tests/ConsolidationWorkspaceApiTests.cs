@@ -317,7 +317,7 @@ public sealed partial class ConsolidationWorkspaceApiTests
     await using var second = new AuditSphereDbContext(pg.Options);
     await using var observer = new AuditSphereDbContext(pg.Options);
     await using var fence = await blocker.Database.BeginTransactionAsync();
-    await blocker.ClientGroups.FromSqlInterpolated(
+    await blocker.ClientGroups.FromSql(
       $"SELECT * FROM client_groups WHERE id = {fixture.GroupId} AND firm_id = {fixture.Seed.FirmId} FOR UPDATE").SingleAsync();
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
     OwnershipInterestRequest Request(Guid parent, Guid child) => new(fixture.ScopeId, parent, child,
@@ -351,7 +351,7 @@ public sealed partial class ConsolidationWorkspaceApiTests
     });
     await writer.SaveChangesAsync();
     await using var fence = await writer.Database.BeginTransactionAsync();
-    await writer.ClientGroups.FromSqlInterpolated(
+    await writer.ClientGroups.FromSql(
       $"SELECT * FROM client_groups WHERE id = {fixture.GroupId} AND firm_id = {fixture.Seed.FirmId} FOR UPDATE").SingleAsync();
     writer.OwnershipInterestVersions.Add(new OwnershipInterestVersion
     {
@@ -1485,7 +1485,7 @@ public sealed partial class ConsolidationWorkspaceApiTests
     await using var blocker = new AuditSphereDbContext(pg.Options);
     await using var observer = new AuditSphereDbContext(pg.Options);
     await using var fence = await blocker.Database.BeginTransactionAsync();
-    await blocker.ClientGroups.FromSqlInterpolated($"""
+    await blocker.ClientGroups.FromSql($"""
       SELECT * FROM client_groups WHERE id = {fixture.GroupId} AND firm_id = {fixture.Seed.FirmId} FOR UPDATE
       """).SingleAsync();
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
@@ -1590,7 +1590,7 @@ public sealed partial class ConsolidationWorkspaceApiTests
 
     await using var firmBlocker = new AuditSphereDbContext(pg.Options);
     await using var firmFence = await firmBlocker.Database.BeginTransactionAsync();
-    await firmBlocker.FirmSafetyStates.FromSqlInterpolated($"""
+    await firmBlocker.FirmSafetyStates.FromSql($"""
       SELECT * FROM firm_safety_states WHERE id = {fixture.Seed.FirmId} FOR UPDATE
       """).AsNoTracking().SingleAsync();
     await using var revoker = new AuditSphereDbContext(pg.Options);

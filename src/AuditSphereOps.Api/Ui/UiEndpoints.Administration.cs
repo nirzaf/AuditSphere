@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using Microsoft.AspNetCore.DataProtection;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Domain.Shared;
@@ -7,6 +10,8 @@ namespace AuditSphereOps.Api.Ui;
 
 public static partial class UiEndpoints
 {
+  public sealed record UiFirmWidePartnerPage(IReadOnlyList<FirmWidePartnerRow> Rows, string? NextCursor);
+
   public sealed record UiCopyableInvitationResponse(Guid Id, string RecipientEmail, string DestinationPath,
     string DeliveryState, string Link);
   /// <summary>Reviewed access preview returned by the access-preview command.</summary>
@@ -35,6 +40,42 @@ public static partial class UiEndpoints
     })).WithUiResponse<AdministrationRuntimeStatus>();
     group.MapUiGet("/administration/access", http => ReadAsync(http, (db, actor, ct) => UserAccessWorkspaceQuery.GetAsync(db, actor, DateTimeOffset.UtcNow, ct)))
       .WithUiResponse<UserAccessWorkspace>();
+    group.MapGet("/administration/access/partners", (int? pageSize, string? cursor, HttpContext http) =>
+      ReadAsync(http, async (db, actor, ct) =>
+      {
+        http.Response.Headers.CacheControl = "private, no-store";
+        var limit = pageSize ?? 25;
+        if (limit is < 1 or > 50 || http.Request.Query.Keys.Any(
+            key => !key.Equals("pageSize", StringComparison.OrdinalIgnoreCase) &&
+                   !key.Equals("cursor", StringComparison.OrdinalIgnoreCase)) ||
+            http.Request.Query.Any(pair => pair.Value.Count != 1) ||
+            (http.Request.Query.ContainsKey("cursor") && string.IsNullOrEmpty(cursor)) ||
+            cursor is { Length: > 512 })
+          return CommandResult<UiFirmWidePartnerPage>.Fail("request.invalid", "Invalid Partner page request.");
+
+        var continuation = http.RequestServices.GetRequiredService<IDataProtectionProvider>()
+          .CreateProtector("AuditSphere.FirmWidePartnerLookup.v1", actor.FirmId.ToString("D"), actor.UserId.ToString("D"),
+            actor.SessionEpoch.ToString(CultureInfo.InvariantCulture), limit.ToString(CultureInfo.InvariantCulture))
+          .ToTimeLimitedDataProtector();
+        Guid? after = null;
+        if (cursor is not null)
+        {
+          try
+          {
+            if (Guid.TryParseExact(continuation.Unprotect(cursor), "D", out var id) && id != Guid.Empty)
+              after = id;
+          }
+          catch (Exception ex) when (ex is CryptographicException or FormatException) { }
+          if (after is null)
+            return CommandResult<UiFirmWidePartnerPage>.Fail("request.invalid", "Invalid or expired Partner continuation.");
+        }
+        var result = await FirmAdministrationQuery.ListActiveFirmWidePartnersAsync(db, actor, limit, after, ct);
+        if (!result.Succeeded)
+          return CommandResult<UiFirmWidePartnerPage>.Fail(result.ErrorCode!, result.Message!);
+        var page = result.Value!;
+        return CommandResult<UiFirmWidePartnerPage>.Ok(new(page.Rows, page.AfterUserId is { } last
+          ? continuation.Protect(last.ToString("D"), TimeSpan.FromMinutes(15)) : null));
+      })).WithSummary("List active firm-wide Partners").WithUiResponse<UiFirmWidePartnerPage>();
     group.MapUiGet("/administration/role-catalogue", http => ReadAsync(http, async (db, actor, ct) =>
     {
       var allowed = await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct);

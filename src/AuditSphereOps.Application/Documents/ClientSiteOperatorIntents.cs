@@ -107,7 +107,7 @@ public static class ClientSiteOperatorIntents
       return CommandResult<ClientSiteIntentRequestReceipt>.Fail("review.required", "Review the exact client and staff authority and provide a bounded reason.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!await ClientSharePointSites.LockIntentScopeAsync(db, actor.FirmId, clientId, ct)) return TenantAdministration.Denied<ClientSiteIntentRequestReceipt>();
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id = {actor.FirmId} AND id = {actor.UserId} FOR SHARE").AsNoTracking().LoadAsync(ct);
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id = {actor.FirmId} AND id = {actor.UserId} FOR SHARE").AsNoTracking().LoadAsync(ct);
     // Capture the connection before validating the review; never select a newer revision afterwards.
     var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking().Where(x => x.FirmId == actor.FirmId)
       .OrderByDescending(x => x.Revision).FirstOrDefaultAsync(ct);

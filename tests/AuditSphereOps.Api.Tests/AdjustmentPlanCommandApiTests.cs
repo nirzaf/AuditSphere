@@ -31,13 +31,13 @@ public sealed class AdjustmentPlanCommandApiTests
     {
       Assert.Single(await db.AdjustmentPlanActions.ToListAsync());
       Assert.False((await AdjustmentPlanService.FinalizeAsync(db,PbcSeed.Actor(f.Staff,"AccountingPreparer"),planId)).Succeeded);
-      await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE adjustment_plan_actions SET reason='Changed' WHERE plan_id={planId}"));
-      await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM adjustment_plan_actions WHERE plan_id={planId}"));
-      await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE adjustment_plan_lines SET layer='AUDIT' WHERE plan_id={planId}"));
-      await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO adjustment_plan_lines(id,plan_id,logical_journal_number,journal_revision,layer,reflection_state) VALUES({Guid.NewGuid()},{planId},'FORGED',1,'REPORTING','NOT_REFLECTED')"));
+      await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE adjustment_plan_actions SET reason='Changed' WHERE plan_id={planId}"));
+      await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"DELETE FROM adjustment_plan_actions WHERE plan_id={planId}"));
+      await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE adjustment_plan_lines SET layer='AUDIT' WHERE plan_id={planId}"));
+      await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"INSERT INTO adjustment_plan_lines(id,plan_id,logical_journal_number,journal_revision,layer,reflection_state) VALUES({Guid.NewGuid()},{planId},'FORGED',1,'REPORTING','NOT_REFLECTED')"));
       await using var tx = await db.Database.BeginTransactionAsync();
       var forgedHash = new string('a',64);
-      await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE adjustment_plans SET status='Finalized',result_hash={forgedHash} WHERE id={planId}");
+      await db.Database.ExecuteSqlAsync($"UPDATE adjustment_plans SET status='Finalized',result_hash={forgedHash} WHERE id={planId}");
       await Assert.ThrowsAsync<PostgresException>(()=>tx.CommitAsync());
     }
     var before = await Read(c,PlanUrl(planId)); var finalize = Request("FINALIZE",before,[]);
@@ -54,8 +54,8 @@ public sealed class AdjustmentPlanCommandApiTests
     Assert.Equal(2,await verify.AdjustmentPlanActions.CountAsync()); Assert.Single(await verify.AdjustmentPlanLines.Where(l=>l.PlanId==planId).ToListAsync());
     Assert.Equal(100.123456m,await verify.TrialBalanceRows.Where(r=>r.DatasetId==s.SourceId && r.AccountCode=="1000").Select(r=>r.Amount).SingleAsync());
     Assert.Empty(await verify.FinancialPackages.ToListAsync());
-    await Assert.ThrowsAsync<PostgresException>(()=>verify.Database.ExecuteSqlInterpolatedAsync($"UPDATE adjustment_plans SET applied_debits=0 WHERE id={planId}"));
-    await Assert.ThrowsAsync<PostgresException>(()=>verify.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM adjustment_plans WHERE id={planId}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>verify.Database.ExecuteSqlAsync($"UPDATE adjustment_plans SET applied_debits=0 WHERE id={planId}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>verify.Database.ExecuteSqlAsync($"DELETE FROM adjustment_plans WHERE id={planId}"));
     Assert.True((await SourceReconciliationService.ResolveAsync(verify,PbcSeed.Actor(f.Reviewer,"AccountingReviewer"),s.SourceId,"AJ-SYN",1,ReflectionStates.Reflected,"Changed synthetic exact bridge")).Succeeded);
     var stale = await Read(c,PlanUrl(planId)); Assert.Equal(1,stale.GetProperty("blockedCount").GetInt32()); Assert.Equal(saved.GetProperty("resultHash").GetString(),stale.GetProperty("resultHash").GetString());
     await PermanentFileFreezeMigrationAssertions.AssertDowngradeBlockedAsync(verify,"_NativeAdjustmentPlanEvidence");

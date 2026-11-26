@@ -104,12 +104,12 @@ public static class ClientSharePointSites
   {
     // Match the durable store and staffing commands: firm, client safety, target.
     await db.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'", ct);
-    var firm = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR SHARE")
+    var firm = await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (firm is null || firm.OperatingMode != "LOCAL_ONLY") return false;
-    if (await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id = {firmId} AND id = {clientId} FOR UPDATE")
+    if (await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id = {firmId} AND id = {clientId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
-    return await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id = {firmId} AND id = {clientId} FOR UPDATE")
+    return await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id = {firmId} AND id = {clientId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is not null;
   }
 }
@@ -131,7 +131,7 @@ public sealed class ClientSharePointSiteHandler(IAuditSphereDbContextFactory fac
 
   public async Task LockTargetAsync(IAuditSphereDbContext db, DurableOperation op, CancellationToken ct)
   {
-    var rows = await db.ClientSharePointSites.FromSqlInterpolated($"SELECT * FROM client_share_point_sites WHERE firm_id = {op.FirmId} AND client_id = {op.TargetId} FOR UPDATE").ToListAsync(ct);
+    var rows = await db.ClientSharePointSites.FromSql($"SELECT * FROM client_share_point_sites WHERE firm_id = {op.FirmId} AND client_id = {op.TargetId} FOR UPDATE").ToListAsync(ct);
     if (rows.Count != 1 || op.ClientId != op.TargetId || op.OriginatorId != rows[0].RequestedByUserId)
       throw new OperationBlockedException("client-site-scope-denied", authorization: true);
     await ClientSharePointSites.AdministratorAsync(db, op.FirmId, rows[0].RequestedByUserId, ct);
@@ -190,7 +190,7 @@ public sealed class ClientSharePointSiteHandler(IAuditSphereDbContextFactory fac
       if (allowCreate)
       {
         await using var recovery = await factory.CreateAsync(ct);
-        await recovery.Database.ExecuteSqlInterpolatedAsync($"UPDATE client_share_point_sites SET creation_dispatched_at = NULL WHERE firm_id = {op.FirmId} AND client_id = {site.ClientId} AND creation_operation_id = {op.Id} AND state = 'REQUESTED' AND site_id IS NULL", ct);
+        await recovery.Database.ExecuteSqlAsync($"UPDATE client_share_point_sites SET creation_dispatched_at = NULL WHERE firm_id = {op.FirmId} AND client_id = {site.ClientId} AND creation_operation_id = {op.Id} AND state = 'REQUESTED' AND site_id IS NULL", ct);
       }
       if (failure.Retryable) throw new SafeRetryException(TimeSpan.FromSeconds(30));
       throw new OperationBlockedException("client-site-preflight-blocked", failure.Authorization);
@@ -266,7 +266,7 @@ public sealed class ClientSharePointSiteDiscovery(IAuditSphereDbContextFactory f
     await using (var policyDb = await factory.CreateAsync(ct))
     {
       await using var policyTx = await policyDb.Database.BeginTransactionAsync(ct);
-      var configurations = await policyDb.FirmWorkspaceConfigurations.FromSqlInterpolated(
+      var configurations = await policyDb.FirmWorkspaceConfigurations.FromSql(
         $"SELECT * FROM firm_workspace_configurations WHERE firm_id = {options.FirmId} ORDER BY id FOR UPDATE").ToListAsync(ct);
       var configuration = configurations.SingleOrDefault(x => x.ConnectionRevisionId == connection.Id);
       if (configuration is null) return 0;

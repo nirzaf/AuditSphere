@@ -17,7 +17,7 @@ public static partial class ConsolidationService
     // Role administration takes this same guard before revocation. Holding it through
     // publication prevents a group grant from being derived from a concurrently revoked role.
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var firmGuard = await db.FirmSafetyStates.FromSqlInterpolated(
+    var firmGuard = await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (firmGuard is null)
@@ -66,7 +66,7 @@ public static partial class ConsolidationService
     if (!await db.PracticeClients.AnyAsync(x => x.FirmId == actor.FirmId && x.Id == request.ClientId, ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The legal entity is outside the firm scope.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var group = await db.ClientGroups.FromSqlInterpolated($"SELECT * FROM client_groups WHERE id = {request.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE")
+    var group = await db.ClientGroups.FromSql($"SELECT * FROM client_groups WHERE id = {request.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (group is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");

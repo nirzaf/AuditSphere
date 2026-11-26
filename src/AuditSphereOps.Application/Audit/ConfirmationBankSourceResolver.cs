@@ -46,7 +46,7 @@ internal static class ConfirmationBankSourceResolver
     var banks = new List<AuditBankReconciliation>(bankIds.Length);
     foreach (var id in bankIds)
     {
-      var bank = await db.AuditBankReconciliations.FromSqlInterpolated(
+      var bank = await db.AuditBankReconciliations.FromSql(
           $"SELECT * FROM audit_bank_reconciliations WHERE firm_id = {firmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND id = {id} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       if (bank is null)
@@ -62,7 +62,7 @@ internal static class ConfirmationBankSourceResolver
 
     foreach (var id in bankIds)
     {
-      _ = await db.AuditBankReconciliationItems.FromSqlInterpolated(
+      _ = await db.AuditBankReconciliationItems.FromSql(
           $"SELECT * FROM audit_bank_reconciliation_items WHERE firm_id = {firmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND bank_reconciliation_id = {id} ORDER BY id FOR SHARE")
         .AsNoTracking().ToListAsync(ct);
     }
@@ -70,7 +70,7 @@ internal static class ConfirmationBankSourceResolver
     var schedules = new List<AuditSchedule>(scheduleIds.Length);
     foreach (var id in scheduleIds)
     {
-      var schedule = await db.AuditSchedules.FromSqlInterpolated(
+      var schedule = await db.AuditSchedules.FromSql(
           $"SELECT * FROM audit_schedules WHERE firm_id = {firmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND id = {id} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       if (schedule is null)
@@ -80,7 +80,7 @@ internal static class ConfirmationBankSourceResolver
 
     foreach (var id in scheduleIds)
     {
-      _ = await db.AuditScheduleRows.FromSqlInterpolated(
+      _ = await db.AuditScheduleRows.FromSql(
           $"SELECT * FROM audit_schedule_rows WHERE firm_id = {firmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND schedule_id = {id} ORDER BY id FOR SHARE")
         .AsNoTracking().ToListAsync(ct);
     }
@@ -94,7 +94,7 @@ internal static class ConfirmationBankSourceResolver
       var accounting = (IClientAccountingDbContext)db;
       foreach (var id in batchIds)
       {
-        var batch = await accounting.SourceImportBatches.FromSqlInterpolated(
+        var batch = await accounting.SourceImportBatches.FromSql(
             $"SELECT * FROM source_import_batches WHERE firm_id = {firmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND id = {id} FOR SHARE")
           .AsNoTracking().SingleOrDefaultAsync(ct);
         if (batch is null)

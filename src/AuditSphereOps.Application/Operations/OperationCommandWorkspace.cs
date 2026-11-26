@@ -43,8 +43,8 @@ public static class OperationCommandWorkspace
   {
     var hash = Hashing.Sha256Hex(JsonSerializer.Serialize(new { Namespace = "operator-command-v1", actor.FirmId, actor.UserId, RequestId = requestId }));
     var key = unchecked((long)Convert.ToUInt64(hash[..16], 16));
-    if (write) await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", ct);
-    else await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
+    if (write) await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({key})", ct);
+    else await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
   }
 
   private static async Task<OperationCommandSnapshot?> SnapshotAsync(IAuditSphereDbContext db, ActorContext actor, Guid? operationId, bool lockOperation, CancellationToken ct)
@@ -55,7 +55,7 @@ public static class OperationCommandWorkspace
     if (operationId is { } id)
     {
       operation = lockOperation
-        ? await db.DurableOperations.FromSqlInterpolated($"SELECT * FROM durable_operations WHERE firm_id = {actor.FirmId} AND id = {id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct)
+        ? await db.DurableOperations.FromSql($"SELECT * FROM durable_operations WHERE firm_id = {actor.FirmId} AND id = {id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct)
         : await db.DurableOperations.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == id, ct);
       if (operation is null) return null;
     }
@@ -306,7 +306,7 @@ public static class OperationCommandWorkspace
     var eid = eventId.ToString(); var sid = sourceId?.ToString() ?? ""; var rid = request.RequestId.ToString();
     var aid = actor.UserId.ToString(); var epoch = Number(actor.SessionEpoch); var oid = input.OperationId?.ToString() ?? "";
     var session = input.RecoverySessionId?.ToString() ?? ""; var json = JsonSerializer.Serialize(input);
-    return db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('audit.operator_event_id',{eid},true),set_config('audit.operator_source_id',{sid},true),set_config('audit.operator_request_id',{rid},true),set_config('audit.operator_actor_id',{aid},true),set_config('audit.operator_actor_epoch',{epoch},true),set_config('audit.operator_operation_id',{oid},true),set_config('audit.operator_session_id',{session},true),set_config('audit.operator_hash',{hash},true),set_config('audit.operator_action',{input.Action},true),set_config('audit.operator_input',{json},true)", ct);
+    return db.Database.ExecuteSqlAsync($"SELECT set_config('audit.operator_event_id',{eid},true),set_config('audit.operator_source_id',{sid},true),set_config('audit.operator_request_id',{rid},true),set_config('audit.operator_actor_id',{aid},true),set_config('audit.operator_actor_epoch',{epoch},true),set_config('audit.operator_operation_id',{oid},true),set_config('audit.operator_session_id',{session},true),set_config('audit.operator_hash',{hash},true),set_config('audit.operator_action',{input.Action},true),set_config('audit.operator_input',{json},true)", ct);
   }
   private static Task<int> ClearPublicationAsync(IAuditSphereDbContext db, CancellationToken ct) => db.Database.ExecuteSqlRawAsync(
     "SELECT set_config('audit.operator_event_id','',true),set_config('audit.operator_action','',true)", ct);

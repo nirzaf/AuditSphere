@@ -53,7 +53,7 @@ public sealed class EngagementWorkspaceProvisioningHandler(
 
   public async Task LockTargetAsync(IAuditSphereDbContext db, DurableOperation op, CancellationToken ct)
   {
-    var engagements = await db.Engagements.FromSqlInterpolated($"""
+    var engagements = await db.Engagements.FromSql($"""
       SELECT * FROM engagements WHERE firm_id = {op.FirmId} AND id = {op.TargetId} AND practice_client_id = {op.ClientId} FOR UPDATE
       """).ToListAsync(ct);
     if (engagements.Count != 1 || !await db.EngagementActivations.AnyAsync(x => x.FirmId == op.FirmId && x.EngagementId == op.TargetId, ct))

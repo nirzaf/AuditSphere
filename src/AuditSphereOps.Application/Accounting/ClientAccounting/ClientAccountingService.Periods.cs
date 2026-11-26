@@ -22,7 +22,7 @@ public static partial class ClientAccountingService
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     auth = await AuthorizeClientAsync(db, actor, request.ClientId, PreparerRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -75,7 +75,7 @@ public static partial class ClientAccountingService
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
     var prior = await db.ClientReportingPeriods
-      .FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE id = {request.PriorPeriodId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .FromSql($"SELECT * FROM client_reporting_periods WHERE id = {request.PriorPeriodId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (prior is null || prior.ClientId != request.ClientId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The prior period is outside the client scope.");
@@ -146,7 +146,7 @@ public static partial class ClientAccountingService
     var scope = await LockPeriodDecisionScopeAsync(db, actor, periodId, ReviewerRoles, ct);
     if (!scope.Succeeded) return scope;
     var period = await db.ClientReportingPeriods
-      .FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE id = {periodId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .FromSql($"SELECT * FROM client_reporting_periods WHERE id = {periodId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (period is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -174,7 +174,7 @@ public static partial class ClientAccountingService
         "The opening balance bridge must be approved by a reviewer before period close.");
     if (openingBridge?.PriorPeriodId is { } priorId)
     {
-      await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE id = {priorId} AND firm_id = {actor.FirmId} AND client_id = {period.ClientId} FOR SHARE")
+      await db.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE id = {priorId} AND firm_id = {actor.FirmId} AND client_id = {period.ClientId} FOR SHARE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       var current = await OpeningBalanceBridgeCurrentness.GetAsync(db, openingBridge, ct);
       if (!current.Current) return CommandResult.Fail(ErrorCodes.GenerationStale, current.Blocker!);
@@ -238,7 +238,7 @@ public static partial class ClientAccountingService
     var scope = await LockPeriodDecisionScopeAsync(db, actor, periodId, ["Partner", "Administrator"], ct);
     if (!scope.Succeeded) return scope;
     var period = await db.ClientReportingPeriods
-      .FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE id = {periodId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .FromSql($"SELECT * FROM client_reporting_periods WHERE id = {periodId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (period is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -280,9 +280,9 @@ public static partial class ClientAccountingService
     if (period is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeClientAsync(db, actor, period.ClientId, roles, ct);
     if (!auth.Succeeded) return auth;
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-    await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {period.ClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id = {actor.FirmId} AND id = {actor.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {period.ClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id = {actor.FirmId} AND id = {actor.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
     return await AuthorizeClientAsync(db, actor, period.ClientId, roles, ct);
   }
 

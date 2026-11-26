@@ -263,7 +263,7 @@ public static class AuditCompletionService
     await using var ownedTx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     var safety = await AuditPlanningCommandWorkspace.LockAsync(db, actor, request.EngagementId, true, ct);
     if (!safety.Succeeded) return CommandResult<SubsequentEventReviewValue>.Fail(safety.ErrorCode!, safety.Message!);
-    var locked = await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={request.EngagementId} FOR UPDATE")
+    var locked = await db.Engagements.FromSql($"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={request.EngagementId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (locked is null || locked.PracticeClientId != engagement.PracticeClientId)
       return CommandResult<SubsequentEventReviewValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -393,7 +393,7 @@ public static class AuditCompletionService
       return safety;
     }
 
-    var engagement = await db.Engagements.FromSqlInterpolated($"""
+    var engagement = await db.Engagements.FromSql($"""
       SELECT * FROM engagements WHERE firm_id = {actor.FirmId} AND id = {scope.EngagementId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     if (engagement is null || engagement.PracticeClientId != scope.ClientId)
@@ -518,7 +518,7 @@ public static class AuditCompletionService
     {
       case "VARIANCE":
       {
-        var record = await db.AnalyticalReviewVarianceInvestigations.FromSqlInterpolated($"""
+        var record = await db.AnalyticalReviewVarianceInvestigations.FromSql($"""
           SELECT * FROM analytical_variance_investigations
           WHERE firm_id = {actor.FirmId} AND id = {recordId} FOR UPDATE
           """).SingleOrDefaultAsync(ct);
@@ -575,7 +575,7 @@ public static class AuditCompletionService
       }
       case "GOING_CONCERN":
       {
-        var record = await db.GoingConcernAssessments.FromSqlInterpolated($"""
+        var record = await db.GoingConcernAssessments.FromSql($"""
           SELECT * FROM going_concern_assessments
           WHERE firm_id = {actor.FirmId} AND id = {recordId} FOR UPDATE
           """).SingleOrDefaultAsync(ct);
@@ -630,7 +630,7 @@ public static class AuditCompletionService
       }
       case "SUBSEQUENT_EVENT":
       {
-        var record = await db.SubsequentEventReviews.FromSqlInterpolated($"""
+        var record = await db.SubsequentEventReviews.FromSql($"""
           SELECT * FROM subsequent_event_reviews
           WHERE firm_id = {actor.FirmId} AND id = {recordId} FOR UPDATE
           """).SingleOrDefaultAsync(ct);

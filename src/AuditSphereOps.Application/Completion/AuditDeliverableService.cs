@@ -748,7 +748,7 @@ public static partial class AuditDeliverableService
     if (reviewedFactsDigest != request.ExpectedFactsDigest || reviewedReport?.Id != request.ExpectedReportDeliverableId ||
         reviewedReport?.ContentSha256 != request.ExpectedReportSha256)
       return CommandResult<Guid>.Fail(ErrorCodes.GenerationStale, "The reviewed EQR evidence changed; review the current basis before deciding.");
-    var eqr = await db.EqrCases.FromSqlInterpolated($"""
+    var eqr = await db.EqrCases.FromSql($"""
       SELECT * FROM eqr_cases WHERE firm_id = {actor.FirmId} AND engagement_id = {engagementId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (eqr is null)
@@ -836,7 +836,7 @@ public static partial class AuditDeliverableService
     await db.Database.OpenConnectionAsync(ct);
     try
     {
-      await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_lock({lockKey})", ct);
+      await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_lock({lockKey})", ct);
       return new EqrDecisionLockLease(db, lockKey);
     }
     catch

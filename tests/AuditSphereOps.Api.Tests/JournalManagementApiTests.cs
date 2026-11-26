@@ -28,10 +28,10 @@ public sealed class JournalManagementApiTests
     using var staffFactory=Factory(pg,f.Staff);using var staff=staffFactory.CreateClient();await SignIn(staff);
     var history=await Read(staff,$"/api/ui/accounting/journals/{id}/history/{action.GetProperty("id").GetGuid()}");Assert.Equal("ACCEPTED",history.GetProperty("management").GetProperty("decision").GetString());Assert.Equal("100.123456",history.GetProperty("after").GetProperty("lines")[0].GetProperty("debit").GetString());
     await using var db=new AuditSphereDbContext(pg.Options);Assert.Equal(1,await db.AdjustmentJournalManagementDecisions.CountAsync());Assert.Equal(1,await db.AdjustmentJournalActions.CountAsync());Assert.Equal("Draft",await db.AdjustmentJournals.Where(x=>x.Id==id).Select(x=>x.Status).SingleAsync());Assert.Empty(await db.JournalSourceReconciliations.ToListAsync());
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE adjustment_journal_management_decisions SET decision='REJECTED' WHERE journal_id={id}"));
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM adjustment_journal_management_decisions WHERE journal_id={id}"));
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE adjustment_lines SET debit=1 WHERE journal_id={id} AND debit>0"));
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE adjustment_journals SET revision=revision+1 WHERE id={id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE adjustment_journal_management_decisions SET decision='REJECTED' WHERE journal_id={id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"DELETE FROM adjustment_journal_management_decisions WHERE journal_id={id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE adjustment_lines SET debit=1 WHERE journal_id={id} AND debit>0"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE adjustment_journals SET revision=revision+1 WHERE id={id}"));
     Assert.False((await AdjustmentJournalService.UpdateDraftAsync(db,PbcSeed.Actor(f.Staff,"AccountingPreparer"),id,[("1000",2m,0m),("3000",0m,2m)],"Changed","Changed",1)).Succeeded);
     Assert.True((await AdjustmentJournalService.SubmitDraftAsync(db,PbcSeed.Actor(f.Staff,"AccountingPreparer"),id)).Succeeded);
     Assert.True((await AdjustmentJournalService.PostAsync(db,PbcSeed.Actor(f.Reviewer,"AccountingReviewer"),id)).Succeeded);

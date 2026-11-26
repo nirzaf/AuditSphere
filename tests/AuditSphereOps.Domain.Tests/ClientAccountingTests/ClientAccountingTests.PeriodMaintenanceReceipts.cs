@@ -70,7 +70,7 @@ public sealed partial class ClientAccountingTests
 
     await using var blocker = new AuditSphereDbContext(pg.Options);
     await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
-    await blocker.FinancialPackages.FromSqlInterpolated(
+    await blocker.FinancialPackages.FromSql(
       $"SELECT * FROM financial_packages WHERE firm_id={scope.FirmId} AND client_id={scope.ClientA} AND id={foreignPackageId} FOR UPDATE")
       .AsNoTracking().SingleAsync();
     await publisher.Database.OpenConnectionAsync();
@@ -96,7 +96,7 @@ public sealed partial class ClientAccountingTests
       new(scope.ClientA, period, "2027", new(2027, 1, 1), new(2027, 12, 31), "STATUTORY", "QAR", new('a', 64), 100m, 100m, "SYNTHETIC opening", ExpectedPriorRevision: 2));
     await using var referencing = new AuditSphereDbContext(pg.Options);
     await using var referenceTransaction = await referencing.Database.BeginTransactionAsync();
-    await referencing.Users.FromSqlInterpolated($"SELECT * FROM users WHERE id={actor.UserId} FOR KEY SHARE").AsNoTracking().SingleAsync();
+    await referencing.Users.FromSql($"SELECT * FROM users WHERE id={actor.UserId} FOR KEY SHARE").AsNoTracking().SingleAsync();
     await writer.Database.OpenConnectionAsync();
     await writer.Database.ExecuteSqlRawAsync("SET lock_timeout = '1s'");
     var published = await PeriodMaintenanceWorkspace.ExecuteAsync(writer, actor, scope.ClientA, request);
@@ -145,8 +145,8 @@ public sealed partial class ClientAccountingTests
     Assert.Single(await db.ClientPeriodRestatements.ToListAsync());
     Assert.Equal(2, await db.FinancialPackages.CountAsync());
     var rid = a.Value.Id;
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE period_maintenance_receipts SET action='CREATE_RESTATEMENT' WHERE id={rid}"));
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM period_maintenance_receipts WHERE id={rid}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"UPDATE period_maintenance_receipts SET action='CREATE_RESTATEMENT' WHERE id={rid}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"DELETE FROM period_maintenance_receipts WHERE id={rid}"));
   }
 
   [Fact, Trait("Profile", "Database")]
@@ -238,11 +238,11 @@ public sealed partial class ClientAccountingTests
     await using (var db = new AuditSphereDbContext(pg.Options)) r = await ReviewedMaintenanceAsync(db, actor, scope.ClientA, PeriodMaintenanceActions.RollForward,
       new(scope.ClientA, period, "2027", new(2027, 1, 1), new(2027, 12, 31), "STATUTORY", "QAR", new('a', 64), 1m, 1m, "SYNTHETIC opening", ExpectedPriorRevision: 2));
     await using var revoke = new AuditSphereDbContext(pg.Options); await using var tx = await revoke.Database.BeginTransactionAsync();
-    await revoke.Database.ExecuteSqlInterpolatedAsync($"SELECT id FROM firm_safety_states WHERE id={scope.FirmId} FOR UPDATE");
+    await revoke.Database.ExecuteSqlAsync($"SELECT id FROM firm_safety_states WHERE id={scope.FirmId} FOR UPDATE");
     await using var publishDb = new AuditSphereDbContext(pg.Options);
     var pending = PeriodMaintenanceWorkspace.ExecuteAsync(publishDb, actor, scope.ClientA, r);
     await AssertMaintenanceLockWaitAsync(revoke, scope.FirmId);
-    await revoke.Database.ExecuteSqlInterpolatedAsync($"UPDATE role_grants SET revoked_at=now() WHERE firm_id={scope.FirmId} AND user_id={actor.UserId}");
+    await revoke.Database.ExecuteSqlAsync($"UPDATE role_grants SET revoked_at=now() WHERE firm_id={scope.FirmId} AND user_id={actor.UserId}");
     await tx.CommitAsync();
     Assert.False((await pending).Succeeded);
     await using var verify = new AuditSphereDbContext(pg.Options); Assert.Empty(await verify.PeriodMaintenanceReceipts.ToListAsync());
@@ -425,7 +425,7 @@ public sealed partial class ClientAccountingTests
     {
       var pending = Read(); await pause.Reached.Task.WaitAsync(timeout.Token);
       await using var revoke = new AuditSphereDbContext(pg.Options); await using var tx = await revoke.Database.BeginTransactionAsync();
-      await revoke.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={scope.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
+      await revoke.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={scope.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
       await revoke.RoleGrants.Where(x => x.UserId == actor.UserId && x.ClientId == scope.ClientA).ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
       await tx.CommitAsync(); pause.Release.TrySetResult(true); Assert.False(await pending);
     }
@@ -462,9 +462,9 @@ public sealed partial class ClientAccountingTests
       new(scope.ClientA, period, "2027", new(2027, 1, 1), new(2027, 12, 31), "STATUTORY", "QAR", new('a', 64), 1m, 1m, "SYNTHETIC opening", ExpectedPriorRevision: 2));
     var saved = await PeriodMaintenanceWorkspace.ExecuteAsync(db, actor, scope.ClientA, r); Assert.True(saved.Succeeded, saved.Message);
     var id = saved.Value!.Id;
-    var shape = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO period_maintenance_receipts (id, firm_id, client_id, actor_id, actor_epoch, request_id, request_hash, action, review_basis, period_id, result_period_id, restatement_id, input_json, before_json, result_json, created_at) SELECT {Guid.NewGuid()}, firm_id, client_id, actor_id, actor_epoch, {Guid.NewGuid()}, request_hash, action, review_basis, period_id, NULL, NULL, input_json, before_json, result_json, created_at FROM period_maintenance_receipts WHERE id={id}"));
+    var shape = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"INSERT INTO period_maintenance_receipts (id, firm_id, client_id, actor_id, actor_epoch, request_id, request_hash, action, review_basis, period_id, result_period_id, restatement_id, input_json, before_json, result_json, created_at) SELECT {Guid.NewGuid()}, firm_id, client_id, actor_id, actor_epoch, {Guid.NewGuid()}, request_hash, action, review_basis, period_id, NULL, NULL, input_json, before_json, result_json, created_at FROM period_maintenance_receipts WHERE id={id}"));
     Assert.Equal("23514", shape.SqlState);
-    var scopeError = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO period_maintenance_receipts (id, firm_id, client_id, actor_id, actor_epoch, request_id, request_hash, action, review_basis, period_id, result_period_id, restatement_id, input_json, before_json, result_json, created_at) SELECT {Guid.NewGuid()}, firm_id, {scope.ClientB}, actor_id, actor_epoch, {Guid.NewGuid()}, request_hash, action, review_basis, period_id, result_period_id, restatement_id, input_json, before_json, result_json, created_at FROM period_maintenance_receipts WHERE id={id}"));
+    var scopeError = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"INSERT INTO period_maintenance_receipts (id, firm_id, client_id, actor_id, actor_epoch, request_id, request_hash, action, review_basis, period_id, result_period_id, restatement_id, input_json, before_json, result_json, created_at) SELECT {Guid.NewGuid()}, firm_id, {scope.ClientB}, actor_id, actor_epoch, {Guid.NewGuid()}, request_hash, action, review_basis, period_id, result_period_id, restatement_id, input_json, before_json, result_json, created_at FROM period_maintenance_receipts WHERE id={id}"));
     Assert.Equal("23503", scopeError.SqlState);
   }
 

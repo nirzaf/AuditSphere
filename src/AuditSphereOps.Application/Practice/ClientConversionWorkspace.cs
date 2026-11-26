@@ -112,27 +112,27 @@ public static class ClientConversionWorkspace
     if(r is null || fields is null || !r.Reviewed || r.RequestId==Guid.Empty || !HashValid(r.RequestHash) || !HashValid(r.ReviewBasis) ||
       r.RequestHash!=RequestHash(a,id,r.RequestId,fields)) return CommandResult<ClientConversionReceipt>.Fail("request.invalid","Preview and confirm the exact prospect conversion.");
     await using var tx=await db.Database.BeginTransactionAsync(ct);
-    if(await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null)
+    if(await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return Unavailable<ClientConversionReceipt>();
     if(!(await Authorize(db,a,ct)).Succeeded) return Unavailable<ClientConversionReceipt>();
     var prior=await db.ClientConversions.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId && x.ActorId==a.UserId && x.RequestId==r.RequestId,ct);
     if(prior is not null) {
       if(prior.ProposalId!=id || prior.RequestHash!=r.RequestHash) return CommandResult<ClientConversionReceipt>.Fail(ErrorCodes.IdempotencyConflict,"Changed conversion cannot reuse the request.");
-      if(await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={prior.ClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null)
+      if(await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={prior.ClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null)
         return Unavailable<ClientConversionReceipt>();
-      await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+      await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
       if(!(await Authorize(db,a,ct)).Succeeded)return Unavailable<ClientConversionReceipt>();
       await tx.CommitAsync(ct);return CommandResult<ClientConversionReceipt>.Ok(Receipt(prior));
     }
     var preview=await PreviewAsync(db,a,id,r,ct);
     if(!preview.Succeeded)return CommandResult<ClientConversionReceipt>.Fail(preview.ErrorCode!,preview.Message!);
     if(preview.Value!.ExistingClientId is Guid clientId) {
-      if(await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={clientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null)
+      if(await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={clientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null)
         return Unavailable<ClientConversionReceipt>();
       preview=await PreviewAsync(db,a,id,r,ct);
       if(!preview.Succeeded)return CommandResult<ClientConversionReceipt>.Fail(preview.ErrorCode!,preview.Message!);
     }
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
     if(!(await Authorize(db,a,ct)).Succeeded)return Unavailable<ClientConversionReceipt>();
     if(preview.Value!.ReviewBasis!=r.ReviewBasis)return CommandResult<ClientConversionReceipt>.Fail(ErrorCodes.StaleRevision,"Conversion context changed. Refresh and review again.");
     var created=await PracticeCrmService.ConvertToClientDraftAsync(db,a,new(id,fields.LegalName,fields.CommercialName,
@@ -151,7 +151,7 @@ public static class ClientConversionWorkspace
   {
     if(!(await Authorize(db,a,ct)).Succeeded || requestId==Guid.Empty || !HashValid(hash))return Unavailable<ClientConversionLookup>();
     await using var tx=await db.Database.BeginTransactionAsync(ct);
-    if(await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct) is null)
+    if(await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return Unavailable<ClientConversionLookup>();
     if(!await db.Proposals.AsNoTracking().AnyAsync(x=>x.FirmId==a.FirmId && x.Id==id,ct))return Unavailable<ClientConversionLookup>();
     var row=await db.ClientConversions.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId && x.ActorId==a.UserId && x.RequestId==requestId,ct);

@@ -35,7 +35,7 @@ public sealed class JournalCreationApiTests
         [("1000",201.123456m,0m),("3000",0m,201.123456m)],"Later correction","Later evidence",1)).Succeeded);
       Assert.Equal(2,await db.AdjustmentJournals.Where(x=>x.Id==id).Select(x=>x.Revision).SingleAsync());
       var e=await db.AdjustmentJournalActions.SingleAsync();Assert.Contains("200.123456",e.AfterJson);Assert.DoesNotContain("201.123456",e.AfterJson);
-      await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE adjustment_journal_actions SET after_json='altered' WHERE id={e.Id}"));
+      await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE adjustment_journal_actions SET after_json='altered' WHERE id={e.Id}"));
     }
     var lookup=await Read(c,Url(source)+"/receipts/"+request.RequestId+"?requestHash="+results[0].GetProperty("requestHash").GetString());Assert.True(lookup.GetProperty("found").GetBoolean());
     var history=await Read(c,$"/api/ui/accounting/journals/{id}/history/{results[0].GetProperty("id").GetGuid()}");

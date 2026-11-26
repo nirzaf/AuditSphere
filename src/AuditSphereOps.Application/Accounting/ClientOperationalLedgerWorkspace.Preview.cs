@@ -21,7 +21,7 @@ public static partial class ClientOperationalLedgerWorkspace
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var auth = await AuthorizeAsync(db, actor, clientId, Preparers, ct);
     if (!auth.Succeeded) return CommandResult<ClientOperationalJournalPreview>.Fail(auth.ErrorCode!, "Access denied.");
-    var journal = await db.ClientOperationalJournals.FromSqlInterpolated(
+    var journal = await db.ClientOperationalJournals.FromSql(
       $"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={journalId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (journal is null) return CommandResult<ClientOperationalJournalPreview>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -43,7 +43,7 @@ public static partial class ClientOperationalLedgerWorkspace
     if (!profile.Succeeded) return CommandResult<ClientOperationalJournalPreview>.Fail(profile.ErrorCode!, profile.Message!);
     if (journal.Status is not ("DRAFT" or "RETURNED" or "SUBMITTED"))
       return CommandResult<ClientOperationalJournalPreview>.Fail(ErrorCodes.ProtectedState, "Only an unposted journal can be previewed.");
-    var period = await db.ClientReportingPeriods.FromSqlInterpolated(
+    var period = await db.ClientReportingPeriods.FromSql(
       $"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={journal.ClientId} AND id={journal.PeriodId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (period is null || period.Status == AccountingWorkflowStates.Closed || journal.PostingDate < period.StartDate ||

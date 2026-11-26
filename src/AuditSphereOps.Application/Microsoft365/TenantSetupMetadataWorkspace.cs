@@ -102,9 +102,9 @@ public static class TenantSetupMetadataWorkspace
 
   private static async Task<bool> LockActorAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
   {
-    if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
+    if (await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
-    if (await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR UPDATE")
+    if (await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
     return await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct);
   }
@@ -113,11 +113,11 @@ public static class TenantSetupMetadataWorkspace
   private static async Task<CommandResult<CurrentDraft>> CurrentDraftAsync(IAuditSphereDbContext db, ActorContext actor,
     TenantSetupEditRequest input, string configuredTenant, CancellationToken ct)
   {
-    var draft = await db.Microsoft365SetupDrafts.FromSqlInterpolated(
+    var draft = await db.Microsoft365SetupDrafts.FromSql(
       $"SELECT * FROM m365_setup_drafts WHERE firm_id={actor.FirmId} AND id={input.DraftId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (draft is null || !Guid.TryParse(configuredTenant, out var configured) || !Guid.TryParse(draft.ExpectedTenantId, out var expected) || configured != expected)
       return TenantAdministration.Denied<CurrentDraft>();
-    var connection = draft.ConnectionRevisionId is Guid id ? await db.Microsoft365ConnectionRevisions.FromSqlInterpolated(
+    var connection = draft.ConnectionRevisionId is Guid id ? await db.Microsoft365ConnectionRevisions.FromSql(
       $"SELECT * FROM m365_connection_revisions WHERE firm_id={actor.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) : null;
     if (draft.ConnectionRevisionId is not null && (connection is null || !Guid.TryParse(connection.TenantId, out var connectionTenant) || connectionTenant != configured)) return TenantAdministration.Denied<CurrentDraft>();
     if (draft.State is Microsoft365RevisionStates.Active or Microsoft365RevisionStates.Suspended or Microsoft365RevisionStates.Blocked ||

@@ -206,7 +206,7 @@ internal static class WorkflowReminderRuntime
     Guid clientId, Guid engagementId, string kind, Guid sourceId, bool locked, CancellationToken ct)
   {
     var engagementQuery = locked
-      ? db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE firm_id = {firmId} AND practice_client_id = {clientId} AND id = {engagementId} FOR UPDATE")
+      ? db.Engagements.FromSql($"SELECT * FROM engagements WHERE firm_id = {firmId} AND practice_client_id = {clientId} AND id = {engagementId} FOR UPDATE")
       : db.Engagements.Where(x => x.FirmId == firmId && x.PracticeClientId == clientId && x.Id == engagementId);
     var engagement = await engagementQuery.AsNoTracking().SingleOrDefaultAsync(ct);
     if (engagement is null || engagement.Status != "Active" || engagement.ProfessionalWorkBlocked ||
@@ -216,11 +216,11 @@ internal static class WorkflowReminderRuntime
     if (kind == "TASK_DUE")
     {
       var taskQuery = locked
-        ? db.WorkTasks.FromSqlInterpolated($"SELECT * FROM work_tasks WHERE firm_id = {firmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND id = {sourceId} FOR UPDATE")
+        ? db.WorkTasks.FromSql($"SELECT * FROM work_tasks WHERE firm_id = {firmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND id = {sourceId} FOR UPDATE")
         : db.WorkTasks.Where(x => x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && x.Id == sourceId);
       var task = await taskQuery.AsNoTracking().SingleOrDefaultAsync(ct);
       var bindingQuery = locked
-        ? db.WorkflowTaskBindings.FromSqlInterpolated($"SELECT * FROM workflow_task_bindings WHERE firm_id = {firmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND work_task_id = {sourceId} FOR UPDATE")
+        ? db.WorkflowTaskBindings.FromSql($"SELECT * FROM workflow_task_bindings WHERE firm_id = {firmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND work_task_id = {sourceId} FOR UPDATE")
         : db.WorkflowTaskBindings.Where(x => x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && x.WorkTaskId == sourceId);
       var binding = await bindingQuery.AsNoTracking().SingleOrDefaultAsync(ct);
       if (task is null || binding is null || binding.ReminderRuleRevisionId is not null || binding.HeldAt is not null ||
@@ -239,7 +239,7 @@ internal static class WorkflowReminderRuntime
     if (kind != "PBC_DUE" || await db.CommercialDeliverableBundles.AsNoTracking().AnyAsync(x =>
         x.FirmId == firmId && x.EngagementId == engagementId, ct)) return null;
     var pbcQuery = locked
-      ? db.PbcRequests.FromSqlInterpolated($"SELECT * FROM pbc_requests WHERE firm_id = {firmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND id = {sourceId} FOR UPDATE")
+      ? db.PbcRequests.FromSql($"SELECT * FROM pbc_requests WHERE firm_id = {firmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND id = {sourceId} FOR UPDATE")
       : db.PbcRequests.Where(x => x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId && x.Id == sourceId);
     var pbc = await pbcQuery.AsNoTracking().SingleOrDefaultAsync(ct);
     if (pbc is null || !WaitingPbcStates.Contains(pbc.State, StringComparer.Ordinal) ||

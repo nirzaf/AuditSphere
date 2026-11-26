@@ -16,7 +16,7 @@ internal static class AuditPlanningInputGeneration
     Guid clientId,
     CancellationToken ct)
   {
-    var state = await db.ClientSafetyStates.FromSqlInterpolated($"""
+    var state = await db.ClientSafetyStates.FromSql($"""
       SELECT * FROM client_safety_states
       WHERE firm_id = {firmId} AND id = {clientId}
       FOR UPDATE
@@ -26,7 +26,7 @@ internal static class AuditPlanningInputGeneration
   /// <summary>Submissions share this fence; input-generation writers still serialize against it.</summary>
   public static async Task<long?> ReadSharedAsync(IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct)
   {
-    var state = await db.ClientSafetyStates.FromSqlInterpolated($"""
+    var state = await db.ClientSafetyStates.FromSql($"""
       SELECT * FROM client_safety_states WHERE firm_id = {firmId} AND id = {clientId} FOR SHARE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     return state?.InputGeneration;

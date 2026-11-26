@@ -380,13 +380,13 @@ public sealed class AuditScheduleIntakeSourcesTests
         Assert.Equal(ErrorCodes.IdempotencyConflict, conflict.ErrorCode);
         Assert.Equal(1, await repeatCapture.AuditScheduleSourceCaptures.CountAsync(ct));
         var scheduleId = originalCapture.Receipt.ScheduleId;
-        var immutable = await Assert.ThrowsAsync<PostgresException>(() => repeatCapture.Database.ExecuteSqlInterpolatedAsync(
+        var immutable = await Assert.ThrowsAsync<PostgresException>(() => repeatCapture.Database.ExecuteSqlAsync(
           $"UPDATE audit_schedule_source_captures SET manifest_hash = repeat('0',64) WHERE schedule_id = {scheduleId}", ct));
         Assert.Equal("55000", immutable.SqlState);
-        var immutableRows = await Assert.ThrowsAsync<PostgresException>(() => repeatCapture.Database.ExecuteSqlInterpolatedAsync(
+        var immutableRows = await Assert.ThrowsAsync<PostgresException>(() => repeatCapture.Database.ExecuteSqlAsync(
           $"UPDATE audit_schedule_rows SET signed_amount = signed_amount + 1 WHERE schedule_id = {scheduleId}", ct));
         Assert.Equal("55000", immutableRows.SqlState);
-        var forgedApproval = await Assert.ThrowsAsync<PostgresException>(() => repeatCapture.Database.ExecuteSqlInterpolatedAsync(
+        var forgedApproval = await Assert.ThrowsAsync<PostgresException>(() => repeatCapture.Database.ExecuteSqlAsync(
           $"UPDATE audit_schedules SET status = 'APPROVED', completeness_decision = 'unrecorded' WHERE id = {scheduleId}", ct));
         Assert.Equal("23514", forgedApproval.SqlState);
         Assert.Equal(balanced ? "RECONCILED" : "UNRECONCILED", (await repeatCapture.AuditSchedules.AsNoTracking().SingleAsync(ct)).Status);
@@ -669,7 +669,7 @@ public sealed class AuditScheduleIntakeSourcesTests
         Assert.Equal(originalReview.ReceiptHash, reviewRow.ReceiptHash);
         Assert.Equal(JsonSerializer.Serialize(originalReview.Receipt), reviewRow.ReceiptJson);
         Assert.Equal(originalReview.Receipt.Status, (await retained.AuditSchedules.AsNoTracking().SingleAsync(ct)).Status);
-        var immutableReview = await Assert.ThrowsAsync<PostgresException>(() => retained.Database.ExecuteSqlInterpolatedAsync(
+        var immutableReview = await Assert.ThrowsAsync<PostgresException>(() => retained.Database.ExecuteSqlAsync(
           $"UPDATE audit_schedule_source_reviews SET reason = 'overwrite' WHERE id = {reviewRow.Id}", ct));
         Assert.Equal("55000", immutableReview.SqlState);
         var recovered = await AuditScheduleSourceWorkspace.GetReviewReceiptAsync(retained, reviewer,
@@ -700,7 +700,7 @@ public sealed class AuditScheduleIntakeSourcesTests
         // This isolates stale generation from missing-byte failure; it is not a supported business acceptance.
         await File.WriteAllBytesAsync(chunk.StagedPath!, csv, ct);
         await using var advance = new AuditSphereDbContext(pg.Options);
-        Assert.Equal(1, await advance.Database.ExecuteSqlInterpolatedAsync(
+        Assert.Equal(1, await advance.Database.ExecuteSqlAsync(
           $"UPDATE client_safety_states SET input_generation = input_generation + 1 WHERE firm_id = {f.FirmId} AND id = {f.ClientId}", ct));
         await AssertConsumersRefuseStaleSource();
         Assert.Equal("APPROVED", (await advance.AuditSchedules.AsNoTracking().SingleAsync(ct)).Status);

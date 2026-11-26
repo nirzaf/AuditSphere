@@ -37,8 +37,8 @@ public static class WorkpaperCommandWorkspace
   private static async Task BarrierAsync(IAuditSphereDbContext db,ActorContext a,Guid requestId,bool write,CancellationToken ct)
   {
     var hash=Hashing.Sha256Hex(JsonSerializer.Serialize(new{Namespace="workpaper-command-v1",a.FirmId,a.UserId,requestId}));var key=unchecked((long)Convert.ToUInt64(hash[..16],16));
-    if(write)await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})",ct);
-    else await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock_shared({key})",ct);
+    if(write)await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({key})",ct);
+    else await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock_shared({key})",ct);
   }
   internal static WorkpaperDraftView DraftView(WorkpaperDraftResult d)=>new(d.WorkpaperId,d.DraftId,L(d.BaseWorkpaperRevision),L(d.BaseInputGeneration),L(d.BasePolicyGeneration),L(d.DraftRevision),d.WorkPerformed,d.Conclusion,d.LastSaveId,d.LastSavedAt?.ToUniversalTime(),d.Lifecycle);
   private static WorkpaperOwnedDraft? Draft(WorkpaperDraft? d)=>d is null?null:new(d.Id,L(d.BaseWorkpaperRevision),L(d.BaseInputGeneration),L(d.BasePolicyGeneration),L(d.DraftRevision),d.LastSaveId,d.WorkPerformed,d.Conclusion,d.Lifecycle,d.LastSavedAt.ToUniversalTime());
@@ -173,11 +173,11 @@ public static class WorkpaperCommandWorkspace
       var scope=await AuditPlanningService.LockedEngagementAsync(db,a,w.EngagementId,ct,w.ClientId);if(scope.Denied is not null)return Fail<WorkpaperCommandReceiptView>(scope.Denied,scope.Message);
       if(await db.EngagementFileFreezes.AsNoTracking().AnyAsync(x=>x.FirmId==a.FirmId && x.EngagementId==w.EngagementId && x.State==AuditSphereOps.Domain.Records.FileFreezeStates.Frozen,ct))
         return Fail<WorkpaperCommandReceiptView>(ErrorCodes.ProtectedState,"The frozen original workpaper remains read-only.");
-      w=await db.Workpapers.FromSqlInterpolated($"SELECT * FROM workpapers WHERE firm_id={a.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+      w=await db.Workpapers.FromSql($"SELECT * FROM workpapers WHERE firm_id={a.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleAsync(ct);
       WorkpaperCommandPreview? preview=null;
       if(!legacy && f.Action!=WorkpaperCommandActions.SaveDraft){var p=await PreviewAsync(db,a,id,r with{Fields=f},ct);if(!p.Succeeded)return Fail<WorkpaperCommandReceiptView>(p.ErrorCode!,p.Message!);if(!p.Value!.CanProceed)return Fail<WorkpaperCommandReceiptView>(ErrorCodes.GateBlocked,p.Value.Blockers.First());preview=p.Value;}
       var eventId=Guid.CreateVersion7();var actor=a.UserId.ToString();var epoch=L(a.SessionEpoch);var eid=eventId.ToString();var rid=r.RequestId.ToString();var legacyText=legacy?"true":"false";
-      await db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('audit.workpaper_event_id',{eid},true),set_config('audit.workpaper_actor_id',{actor},true),set_config('audit.workpaper_actor_epoch',{epoch},true),set_config('audit.workpaper_request_id',{rid},true),set_config('audit.workpaper_request_hash',{hash},true),set_config('audit.workpaper_action',{f.Action},true),set_config('audit.workpaper_legacy',{legacyText},true)",ct);
+      await db.Database.ExecuteSqlAsync($"SELECT set_config('audit.workpaper_event_id',{eid},true),set_config('audit.workpaper_actor_id',{actor},true),set_config('audit.workpaper_actor_epoch',{epoch},true),set_config('audit.workpaper_request_id',{rid},true),set_config('audit.workpaper_request_hash',{hash},true),set_config('audit.workpaper_action',{f.Action},true),set_config('audit.workpaper_legacy',{legacyText},true)",ct);
       CommandResult result;
       if(f.Save is {} s){var saved=await AuditPlanningService.SaveWorkpaperDraftCoreAsync(db,a,new(id,N(s.ExpectedDraftRevision),N(s.BaseWorkpaperRevision),N(s.BaseInputGeneration),N(s.BasePolicyGeneration),r.RequestId,s.WorkPerformed,s.Conclusion),ct);result=saved.Succeeded?CommandResult.Ok():CommandResult.Fail(saved.ErrorCode!,saved.Message!);}
       else if(f.Submit is {} sub){var submitted=await AuditPlanningService.SubmitWorkpaperCoreAsync(db,a,new(id,N(sub.ExpectedRevision),sub.WorkPerformed,sub.Conclusion,sub.ExpectedDraftRevision is null?null:N(sub.ExpectedDraftRevision),sub.DraftSaveId),ct);result=submitted.Succeeded?CommandResult.Ok():CommandResult.Fail(submitted.ErrorCode!,submitted.Message!);}

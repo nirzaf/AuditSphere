@@ -104,7 +104,7 @@ public static partial class PracticeCrmService
       new AuthorizationRequest(actor.FirmId, ClientId: request.ClientId, RequiredRoles: CommercialRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<ClientArchiveState>.Fail(auth.ErrorCode!, auth.Message!);
 
-    var client = await db.PracticeClients.FromSqlInterpolated(
+    var client = await db.PracticeClients.FromSql(
       $"SELECT * FROM practice_clients WHERE firm_id = {actor.FirmId} AND id = {request.ClientId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (client is null)
@@ -163,7 +163,7 @@ public static partial class PracticeCrmService
     var client = await db.PracticeClients.SingleOrDefaultAsync(x => x.Id == request.ClientId && x.FirmId == actor.FirmId, ct);
     if (client is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
-    var safety = await db.ClientSafetyStates.FromSqlInterpolated(
+    var safety = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE id = {client.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (safety is null) return CommandResult.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");

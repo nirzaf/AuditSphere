@@ -203,7 +203,7 @@ public static partial class CommercialDocumentService
       if (!partnerAuth.Succeeded) return CommandResult<CommercialDocument>.Fail(partnerAuth.ErrorCode!, partnerAuth.Message!);
       if (proposal.Status != CrmStates.ProposalAccepted || proposal.SentAt is null || proposal.ResponseAt is null || proposal.PracticeClientId is not { } clientId)
         return CommandResult<CommercialDocument>.Fail(ErrorCodes.GateBlocked, "Record client acceptance of the current quotation and open client acceptance before generating the engagement letter.");
-      var guard = await db.ClientSafetyStates.FromSqlInterpolated(
+      var guard = await db.ClientSafetyStates.FromSql(
         $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
       riskDecision = await EngagementRiskEvidence.ForPeriodAsync(db, actor.FirmId, clientId,
         opportunity.ServiceRoute, proposal.PeriodStart, proposal.PeriodEnd, ct);
@@ -438,5 +438,5 @@ public static partial class CommercialDocumentService
       new AuthorizationRequest(actor.FirmId, RequiredRoles: roles, InternalOnly: true, RequireFirmWide: true), ct);
 
   private static Task<FirmSafetyState?> LockFirmAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
-    db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
 }

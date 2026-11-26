@@ -216,7 +216,7 @@ public sealed class PracticeCrmTests
     var request = Opportunity(leadId) with { RequestId = requestId, OwnerUserId = fixture.Reviewer.UserId };
     await using var blocker = new AuditSphereDbContext(pg.Options);
     await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated(
+    await blocker.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {fixture.FirmId} FOR UPDATE").SingleAsync();
 
     var lockAttempt = new ObserveFirmLockAttempt();
@@ -358,7 +358,7 @@ public sealed class PracticeCrmTests
     var before = await SnapshotAsync();
     await using var blocker = new AuditSphereDbContext(pg.Options);
     await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated(
+    await blocker.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {fixture.FirmId} FOR UPDATE").SingleAsync();
 
     var lockAttempt = new ObserveFirmLockAttempt();
@@ -503,10 +503,10 @@ public sealed class PracticeCrmTests
       await quotationDb.SaveChangesAsync();
       Assert.Matches("^[a-f0-9]{64}$", proposal.CreateRequestHash!);
       var hashMutation = await Assert.ThrowsAsync<PostgresException>(() => quotationDb.Database
-        .ExecuteSqlInterpolatedAsync($"UPDATE proposals SET create_request_hash = {new string('0', 64)} WHERE id = {requestId}"));
+        .ExecuteSqlAsync($"UPDATE proposals SET create_request_hash = {new string('0', 64)} WHERE id = {requestId}"));
       Assert.Equal("P0001", hashMutation.SqlState);
       var deletion = await Assert.ThrowsAsync<PostgresException>(() => quotationDb.Database
-        .ExecuteSqlInterpolatedAsync($"DELETE FROM proposals WHERE id = {requestId}"));
+        .ExecuteSqlAsync($"DELETE FROM proposals WHERE id = {requestId}"));
       Assert.Equal("P0001", deletion.SqlState);
     }
 
@@ -1173,13 +1173,13 @@ public sealed class PracticeCrmTests
     var proposalId = Guid.NewGuid();
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO leads
           (id, firm_id, name, source, status, created_at)
         VALUES
           ({leadId}, {firmId}, 'Legacy proposal lead', 'Migration fixture', 'QUALIFIED', statement_timestamp())
         """);
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO opportunities
           (id, firm_id, lead_id, service_route, entity_scope, period_start, period_end,
            expected_fee, currency, stage, created_at)
@@ -1187,7 +1187,7 @@ public sealed class PracticeCrmTests
           ({opportunityId}, {firmId}, {leadId}, 'AccountingOnly', 'LEGACY-ENTITY',
            '2026-01-01', '2026-12-31', 800, 'QAR', 'PROPOSAL', statement_timestamp())
         """);
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO proposals
           (id, firm_id, opportunity_id, revision, status, service_profile_id, scope,
            exclusions, deliverables, dependencies, fee, currency, period_start, period_end, created_at)

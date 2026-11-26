@@ -145,7 +145,7 @@ public static partial class AccountingEvidenceWorkspace
     var locked = await GeneralLedgerCompletenessWorkspace.LockAsync(db, a, v.ClientId, v.EngagementId, ct);
     if (!locked.Succeeded) return Fail<EvidenceActionReceipt>(locked.ErrorCode!, locked.Message!);
     // Epoch changes and competing native intents cannot pass while this actor is publishing.
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id = {a.FirmId} AND id = {a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id = {a.FirmId} AND id = {a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
     var previous = await db.AccountingEvidenceActions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == a.FirmId && x.ActorId == a.UserId && x.RequestId == r.RequestId, ct);
     if (previous is not null)
     {

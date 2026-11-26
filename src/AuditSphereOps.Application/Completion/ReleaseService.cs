@@ -182,13 +182,13 @@ public static class ReleaseService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var firm = await LockFirmAsync(db, actor.FirmId, ct);
     var client = await LockClientAsync(db, actor.FirmId, candidateSnapshot.ClientId, ct);
-    var candidate = await db.ReleaseCandidates.FromSqlInterpolated(
+    var candidate = await db.ReleaseCandidates.FromSql(
       $"SELECT * FROM release_candidates WHERE id = {request.CandidateId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (firm is null || client is null || candidate is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Release scope is unavailable.");
 
-    var existing = await db.Releases.FromSqlInterpolated(
+    var existing = await db.Releases.FromSql(
       $"SELECT * FROM releases WHERE firm_id = {actor.FirmId} AND authorized_release_key = {releaseKey} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (existing is not null)
@@ -458,13 +458,13 @@ public static class ReleaseService
 
   private static Task<AuditSphereOps.Domain.Completion.FirmSafetyState?> LockFirmAsync(
     IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
-    db.FirmSafetyStates.FromSqlInterpolated(
+    db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
 
   private static Task<AuditSphereOps.Domain.Completion.ClientSafetyState?> LockClientAsync(
     IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct) =>
-    db.ClientSafetyStates.FromSqlInterpolated(
+    db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE firm_id = {firmId} AND id = {clientId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
 
@@ -474,7 +474,7 @@ public static class ReleaseService
     if (targetKind == ReleaseTargetKinds.Workpaper)
     {
       var workpaper = forUpdate
-        ? await db.Workpapers.FromSqlInterpolated($"SELECT * FROM workpapers WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
+        ? await db.Workpapers.FromSql($"SELECT * FROM workpapers WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
           .AsNoTracking().SingleOrDefaultAsync(ct)
         : await db.Workpapers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == firmId, ct);
       return workpaper is null ? null : new ReleaseTarget(targetKind, workpaper.Id, workpaper.ClientId,
@@ -484,7 +484,7 @@ public static class ReleaseService
     if (targetKind == ReleaseTargetKinds.FinancialPackage)
     {
       var package = forUpdate
-        ? await db.FinancialPackages.FromSqlInterpolated($"SELECT * FROM financial_packages WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
+        ? await db.FinancialPackages.FromSql($"SELECT * FROM financial_packages WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
           .AsNoTracking().SingleOrDefaultAsync(ct)
         : await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == firmId, ct);
       return package is null ? null : new ReleaseTarget(targetKind, package.Id, package.ClientId,

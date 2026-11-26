@@ -196,15 +196,15 @@ public static class StatutoryMilestoneService
     if (!auth.Succeeded) return CommandResult<MilestonePlanView>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
-    if (await db.FirmSafetyStates.FromSqlInterpolated(
+    if (await db.FirmSafetyStates.FromSql(
           $"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return CommandResult<MilestonePlanView>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
-    if (await db.ClientSafetyStates.FromSqlInterpolated(
+    if (await db.ClientSafetyStates.FromSql(
           $"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={snapshot.PracticeClientId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return CommandResult<MilestonePlanView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var engagement = await db.Engagements.FromSqlInterpolated(
+    var engagement = await db.Engagements.FromSql(
         $"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={request.EngagementId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (engagement is null || engagement.PracticeClientId != snapshot.PracticeClientId)

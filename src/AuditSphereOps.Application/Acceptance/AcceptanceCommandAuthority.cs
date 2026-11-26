@@ -10,7 +10,7 @@ namespace AuditSphereOps.Application.Acceptance;
 internal static class AcceptanceCommandAuthority
 {
   public static async Task<bool> LockFirmAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
-    await db.FirmSafetyStates.FromSqlInterpolated(
+    await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is not null;
 
@@ -18,7 +18,7 @@ internal static class AcceptanceCommandAuthority
   public static async Task<CommandResult> CheckAsync(IAuditSphereDbContext db, ActorContext actor,
     AuthorizationRequest request, CancellationToken ct)
   {
-    if (await db.Users.FromSqlInterpolated(
+    if (await db.Users.FromSql(
       $"SELECT * FROM users WHERE id = {actor.UserId} AND firm_id = {actor.FirmId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");

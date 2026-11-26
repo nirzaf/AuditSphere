@@ -68,7 +68,7 @@ public sealed partial class ClientAccountingTests
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE trial_balance_datasets SET validation_status='Accepted', balanced=true, control_total=0 WHERE id={id}"));
+      Assert.Equal(1, await db.Database.ExecuteSqlAsync($"UPDATE trial_balance_datasets SET validation_status='Accepted', balanced=true, control_total=0 WHERE id={id}"));
       Assert.Equal(identity, (await db.TrialBalanceDatasets.SingleAsync(x => x.Id == id)).Sha256Hex);
       Assert.Equal("{}", (await db.NativeTrialBalanceSources.SingleAsync(x => x.DatasetId == id)).ManifestJson);
       Assert.Single(await db.TrialBalanceRows.Where(x => x.DatasetId == id).ToListAsync());

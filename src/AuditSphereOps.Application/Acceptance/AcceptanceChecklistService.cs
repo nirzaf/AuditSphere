@@ -179,7 +179,7 @@ public static class AcceptanceChecklistService
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (!await AcceptanceCommandAuthority.LockFirmAsync(db, actor, ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var guard = await db.ClientSafetyStates.FromSqlInterpolated(
+    var guard = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
     auth = await AcceptanceCommandAuthority.CheckAsync(db, actor,
@@ -241,7 +241,7 @@ public static class AcceptanceChecklistService
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (!await AcceptanceCommandAuthority.LockFirmAsync(db, actor, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var guard = await db.ClientSafetyStates.FromSqlInterpolated(
+    var guard = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
     auth = await AcceptanceCommandAuthority.CheckAsync(db, actor,
@@ -287,7 +287,7 @@ public static class AcceptanceChecklistService
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (!await AcceptanceCommandAuthority.LockFirmAsync(db, actor, ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var guard = await db.ClientSafetyStates.FromSqlInterpolated(
+    var guard = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE id = {snapshot.PracticeClientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
     auth = await AcceptanceCommandAuthority.CheckAsync(db, actor,
@@ -327,7 +327,7 @@ public static class AcceptanceChecklistService
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (!await AcceptanceCommandAuthority.LockFirmAsync(db, actor, ct))
       return CommandResult<long>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var guard = await db.ClientSafetyStates.FromSqlInterpolated(
+    var guard = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult<long>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
     // A caller may have loaded this entity before an external input advanced its generation.

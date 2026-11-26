@@ -165,7 +165,7 @@ public sealed class ClientRelationshipsAndRoutingTests
     await blocker.Database.OpenConnectionAsync();
     var blockerPid = ((NpgsqlConnection)blocker.Database.GetDbConnection()).ProcessID;
     await using var tx = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated(
+    await blocker.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {seed.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
 
     var probe = new FirmLockAttempt();
@@ -263,7 +263,7 @@ public sealed class ClientRelationshipsAndRoutingTests
     await using var blocker = new AuditSphereDbContext(pg.Options);
     await blocker.Database.OpenConnectionAsync();
     await using var tx = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated(
+    await blocker.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {seed.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
 
     var firstProbe = new FirmLockAttempt();
@@ -1128,7 +1128,7 @@ public sealed class ClientRelationshipsAndRoutingTests
     await blocker.Database.OpenConnectionAsync();
     var blockerPid = ((NpgsqlConnection)blocker.Database.GetDbConnection()).ProcessID;
     await using var tx = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated(
+    await blocker.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {seed.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
 
     var probe = new FirmLockAttempt();

@@ -316,8 +316,8 @@ public sealed partial class AuditDeliverablesTests
     Assert.Empty(await AuditDeliverableService.SignedRepresentationsAsync(db, stranger, w.EngagementId));
     Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.UploadSignedRepresentationAsync(db, stranger, letterId, letter.ContentSha256, "Sibling Director", pdf)).ErrorCode);
     Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.GetSignedRepresentationAsync(db, client with { FirmId = Guid.NewGuid() }, row.Id)).ErrorCode);
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM signed_representation_letters WHERE id = {row.Id}"));
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE representation_letter_verifications SET reason = 'changed' WHERE id = {verification.Value}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"DELETE FROM signed_representation_letters WHERE id = {row.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"UPDATE representation_letter_verifications SET reason = 'changed' WHERE id = {verification.Value}"));
     // A changed fact invalidates the source and the verified scan, without overwriting either.
     db.Findings.Add(new AuditSphereOps.Domain.Audit.Finding { Id = Guid.NewGuid(), FirmId = w.FirmId, ClientId = w.ClientId, EngagementId = w.EngagementId, ActorId = w.U["manager"].Id,
       FindingType = "New finding", ImpactDescription = "Additional review required", CreatedAt = DateTimeOffset.UtcNow });
@@ -615,9 +615,9 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(client.UserId, receipt.AcknowledgedByUserId);
       Assert.Equal(row.ContentSha256, receipt.ContentSha256);
       Assert.Equal(row.ManifestSha256, receipt.ManifestSha256);
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE client_bundle_acknowledgements SET content_sha256 = {new string('0', 64)} WHERE id = {receipt.Id}"));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"DELETE FROM client_bundle_acknowledgements WHERE id = {receipt.Id}"));
       Assert.Equal(ErrorCodes.ProtectedState, (await AuditSphereOps.Application.Documents.ClientPortalService.RequireUploadWindowAsync(db, client, w.EngagementId)).ErrorCode);
       var admin = w.A("administrator", "Administrator");
@@ -637,7 +637,7 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(ErrorCodes.ScopeDenied, (await ClientBundleAcknowledgementCommands.AcknowledgeAsync(db,
         new(outsider.Id, w.FirmId, outsider.SessionEpoch, ["ClientUser"]), row.Id, row.ContentSha256, row.ManifestSha256, true)).ErrorCode);
       Assert.False((await AuditDeliverableService.GetBundleAsync(db, client with { FirmId = Guid.NewGuid() }, row.Id)).Succeeded);
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM commercial_deliverable_bundles WHERE id = {row.Id}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"DELETE FROM commercial_deliverable_bundles WHERE id = {row.Id}"));
 
       // Retain 101 genuinely assembled, distinct database-backed bundles. Each new resolved
       // comment changes the correspondence snapshot; no manufactured projection rows are used.

@@ -24,7 +24,7 @@ this document wins and the source text remains a historical requirement record.
 
 ## The architecture
 
-The API, worker, migration bundle, test projects and backend tools target .NET 11. The target framework selects C# 15. EF Core, its CLI and the Npgsql provider stay on the compatible 10.x line.
+The API, worker, migration bundle, test projects and backend tools target .NET 11. The target framework selects C# 15. EF Core, its CLI and the Npgsql provider stay on the compatible 11.x line.
 
 ```text
            Angular UI
@@ -80,7 +80,7 @@ flowchart TB
 
     subgraph LOWER["Domain + Infrastructure (separate projects)"]
         DOMAIN["Domain rules and pure deterministic calculators"]
-        EF["EF Core 10 / Npgsql — one capability-split AuditSphereDbContext"]
+        EF["EF Core 11 / Npgsql — one capability-split AuditSphereDbContext"]
         ADAPTERS["Providers, rendering, signing credential source"]
     end
 
@@ -238,7 +238,7 @@ PostgreSQL schema remain the executable truth.
 flowchart LR
   B["Browser<br/>Angular /ui/app · /ui/portal"] -->|same-origin| A["ASP.NET Core API<br/>minimal APIs + SPA fallback"]
   A -->|static Angular build| B
-  A --> DB["PostgreSQL 19.0 project target<br/>EF Core 10, append-only triggers"]
+  A --> DB["PostgreSQL 19.0 project target<br/>EF Core 11, append-only triggers"]
   W["Worker<br/>durable outbox"] --> DB
   A -->|enqueue durable operation| DB
   W -->|claim FOR UPDATE SKIP LOCKED| DB

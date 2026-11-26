@@ -315,7 +315,7 @@ public static partial class AccountingAnalysisService
     if (!locked.Succeeded) return locked;
     var mutable = await GeneralLedgerCompletenessWorkspace.MutablePeriodAsync(db, actor, bridge.ClientId, bridge.EngagementId, bridge.PeriodId, bridge.BookId, ct);
     if (!mutable.Succeeded) return mutable;
-    bridge = await db.GeneralLedgerCompletenessBridges.FromSqlInterpolated($"SELECT * FROM general_ledger_completeness_bridges WHERE firm_id = {actor.FirmId} AND id = {bridgeId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    bridge = await db.GeneralLedgerCompletenessBridges.FromSql($"SELECT * FROM general_ledger_completeness_bridges WHERE firm_id = {actor.FirmId} AND id = {bridgeId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
     if (reviewRevision is not null)
     {
       if (!reviewed || !SourceAcceptanceWorkspace.ValidHash(reviewRevision)) return CommandResult.Fail(ErrorCodes.StaleRevision, "Review the current completeness proof.");

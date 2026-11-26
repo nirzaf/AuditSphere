@@ -80,7 +80,7 @@ public static class AuditSamplingService
       new AuthorizationRequest(item.FirmId, item.ClientId, item.EngagementId, PlanningRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<CutOffTestValue>.Fail(auth.ErrorCode!, auth.Message!);
-    item = await db.AuditSelectionItems.FromSqlInterpolated($"""
+    item = await db.AuditSelectionItems.FromSql($"""
       SELECT * FROM audit_selection_items
       WHERE firm_id = {actor.FirmId} AND client_id = {item.ClientId}
         AND engagement_id = {item.EngagementId} AND id = {item.Id}
@@ -178,7 +178,7 @@ public static class AuditSamplingService
       new AuthorizationRequest(item.FirmId, item.ClientId, item.EngagementId, PlanningRoles, InternalOnly: true), ct);
     if (!auth.Succeeded)
       return CommandResult<SubsequentMatchValue>.Fail(auth.ErrorCode!, auth.Message!);
-    item = await db.AuditSelectionItems.FromSqlInterpolated($"""
+    item = await db.AuditSelectionItems.FromSql($"""
       SELECT * FROM audit_selection_items
       WHERE firm_id = {actor.FirmId} AND client_id = {item.ClientId}
         AND engagement_id = {item.EngagementId} AND id = {item.Id}

@@ -52,7 +52,7 @@ public static partial class ClientOperationalLedgerWorkspace
     var profile = await NativeProfileAsync(db, actor, request.ClientId, ct);
     if (!profile.Succeeded) return CommandResult<Guid>.Fail(profile.ErrorCode!, profile.Message!);
     await using var tx = ownsTransaction ? await db.Database.BeginTransactionAsync(ct) : null;
-    var period = await db.ClientReportingPeriods.FromSqlInterpolated(
+    var period = await db.ClientReportingPeriods.FromSql(
       $"SELECT * FROM client_reporting_periods WHERE firm_id = {actor.FirmId} AND client_id = {request.ClientId} AND id = {request.PeriodId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (period is null || period.Status == AccountingWorkflowStates.Closed || request.PostingDate < period.StartDate ||
@@ -158,7 +158,7 @@ public static partial class ClientOperationalLedgerWorkspace
     Guid clientId, Guid journalId, long expectedRevision, CancellationToken ct = default, string? previewDigest = null)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var journal = await db.ClientOperationalJournals.FromSqlInterpolated(
+    var journal = await db.ClientOperationalJournals.FromSql(
       $"SELECT * FROM client_operational_journals WHERE firm_id = {actor.FirmId} AND client_id = {clientId} AND id = {journalId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (journal is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -178,7 +178,7 @@ public static partial class ClientOperationalLedgerWorkspace
     if (journal.Revision != expectedRevision) return CommandResult.Fail(ErrorCodes.StaleRevision, "The journal revision is outdated.");
     if (journal.Status is not ("DRAFT" or "RETURNED"))
       return CommandResult.Fail(ErrorCodes.ProtectedState, "Only a draft or returned journal can be submitted.");
-    var period = await db.ClientReportingPeriods.FromSqlInterpolated(
+    var period = await db.ClientReportingPeriods.FromSql(
       $"SELECT * FROM client_reporting_periods WHERE firm_id = {actor.FirmId} AND client_id = {clientId} AND id = {journal.PeriodId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (period is null || period.Status == AccountingWorkflowStates.Closed || journal.PostingDate < period.StartDate || journal.PostingDate > period.EndDate)
@@ -215,7 +215,7 @@ public static partial class ClientOperationalLedgerWorkspace
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var manual = await RequireManualJournalAsync(db, actor.FirmId, clientId, journalId, ct);
     if (!manual.Succeeded) return manual;
-    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({PostingCommandLock(actor.FirmId, clientId, request.CommandId)})", ct);
+    await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({PostingCommandLock(actor.FirmId, clientId, request.CommandId)})", ct);
     var existingReceipt = await db.ClientOperationalPostingReceipts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.ClientId == clientId && x.CommandId == request.CommandId, ct);
     if (existingReceipt is not null)
@@ -227,7 +227,7 @@ public static partial class ClientOperationalLedgerWorkspace
       await tx.CommitAsync(ct);
       return CommandResult.Ok();
     }
-    var journal = await db.ClientOperationalJournals.FromSqlInterpolated(
+    var journal = await db.ClientOperationalJournals.FromSql(
       $"SELECT * FROM client_operational_journals WHERE firm_id = {actor.FirmId} AND client_id = {clientId} AND id = {journalId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (journal is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -241,7 +241,7 @@ public static partial class ClientOperationalLedgerWorkspace
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The journal preparer cannot approve their own journal.");
     if (journal.Status != "SUBMITTED" || journal.Revision != request.ExpectedRevision)
       return CommandResult.Fail(ErrorCodes.StaleRevision, "Only the current submitted journal revision can be approved.");
-    var period = await db.ClientReportingPeriods.FromSqlInterpolated(
+    var period = await db.ClientReportingPeriods.FromSql(
       $"SELECT * FROM client_reporting_periods WHERE firm_id = {actor.FirmId} AND client_id = {clientId} AND id = {journal.PeriodId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (period is null || period.Status == AccountingWorkflowStates.Closed || journal.PostingDate < period.StartDate || journal.PostingDate > period.EndDate)

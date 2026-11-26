@@ -209,7 +209,7 @@ public static partial class AuditScheduleSourceWorkspace
       x.FirmId == firmId && x.ClientId == clientId && x.EngagementId == engagementId &&
       x.Id == fields.PbcAcceptanceReceiptId, ct);
     if (receipt is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var pbc = await db.PbcRequests.FromSqlInterpolated(
+    var pbc = await db.PbcRequests.FromSql(
       $"SELECT * FROM pbc_requests WHERE firm_id = {firmId} AND client_id = {clientId} AND engagement_id = {engagementId} AND id = {receipt.PbcRequestId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (pbc is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -225,13 +225,13 @@ public static partial class AuditScheduleSourceWorkspace
     // Native ancestry obtains its existing ordered read fences before any descendant book lock.
     var native = await NativeTrialBalanceSourceWorkspace.CheckCurrentAsync(db, dataset, ct);
     if (!native.Succeeded) return native;
-    var period = await db.ClientReportingPeriods.FromSqlInterpolated(
+    var period = await db.ClientReportingPeriods.FromSql(
       $"SELECT * FROM client_reporting_periods WHERE firm_id = {firmId} AND client_id = {clientId} AND id = {periodId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (period is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (dataset.BookId is { } bookId)
     {
-      var book = await db.ClientReportingBooks.FromSqlInterpolated(
+      var book = await db.ClientReportingBooks.FromSql(
         $"SELECT * FROM client_reporting_books WHERE firm_id = {firmId} AND client_id = {clientId} AND period_id = {periodId} AND id = {bookId} FOR SHARE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       if (book is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");

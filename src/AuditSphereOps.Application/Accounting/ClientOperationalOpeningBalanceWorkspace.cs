@@ -58,7 +58,7 @@ public static partial class ClientOperationalOpeningBalanceWorkspace
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Current accepted native bookkeeping authority is required.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var period = await db.ClientReportingPeriods.FromSqlInterpolated(
+    var period = await db.ClientReportingPeriods.FromSql(
       $"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={request.ClientId} AND id={request.PeriodId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (period is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -175,7 +175,7 @@ public static partial class ClientOperationalOpeningBalanceWorkspace
     Guid clientId, Guid openingId, long expectedPeriodRevision, string expectedManifestSha256, CancellationToken ct = default)
   {
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var origin = await db.ClientOperationalOpeningBalances.FromSqlInterpolated(
+    var origin = await db.ClientOperationalOpeningBalances.FromSql(
       $"SELECT * FROM client_operational_opening_balances WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={openingId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (origin is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");

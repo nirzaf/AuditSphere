@@ -230,6 +230,7 @@ public sealed class AuditSamplingServiceTests
       Assert.Equal(0, areaSummary.Value.CutOffExceptionCount);
       Assert.Equal(2, areaSummary.Value.SubsequentRecordedCount);
       Assert.Equal(1, areaSummary.Value.SubsequentMatchedCount);
+      Assert.True(areaSummary.Value.HasBlockingEvidence);
 
       var selectionRow = await historyDb.AuditSelections.SingleAsync(x => x.Id == selectionId);
       var safety = await historyDb.ClientSafetyStates.SingleAsync(x => x.Id == scope.ClientId && x.FirmId == scope.FirmId);
@@ -345,6 +346,11 @@ public sealed class AuditConfirmationBatchTests
       var wrongArea = await AuditConfirmationBatchService.GetConfirmationSummaryAsync(db, scope.Actor,
         scope.EngagementId, areaCode: AuditAreaCodes.Receivables);
       Assert.Equal(3, wrongArea.Value!.TotalCases);
+      var areaSummary = await AuditAreaSummaryQuery.GetAreaSummaryAsync(
+        db, scope.Actor, scope.EngagementId, AuditAreaCodes.Receivables);
+      Assert.True(areaSummary.Succeeded, areaSummary.Message);
+      Assert.Equal(3, areaSummary.Value!.ConfirmationCount);
+      Assert.Equal(0, areaSummary.Value.ConfirmationClosedCount);
     }
   }
 }

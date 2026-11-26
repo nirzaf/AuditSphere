@@ -40,8 +40,8 @@ public static class PbcStorageCommandWorkspace
   {
     var digest = Hashing.Sha256Hex(JsonSerializer.Serialize(new { Namespace = "pbc-storage-command-request-v1", a.FirmId, a.UserId, requestId }));
     var key = unchecked((long)Convert.ToUInt64(digest[..16], 16));
-    if (publish) await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", ct);
-    else await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
+    if (publish) await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({key})", ct);
+    else await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
   }
 
   public static async Task<CommandResult<PbcStorageCommandState>> StateAsync(IAuditSphereDbContext db, ActorContext a,
@@ -200,7 +200,7 @@ public static class PbcStorageCommandWorkspace
         if (!await db.PbcStorageCommandReceipts.AsNoTracking().AnyAsync(x =>
               x.FirmId == a.FirmId && x.ActorId == a.UserId && x.RequestId == request.RequestId, ct))
         {
-        var locked = await db.PbcUploadIntents.FromSqlInterpolated($"""
+        var locked = await db.PbcUploadIntents.FromSql($"""
           SELECT * FROM pbc_upload_intents WHERE firm_id = {a.FirmId} AND id = {input.UploadIntentId} FOR UPDATE
           """).AsNoTracking().ToListAsync(ct);
         if (locked.Count != 1) return TenantAdministration.Denied<PbcStorageCommandReceiptView>();

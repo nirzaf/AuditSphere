@@ -548,12 +548,12 @@ public sealed class EngagementWorkflowTaskTests
       Assert.Equal(PracticeTimeStates.TaskCancelled, selectedTask.Status);
 
       const string tamperedReason = "Tampered cancellation reason.";
-      var mutation = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      var mutation = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE workflow_task_activities SET reason = {tamperedReason} WHERE firm_id = {firmId} AND id = {cancellationEvent.Id}"));
       var updateError = Assert.IsType<PostgresException>(mutation.GetBaseException());
       Assert.Equal("P0001", updateError.SqlState);
       Assert.Contains("append-only", updateError.MessageText, StringComparison.OrdinalIgnoreCase);
-      var deletion = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      var deletion = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlAsync(
         $"DELETE FROM workflow_task_activities WHERE firm_id = {firmId} AND id = {cancellationEvent.Id}"));
       var deleteError = Assert.IsType<PostgresException>(deletion.GetBaseException());
       Assert.Equal("P0001", deleteError.SqlState);

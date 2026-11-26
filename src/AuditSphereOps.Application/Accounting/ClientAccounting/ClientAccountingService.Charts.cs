@@ -22,7 +22,7 @@ public static partial class ClientAccountingService
     // Serialize version allocation for this client. The unique index remains a final
     // integrity guard, but a concurrent valid request must not race on Max + 1.
     var clients = await db.PracticeClients
-      .FromSqlInterpolated($"SELECT * FROM practice_clients WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .FromSql($"SELECT * FROM practice_clients WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .ToListAsync(ct);
     if (clients.Count != 1)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -55,7 +55,7 @@ public static partial class ClientAccountingService
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Every client account needs typed identity and classification.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var charts = await db.ClientChartVersions
-      .FromSqlInterpolated($"SELECT * FROM client_chart_versions WHERE id = {chartVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .FromSql($"SELECT * FROM client_chart_versions WHERE id = {chartVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .ToListAsync(ct);
     var chart = charts.SingleOrDefault(x => x.Id == chartVersionId && x.FirmId == actor.FirmId);
     if (chart is null || (expectedClientId.HasValue && chart.ClientId != expectedClientId.Value))
@@ -130,7 +130,7 @@ public static partial class ClientAccountingService
       return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Every source alias needs a client account, source system and code.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var charts = await db.ClientChartVersions
-      .FromSqlInterpolated($"SELECT * FROM client_chart_versions WHERE id = {chartVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .FromSql($"SELECT * FROM client_chart_versions WHERE id = {chartVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .ToListAsync(ct);
     var chart = charts.SingleOrDefault(x => x.Id == chartVersionId && x.FirmId == actor.FirmId);
     if (chart is null || (expectedClientId.HasValue && chart.ClientId != expectedClientId.Value))
@@ -178,7 +178,7 @@ public static partial class ClientAccountingService
     // transaction PostgreSQL releases FOR UPDATE when the SELECT statement ends.
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var charts = await db.ClientChartVersions
-      .FromSqlInterpolated($"SELECT * FROM client_chart_versions WHERE id = {chartVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .FromSql($"SELECT * FROM client_chart_versions WHERE id = {chartVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .ToListAsync(ct);
     var chart = charts.SingleOrDefault(x => x.Id == chartVersionId && x.FirmId == actor.FirmId);
     if (chart is null || (expectedClientId.HasValue && chart.ClientId != expectedClientId.Value))

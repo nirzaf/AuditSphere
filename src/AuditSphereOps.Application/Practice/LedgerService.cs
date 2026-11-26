@@ -631,13 +631,13 @@ public static partial class LedgerService
 
   private static Task<FirmSafetyState?> LockFirmAsync(
     IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
-    db.FirmSafetyStates.FromSqlInterpolated(
+    db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").AsTracking().SingleOrDefaultAsync(ct);
 
   private static async Task<FirmPeriod?> LoadPeriodForUpdateAsync(
     IAuditSphereDbContext db, Guid firmId, Guid periodId, CancellationToken ct)
   {
-    var locked = await db.FirmPeriods.FromSqlInterpolated(
+    var locked = await db.FirmPeriods.FromSql(
       $"SELECT * FROM firm_periods WHERE id = {periodId} AND firm_id = {firmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     return locked;
@@ -646,7 +646,7 @@ public static partial class LedgerService
   private static async Task<FirmJournal?> LoadJournalForUpdateAsync(
     IAuditSphereDbContext db, Guid firmId, Guid journalId, CancellationToken ct)
   {
-    var locked = await db.FirmJournals.FromSqlInterpolated(
+    var locked = await db.FirmJournals.FromSql(
       $"SELECT * FROM firm_journals WHERE id = {journalId} AND firm_id = {firmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     return locked;

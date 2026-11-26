@@ -167,7 +167,7 @@ public static class RecordsArchiveService
     if (!authorized.Succeeded)
       return CommandResult<ArchiveManifestResult>.Fail(authorized.ErrorCode!, authorized.Message!);
 
-    var archive = await db.Archives.FromSqlInterpolated($"""
+    var archive = await db.Archives.FromSql($"""
       SELECT * FROM archives WHERE id = {archiveId} AND firm_id = {actor.FirmId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     if (archive is null)
@@ -335,7 +335,7 @@ public static class RecordsArchiveService
     var authorized = await LockFirmAndAuthorizeArchiveAsync(db, actor, archiveId, ct);
     if (!authorized.Succeeded)
       return CommandResult<ArchiveManifestResult>.Fail(authorized.ErrorCode!, authorized.Message!);
-    var archive = await db.Archives.FromSqlInterpolated($"""
+    var archive = await db.Archives.FromSql($"""
       SELECT * FROM archives WHERE firm_id = {actor.FirmId} AND id = {archiveId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (archive is null)
@@ -350,7 +350,7 @@ public static class RecordsArchiveService
       return CommandResult<ArchiveManifestResult>.Fail("records-manifest.request.invalid",
         "Submit the exact displayed manifest identity, version, digest and review request identity.");
 
-    var manifest = await db.ArchiveManifests.FromSqlInterpolated($"""
+    var manifest = await db.ArchiveManifests.FromSql($"""
       SELECT * FROM archive_manifests
       WHERE firm_id = {actor.FirmId} AND archive_id = {archive.Id} AND id = {request.ManifestId}
       FOR UPDATE
@@ -774,7 +774,7 @@ public static class RecordsArchiveService
   private static async Task<CommandResult> LockFirmAsync(
     IAuditSphereDbContext db, Guid firmId, CancellationToken ct)
   {
-    var firmSafetyState = await db.FirmSafetyStates.FromSqlInterpolated(
+    var firmSafetyState = await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     return firmSafetyState is null

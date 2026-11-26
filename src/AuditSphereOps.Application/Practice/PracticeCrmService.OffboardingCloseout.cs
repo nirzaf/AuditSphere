@@ -112,13 +112,13 @@ public static partial class PracticeCrmService
 
       // Recheck after the firm fence. The user lock serializes session-epoch changes;
       // authorization and the client lock below also remain inside this snapshot.
-      await db.Users.FromSqlInterpolated(
+      await db.Users.FromSql(
         $"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
       auth = await AuthorizationDecision.AuthorizeAsync(db, actor, gate, ct);
       if (!auth.Succeeded)
         return CommandResult<ClientOffboardingCloseoutResult>.Fail(auth.ErrorCode!, auth.Message!);
 
-      var client = await db.PracticeClients.FromSqlInterpolated($"""
+      var client = await db.PracticeClients.FromSql($"""
         SELECT * FROM practice_clients WHERE firm_id = {actor.FirmId} AND id = {request.ClientId} FOR UPDATE
         """).AsNoTracking().SingleOrDefaultAsync(ct);
       if (client is null)
@@ -246,13 +246,13 @@ public static partial class PracticeCrmService
       if (await LockFirmAsync(db, actor.FirmId, ct) is null)
         return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
 
-      await db.Users.FromSqlInterpolated(
+      await db.Users.FromSql(
         $"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
       auth = await AuthorizationDecision.AuthorizeAsync(db, actor, gate, ct);
       if (!auth.Succeeded)
         return CommandResult<ClientOffboardingCloseoutRecoveryResult>.Fail(auth.ErrorCode!, auth.Message!);
 
-      var client = await db.PracticeClients.FromSqlInterpolated($"""
+      var client = await db.PracticeClients.FromSql($"""
         SELECT * FROM practice_clients WHERE firm_id = {actor.FirmId} AND id = {request.ClientId} FOR UPDATE
         """).AsNoTracking().SingleOrDefaultAsync(ct);
       if (client is null)
@@ -312,7 +312,7 @@ public static partial class PracticeCrmService
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, gate, ct);
     if (!auth.Succeeded)
       return CommandResult<ClientOffboardingCloseoutResult>.Fail(auth.ErrorCode!, auth.Message!);
-    var client = await db.PracticeClients.FromSqlInterpolated($"""
+    var client = await db.PracticeClients.FromSql($"""
       SELECT * FROM practice_clients WHERE firm_id = {actor.FirmId} AND id = {clientId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     if (client is null)

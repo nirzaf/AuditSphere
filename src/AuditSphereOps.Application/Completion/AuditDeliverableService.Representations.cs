@@ -172,8 +172,8 @@ public static partial class AuditDeliverableService
   {
     var clientId = await db.Engagements.AsNoTracking().Where(x => x.Id == engagementId && x.FirmId == firmId).Select(x => x.PracticeClientId).SingleAsync(ct);
     // Same guard order as financial release: an upload cannot cross a concurrent final-release commit.
-    _ = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-    _ = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {firmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-    _ = await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {firmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    _ = await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    _ = await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {firmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    _ = await db.Engagements.FromSql($"SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {firmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
   }
 }

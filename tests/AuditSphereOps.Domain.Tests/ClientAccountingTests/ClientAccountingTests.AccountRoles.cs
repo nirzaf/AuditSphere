@@ -52,13 +52,13 @@ public sealed partial class ClientAccountingTests
     {
       var pending = await ClientAccountRoleWorkspace.ProposeAsync(db, maker, s.ClientA, new(chartId, expenseId, "ROUNDING", new(2026,1,1), null, "Optional explicit rounding role"));
       Assert.True(pending.Succeeded);
-      var self = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO client_account_role_decisions (id,firm_id,client_id,configuration_id,decision,reason,reviewed_by_user_id,reviewed_at) VALUES ({Guid.CreateVersion7()},{s.FirmId},{s.ClientA},{pending.Value},'APPROVE','Forged self review',{s.Preparer.Id},now())"));
+      var self = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"INSERT INTO client_account_role_decisions (id,firm_id,client_id,configuration_id,decision,reason,reviewed_by_user_id,reviewed_at) VALUES ({Guid.CreateVersion7()},{s.FirmId},{s.ClientA},{pending.Value},'APPROVE','Forged self review',{s.Preparer.Id},now())"));
       Assert.Equal("23514", self.SqlState);
       var overlap = await ClientAccountRoleWorkspace.ProposeAsync(db, maker, s.ClientA, new(chartId, assetId, "AR", new(2026,1,1), null, "Overlapping SQL attempt"));
       Assert.True(overlap.Succeeded);
-      var denied = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO client_account_role_decisions (id,firm_id,client_id,configuration_id,decision,reason,reviewed_by_user_id,reviewed_at) VALUES ({Guid.CreateVersion7()},{s.FirmId},{s.ClientA},{overlap.Value},'APPROVE','Forged overlap',{s.Reviewer.Id},now())"));
+      var denied = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"INSERT INTO client_account_role_decisions (id,firm_id,client_id,configuration_id,decision,reason,reviewed_by_user_id,reviewed_at) VALUES ({Guid.CreateVersion7()},{s.FirmId},{s.ClientA},{overlap.Value},'APPROVE','Forged overlap',{s.Reviewer.Id},now())"));
       Assert.Equal("23514", denied.SqlState);
-      var control = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE client_operational_journals SET status='POSTED' WHERE id={draftId}"));
+      var control = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"UPDATE client_operational_journals SET status='POSTED' WHERE id={draftId}"));
       Assert.Equal("23514", control.SqlState); Assert.Contains("Generic journal cannot create unexplained AR/AP", control.MessageText);
       Assert.Equal("DRAFT", (await db.ClientOperationalJournals.AsNoTracking().SingleAsync(x => x.Id == draftId)).Status);
     }

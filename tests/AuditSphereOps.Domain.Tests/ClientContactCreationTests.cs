@@ -40,7 +40,7 @@ public sealed class ClientContactCreationTests
     Assert.False((await ClientContactCreationWorkspace.ExecuteAsync(db,a,f.ClientId,request with {Reviewed=false})).Succeeded);
     Assert.False((await ClientContactCreationWorkspace.ExecuteAsync(db,a,f.ClientId,request with {ExpectedRequestHash=null})).Succeeded);
     Assert.Equal(4,await db.RoleGrants.CountAsync());Assert.Empty(await db.UserAccessInvitations.ToListAsync());
-    var immutable=await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE client_contact_creations SET input_json='{{}}' WHERE id={results[0].Value!.Id}"));
+    var immutable=await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE client_contact_creations SET input_json='{{}}' WHERE id={results[0].Value!.Id}"));
     Assert.Equal("P0001",immutable.SqlState);
   }
 

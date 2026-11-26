@@ -68,8 +68,8 @@ public static class ResourcePlanningCommandWorkspace
   }
   private static async Task<bool> LockRequestAsync(IAuditSphereDbContext db,ActorContext a,CancellationToken ct)
   {
-    if(await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
-    if(await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
+    if(await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
+    if(await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
     return (await Authorize(db,a,ct)).Succeeded;
   }
   private static async Task<CommandResult<ResourcePlanningPreview>> BuildAsync(IAuditSphereDbContext db,ActorContext a,Guid requestId,ResourcePlanningFields f,CancellationToken ct)

@@ -29,14 +29,14 @@ public static class ClientBundleAcknowledgementCommands
     if (!authorization.Succeeded) return CommandResult<Guid>.Fail(authorization.ErrorCode!, "Bundle unavailable.");
 
     // Fence role/session changes and concurrent acknowledgements in a stable lock order.
-    var firmSafety = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var firmSafety = await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (firmSafety is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable; no receipt was recorded.");
-    var clientSafety = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {bundle.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var clientSafety = await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE id = {bundle.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (clientSafety is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable; no receipt was recorded.");
-    var engagement = await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {bundle.EngagementId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var engagement = await db.Engagements.FromSql($"SELECT * FROM engagements WHERE id = {bundle.EngagementId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (engagement is null || engagement.PracticeClientId != bundle.ClientId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Bundle unavailable.");
-    var current = await db.CommercialDeliverableBundles.FromSqlInterpolated(
+    var current = await db.CommercialDeliverableBundles.FromSql(
       $"SELECT * FROM commercial_deliverable_bundles WHERE id = {bundleId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (current is null || current.ClientId != bundle.ClientId || current.EngagementId != bundle.EngagementId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Bundle unavailable.");

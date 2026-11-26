@@ -88,10 +88,10 @@ public sealed class StatementCompositionTests
     var composition = (await FinancialStatementService.SelectCompositionAsync(db, preparer, s.PackageId, promoted.Value!.RevisionId)).Value!;
 
     // The sealed digests are history: the database refuses an update or a delete of the stored composition.
-    var updated = Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    var updated = Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE financial_statement_compositions SET pdf_sha256_hex = pdf_sha256_hex WHERE id = {composition.Id}"));
     Assert.Contains("immutable history", (await updated).ToString(), StringComparison.Ordinal);
-    var deleted = Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    var deleted = Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlAsync(
       $"DELETE FROM financial_statement_compositions WHERE id = {composition.Id}"));
     Assert.Contains("immutable history", (await deleted).ToString(), StringComparison.Ordinal);
   }

@@ -124,7 +124,7 @@ public static partial class AdjustmentJournalWorkspace
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var locked = await GeneralLedgerCompletenessWorkspace.LockAsync(db, actor, c.ClientId, c.EngagementId, ct);
     if (!locked.Succeeded) return Fail<JournalActionReceipt>(locked.ErrorCode!, locked.Message!);
-    await db.TrialBalanceDatasets.FromSqlInterpolated($"SELECT * FROM trial_balance_datasets WHERE firm_id={actor.FirmId} AND id={id} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    await db.TrialBalanceDatasets.FromSql($"SELECT * FROM trial_balance_datasets WHERE firm_id={actor.FirmId} AND id={id} FOR SHARE").AsNoTracking().SingleAsync(ct);
     var prior = await LookupCreationAsync(db, evidenceDb, actor, id, r.RequestId, CreationHash(actor, id, r), ct);
     if (!prior.Succeeded) return Fail<JournalActionReceipt>(prior.ErrorCode!, prior.Message!);
     if (prior.Value!.Found)
@@ -135,7 +135,7 @@ public static partial class AdjustmentJournalWorkspace
     }
     if (c.PeriodId is not { } periodId) return Fail<JournalActionReceipt>(ErrorCodes.GateBlocked, "Bind the source reporting period before creation.");
     if (r.SupersedesId is { } previousId)
-      await db.AdjustmentJournals.FromSqlInterpolated($"SELECT * FROM adjustment_journals WHERE firm_id={actor.FirmId} AND client_id={c.ClientId} AND engagement_id={c.EngagementId} AND id={previousId} FOR SHARE").AsNoTracking().ToListAsync(ct);
+      await db.AdjustmentJournals.FromSql($"SELECT * FROM adjustment_journals WHERE firm_id={actor.FirmId} AND client_id={c.ClientId} AND engagement_id={c.EngagementId} AND id={previousId} FOR SHARE").AsNoTracking().ToListAsync(ct);
     var mutable = await GeneralLedgerCompletenessWorkspace.MutablePeriodAsync(db, actor, c.ClientId, c.EngagementId, periodId, c.BookId, ct);
     if (!mutable.Succeeded) return Fail<JournalActionReceipt>(mutable.ErrorCode!, mutable.Message!);
     var preview = await PreviewCreationAsync(db, actor, id, r, ct);

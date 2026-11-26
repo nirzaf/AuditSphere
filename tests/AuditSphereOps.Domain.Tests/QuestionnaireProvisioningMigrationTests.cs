@@ -78,7 +78,7 @@ public sealed class QuestionnaireProvisioningMigrationTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       await RemoveProvisioningHistoryAsync(db);
-      Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync(
+      Assert.Equal(1, await db.Database.ExecuteSqlAsync(
         $"DELETE FROM question_definitions WHERE template_id = {ceTemplateId} AND question_code = {"CE-062"}"));
     }
     await using (var first = new AuditSphereDbContext(pg.Options))
@@ -102,9 +102,9 @@ public sealed class QuestionnaireProvisioningMigrationTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       await RemoveProvisioningHistoryAsync(db);
-      await db.Database.ExecuteSqlInterpolatedAsync(
+      await db.Database.ExecuteSqlAsync(
         $"UPDATE question_definitions SET prompt_text = {"conflicting retained prompt"} WHERE template_id = {ceTemplateId} AND question_code = {answeredCode}");
-      await db.Database.ExecuteSqlInterpolatedAsync(
+      await db.Database.ExecuteSqlAsync(
         $"DELETE FROM question_definitions WHERE template_id = {ceTemplateId} AND question_code = {"CE-060"}");
     }
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -119,7 +119,7 @@ public sealed class QuestionnaireProvisioningMigrationTests
       await AssertAnswerPreservedAsync(db);
 
       // Restore the existing approved text and retry; the missing code is then safely completed.
-      await db.Database.ExecuteSqlInterpolatedAsync(
+      await db.Database.ExecuteSqlAsync(
         $"UPDATE question_definitions SET prompt_text = {canonicalPrompt} WHERE template_id = {ceTemplateId} AND question_code = {answeredCode}");
       await db.Database.MigrateAsync();
       Assert.Equal(62, await db.QuestionDefinitions.CountAsync(x => x.TemplateId == ceTemplateId));

@@ -107,7 +107,7 @@ public sealed class ReviewPointCommandReceiptTests
   {
     await using var pg=await PgTestSchema.CreateAsync();var w=await ReviewPointCommandReceiptSeed.SeedAsync(pg);
     await using var db=new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(new ReceiptInterceptor()).Options);
-    await db.Database.OpenConnectionAsync();await db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('TimeZone',{zone},false)");
+    await db.Database.OpenConnectionAsync();await db.Database.ExecuteSqlAsync($"SELECT set_config('TimeZone',{zone},false)");
     var r=await ReviewPointCommandReceiptSeed.ReviewAsync(db,w.Staff,w.ReviewPointId,ReviewPointCommandActions.Clear);var first=await ReviewPointCommandWorkspace.ExecuteAsync(db,w.Staff,w.ReviewPointId,r);Assert.True(first.Succeeded,first.Message);
     var receipt=first.Value!;Assert.Equal(0,receipt.CreatedAt.Ticks%10);Assert.Equal(TimeSpan.Zero,receipt.DispositionEvent.Before.RaisedAt.Offset);Assert.Equal(Exact(receipt.Preview.Before),Exact(receipt.DispositionEvent.Before));
     await using var fresh=new AuditSphereDbContext(pg.Options);Assert.Equal(Exact(receipt),Exact((await ReviewPointCommandWorkspace.ExecuteAsync(fresh,w.Staff,w.ReviewPointId,r)).Value));
@@ -200,7 +200,7 @@ public sealed class ReviewPointCommandReceiptTests
     await using var pg=await PgTestSchema.CreateAsync();var w=await ReviewPointCommandReceiptSeed.SeedAsync(pg);ReviewPointCommandRequest r;
     await using(var setup=new AuditSphereDbContext(pg.Options))r=await ReviewPointCommandReceiptSeed.ReviewAsync(setup,w.Staff,w.ReviewPointId,ReviewPointCommandActions.Clear);
     await using var revoke=new AuditSphereDbContext(pg.Options);await using var tx=await revoke.Database.BeginTransactionAsync();
-    await revoke.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={w.Fixture.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
+    await revoke.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={w.Fixture.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
     await using var writer=new AuditSphereDbContext(pg.Options);using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(30));
     var pending=ReviewPointCommandWorkspace.ExecuteAsync(writer,w.Staff,w.ReviewPointId,r,timeout.Token);await WaitForLock(revoke,timeout.Token);
     await revoke.RoleGrants.Where(x=>x.UserId==w.Staff.UserId).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.RevokedAt,DateTimeOffset.UtcNow));await tx.CommitAsync();Assert.False((await pending).Succeeded);
@@ -213,7 +213,7 @@ public sealed class ReviewPointCommandReceiptTests
     await using var pg=await PgTestSchema.CreateAsync();var w=await ReviewPointCommandReceiptSeed.SeedAsync(pg);ReviewPointCommandRequest r;
     await using(var setup=new AuditSphereDbContext(pg.Options))r=await ReviewPointCommandReceiptSeed.ReviewAsync(setup,w.Staff,w.ReviewPointId,ReviewPointCommandActions.Clear);
     await using var foreignKey=new AuditSphereDbContext(pg.Options);await using var tx=await foreignKey.Database.BeginTransactionAsync();
-    await foreignKey.Users.FromSqlInterpolated($"SELECT * FROM users WHERE id={w.Staff.UserId} FOR KEY SHARE").AsNoTracking().SingleAsync();
+    await foreignKey.Users.FromSql($"SELECT * FROM users WHERE id={w.Staff.UserId} FOR KEY SHARE").AsNoTracking().SingleAsync();
     await using var writer=new AuditSphereDbContext(pg.Options);await writer.Database.OpenConnectionAsync();await writer.Database.ExecuteSqlRawAsync("SET lock_timeout='2s'");
     var saved=await ReviewPointCommandWorkspace.ExecuteAsync(writer,w.Staff,w.ReviewPointId,r);Assert.True(saved.Succeeded,saved.Message);await tx.RollbackAsync();
   }
@@ -222,8 +222,8 @@ public sealed class ReviewPointCommandReceiptTests
   public async Task DatabaseRejectsDirectDispositionTargetEditsFakeEventsAndEvidenceMutation()
   {
     await using var pg=await PgTestSchema.CreateAsync();var w=await ReviewPointCommandReceiptSeed.SeedAsync(pg);await using var db=new AuditSphereDbContext(pg.Options);
-    Assert.Equal("55000",(await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE review_points SET cleared=true,disposition_revision=disposition_revision+1 WHERE id={w.ReviewPointId}"))).SqlState);
-    Assert.Equal("55000",(await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE review_points SET target_revision=target_revision+1 WHERE id={w.ReviewPointId}"))).SqlState);
+    Assert.Equal("55000",(await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE review_points SET cleared=true,disposition_revision=disposition_revision+1 WHERE id={w.ReviewPointId}"))).SqlState);
+    Assert.Equal("55000",(await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE review_points SET target_revision=target_revision+1 WHERE id={w.ReviewPointId}"))).SqlState);
     var r=await ReviewPointCommandReceiptSeed.ReviewAsync(db,w.Staff,w.ReviewPointId,ReviewPointCommandActions.Clear);Assert.True((await ReviewPointCommandWorkspace.ExecuteAsync(db,w.Staff,w.ReviewPointId,r)).Succeeded);
     foreach(var commands in new[]{("UPDATE review_point_disposition_events SET created_at=created_at+interval '1 second'","DELETE FROM review_point_disposition_events"),("UPDATE review_point_command_receipts SET created_at=created_at+interval '1 second'","DELETE FROM review_point_command_receipts")})
     {

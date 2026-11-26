@@ -498,7 +498,7 @@ public sealed class PracticeTimeTests
       Assert.Single(billable.Value!.Rows);
       Assert.Equal(timeEntryId, billable.Value.Rows[0].TimeEntryId);
 
-      var mutation = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      var mutation = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE time_entry_review_events SET reason = 'tampered' WHERE id = {history[1].Id}"));
       Assert.Equal("55000", Assert.IsType<PostgresException>(mutation.GetBaseException()).SqlState);
       var migrations = db.Database.GetMigrations().ToArray();
@@ -564,10 +564,10 @@ public sealed class PracticeTimeTests
 
       var receiptId = await db.Set<TimeEntryChangeReceipt>().Where(x => x.RequestId == acceptedRequest.RequestId)
         .Select(x => x.Id).SingleAsync();
-      var receiptMutation = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      var receiptMutation = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE time_entry_change_receipts SET reason = 'tampered' WHERE id = {receiptId}"));
       Assert.Equal("23514", Assert.IsType<PostgresException>(receiptMutation.GetBaseException()).SqlState);
-      var receiptDeletion = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      var receiptDeletion = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlAsync(
         $"DELETE FROM time_entry_change_receipts WHERE id = {receiptId}"));
       Assert.Equal("23514", Assert.IsType<PostgresException>(receiptDeletion.GetBaseException()).SqlState);
       Assert.Equal(1, await db.Set<TimeEntryChangeReceipt>().CountAsync());

@@ -196,10 +196,10 @@ public sealed class WorkflowTemplateTests
     var declarationId = await db.WorkflowTemplateEvidenceRequirements.AsNoTracking()
       .Where(x => x.TemplateRevisionId == declaredTemplate.Id).Select(x => x.Id).FirstAsync();
     const string rewrittenKey = "REWRITTEN";
-    var updateGuard = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    var updateGuard = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE workflow_template_evidence_requirements SET requirement_key = {rewrittenKey} WHERE id = {declarationId}"));
     Assert.Equal("P0001", updateGuard.SqlState);
-    var deleteGuard = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    var deleteGuard = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"DELETE FROM workflow_template_evidence_requirements WHERE id = {declarationId}"));
     Assert.Equal("P0001", deleteGuard.SqlState);
     Assert.Equal(2, await db.WorkflowTemplateEvidenceRequirements.CountAsync(x => x.TemplateRevisionId == declaredTemplate.Id));

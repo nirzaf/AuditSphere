@@ -74,7 +74,7 @@ public static class FileFreezeService
     // (or a shared lock through the frozen-state check) before mutating, so a freeze cannot land in the
     // middle of a write that already passed its check, and a write starting after the freeze commits
     // sees the frozen state (STE-REM-09).
-    var engagement = await db.Engagements.FromSqlInterpolated(
+    var engagement = await db.Engagements.FromSql(
       $"SELECT * FROM engagements WHERE id = {freeze.EngagementId} AND firm_id = {freeze.FirmId} FOR UPDATE").SingleAsync(ct);
     freeze.State = FileFreezeStates.Frozen;
     freeze.FrozenAt = now;
@@ -97,7 +97,7 @@ public static class FileFreezeService
     bool frozen;
     if (inTransaction)
     {
-      _ = await db.Engagements.FromSqlInterpolated(
+      _ = await db.Engagements.FromSql(
         $"SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} FOR SHARE").AsNoTracking().ToListAsync(ct);
       frozen = await db.EngagementFileFreezes.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.State == FileFreezeStates.Frozen, ct);
     }
@@ -211,7 +211,7 @@ public static class FileFreezeService
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     // Lock the freeze row before reading its state, so two Partners cannot both observe SCHEDULED and both lock.
-    var freeze = await db.EngagementFileFreezes.FromSqlInterpolated(
+    var freeze = await db.EngagementFileFreezes.FromSql(
       $"SELECT * FROM engagement_file_freezes WHERE id = {scoped.Value!.Id} AND firm_id = {actor.FirmId} FOR UPDATE").SingleAsync(ct);
     if (freeze.State == FileFreezeStates.Frozen)
       return CommandResult<EarlyComplianceLockResult>.Ok(new(freeze.Id, freeze.State, true, freeze.FrozenAt!.Value));
@@ -288,7 +288,7 @@ public sealed class FileFreezeHandler(TimeProvider clock) : IOperationHandler
 
   public async Task LockTargetAsync(IAuditSphereDbContext db, DurableOperation op, CancellationToken ct)
   {
-    var rows = await db.EngagementFileFreezes.FromSqlInterpolated($"""
+    var rows = await db.EngagementFileFreezes.FromSql($"""
       SELECT * FROM engagement_file_freezes WHERE id = {op.TargetId} AND firm_id = {op.FirmId} AND engagement_id = {op.EngagementId} FOR UPDATE
       """).ToListAsync(ct);
     if (rows.Count != 1 || rows[0].Revision != op.ExpectedRevision)

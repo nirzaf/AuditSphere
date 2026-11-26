@@ -31,7 +31,7 @@ public static partial class ClientAccountingService
     if (!modeGate.Succeeded)
       return CommandResult<Guid>.Fail(modeGate.ErrorCode!, modeGate.Message!);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     auth = await AuthorizeClientAsync(db, actor, request.ClientId, roles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -77,7 +77,7 @@ public static partial class ClientAccountingService
         !ClientAccountingSourceModes.IsSupported(sourceMode) || IsInvalidProfileReason(request.Reason))
       return CommandResult<long>.Fail(ErrorCodes.Accounting.MappingInvalid, "A valid client accounting profile is required.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     var profile = await db.ClientAccountingProfiles.SingleOrDefaultAsync(
       x => x.Id == expectedProfileRevision.ProfileId && x.FirmId == actor.FirmId, ct);
     if (profile is null)

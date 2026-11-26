@@ -410,7 +410,7 @@ public static partial class PracticeTimeService
       x => x.Id == taskId && x.FirmId == actor.FirmId, ct);
     if (taskSnapshot is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (taskSnapshot.EngagementId is { } evidenceEngagement)
-      await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {evidenceEngagement} AND firm_id = {actor.FirmId} FOR UPDATE")
+      await db.Engagements.FromSql($"SELECT * FROM engagements WHERE id = {evidenceEngagement} AND firm_id = {actor.FirmId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
     var guard = await LockClientAsync(db, actor.FirmId, taskSnapshot.ClientId, ct);
     if (!guard.Succeeded) return guard;
@@ -428,7 +428,7 @@ public static partial class PracticeTimeService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Resume the task before completing it.");
     if (workflowBinding?.PbcRequestId is { } pbcRequestId)
     {
-      var pbc = await db.PbcRequests.FromSqlInterpolated($"""
+      var pbc = await db.PbcRequests.FromSql($"""
         SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND client_id = {task.ClientId}
           AND engagement_id = {task.EngagementId} AND id = {pbcRequestId} FOR UPDATE
         """).SingleOrDefaultAsync(ct);
@@ -701,7 +701,7 @@ public static partial class PracticeTimeService
     if (!auth.Succeeded) return auth;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
-    var card = await db.RateCardVersions.FromSqlInterpolated(
+    var card = await db.RateCardVersions.FromSql(
       $"SELECT * FROM rate_card_versions WHERE id = {rateCardId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (card is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -797,7 +797,7 @@ public static partial class PracticeTimeService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var guard = await LockClientAsync(db, actor.FirmId, engagement.PracticeClientId, ct);
     if (!guard.Succeeded) return guard;
-    var budget = await db.EngagementBudgets.FromSqlInterpolated(
+    var budget = await db.EngagementBudgets.FromSql(
       $"SELECT * FROM engagement_budgets WHERE id = {budgetId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (budget is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -1000,30 +1000,30 @@ public static partial class PracticeTimeService
 
   private static Task<FirmSafetyState?> LockFirmAsync(
     IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
-    db.FirmSafetyStates.FromSqlInterpolated(
+    db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
 
   private static Task<WorkTask?> LoadTaskForUpdateAsync(
     IAuditSphereDbContext db, Guid firmId, Guid taskId, CancellationToken ct) =>
-    db.WorkTasks.FromSqlInterpolated(
+    db.WorkTasks.FromSql(
       $"SELECT * FROM work_tasks WHERE id = {taskId} AND firm_id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
 
   private static Task<WorkflowTaskBinding?> LockWorkflowBindingAsync(
     IAuditSphereDbContext db, Guid firmId, Guid taskId, CancellationToken ct) =>
-    db.WorkflowTaskBindings.FromSqlInterpolated(
+    db.WorkflowTaskBindings.FromSql(
       $"SELECT * FROM workflow_task_bindings WHERE work_task_id = {taskId} AND firm_id = {firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
 
   private static Task<TimeEntry?> LoadTimeForUpdateAsync(
     IAuditSphereDbContext db, Guid firmId, Guid entryId, CancellationToken ct) =>
-    db.TimeEntries.FromSqlInterpolated(
+    db.TimeEntries.FromSql(
       $"SELECT * FROM time_entries WHERE id = {entryId} AND firm_id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
 
   private static async Task<CommandResult> LockClientAsync(
     IAuditSphereDbContext db, Guid firmId, Guid? clientId, CancellationToken ct)
   {
     if (!clientId.HasValue) return CommandResult.Ok();
-    var guard = await db.ClientSafetyStates.FromSqlInterpolated(
+    var guard = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     return guard is null

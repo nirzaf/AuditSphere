@@ -37,7 +37,7 @@ public sealed class FinancialPackageRenderHandler : IOperationHandler
     if (op.ClientId is not { } clientId || op.EngagementId is not { } engagementId || op.OriginatorId is null)
       throw new OperationBlockedException("package-render-scope-or-revision-conflict", authorization: true);
     var payload = ReadPayload(op.PayloadJson, op.TargetId);
-    var package = await db.FinancialPackages.FromSqlInterpolated($"""
+    var package = await db.FinancialPackages.FromSql($"""
       SELECT * FROM financial_packages WHERE id = {op.TargetId} AND firm_id = {op.FirmId}
         AND client_id = {clientId} AND engagement_id = {engagementId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);

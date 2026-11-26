@@ -68,7 +68,7 @@ public static partial class PbcService
     if (db.Database.CurrentTransaction is null)
       throw new InvalidOperationException("A storage disposition change requires the caller's transaction.");
     // Serialize every disposition change for this upload (activation, revert and cleanup) on the upload row.
-    var intents = await db.PbcUploadIntents.FromSqlInterpolated($"""
+    var intents = await db.PbcUploadIntents.FromSql($"""
       SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {request.UploadIntentId} FOR UPDATE
       """).AsNoTracking().ToListAsync(ct);
     if (intents.Count != 1) return (CommandResult<PbcStorageDispositionReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied."), null);

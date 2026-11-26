@@ -338,7 +338,7 @@ public sealed class RoleAssignmentTests
 
     await using var blocker = f.Db();
     await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated(
+    await blocker.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR UPDATE").SingleAsync();
     var actorGrantId = await blocker.RoleGrants.Where(x => x.FirmId == f.FirmId && x.UserId == f.Admin.Id &&
         x.Role == "Administrator" && x.RevokedAt == null)
@@ -377,7 +377,7 @@ public sealed class RoleAssignmentTests
     Assert.True(bound.Succeeded);
     var request = new RoleAssignmentRequest(bound.Value, "Staff", "FIRM_WIDE", Reason: "Fresh identity", ConfirmScopeExpansion: true);
     // Age the Graph observation past the freshness window.
-    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE m365_directory_user_observations SET observed_at = {DateTimeOffset.UtcNow.AddHours(-1)} WHERE object_id = {f.MemberObjectId}");
+    await db.Database.ExecuteSqlAsync($"UPDATE m365_directory_user_observations SET observed_at = {DateTimeOffset.UtcNow.AddHours(-1)} WHERE object_id = {f.MemberObjectId}");
     var stale = await RoleAssignmentService.AssignAsync(db, f.AdminActor, request, DateTimeOffset.UtcNow);
     Assert.Equal(ErrorCodes.GateBlocked, stale.ErrorCode);
     // Re-verification refreshes the observation and permits the change.
@@ -405,7 +405,7 @@ public sealed class RoleAssignmentTests
     Assert.True(temporary.Succeeded, temporary.Message);
     Assert.False(await RoleGrantExpiry.RevokeExpiredForUserAsync(db, f.FirmId, staff.Id, DateTimeOffset.UtcNow));
     // Simulate the passage of time by moving the expiry into the past.
-    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE role_grants SET granted_at = {DateTimeOffset.UtcNow.AddDays(-2)}, expires_at = {DateTimeOffset.UtcNow.AddMinutes(-1)} WHERE id = {temporary.Value!.GrantId}");
+    await db.Database.ExecuteSqlAsync($"UPDATE role_grants SET granted_at = {DateTimeOffset.UtcNow.AddDays(-2)}, expires_at = {DateTimeOffset.UtcNow.AddMinutes(-1)} WHERE id = {temporary.Value!.GrantId}");
     var session = new ActorContext(staff.Id, f.FirmId, f.CurrentEpoch(staff.Id), ["Staff"]);
     Assert.False((await AuthorizationDecision.AuthorizeAsync(db, session, new(f.FirmId, RequiredRoles: ["Staff"]))).Succeeded);
     Assert.True(await RoleGrantExpiry.RevokeExpiredForUserAsync(db, f.FirmId, staff.Id, DateTimeOffset.UtcNow));
@@ -433,7 +433,7 @@ public sealed class RoleAssignmentTests
       Assert.True(first.Succeeded, first.Message);
       Assert.True(second.Succeeded, second.Message);
       grantIds = [first.Value!.GrantId, second.Value!.GrantId];
-      await setup.Database.ExecuteSqlInterpolatedAsync($"""
+      await setup.Database.ExecuteSqlAsync($"""
         UPDATE role_grants
         SET granted_at = {now.AddDays(-2)}, expires_at = {now.AddMinutes(-1)}
         WHERE id IN ({grantIds[0]}, {grantIds[1]})
@@ -455,7 +455,7 @@ public sealed class RoleAssignmentTests
 
     await using var blocker = f.Db();
     await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated(
+    await blocker.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR UPDATE").SingleAsync();
     var blockingPid = await blocker.Database.SqlQuery<int>($"SELECT pg_backend_pid() AS \"Value\"").SingleAsync();
 
@@ -572,7 +572,7 @@ public sealed class RoleAssignmentTests
     await using var f=await TenantAdministrationFixture.CreateAsync();var staff=await StaffAsync(f);var actor=f.AdminActor;var now=new DateTimeOffset(DateTimeOffset.UtcNow.Ticks/10*10,TimeSpan.Zero);
     var request=new RoleAssignmentRequest(staff.Id,"Manager","CLIENT",f.ClientId,Reason:"Locked invitation review",ConfirmScopeExpansion:true);string digest;
     await using(var setup=f.Db()){var p=await RoleAssignmentService.PreviewAsync(setup,actor,request,now);digest=RoleAssignmentReviewDigest.Compute(p.Value!,request);}
-    await using var blocker=f.Db();await using var tx=await blocker.Database.BeginTransactionAsync();await blocker.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={f.FirmId} FOR UPDATE").SingleAsync();
+    await using var blocker=f.Db();await using var tx=await blocker.Database.BeginTransactionAsync();await blocker.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={f.FirmId} FOR UPDATE").SingleAsync();
     var signal=new ObserveFirmAdministrationLock();await using var writer=new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(f.Pg.Options).AddInterceptors(signal).Options);
     using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(30));var attempt=RoleAssignmentService.AssignWithInvitationAsync(writer,actor,request,now,digest,timeout.Token);await signal.Reached.Task.WaitAsync(timeout.Token);
     if(change=="authority")await blocker.RoleGrants.Where(x=>x.UserId==actor.UserId && x.Role=="Administrator").ExecuteUpdateAsync(s=>s.SetProperty(x=>x.RevokedAt,now));

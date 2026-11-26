@@ -274,7 +274,7 @@ public sealed class PgTestSchema : IAsyncDisposable, ITestPostgresDatabase
     }
     else
     {
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO practice_clients (id, firm_id, legal_name, created_at, status)
         VALUES ({clientId}, {firmId}, {"TEST CLIENT " + clientId.ToString("N")[..8]}, {DateTimeOffset.UtcNow}, 'Active')
         """);
@@ -295,7 +295,7 @@ public sealed class PgTestSchema : IAsyncDisposable, ITestPostgresDatabase
     if (hasRecoveryEpoch)
       db.FirmSafetyStates.Add(new FirmSafetyState { Id = firmId });
     else
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO firm_safety_states (id, operating_mode, deployment_epoch, policy_generation)
         VALUES ({firmId}, 'LOCAL_ONLY', 1, 1)
         """);

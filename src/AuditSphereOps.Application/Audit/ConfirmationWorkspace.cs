@@ -109,7 +109,7 @@ public static partial class ConfirmationWorkspace
     if(!(await Auth(db,a,engagement,roles,true,ct)).Succeeded)return CommandResult.Fail(ErrorCodes.ScopeDenied,"Access denied.");
     await using var tx=await db.Database.BeginTransactionAsync(ct);await Lock(db,a,engagement,ct);
     if(!(await Auth(db,a,engagement,roles,true,ct)).Succeeded)return CommandResult.Fail(ErrorCodes.ScopeDenied,"Access denied.");
-    await db.AuditConfirmationCases.FromSqlInterpolated($"SELECT * FROM audit_confirmation_cases WHERE firm_id = {a.FirmId} AND engagement_id = {engagement} AND id = {id} FOR UPDATE").LoadAsync(ct);
+    await db.AuditConfirmationCases.FromSql($"SELECT * FROM audit_confirmation_cases WHERE firm_id = {a.FirmId} AND engagement_id = {engagement} AND id = {id} FOR UPDATE").LoadAsync(ct);
     var d=await DetailAsync(db,a,engagement,id,ct);if(!d.Succeeded)return CommandResult.Fail(d.ErrorCode!,d.Message!);
     if(!i.Reviewed || i.ReviewToken!=d.Value!.ReviewToken)return CommandResult.Fail(ErrorCodes.StaleRevision,"Refresh and review the current case and evidence revisions.");
     var writable=await FileFreezeService.RequireWritableAsync(db,a,engagement,"update confirmation",ct);if(!writable.Succeeded){await tx.CommitAsync(ct);return writable;}

@@ -447,7 +447,7 @@ public static class AdjustmentJournalService
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     var locked = await GeneralLedgerCompletenessWorkspace.LockAsync(clientDb, actor, snapshot.ClientId, snapshot.EngagementId, ct);
     if (!locked.Succeeded) return locked;
-    var journal = await db.AdjustmentJournals.FromSqlInterpolated($"SELECT * FROM adjustment_journals WHERE firm_id = {actor.FirmId} AND id = {journalId} FOR UPDATE")
+    var journal = await db.AdjustmentJournals.FromSql($"SELECT * FROM adjustment_journals WHERE firm_id = {actor.FirmId} AND id = {journalId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (journal is null || journal.ClientId != snapshot.ClientId || journal.EngagementId != snapshot.EngagementId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");

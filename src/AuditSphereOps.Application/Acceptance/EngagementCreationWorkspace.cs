@@ -78,9 +78,9 @@ public static class EngagementCreationWorkspace
       return CommandResult<EngagementCreationReceipt>.Fail("request.invalid","Preview and explicitly confirm the exact blocked engagement intent.");
     if(!(await Authorize(db,a,id,ct)).Succeeded)return Unavailable<EngagementCreationReceipt>();
     await using var tx=await db.Database.BeginTransactionAsync(ct);
-    var guard=await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var guard=await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if(guard is null)return Unavailable<EngagementCreationReceipt>();
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
     if(!(await Authorize(db,a,id,ct)).Succeeded)return Unavailable<EngagementCreationReceipt>();
     var prior=await db.EngagementCreations.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId&&x.ActorId==a.UserId&&x.RequestId==r.RequestId,ct);
     if(prior is not null){
@@ -107,7 +107,7 @@ public static class EngagementCreationWorkspace
   {
     if(requestId==Guid.Empty||!HashValid(requestHash)||!(await Authorize(db,a,id,ct)).Succeeded)return Unavailable<EngagementCreationLookup>();
     await using var tx=await db.Database.BeginTransactionAsync(ct);
-    var guard=await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={id} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var guard=await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={id} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
     if(guard is null)return Unavailable<EngagementCreationLookup>();
     var row=await db.EngagementCreations.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId&&x.ActorId==a.UserId&&x.RequestId==requestId,ct);
     if(row is not null&&(row.ClientId!=id||row.RequestHash!=requestHash))return CommandResult<EngagementCreationLookup>.Fail(ErrorCodes.IdempotencyConflict,"This reference belongs to a different engagement intent.");

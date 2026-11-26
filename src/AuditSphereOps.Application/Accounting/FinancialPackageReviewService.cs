@@ -115,15 +115,15 @@ public static partial class FinancialPackageReviewService
     // decider's grants. Decisions on one package serialize on the package row, so concurrent approvers cannot build an inconsistent chain.
     // Authority is checked again after the locks are held, because a grant can be revoked while this command waits.
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
-    await db.ClientSafetyStates.FromSqlInterpolated(
+    await db.ClientSafetyStates.FromSql(
         $"SELECT * FROM client_safety_states WHERE firm_id = {unlocked.FirmId} AND id = {unlocked.ClientId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
-    var package = await db.FinancialPackages.FromSqlInterpolated(
+    var package = await db.FinancialPackages.FromSql(
         $"SELECT * FROM financial_packages WHERE firm_id = {unlocked.FirmId} AND id = {unlocked.Id} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (package is null || package.ClientId != unlocked.ClientId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    await db.RoleGrants.FromSqlInterpolated(
+    await db.RoleGrants.FromSql(
         $"SELECT * FROM role_grants WHERE firm_id = {package.FirmId} AND user_id = {actor.UserId} AND revoked_at IS NULL FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor,

@@ -310,7 +310,7 @@ public sealed class FieldworkConnectionsTests
     Assert.Equal(originalIndexes, await ReadIndexesAsync());
     Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
     // Retained inconsistent history is refused, never silently reassigned or deleted during upgrade.
-    Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+    Assert.Equal(1, await db.Database.ExecuteSqlAsync($"""
       INSERT INTO procedure_physical_links
       SELECT (jsonb_populate_record(NULL::procedure_physical_links, to_jsonb(l) || jsonb_build_object(
         'id', {Guid.NewGuid()}, 'physical_evidence_item_id', {foreignItem.Value}))).*
@@ -416,7 +416,7 @@ public sealed class FieldworkConnectionsTests
     Assert.Equal(before, await ReadHistoryAsync());
     Assert.Equal(indexes, await ReadIndexesAsync());
 
-    Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+    Assert.Equal(1, await db.Database.ExecuteSqlAsync($"""
       INSERT INTO physical_evidence_movements
       SELECT (jsonb_populate_record(NULL::physical_evidence_movements, to_jsonb(m) || jsonb_build_object(
         'id', {Guid.NewGuid()}, 'physical_evidence_item_id', {foreignItem.Value}))).*
@@ -605,7 +605,7 @@ public sealed class FieldworkConnectionsTests
     Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
     Assert.Equal(retained, await ReadHistoryAsync());
     Assert.Equal(indexes, await ReadIndexesAsync());
-    Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+    Assert.Equal(1, await db.Database.ExecuteSqlAsync($"""
       INSERT INTO ad_hoc_procedure_insertions
       SELECT (jsonb_populate_record(NULL::ad_hoc_procedure_insertions, to_jsonb(i) || jsonb_build_object(
         'id', {Guid.NewGuid()}, 'procedure_id', {foreignProcedure}))).*
@@ -959,7 +959,7 @@ public sealed class FieldworkConnectionsTests
       Assert.True(completedItem.TestReviewed);
       Assert.False(completedItem.CanReviewTest);
 
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE audit_sampling_runs SET seed = 7 WHERE id = {random.Value.Run.Id}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"UPDATE audit_sampling_runs SET seed = 7 WHERE id = {random.Value.Run.Id}"));
 
       // Physical file index: X-1 in Box 3, linked both ways, with movement history.
       var item = await AuditFieldworkService.RegisterPhysicalItemAsync(db, w.Auditor, w.EngagementId, "x-1", "Box 3", "Signed stock count sheets", "Client warehouse");
@@ -1200,7 +1200,7 @@ public sealed class FieldworkConnectionsTests
       Assert.Equal(originalIndexes, await ReadIndexesAsync());
       Assert.Equal(baseline, (await db.Database.GetAppliedMigrationsAsync()).Last());
       // Existing inconsistent request provenance refuses upgrade without repairing retained evidence.
-      Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+      Assert.Equal(1, await db.Database.ExecuteSqlAsync($"""
         INSERT INTO procedure_evidence_links
         SELECT (jsonb_populate_record(NULL::procedure_evidence_links, to_jsonb(l) || jsonb_build_object(
           'id', {Guid.NewGuid()}, 'procedure_id', {ownProcedures.Spare}, 'pbc_request_id', {foreign.RequestId}))).*

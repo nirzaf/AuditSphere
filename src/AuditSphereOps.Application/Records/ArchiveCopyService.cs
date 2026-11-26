@@ -85,7 +85,7 @@ public static partial class ArchiveCopyService
     SelectedResourceProof? selectedProof = null;
     if (legacySiteBinding)
     {
-      site = await db.ClientSharePointSites.FromSqlInterpolated($"""
+      site = await db.ClientSharePointSites.FromSql($"""
         SELECT * FROM client_share_point_sites
         WHERE firm_id = {actor.FirmId} AND client_id = {request.ClientId} AND id = {request.ClientSharePointSiteId}
         FOR UPDATE
@@ -95,7 +95,7 @@ public static partial class ArchiveCopyService
           string.IsNullOrWhiteSpace(site.RootItemId) || string.IsNullOrWhiteSpace(site.StaffGroupId))
         return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
           "A current verified client-owned SharePoint site and staff group are required.");
-      connection = await db.Microsoft365ConnectionRevisions.FromSqlInterpolated($"""
+      connection = await db.Microsoft365ConnectionRevisions.FromSql($"""
         SELECT * FROM m365_connection_revisions WHERE firm_id = {actor.FirmId} AND id = {site.ConnectionRevisionId} FOR SHARE
         """).AsNoTracking().SingleOrDefaultAsync(ct);
       if (connection is null || connection.State != Microsoft365RevisionStates.Active || connection.ConsentState != "VERIFIED" ||
@@ -120,7 +120,7 @@ public static partial class ArchiveCopyService
     }
     else
     {
-      selectedDraft = await db.Microsoft365SetupDrafts.FromSqlInterpolated($"""
+      selectedDraft = await db.Microsoft365SetupDrafts.FromSql($"""
         SELECT * FROM m365_setup_drafts
         WHERE firm_id = {actor.FirmId} AND id = {request.SelectedResourceDraftId}
         FOR SHARE
@@ -132,7 +132,7 @@ public static partial class ArchiveCopyService
           !IsExactSharePointSiteUrl(selectedDraft.SiteUrl))
         return CommandResult<ArchiveCopyTargetRevisionView>.Fail(ErrorCodes.GateBlocked,
           "An active, exact selected SharePoint resource is required for a shared archive namespace.");
-      connection = await db.Microsoft365ConnectionRevisions.FromSqlInterpolated($"""
+      connection = await db.Microsoft365ConnectionRevisions.FromSql($"""
         SELECT * FROM m365_connection_revisions WHERE firm_id = {actor.FirmId} AND id = {selectedDraft.ConnectionRevisionId} FOR SHARE
         """).AsNoTracking().SingleOrDefaultAsync(ct);
       if (connection is null || connection.State != Microsoft365RevisionStates.Active || connection.ConsentState != "VERIFIED" ||
@@ -253,7 +253,7 @@ public static partial class ArchiveCopyService
     if (!authorization.Succeeded)
       return CommandResult<ArchiveCopyQueued>.Fail(authorization.ErrorCode!, authorization.Message!);
 
-    var archive = await db.Archives.FromSqlInterpolated($"""
+    var archive = await db.Archives.FromSql($"""
       SELECT * FROM archives WHERE firm_id = {actor.FirmId} AND id = {request.ArchiveId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     if (archive is null || archive.ClientId != initialArchive.ClientId || archive.EngagementId != initialArchive.EngagementId)
@@ -474,7 +474,7 @@ internal static class ArchiveCopySourceGuard
       IntegrationVerificationEvidence? evidence;
       if (lockRows)
       {
-        evidence = await db.IntegrationVerificationEvidences.FromSqlInterpolated($"""
+        evidence = await db.IntegrationVerificationEvidences.FromSql($"""
           SELECT * FROM m365_verification_evidence
           WHERE firm_id = {firmId} AND setup_draft_id = {draft.Id} AND resource_kind = {kind}
           ORDER BY observed_at DESC, id DESC LIMIT 1 FOR SHARE
@@ -496,7 +496,7 @@ internal static class ArchiveCopySourceGuard
 
     if (lockRows)
     {
-      var locked = await db.TenantCapabilityVerifications.FromSqlInterpolated($"""
+      var locked = await db.TenantCapabilityVerifications.FromSql($"""
         SELECT * FROM m365_tenant_capability_verifications WHERE firm_id = {firmId} AND id = {latest.Id} FOR SHARE
         """).AsNoTracking().SingleOrDefaultAsync(ct);
       if (locked is null) throw new OperationBlockedException("archive-copy-selected-resource-proof-stale", authorization: true);
@@ -570,47 +570,47 @@ internal static class ArchiveCopySourceGuard
     if (db.Database.CurrentTransaction is null)
       throw new InvalidOperationException("Archive-copy source locks require the operation transaction.");
     await db.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'", ct);
-    _ = await db.Archives.FromSqlInterpolated($"SELECT * FROM archives WHERE firm_id = {firmId} AND id = {payload.ArchiveId} FOR UPDATE")
+    _ = await db.Archives.FromSql($"SELECT * FROM archives WHERE firm_id = {firmId} AND id = {payload.ArchiveId} FOR UPDATE")
       .AsNoTracking().ToListAsync(ct);
     if (payload.ClientSharePointSiteId is Guid clientSiteId)
-      _ = await db.ClientSharePointSites.FromSqlInterpolated($"SELECT * FROM client_share_point_sites WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND id = {clientSiteId} FOR SHARE")
+      _ = await db.ClientSharePointSites.FromSql($"SELECT * FROM client_share_point_sites WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND id = {clientSiteId} FOR SHARE")
         .AsNoTracking().ToListAsync(ct);
-    _ = await db.RecordsProfiles.FromSqlInterpolated($"SELECT * FROM records_profiles WHERE firm_id = {firmId} AND id = {payload.RecordsProfileId} FOR SHARE")
+    _ = await db.RecordsProfiles.FromSql($"SELECT * FROM records_profiles WHERE firm_id = {firmId} AND id = {payload.RecordsProfileId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
-    _ = await db.ArchiveManifests.FromSqlInterpolated($"SELECT * FROM archive_manifests WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {payload.ManifestId} FOR SHARE")
+    _ = await db.ArchiveManifests.FromSql($"SELECT * FROM archive_manifests WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {payload.ManifestId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
-    _ = await db.ArchiveManifestEntries.FromSqlInterpolated($"SELECT * FROM archive_manifest_entries WHERE firm_id = {firmId} AND archive_manifest_id = {payload.ManifestId} ORDER BY ordinal FOR SHARE")
+    _ = await db.ArchiveManifestEntries.FromSql($"SELECT * FROM archive_manifest_entries WHERE firm_id = {firmId} AND archive_manifest_id = {payload.ManifestId} ORDER BY ordinal FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
-    _ = await db.ArchiveStructuredExports.FromSqlInterpolated($"SELECT * FROM archive_structured_exports WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND archive_manifest_id = {payload.ManifestId} FOR SHARE")
+    _ = await db.ArchiveStructuredExports.FromSql($"SELECT * FROM archive_structured_exports WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND archive_manifest_id = {payload.ManifestId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
-    _ = await db.ReleaseCandidates.FromSqlInterpolated($"SELECT * FROM release_candidates WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {payload.ReleaseCandidateId} FOR SHARE")
+    _ = await db.ReleaseCandidates.FromSql($"SELECT * FROM release_candidates WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {payload.ReleaseCandidateId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
-    _ = await db.Releases.FromSqlInterpolated($"SELECT * FROM releases WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {payload.ReleaseId} FOR SHARE")
+    _ = await db.Releases.FromSql($"SELECT * FROM releases WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {payload.ReleaseId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
-    _ = await db.ReleaseCheckpoints.FromSqlInterpolated($"SELECT * FROM release_checkpoints WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {payload.CheckpointId} FOR SHARE")
+    _ = await db.ReleaseCheckpoints.FromSql($"SELECT * FROM release_checkpoints WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {payload.CheckpointId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
-    _ = await db.FinancialPackageArtifacts.FromSqlInterpolated($"SELECT * FROM financial_package_artifacts WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {payload.ReleasedArtifactId} FOR SHARE")
+    _ = await db.FinancialPackageArtifacts.FromSql($"SELECT * FROM financial_package_artifacts WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {payload.ReleasedArtifactId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
     var bundleIds = await db.ArchiveManifestEntries.AsNoTracking().Where(x => x.FirmId == firmId &&
         x.ArchiveManifestId == payload.ManifestId && x.EntryKind == "COMMERCIAL_BUNDLE_ASSEMBLY" &&
         x.SourceKind == "CommercialDeliverableBundle" && x.SourceId != null)
       .Select(x => x.SourceId!.Value).OrderBy(x => x).ToListAsync(ct);
     foreach (var bundleId in bundleIds)
-      _ = await db.CommercialDeliverableBundles.FromSqlInterpolated($"SELECT * FROM commercial_deliverable_bundles WHERE firm_id = {firmId} AND id = {bundleId} FOR SHARE")
+      _ = await db.CommercialDeliverableBundles.FromSql($"SELECT * FROM commercial_deliverable_bundles WHERE firm_id = {firmId} AND id = {bundleId} FOR SHARE")
         .AsNoTracking().ToListAsync(ct);
     var bundles = bundleIds.Count == 0 ? new List<CommercialDeliverableBundle>() : await db.CommercialDeliverableBundles.AsNoTracking()
       .Where(x => x.FirmId == firmId && bundleIds.Contains(x.Id)).OrderBy(x => x.Id).ToListAsync(ct);
     foreach (var invoiceId in bundles.Select(x => x.BalanceInvoiceId).Distinct().OrderBy(x => x))
     {
-      _ = await db.Invoices.FromSqlInterpolated($"SELECT * FROM invoices WHERE firm_id = {firmId} AND id = {invoiceId} FOR SHARE")
+      _ = await db.Invoices.FromSql($"SELECT * FROM invoices WHERE firm_id = {firmId} AND id = {invoiceId} FOR SHARE")
         .AsNoTracking().ToListAsync(ct);
-      _ = await db.FeeMilestones.FromSqlInterpolated($"SELECT * FROM fee_milestones WHERE firm_id = {firmId} AND invoice_id = {invoiceId} ORDER BY id FOR SHARE")
+      _ = await db.FeeMilestones.FromSql($"SELECT * FROM fee_milestones WHERE firm_id = {firmId} AND invoice_id = {invoiceId} ORDER BY id FOR SHARE")
         .AsNoTracking().ToListAsync(ct);
     }
     var compositionIds = bundles.Where(x => x.FinancialStatementCompositionId.HasValue)
       .Select(x => x.FinancialStatementCompositionId!.Value).Distinct().OrderBy(x => x).ToArray();
     foreach (var compositionId in compositionIds)
-      _ = await db.FinancialStatementCompositions.FromSqlInterpolated($"SELECT * FROM financial_statement_compositions WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {compositionId} FOR SHARE")
+      _ = await db.FinancialStatementCompositions.FromSql($"SELECT * FROM financial_statement_compositions WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {compositionId} FOR SHARE")
         .AsNoTracking().ToListAsync(ct);
     var compositions = compositionIds.Length == 0 ? new List<FinancialStatementComposition>() :
       await db.FinancialStatementCompositions.AsNoTracking().Where(x => x.FirmId == firmId && compositionIds.Contains(x.Id))
@@ -619,7 +619,7 @@ internal static class ArchiveCopySourceGuard
       .Concat(compositions.SelectMany(x => new[] { x.PdfArtifactId, x.WordArtifactId, x.ExcelArtifactId }))
       .Distinct().OrderBy(x => x).ToArray();
     foreach (var artifactId in bundleArtifactIds)
-      _ = await db.FinancialPackageArtifacts.FromSqlInterpolated($"SELECT * FROM financial_package_artifacts WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {artifactId} FOR SHARE")
+      _ = await db.FinancialPackageArtifacts.FromSql($"SELECT * FROM financial_package_artifacts WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {artifactId} FOR SHARE")
         .AsNoTracking().ToListAsync(ct);
     var signedRepresentationIds = bundles.Select(x => x.SignedRepresentationLetterId).Distinct().OrderBy(x => x).ToArray();
     var signedRepresentations = signedRepresentationIds.Length == 0 ? new List<SignedRepresentationLetter>() :
@@ -629,7 +629,7 @@ internal static class ArchiveCopySourceGuard
     var deliverableIds = bundles.SelectMany(x => new[] { x.SignedReportId, x.ManagementLetterId })
       .Concat(signedRepresentations.Select(x => x.DeliverableId)).Distinct().OrderBy(x => x).ToArray();
     foreach (var deliverableId in deliverableIds)
-      _ = await db.AuditDeliverables.FromSqlInterpolated($"SELECT * FROM audit_deliverables WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {deliverableId} FOR SHARE")
+      _ = await db.AuditDeliverables.FromSql($"SELECT * FROM audit_deliverables WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {deliverableId} FOR SHARE")
         .AsNoTracking().ToListAsync(ct);
     var signedReportIds = bundles.Select(x => x.SignedReportId).Distinct().OrderBy(x => x).ToArray();
     foreach (var signedReportId in signedReportIds)
@@ -638,29 +638,29 @@ internal static class ArchiveCopySourceGuard
         x.ClientId == payload.ClientId && x.EngagementId == payload.EngagementId && x.Id == signedReportId)
         .Select(x => x.SignedFromDeliverableId).SingleOrDefaultAsync(ct);
       if (unsignedId.HasValue)
-        _ = await db.AuditDeliverables.FromSqlInterpolated($"SELECT * FROM audit_deliverables WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {unsignedId.Value} FOR SHARE")
+        _ = await db.AuditDeliverables.FromSql($"SELECT * FROM audit_deliverables WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {unsignedId.Value} FOR SHARE")
           .AsNoTracking().ToListAsync(ct);
-      _ = await db.SignatureApplications.FromSqlInterpolated($"SELECT * FROM signature_applications WHERE firm_id = {firmId} AND engagement_id = {payload.EngagementId} AND signed_deliverable_id = {signedReportId} FOR SHARE")
+      _ = await db.SignatureApplications.FromSql($"SELECT * FROM signature_applications WHERE firm_id = {firmId} AND engagement_id = {payload.EngagementId} AND signed_deliverable_id = {signedReportId} FOR SHARE")
         .AsNoTracking().ToListAsync(ct);
     }
     foreach (var signedRepresentationId in signedRepresentationIds)
     {
-      _ = await db.SignedRepresentationLetters.FromSqlInterpolated($"SELECT * FROM signed_representation_letters WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {signedRepresentationId} FOR SHARE")
+      _ = await db.SignedRepresentationLetters.FromSql($"SELECT * FROM signed_representation_letters WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND id = {signedRepresentationId} FOR SHARE")
         .AsNoTracking().ToListAsync(ct);
-      _ = await db.RepresentationLetterVerifications.FromSqlInterpolated($"SELECT * FROM representation_letter_verifications WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND signed_letter_id = {signedRepresentationId} FOR SHARE")
+      _ = await db.RepresentationLetterVerifications.FromSql($"SELECT * FROM representation_letter_verifications WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND engagement_id = {payload.EngagementId} AND signed_letter_id = {signedRepresentationId} FOR SHARE")
         .AsNoTracking().ToListAsync(ct);
     }
-    var lockedTargets = await db.ArchiveCopyTargetRevisions.FromSqlInterpolated($"SELECT * FROM archive_copy_target_revisions WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND id = {payload.TargetRevisionId} FOR SHARE")
+    var lockedTargets = await db.ArchiveCopyTargetRevisions.FromSql($"SELECT * FROM archive_copy_target_revisions WHERE firm_id = {firmId} AND client_id = {payload.ClientId} AND id = {payload.TargetRevisionId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
     if (lockedTargets.Count != 1 || lockedTargets[0].ClientSharePointSiteId != payload.ClientSharePointSiteId)
       throw new OperationBlockedException("archive-copy-target-client-scope-mismatch", authorization: true);
-    _ = await db.Microsoft365ConnectionRevisions.FromSqlInterpolated($"SELECT * FROM m365_connection_revisions WHERE firm_id = {firmId} AND id = {lockedTargets[0].ConnectionRevisionId} FOR SHARE")
+    _ = await db.Microsoft365ConnectionRevisions.FromSql($"SELECT * FROM m365_connection_revisions WHERE firm_id = {firmId} AND id = {lockedTargets[0].ConnectionRevisionId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
     if (lockedTargets[0].UsesSharedSelectedResource)
     {
       if (lockedTargets[0].SelectedResourceDraftId is not Guid draftId)
         throw new OperationBlockedException("archive-copy-selected-resource-invalid", authorization: true);
-      var draft = await db.Microsoft365SetupDrafts.FromSqlInterpolated($"SELECT * FROM m365_setup_drafts WHERE firm_id = {firmId} AND id = {draftId} FOR SHARE")
+      var draft = await db.Microsoft365SetupDrafts.FromSql($"SELECT * FROM m365_setup_drafts WHERE firm_id = {firmId} AND id = {draftId} FOR SHARE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       if (draft is null)
         throw new OperationBlockedException("archive-copy-selected-resource-invalid", authorization: true);

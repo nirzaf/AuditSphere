@@ -36,8 +36,8 @@ public sealed class BudgetApprovalReviewTests
     Assert.False((await BudgetApprovalWorkspace.LookupAsync(db, actor, f.EngagementId, r.RequestId, new string('f', 64))).Succeeded);
     await db.ClientSafetyStates.Where(x => x.Id == f.ClientId).ExecuteUpdateAsync(s => s.SetProperty(x => x.InputGeneration, x => x.InputGeneration + 1));
     Assert.True((await BudgetApprovalWorkspace.ExecuteAsync(db, actor, f.EngagementId, r)).Succeeded);
-    Assert.Equal("P0001", (await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE budget_approvals SET preview_json='{{}}' WHERE id={receipt.Id}"))).SqlState);
-    Assert.Equal("P0001", (await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM budget_approvals WHERE id={receipt.Id}"))).SqlState);
+    Assert.Equal("P0001", (await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"UPDATE budget_approvals SET preview_json='{{}}' WHERE id={receipt.Id}"))).SqlState);
+    Assert.Equal("P0001", (await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"DELETE FROM budget_approvals WHERE id={receipt.Id}"))).SqlState);
     db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Reviewer, "Manager", f.ClientId)); await db.SaveChangesAsync();
     var other = PbcSeed.Actor(f.Reviewer, "Manager");
     Assert.False((await BudgetApprovalWorkspace.LookupAsync(db, other, f.EngagementId, r.RequestId, r.RequestHash)).Value!.Found);

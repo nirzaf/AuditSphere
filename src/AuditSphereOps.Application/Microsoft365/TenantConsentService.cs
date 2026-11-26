@@ -72,7 +72,7 @@ public static class TenantConsentService
       return Denied<TenantConsentReturn>();
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var stateHash = Hash(state);
-    var attempts = await db.TenantConsentAttempts.FromSqlInterpolated($"""
+    var attempts = await db.TenantConsentAttempts.FromSql($"""
       SELECT * FROM m365_tenant_consent_attempts
       WHERE firm_id = {actor.FirmId} AND state_hash = {stateHash} FOR UPDATE
       """).ToListAsync(ct);
@@ -147,7 +147,7 @@ public static class TenantConsentService
     string tenantId;
     await using (var claimTx = await db.Database.BeginTransactionAsync(ct))
     {
-      var attempts = await db.TenantConsentAttempts.FromSqlInterpolated($"""
+      var attempts = await db.TenantConsentAttempts.FromSql($"""
         SELECT * FROM m365_tenant_consent_attempts
         WHERE firm_id = {actor.FirmId} AND identity_state_hash = {stateHash} FOR UPDATE
         """).ToListAsync(ct);
@@ -237,7 +237,7 @@ public static class TenantConsentService
 
   private static async Task<TenantConsentAttempt?> LockAttemptAsync(IAuditSphereDbContext db, Guid firmId,
     Guid attemptId, CancellationToken ct) =>
-    await db.TenantConsentAttempts.FromSqlInterpolated($"""
+    await db.TenantConsentAttempts.FromSql($"""
       SELECT * FROM m365_tenant_consent_attempts WHERE firm_id = {firmId} AND id = {attemptId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
 

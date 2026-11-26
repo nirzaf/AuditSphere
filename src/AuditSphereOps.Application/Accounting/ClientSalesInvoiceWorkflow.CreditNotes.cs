@@ -86,7 +86,7 @@ public static partial class ClientSalesInvoiceWorkflow
         snapshot is null || snapshot.Version != "client-sales-draft-v1" || snapshot.TaxTreatment != "NONE" ||
         snapshot.Currency != open.Currency || snapshot.Customer.Id != open.CustomerId || snapshot.Lines.Count is < 1 or > 100)
       return CommandResult<CreditOriginal>.Fail(ErrorCodes.GateBlocked, "This credit path supports only a valid original untaxed invoice; tax remains separately optional.");
-    var period = await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={periodId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var period = await db.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={periodId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (period is null || period.Status == AccountingWorkflowStates.Closed || postingDate < period.StartDate || postingDate > period.EndDate ||
         period.Currency != open.Currency || profile.FunctionalCurrency != open.Currency)
       return CommandResult<CreditOriginal>.Fail(ErrorCodes.GateBlocked, "Choose an open posting period in the original invoice currency.");
@@ -330,7 +330,7 @@ public static partial class ClientSalesInvoiceWorkflow
       return CommandResult<ClientSalesCreditCommandReceipt>.Fail(ErrorCodes.StaleRevision, "Preview the exact submitted credit note and current original-line credit limits before deciding.");
     if (await db.ClientSalesCreditNoteDecisions.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.SubmissionId == submission.Id, ct))
       return CommandResult<ClientSalesCreditCommandReceipt>.Fail(ErrorCodes.IdempotencyConflict, "This credit note already has a decision.");
-    var journal = await db.ClientOperationalJournals.FromSqlInterpolated($"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={submission.JournalId} FOR UPDATE").SingleAsync(ct);
+    var journal = await db.ClientOperationalJournals.FromSql($"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={submission.JournalId} FOR UPDATE").SingleAsync(ct);
     var now = DateTimeOffset.UtcNow;
     var retained = new ClientSalesCreditNoteDecision { Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId,
       SubmissionId = submission.Id, CommandId = request.CommandId, IntentHash = intent, Decision = decision,

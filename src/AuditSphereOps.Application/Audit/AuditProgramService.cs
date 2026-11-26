@@ -257,19 +257,19 @@ public static partial class AuditProgramService
     CancellationToken ct)
   {
     var key = $"audit-program:{firmId:N}:{AuditProgramCatalog.ProgramCode}:{version}";
-    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", ct);
+    await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", ct);
   }
 
   private static async Task LockProgramVersionAsync(IAuditSphereDbContext db, Guid firmId, Guid versionId,
     CancellationToken ct)
   {
-    await db.AuditProgramVersions.FromSqlInterpolated($"SELECT * FROM audit_program_versions WHERE firm_id={firmId} AND id={versionId} FOR UPDATE")
+    await db.AuditProgramVersions.FromSql($"SELECT * FROM audit_program_versions WHERE firm_id={firmId} AND id={versionId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
   }
 
   private static async Task LockActorGrantsAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
   {
-    await db.RoleGrants.FromSqlInterpolated($"SELECT * FROM role_grants WHERE firm_id={actor.FirmId} AND user_id={actor.UserId} AND revoked_at IS NULL FOR SHARE")
+    await db.RoleGrants.FromSql($"SELECT * FROM role_grants WHERE firm_id={actor.FirmId} AND user_id={actor.UserId} AND revoked_at IS NULL FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
   }
 
@@ -459,7 +459,7 @@ public static partial class AuditProgramService
     var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId);
     if (scope.Denied is not null) return CommandResult.Fail(scope.Denied, scope.Message);
 
-    var procedure = await db.AuditProcedures.FromSqlInterpolated($"""
+    var procedure = await db.AuditProcedures.FromSql($"""
       SELECT * FROM audit_procedures
       WHERE id = {procedureId} AND firm_id = {actor.FirmId}
       FOR UPDATE
@@ -583,14 +583,14 @@ public static partial class AuditProgramService
       new(actor.FirmId, snapshot.ClientId, snapshot.EngagementId, PlanningRoles, InternalOnly: true), ct);
     if (!initialAuthority.Succeeded) return CommandResult<ProcedureResultValue>.Fail(initialAuthority.ErrorCode!, initialAuthority.Message!);
     // Match source publication: firm -> client generation -> engagement -> procedure/result.
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
     var currentGeneration = await AuditPlanningInputGeneration.ReadSharedAsync(db, actor.FirmId, snapshot.ClientId, ct);
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
     var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId, sharedEngagement: true);
     if (scope.Denied is not null)
       return CommandResult<ProcedureResultValue>.Fail(scope.Denied, scope.Message);
 
-    var procedure = await db.AuditProcedures.FromSqlInterpolated($"""
+    var procedure = await db.AuditProcedures.FromSql($"""
       SELECT * FROM audit_procedures
       WHERE id = {request.AuditProcedureId} AND firm_id = {actor.FirmId}
       FOR UPDATE
@@ -751,7 +751,7 @@ public static partial class AuditProgramService
     procedure.CurrentResultRevision = revision;
     procedure.Status = AuditProcedureStatuses.Submitted;
     var publicationActor=actor.UserId.ToString();var publicationEpoch=actor.SessionEpoch.ToString(System.Globalization.CultureInfo.InvariantCulture);var publicationPaper=workpaper.Id.ToString();
-    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('audit.workpaper_action','PROCEDURE_SUBMIT',true),set_config('audit.workpaper_actor_id',{publicationActor},true),set_config('audit.workpaper_actor_epoch',{publicationEpoch},true),set_config('audit.workpaper_procedure_paper',{publicationPaper},true)",ct);
+    await db.Database.ExecuteSqlAsync($"SELECT set_config('audit.workpaper_action','PROCEDURE_SUBMIT',true),set_config('audit.workpaper_actor_id',{publicationActor},true),set_config('audit.workpaper_actor_epoch',{publicationEpoch},true),set_config('audit.workpaper_procedure_paper',{publicationPaper},true)",ct);
     if (command is not null)
       db.AuditProcedureCommandReceipts.Add(new AuditProcedureCommandReceipt
       {
@@ -800,12 +800,12 @@ public static partial class AuditProgramService
       new(actor.FirmId, snapshot.ClientId, snapshot.EngagementId, ReviewRoles, InternalOnly: true), ct);
     if (!initialAuthority.Succeeded) return CommandResult<ProcedureReviewValue>.Fail(initialAuthority.ErrorCode!, initialAuthority.Message!);
     // Match source publication: firm -> client generation -> engagement -> procedure/result.
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
     var currentGeneration = await AuditPlanningInputGeneration.LockAndReadAsync(db, actor.FirmId, snapshot.ClientId, ct);
     var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId, ReviewRoles);
     if (scope.Denied is not null)
       return CommandResult<ProcedureReviewValue>.Fail(scope.Denied, scope.Message);
-    var procedure = await db.AuditProcedures.FromSqlInterpolated($"""
+    var procedure = await db.AuditProcedures.FromSql($"""
       SELECT * FROM audit_procedures
       WHERE id = {snapshot.AuditProcedureId} AND firm_id = {actor.FirmId}
       FOR UPDATE
@@ -813,7 +813,7 @@ public static partial class AuditProgramService
     if (procedure is null || procedure.ClientId != scope.ClientId || procedure.EngagementId != snapshot.EngagementId)
       return CommandResult<ProcedureReviewValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     // Serialize the final review transition after taking the engagement and procedure locks.
-    var result = await db.AuditProcedureResults.FromSqlInterpolated($"""
+    var result = await db.AuditProcedureResults.FromSql($"""
       SELECT * FROM audit_procedure_results
       WHERE id = {request.AuditProcedureResultId} AND firm_id = {actor.FirmId}
       FOR UPDATE
@@ -969,8 +969,8 @@ public static partial class AuditProgramService
     bool sharedEngagement = false)
   {
     var engagementQuery = sharedEngagement
-      ? db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} FOR SHARE")
-      : db.Engagements.FromSqlInterpolated($"""
+      ? db.Engagements.FromSql($"SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} FOR SHARE")
+      : db.Engagements.FromSql($"""
       SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} FOR UPDATE
       """);
     var engagement = await engagementQuery.AsNoTracking().SingleOrDefaultAsync(ct);

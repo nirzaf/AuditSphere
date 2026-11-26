@@ -41,10 +41,10 @@ public static partial class EngagementLifecycleService
     // concurrent change either commits before this read or waits for this activation's commit.
     if (!await AcceptanceCommandAuthority.LockFirmAsync(db, actor, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
-    var guard = await db.ClientSafetyStates.FromSqlInterpolated(
+    var guard = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE id = {stub.PracticeClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new(actor.FirmId, stub.PracticeClientId, engagementId, RequiredRoles: ActivationRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);

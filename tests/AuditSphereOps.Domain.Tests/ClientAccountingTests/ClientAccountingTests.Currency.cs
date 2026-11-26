@@ -195,16 +195,16 @@ public sealed partial class ClientAccountingTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE general_ledger_lines SET original_amount = 101 WHERE id = {sourceLineIds[0]}"));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"DELETE FROM general_ledger_transactions WHERE id = (SELECT transaction_id FROM general_ledger_lines WHERE id = {sourceLineIds[0]})"));
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM currency_remeasurement_items WHERE schedule_id = {scheduleId}"));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM currency_remeasurement_schedules WHERE id = {scheduleId}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"DELETE FROM currency_remeasurement_items WHERE schedule_id = {scheduleId}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"DELETE FROM currency_remeasurement_schedules WHERE id = {scheduleId}"));
     }
   }
 

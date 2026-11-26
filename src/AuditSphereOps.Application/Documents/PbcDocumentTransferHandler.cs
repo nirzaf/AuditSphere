@@ -116,7 +116,7 @@ public sealed class PbcDocumentTransferHandler(
 
   public async Task LockTargetAsync(IAuditSphereDbContext db, DurableOperation op, CancellationToken ct)
   {
-    var intents = await db.PbcUploadIntents.FromSqlInterpolated($"""
+    var intents = await db.PbcUploadIntents.FromSql($"""
       SELECT * FROM pbc_upload_intents WHERE firm_id = {op.FirmId} AND id = {op.TargetId}
         AND client_id = {op.ClientId} AND engagement_id = {op.EngagementId} FOR UPDATE
       """).ToListAsync(ct);

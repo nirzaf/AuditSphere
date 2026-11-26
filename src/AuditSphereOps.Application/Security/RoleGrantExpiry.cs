@@ -25,16 +25,16 @@ public static class RoleGrantExpiry
       : null;
     // Same root fence as access administration and protected commercial mutations.
     // Keep firm -> user -> grants order, including when staffing owns the transaction.
-    if (await db.FirmSafetyStates.FromSqlInterpolated(
+    if (await db.FirmSafetyStates.FromSql(
           $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null)
       throw new InvalidOperationException("The firm safety state is unavailable for grant expiry.");
-    var user = await db.Users.FromSqlInterpolated(
+    var user = await db.Users.FromSql(
       $"SELECT * FROM users WHERE firm_id = {firmId} AND id = {userId} FOR UPDATE").SingleAsync(ct);
     await db.Users.Attach(user).ReloadAsync(ct);
     // Authentication can resolve several Angular/API requests for one browser session
     // concurrently. Lock the expired grants and re-check the predicate in PostgreSQL so
     // only the first request records revocation evidence and advances the session epoch.
-    var expired = await db.RoleGrants.FromSqlInterpolated($"""
+    var expired = await db.RoleGrants.FromSql($"""
       SELECT * FROM role_grants
       WHERE firm_id = {firmId} AND user_id = {userId}
         AND revoked_at IS NULL AND expires_at IS NOT NULL AND expires_at <= {now}

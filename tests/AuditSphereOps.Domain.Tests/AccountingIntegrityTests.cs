@@ -92,7 +92,7 @@ public sealed class AccountingIntegrityTests
         Id = Guid.NewGuid(), DatasetId = id, AccountCode = "001", Amount = 10m, Currency = "QAR"
       });
       await seed.SaveChangesAsync();
-      await seed.Database.ExecuteSqlInterpolatedAsync($"UPDATE trial_balance_datasets SET import_state = {TrialBalanceImportStates.Sealed} WHERE id = {id}");
+      await seed.Database.ExecuteSqlAsync($"UPDATE trial_balance_datasets SET import_state = {TrialBalanceImportStates.Sealed} WHERE id = {id}");
     }
 
     await using (var db = new AuditSphereDbContext(pg.Options))
@@ -114,13 +114,13 @@ public sealed class AccountingIntegrityTests
     await using var verify = new AuditSphereDbContext(pg.Options);
     Assert.Equal(10m, (await verify.TrialBalanceRows.SingleAsync(x => x.DatasetId == id)).Amount);
 
-    var rawInsert = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync($"""
+    var rawInsert = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlAsync($"""
       INSERT INTO trial_balance_rows (id, dataset_id, account_code, account_name, amount, currency, entity)
       VALUES ({Guid.NewGuid()}, {id}, '002', 'sealed insert', 1, 'QAR', 'DEFAULT')
       """));
     Assert.Equal("55000", rawInsert.SqlState);
 
-    var reopen = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync($"""
+    var reopen = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlAsync($"""
       UPDATE trial_balance_datasets SET import_state = {TrialBalanceImportStates.Loading} WHERE id = {id}
       """));
     Assert.Equal("55000", reopen.SqlState);
@@ -150,7 +150,7 @@ public sealed class AccountingIntegrityTests
       seed.AdjustmentLines.Add(new AdjustmentLine
       { Id = Guid.NewGuid(), JournalId = journalId, AccountCode = "520100", Debit = 5000m });
       await seed.SaveChangesAsync();
-      await seed.Database.ExecuteSqlInterpolatedAsync($"UPDATE trial_balance_datasets SET import_state = {TrialBalanceImportStates.Sealed} WHERE id = {datasetId}");
+      await seed.Database.ExecuteSqlAsync($"UPDATE trial_balance_datasets SET import_state = {TrialBalanceImportStates.Sealed} WHERE id = {datasetId}");
     }
 
     // While Draft, editing lines is allowed.

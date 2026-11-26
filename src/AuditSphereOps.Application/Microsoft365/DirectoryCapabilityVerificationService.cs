@@ -50,7 +50,7 @@ public static class DirectoryCapabilityVerificationService
     catch { /* The public result remains blocked; no provider detail or token is stored. */ }
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var currentConnection = await db.Microsoft365ConnectionRevisions.FromSqlInterpolated($"""
+    var currentConnection = await db.Microsoft365ConnectionRevisions.FromSql($"""
       SELECT * FROM m365_connection_revisions
       WHERE firm_id = {actor.FirmId} AND id = {revisionId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);

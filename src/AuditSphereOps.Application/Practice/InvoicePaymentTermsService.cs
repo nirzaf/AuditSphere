@@ -40,7 +40,7 @@ public static class InvoicePaymentTermsService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     if (!await LockClientAsync(db, actor.FirmId, context.Value!.ClientId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
-    var invoice = await db.Invoices.FromSqlInterpolated(
+    var invoice = await db.Invoices.FromSql(
       $"SELECT * FROM invoices WHERE id = {invoiceId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (invoice is null || invoice.Status == BillingStates.InvoiceCancelled)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -112,7 +112,7 @@ public static class InvoicePaymentTermsService
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     if (!await LockClientAsync(db, actor.FirmId, context.Value!.ClientId, ct))
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
-    var invoice = await db.Invoices.FromSqlInterpolated(
+    var invoice = await db.Invoices.FromSql(
       $"SELECT * FROM invoices WHERE id = {revision.InvoiceId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (invoice is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var current = await db.InvoicePaymentTermsRevisions.SingleOrDefaultAsync(x =>
@@ -167,11 +167,11 @@ public static class InvoicePaymentTermsService
   }
 
   private static Task<FirmSafetyState?> LockFirmAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
-    db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE")
+    db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
 
   private static async Task<bool> LockClientAsync(IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct) =>
-    await db.ClientSafetyStates.FromSqlInterpolated(
+    await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct) is not null;
 

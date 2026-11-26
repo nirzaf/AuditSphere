@@ -50,7 +50,7 @@ public static class AcceptanceDecisionService
     var client = await db.PracticeClients.SingleOrDefaultAsync(x =>
       x.Id == request.PracticeClientId && x.FirmId == actor.FirmId, ct);
     if (client is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var clientGuard = await db.ClientSafetyStates.FromSqlInterpolated(
+    var clientGuard = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE id = {client.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (clientGuard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");

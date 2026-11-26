@@ -116,7 +116,7 @@ public sealed partial class ClientAccountingTests
     await using (var tamperDb = new AuditSphereDbContext(pg.Options))
     {
       var immutableUpdate = await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
-        tamperDb.Database.ExecuteSqlInterpolatedAsync(
+        tamperDb.Database.ExecuteSqlAsync(
           $"UPDATE client_accounting_profile_revisions SET source_system = {"ALTERED"} WHERE id = {historical.Value.RevisionId}"));
       Assert.Equal("23514", immutableUpdate.SqlState);
     }
@@ -124,7 +124,7 @@ public sealed partial class ClientAccountingTests
     await using (var deleteDb = new AuditSphereDbContext(pg.Options))
     {
       var immutableDelete = await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
-        deleteDb.Database.ExecuteSqlInterpolatedAsync(
+        deleteDb.Database.ExecuteSqlAsync(
           $"DELETE FROM client_accounting_profile_revisions WHERE id = {historical.Value.RevisionId}"));
       Assert.Equal("23514", immutableDelete.SqlState);
     }

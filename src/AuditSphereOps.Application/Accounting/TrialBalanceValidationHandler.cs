@@ -33,7 +33,7 @@ public sealed class TrialBalanceValidationHandler : IOperationHandler
 
   public async Task LockTargetAsync(IAuditSphereDbContext db, DurableOperation op, CancellationToken ct)
   {
-    var rows = await db.TrialBalanceDatasets.FromSqlInterpolated($"""
+    var rows = await db.TrialBalanceDatasets.FromSql($"""
       SELECT * FROM trial_balance_datasets WHERE id = {op.TargetId} AND firm_id = {op.FirmId}
         AND client_id = {op.ClientId} AND engagement_id = {op.EngagementId} FOR UPDATE
       """).ToListAsync(ct);

@@ -324,7 +324,7 @@ public sealed class AuditSamplingSelectionIsolationTests
     Assert.Equal(rows, await ReadRowsAsync());
     Assert.Equal(indexes, await ReadIndexesAsync());
     Assert.Equal(foreignKeys, await ReadForeignKeysAsync());
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
+    await db.Database.ExecuteSqlAsync($"""
       INSERT INTO audit_sampling_runs
       SELECT (jsonb_populate_record(NULL::audit_sampling_runs, to_jsonb(r) || jsonb_build_object(
         'id', {Guid.NewGuid()}, 'selection_id', {foreignNative.SelectionId}, 'preview_digest', NULL))).*

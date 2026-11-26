@@ -31,7 +31,7 @@ public sealed class OperationCommandReceiptDatabaseGuardTests
     {
       var eventId = Guid.NewGuid();
       await SetPublicationAsync(db, world.Actor, request, request.Input, eventId, null, wrongHash);
-      var error = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      var error = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         UPDATE firm_safety_states
         SET operating_mode = 'LOCAL_ONLY', deployment_epoch = deployment_epoch + 1
         WHERE id = {world.Actor.FirmId}
@@ -46,14 +46,14 @@ public sealed class OperationCommandReceiptDatabaseGuardTests
     {
       var eventId = Guid.NewGuid();
       await SetPublicationAsync(db, world.Actor, request, request.Input, eventId, null, request.ExpectedRequestHash!);
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         UPDATE firm_safety_states
         SET operating_mode = 'LOCAL_ONLY', deployment_epoch = deployment_epoch + 1
         WHERE id = {world.Actor.FirmId}
         """);
 
       var substitutedPreview = preview with { ReviewBasis = Substitute(preview.ReviewBasis) };
-      var error = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      var error = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         INSERT INTO operator_command_receipts
           (id, firm_id, actor_id, actor_epoch, request_id, request_hash, action, event_id, input_json, preview_json, created_at)
         VALUES
@@ -91,7 +91,7 @@ public sealed class OperationCommandReceiptDatabaseGuardTests
     await using (var tx = await db.Database.BeginTransactionAsync())
     {
       await SetPublicationAsync(db, world.Actor, request, request.Input, Guid.NewGuid(), Guid.NewGuid(), new string('a', 64));
-      var error = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      var error = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         UPDATE durable_operations
         SET status = 'CANCELLED_WITH_DISPOSITION', error_code = 'operator-cancelled',
             cancellation_disposition = {disposition}, next_attempt_at = statement_timestamp()
@@ -126,16 +126,16 @@ public sealed class OperationCommandReceiptDatabaseGuardTests
     var commandEvent = await probe.OperatorCommandEvents.AsNoTracking().SingleAsync();
     const string emptyObjectJson = "{}";
 
-    await AssertRefusedAsync(() => probe.Database.ExecuteSqlInterpolatedAsync($"""
+    await AssertRefusedAsync(() => probe.Database.ExecuteSqlAsync($"""
       UPDATE operator_command_events SET request_hash = {Substitute(commandEvent.RequestHash)} WHERE id = {commandEvent.Id}
       """), "Operator events are immutable.");
-    await AssertRefusedAsync(() => probe.Database.ExecuteSqlInterpolatedAsync($"""
+    await AssertRefusedAsync(() => probe.Database.ExecuteSqlAsync($"""
       DELETE FROM operator_command_events WHERE id = {commandEvent.Id}
       """), "Operator events are immutable.");
-    await AssertRefusedAsync(() => probe.Database.ExecuteSqlInterpolatedAsync($"""
+    await AssertRefusedAsync(() => probe.Database.ExecuteSqlAsync($"""
       UPDATE operator_command_receipts SET preview_json = {emptyObjectJson} WHERE id = {receipt.Id}
       """), "Operator receipts are immutable.");
-    await AssertRefusedAsync(() => probe.Database.ExecuteSqlInterpolatedAsync($"""
+    await AssertRefusedAsync(() => probe.Database.ExecuteSqlAsync($"""
       DELETE FROM operator_command_receipts WHERE id = {receipt.Id}
       """), "Operator receipts are immutable.");
 
@@ -160,7 +160,7 @@ public sealed class OperationCommandReceiptDatabaseGuardTests
     await using (var tx = await db.Database.BeginTransactionAsync())
     {
       await SetPublicationAsync(db, world.Actor, request, request.Input, eventId, null, request.ExpectedRequestHash!);
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         UPDATE firm_safety_states
         SET operating_mode = 'LOCAL_ONLY', deployment_epoch = deployment_epoch + 1
         WHERE id = {world.Actor.FirmId}
@@ -187,26 +187,26 @@ public sealed class OperationCommandReceiptDatabaseGuardTests
     await using var db = new AuditSphereDbContext(pg.Options);
     await AssertMigrationAppliedAsync(db);
 
-    await AssertPublicationMetadataRequiredAsync(db, () => db.Database.ExecuteSqlInterpolatedAsync($"""
+    await AssertPublicationMetadataRequiredAsync(db, () => db.Database.ExecuteSqlAsync($"""
       UPDATE durable_operations
       SET status = 'RETRY_WAIT'
       WHERE firm_id = {retryWorld.Actor.FirmId} AND id = {retryWorld.OperationId}
       """), "Operator retry and cancellation require preview-bound receipt evidence.");
 
-    await AssertPublicationMetadataRequiredAsync(db, () => db.Database.ExecuteSqlInterpolatedAsync($"""
+    await AssertPublicationMetadataRequiredAsync(db, () => db.Database.ExecuteSqlAsync($"""
       UPDATE durable_operations
       SET status = 'CANCELLED_WITH_DISPOSITION', error_code = 'operator-cancelled', cancellation_disposition = 'Synthetic cancellation'
       WHERE firm_id = {cancelWorld.Actor.FirmId} AND id = {cancelWorld.OperationId}
       """), "Operator retry and cancellation require preview-bound receipt evidence.");
 
     var recoverySessionId = restartWorld.Input.RecoverySessionId!.Value;
-    await AssertPublicationMetadataRequiredAsync(db, () => db.Database.ExecuteSqlInterpolatedAsync($"""
+    await AssertPublicationMetadataRequiredAsync(db, () => db.Database.ExecuteSqlAsync($"""
       UPDATE recovery_sessions
       SET approved_restart_at = statement_timestamp(), approved_by_user_id = {restartWorld.Actor.UserId}
       WHERE firm_id = {restartWorld.Actor.FirmId} AND id = {recoverySessionId}
       """), "Recovery restart approval requires preview-bound receipt evidence.");
 
-    await AssertPublicationMetadataRequiredAsync(db, () => db.Database.ExecuteSqlInterpolatedAsync($"""
+    await AssertPublicationMetadataRequiredAsync(db, () => db.Database.ExecuteSqlAsync($"""
       UPDATE firm_safety_states
       SET operating_mode = 'LOCAL_ONLY', deployment_epoch = deployment_epoch + 1
       WHERE id = {liftWorld.Actor.FirmId}
@@ -258,7 +258,7 @@ public sealed class OperationCommandReceiptDatabaseGuardTests
     var operationText = input.OperationId?.ToString("D") ?? "";
     var sessionText = input.RecoverySessionId?.ToString("D") ?? "";
     var inputJson = JsonSerializer.Serialize(input);
-    return db.Database.ExecuteSqlInterpolatedAsync($"""
+    return db.Database.ExecuteSqlAsync($"""
       SELECT set_config('audit.operator_event_id', {eventText}, true),
              set_config('audit.operator_source_id', {sourceText}, true),
              set_config('audit.operator_request_id', {requestText}, true),

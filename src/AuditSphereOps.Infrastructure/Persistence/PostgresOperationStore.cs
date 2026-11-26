@@ -29,13 +29,13 @@ public sealed class PostgresOperationStore(IAuditSphereDbContextFactory factory)
   {
     await db.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'", ct);
     var firmGuard = exclusiveFirmLock
-      ? db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firm} FOR UPDATE")
-      : db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firm} FOR SHARE");
+      ? db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {firm} FOR UPDATE")
+      : db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {firm} FOR SHARE");
     var firms = await firmGuard.AsNoTracking().ToListAsync(ct);
     if (firms.Count != 1 || firms[0].OperatingMode != "LOCAL_ONLY" ||
         (epoch.HasValue && firms[0].DeploymentEpoch != epoch.Value)) return false;
     if (client is null) return true;
-    return (await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {client.Value} AND firm_id = {firm} FOR UPDATE")
+    return (await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE id = {client.Value} AND firm_id = {firm} FOR UPDATE")
       .AsNoTracking().ToListAsync(ct)).Count == 1;
   }
 
@@ -63,7 +63,7 @@ public sealed class PostgresOperationStore(IAuditSphereDbContextFactory factory)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Operation scope is unavailable.");
     var id = Guid.CreateVersion7();
     var correlation = Guid.CreateVersion7();
-    var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
+    var count = await db.Database.ExecuteSqlAsync($"""
       INSERT INTO durable_operations
       (id, firm_id, client_id, engagement_id, operation_kind, payload_json, idempotency_key,
        request_digest, request_bytes, status, attempt_token, attempt_count, schema_version,
@@ -138,7 +138,7 @@ public sealed class PostgresOperationStore(IAuditSphereDbContextFactory factory)
   private static async Task<bool> OwnsAsync(IAuditSphereDbContext db, DurableOperation op, WorkerOptions options, CancellationToken ct)
   {
     if (op.FirmId != options.FirmId || op.ExecutionGroup != options.Group || op.ClaimedEpoch != options.DeploymentEpoch) return false;
-    var owned = await db.DurableOperations.FromSqlInterpolated($"""
+    var owned = await db.DurableOperations.FromSql($"""
       SELECT * FROM durable_operations WHERE id = {op.Id} AND firm_id = {options.FirmId}
         AND lease_owner = {op.LeaseOwner} AND attempt_token = {op.AttemptToken}
         AND status = {op.Status.ToString()} AND request_digest = {op.RequestDigest}
@@ -168,13 +168,13 @@ public sealed class PostgresOperationStore(IAuditSphereDbContextFactory factory)
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!await GuardsAsync(db, op.FirmId, null, options.DeploymentEpoch, ct)) return false;
     // Renewal accepts any active stage of this exact attempt; dispatcher stage changes cannot race it out.
-    var locked = await db.DurableOperations.FromSqlInterpolated($"""
+    var locked = await db.DurableOperations.FromSql($"""
       SELECT * FROM durable_operations WHERE id = {op.Id} AND firm_id = {options.FirmId}
         AND attempt_token = {op.AttemptToken} AND lease_owner = {op.LeaseOwner} FOR UPDATE
       """).AsNoTracking().ToListAsync(ct);
     if (locked.Count != 1) return false;
     // A fresh statement after acquiring the lock prevents reviving a lease that expired while waiting.
-    var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
+    var count = await db.Database.ExecuteSqlAsync($"""
       UPDATE durable_operations SET lease_expires_at = statement_timestamp() + make_interval(secs => {options.LeaseSeconds})
       WHERE id = {op.Id} AND firm_id = {options.FirmId} AND execution_group = {options.Group}
         AND attempt_token = {op.AttemptToken} AND lease_owner = {op.LeaseOwner}
@@ -210,7 +210,7 @@ public sealed class PostgresOperationStore(IAuditSphereDbContextFactory factory)
     if (!await GuardsAsync(db, op.FirmId, op.ClientId, options.DeploymentEpoch, ct) || !await OwnsAsync(db, op, options, ct)) return false;
     var retainLease = next is OperationState.REMOTE_STARTED or OperationState.VERIFYING or OperationState.CANCEL_REQUESTED;
     var seconds = Math.Max(0, delay?.TotalSeconds ?? 0);
-    var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
+    var count = await db.Database.ExecuteSqlAsync($"""
       UPDATE durable_operations SET status = {next.ToString()}, error_code = {error},
         attempt_count = CASE WHEN {refundDeferredAttempt} THEN GREATEST(0, attempt_count - 1) ELSE attempt_count END,
         next_attempt_at = statement_timestamp() + make_interval(secs => {seconds}),
@@ -241,7 +241,7 @@ public sealed class PostgresOperationStore(IAuditSphereDbContextFactory factory)
     if (!await OwnsAsync(db, op, options, ct)) return false;
     if (!OperationEncoding.Matches(op, handler)) throw new OperationBlockedException("request-integrity-conflict");
     var result = await handler.PublishAsync(db, op, remote, ct);
-    var count = await db.Database.ExecuteSqlInterpolatedAsync($"""
+    var count = await db.Database.ExecuteSqlAsync($"""
       UPDATE durable_operations SET status = 'COMPLETED', result_identity = {result.Identity}, result_digest = {result.Digest},
         completed_at = statement_timestamp(), error_code = NULL, lease_owner = NULL, lease_expires_at = NULL
       WHERE id = {op.Id} AND attempt_token = {op.AttemptToken} AND lease_owner = {op.LeaseOwner}
@@ -261,7 +261,7 @@ public sealed class PostgresOperationStore(IAuditSphereDbContextFactory factory)
     await using var db = await factory.CreateAsync(ct);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!await GuardsAsync(db, options.FirmId, null, options.DeploymentEpoch, ct)) return 0;
-    var expired = await db.DurableOperations.FromSqlInterpolated($"""
+    var expired = await db.DurableOperations.FromSql($"""
       SELECT * FROM durable_operations WHERE firm_id = {options.FirmId} AND execution_group = {options.Group}
         AND status IN ('CLAIMED','REMOTE_STARTED','VERIFYING','CANCEL_REQUESTED')
         AND lease_expires_at <= statement_timestamp()

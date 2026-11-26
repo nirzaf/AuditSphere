@@ -43,7 +43,7 @@ public sealed class GeneralLedgerCompletenessHandler : IOperationHandler
       throw new OperationBlockedException("completeness-scope-or-revision-conflict", authorization: true);
     var payload = ReadPayload(op.PayloadJson, op.TargetId);
     var accountingDb = RequireAccountingContext(db);
-    var dataset = await accountingDb.TrialBalanceDatasets.FromSqlInterpolated($"""
+    var dataset = await accountingDb.TrialBalanceDatasets.FromSql($"""
       SELECT * FROM trial_balance_datasets WHERE id = {op.TargetId} AND firm_id = {op.FirmId}
         AND client_id = {clientId} AND engagement_id = {engagementId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);

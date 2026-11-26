@@ -46,7 +46,7 @@ public static class ReceiptAllocationReversalService
         await LockReceiptAsync(db, actor.FirmId, context.Value.ReceiptId, ct) is null ||
         await LockInvoiceAsync(db, actor.FirmId, context.Value.InvoiceId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var allocation = await db.ReceiptAllocations.FromSqlInterpolated(
+    var allocation = await db.ReceiptAllocations.FromSql(
       $"SELECT * FROM allocations WHERE id = {allocationId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (allocation is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
@@ -127,7 +127,7 @@ public static class ReceiptAllocationReversalService
         await LockReceiptAsync(db, actor.FirmId, context.Value.ReceiptId, ct) is null ||
         await LockInvoiceAsync(db, actor.FirmId, context.Value.InvoiceId, ct) is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var allocation = await db.ReceiptAllocations.FromSqlInterpolated(
+    var allocation = await db.ReceiptAllocations.FromSql(
       $"SELECT * FROM allocations WHERE id = {snapshot.ReceiptAllocationId} AND firm_id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (allocation is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var reversal = await db.ReceiptAllocationReversals.SingleOrDefaultAsync(x =>
@@ -197,24 +197,24 @@ public static class ReceiptAllocationReversalService
   }
 
   private static Task<FirmSafetyState?> LockFirmAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
-    db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE")
+    db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
 
   private static async Task<bool> LockClientAsync(IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct) =>
-    await db.ClientSafetyStates.FromSqlInterpolated(
+    await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct) is not null;
 
   private static Task<BillingAccount?> LockAccountAsync(IAuditSphereDbContext db, Guid firmId, Guid id, CancellationToken ct) =>
-    db.BillingAccounts.FromSqlInterpolated($"SELECT * FROM billing_accounts WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
+    db.BillingAccounts.FromSql($"SELECT * FROM billing_accounts WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
 
   private static Task<Receipt?> LockReceiptAsync(IAuditSphereDbContext db, Guid firmId, Guid id, CancellationToken ct) =>
-    db.Receipts.FromSqlInterpolated($"SELECT * FROM receipts WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
+    db.Receipts.FromSql($"SELECT * FROM receipts WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
 
   private static Task<Invoice?> LockInvoiceAsync(IAuditSphereDbContext db, Guid firmId, Guid id, CancellationToken ct) =>
-    db.Invoices.FromSqlInterpolated($"SELECT * FROM invoices WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
+    db.Invoices.FromSql($"SELECT * FROM invoices WHERE id = {id} AND firm_id = {firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
 
   private static async Task<CommandResult<Guid>> CommitValueAsync(IDbContextTransaction? tx, Guid value, CancellationToken ct)

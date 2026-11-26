@@ -589,17 +589,17 @@ public static partial class WorkflowReminderRuleService
     AuthorizeAsync(db, actor, ReadRoles, ct);
 
   private static Task<FirmSafetyState?> LockFirmAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
-    db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE")
+    db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
 
   private static Task<WorkflowReminderRule?> LockRuleAsync(
     IAuditSphereDbContext db, Guid firmId, Guid ruleId, CancellationToken ct) =>
-    db.WorkflowReminderRules.FromSqlInterpolated($"SELECT * FROM workflow_reminder_rules WHERE firm_id = {firmId} AND id = {ruleId} FOR UPDATE")
+    db.WorkflowReminderRules.FromSql($"SELECT * FROM workflow_reminder_rules WHERE firm_id = {firmId} AND id = {ruleId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
 
   private static Task<WorkflowReminderRuleRevision?> LockRevisionAsync(
     IAuditSphereDbContext db, Guid firmId, Guid ruleId, Guid revisionId, CancellationToken ct) =>
-    db.WorkflowReminderRuleRevisions.FromSqlInterpolated($"SELECT * FROM workflow_reminder_rule_revisions WHERE firm_id = {firmId} AND rule_id = {ruleId} AND id = {revisionId} FOR UPDATE")
+    db.WorkflowReminderRuleRevisions.FromSql($"SELECT * FROM workflow_reminder_rule_revisions WHERE firm_id = {firmId} AND rule_id = {ruleId} AND id = {revisionId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
 
   private static Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction?> BeginIfNeededAsync(

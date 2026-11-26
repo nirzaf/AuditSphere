@@ -108,9 +108,9 @@ public sealed class WorkflowReminderRuleTests
       var createdDecisionId = await db.WorkflowReminderRuleDecisions.Where(x => x.RuleId == ruleId)
         .Select(x => x.Id).SingleAsync();
       await Assert.ThrowsAsync<PostgresException>(async () =>
-        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE workflow_reminder_rule_decisions SET rationale = 'rewritten' WHERE firm_id = {author.FirmId} AND id = {createdDecisionId}"));
+        await db.Database.ExecuteSqlAsync($"UPDATE workflow_reminder_rule_decisions SET rationale = 'rewritten' WHERE firm_id = {author.FirmId} AND id = {createdDecisionId}"));
       await Assert.ThrowsAsync<PostgresException>(async () =>
-        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM workflow_reminder_rule_decisions WHERE firm_id = {author.FirmId} AND id = {createdDecisionId}"));
+        await db.Database.ExecuteSqlAsync($"DELETE FROM workflow_reminder_rule_decisions WHERE firm_id = {author.FirmId} AND id = {createdDecisionId}"));
       Assert.Equal(1, await db.WorkflowReminderRuleDecisions.CountAsync(x => x.RuleId == ruleId));
 
       var selfReview = await WorkflowReminderRuleService.ReviewAsync(db, author, ruleId, firstRevisionId,
@@ -136,9 +136,9 @@ public sealed class WorkflowReminderRuleTests
       Assert.Equal(reviewer.UserId, reviewedRevision.ReviewedByUserId);
       Assert.Equal(savedDraft.ContentDigest, reviewedRevision.ContentDigest);
       await Assert.ThrowsAsync<PostgresException>(async () =>
-        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE workflow_reminder_rule_revisions SET quiet_hours_start = '20:00' WHERE firm_id = {author.FirmId} AND id = {firstRevisionId}"));
+        await db.Database.ExecuteSqlAsync($"UPDATE workflow_reminder_rule_revisions SET quiet_hours_start = '20:00' WHERE firm_id = {author.FirmId} AND id = {firstRevisionId}"));
       var reviewedBoundMutation = await Assert.ThrowsAsync<PostgresException>(async () =>
-        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE workflow_reminder_rule_revisions SET status = 'PUBLISHED', published_by_user_id = {author.UserId}, published_session_epoch = {author.SessionEpoch}, published_at = {DateTimeOffset.UtcNow}, max_scheduled_window_count = 2 WHERE firm_id = {author.FirmId} AND id = {firstRevisionId}"));
+        await db.Database.ExecuteSqlAsync($"UPDATE workflow_reminder_rule_revisions SET status = 'PUBLISHED', published_by_user_id = {author.UserId}, published_session_epoch = {author.SessionEpoch}, published_at = {DateTimeOffset.UtcNow}, max_scheduled_window_count = 2 WHERE firm_id = {author.FirmId} AND id = {firstRevisionId}"));
       Assert.Contains("schedule bound is immutable", reviewedBoundMutation.MessageText, StringComparison.Ordinal);
 
       var wrongPublicationDigest = await WorkflowReminderRuleService.PublishAsync(db, author, ruleId,
@@ -159,7 +159,7 @@ public sealed class WorkflowReminderRuleTests
       Assert.Equal(author.UserId, publishedRevision.PublishedByUserId);
       Assert.Equal(reviewer.UserId, publishedRevision.ReviewedByUserId);
       var publishedBoundMutation = await Assert.ThrowsAsync<PostgresException>(async () =>
-        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE workflow_reminder_rule_revisions SET status = 'SUPERSEDED', max_scheduled_window_count = 2 WHERE firm_id = {author.FirmId} AND id = {firstRevisionId}"));
+        await db.Database.ExecuteSqlAsync($"UPDATE workflow_reminder_rule_revisions SET status = 'SUPERSEDED', max_scheduled_window_count = 2 WHERE firm_id = {author.FirmId} AND id = {firstRevisionId}"));
       Assert.Contains("schedule bound is immutable", publishedBoundMutation.MessageText, StringComparison.Ordinal);
 
       var nextDefinition = definition with { QuietHoursStart = "20:00" };

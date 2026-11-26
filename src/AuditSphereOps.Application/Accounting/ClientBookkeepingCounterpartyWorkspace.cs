@@ -48,7 +48,7 @@ public static partial class ClientBookkeepingCounterpartyWorkspace
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "Provide bounded names, party role, country and optional details; external system and reference must be supplied together.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!(await Authorize(db, actor, clientId, ct)).Succeeded) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var client = await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var client = await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (client is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (!await Active(db, actor, clientId, ct)) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A current accepted native bookkeeping service is required for new counterparties.");
     if (currency.Length != 0 && !await db.ClientAccountingProfiles.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&

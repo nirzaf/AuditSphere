@@ -158,7 +158,7 @@ public sealed partial class AcceptanceChecklistTests
     var actor = kind is "ANSWER" or "REQUEST_REVIEW" ? w.Staff : kind == "DECISION" ? w.Partner : w.Manager;
     await using var blocker = new AuditSphereDbContext(pg.Options);
     await using var tx = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={w.FirmId} FOR UPDATE").SingleAsync();
+    await blocker.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={w.FirmId} FOR UPDATE").SingleAsync();
     var signal = new ObserveFirmLock();
     var options = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(signal).Options;
     await using var writer = new AuditSphereDbContext(options);
@@ -486,7 +486,7 @@ public sealed partial class AcceptanceChecklistTests
     Assert.Contains("Declined", (await ActivateAsync(pg, w.Partner, created.Value)).Message);
     await Record("Accepted", "FinancialStatementAudit", 1);
     Assert.Equal(ErrorCodes.GateBlocked, (await ActivateAsync(pg, w.Partner, created.Value)).ErrorCode); // route mismatch
-    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE client_safety_states SET input_generation = 2 WHERE id = {w.ClientId}");
+    await db.Database.ExecuteSqlAsync($"UPDATE client_safety_states SET input_generation = 2 WHERE id = {w.ClientId}");
     await Record("Accepted", "AccountingOnly", 1);
     Assert.Equal(ErrorCodes.GenerationStale, (await ActivateAsync(pg, w.Partner, created.Value)).ErrorCode);
     await Record("AcceptedWithConditions", "AccountingOnly", 2, "Receive signed representation letter");
@@ -515,7 +515,7 @@ public sealed partial class AcceptanceChecklistTests
     Assert.Equal(("Active", false), (live.Status, live.ProfessionalWorkBlocked));
     var record = await db.EngagementActivations.AsNoTracking().SingleAsync();
     Assert.Equal((current, 2L, w.PartnerUser.Id), (record.AcceptanceDecisionId, record.ClientGeneration, record.ActivatedByUserId));
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM engagement_activations WHERE id = {record.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"DELETE FROM engagement_activations WHERE id = {record.Id}"));
     var intent = await db.ClientPortalIntents.AsNoTracking().SingleAsync(x => x.PracticeClientId == w.ClientId);
     Assert.Equal((AuditSphereOps.Domain.Documents.ClientPortalIntentStates.AwaitingAcceptance, (Guid?)created.Value), (intent.State, intent.ActivatedEngagementId));
   }

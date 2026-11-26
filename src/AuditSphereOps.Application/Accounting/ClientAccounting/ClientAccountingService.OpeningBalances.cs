@@ -75,14 +75,14 @@ public static partial class ClientAccountingService
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await LockPeriodDecisionScopeAsync(db, actor, seed.CurrentPeriodId, ReviewerRoles, ct);
     if (!auth.Succeeded) return auth;
-    var period = await db.ClientReportingPeriods.FromSqlInterpolated(
+    var period = await db.ClientReportingPeriods.FromSql(
       $"SELECT * FROM client_reporting_periods WHERE id = {seed.CurrentPeriodId} AND firm_id = {actor.FirmId} AND client_id = {seed.ClientId} FOR UPDATE")
       .AsNoTracking().SingleAsync(ct);
     if (seed.PriorPeriodId is { } priorId)
-      await db.ClientReportingPeriods.FromSqlInterpolated(
+      await db.ClientReportingPeriods.FromSql(
         $"SELECT * FROM client_reporting_periods WHERE id = {priorId} AND firm_id = {actor.FirmId} AND client_id = {seed.ClientId} FOR SHARE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
-    var bridge = await db.OpeningBalanceBridges.FromSqlInterpolated(
+    var bridge = await db.OpeningBalanceBridges.FromSql(
       $"SELECT * FROM opening_balance_bridges WHERE id = {bridgeId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleAsync(ct);
     if (expectedSourceHash is not null && !string.Equals(expectedSourceHash, bridge.SourceHash, StringComparison.Ordinal))

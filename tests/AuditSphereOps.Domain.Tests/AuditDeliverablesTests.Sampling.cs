@@ -135,7 +135,7 @@ public sealed partial class AuditDeliverablesTests
     foreach (var decision in new[] { AuditItemTestReviewDecisions.ChangesRequired, AuditItemTestReviewDecisions.Reviewed })
     {
       var id = Guid.CreateVersion7();
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO audit_item_test_reviews
           (id, firm_id, client_id, engagement_id, selection_item_id, audit_item_test_id, test_revision, decision, reviewer_user_id, created_at)
         VALUES ({id}, {w.FirmId}, {w.ClientId}, {w.EngagementId}, {sample.Items[0]}, {test}, 1, {decision}, {w.U["manager"].Id}, {time})

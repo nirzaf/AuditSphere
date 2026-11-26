@@ -105,19 +105,27 @@ public static class AuditAreaSummaryQuery
       .Select(x => new { x.SelectionItemId, x.Result, x.Revision, x.TestedAt, x.Id }).ToListAsync(ct);
     var currentTests = tests.GroupBy(x => x.SelectionItemId).Select(g =>
       g.OrderByDescending(x => x.Revision).ThenByDescending(x => x.TestedAt).ThenByDescending(x => x.Id).First()).ToList();
+    // These three counters need no row detail: aggregate inside PostgreSQL to avoid buffering
+    // the current evidence rows in every area summary. Keep the existing revision filters.
     var cutOffs = await db.AuditCutOffTestRecords.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId) &&
         !db.AuditCutOffTestRecords.Any(newer => newer.FirmId == x.FirmId &&
           newer.EngagementId == x.EngagementId && newer.SelectionItemId == x.SelectionItemId && newer.Revision > x.Revision))
-      .Select(x => x.IsCutOffException).ToListAsync(ct);
+      .GroupBy(_ => 1)
+      .Select(g => new { Total = g.Count(), Exceptions = g.Count(x => x.IsCutOffException) })
+      .SingleOrDefaultAsync(ct);
     var matches = await db.AuditSubsequentMatchRecords.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && itemIds.Contains(x.SelectionItemId) &&
         !db.AuditSubsequentMatchRecords.Any(newer => newer.FirmId == x.FirmId &&
           newer.EngagementId == x.EngagementId && newer.SelectionItemId == x.SelectionItemId && newer.Revision > x.Revision))
-      .Select(x => x.State).ToListAsync(ct);
+      .GroupBy(_ => 1)
+      .Select(g => new { Total = g.Count(), Matched = g.Count(x => x.State == AuditSubsequentMatchStates.Matched) })
+      .SingleOrDefaultAsync(ct);
     var confirmations = await db.AuditConfirmationCases.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.AreaCode == area)
-      .Select(x => x.Status).ToListAsync(ct);
+      .GroupBy(_ => 1)
+      .Select(g => new { Total = g.Count(), Closed = g.Count(x => x.Status == AuditConfirmationStatuses.Closed) })
+      .SingleOrDefaultAsync(ct);
     var differences = await db.AuditDifferences.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
       .Select(x => new { x.Id, AccountArea = x.AccountArea, x.DifferenceType, x.Amount, x.Currency, x.Status, x.CorrectionState })
@@ -135,8 +143,8 @@ public static class AuditAreaSummaryQuery
     var allCurrentReviewed = procedureRows.Count > 0 && procedureRows.All(x =>
       evidence.GetValueOrDefault(x.Id)?.Satisfied == true ||
       applicability.GetValueOrDefault(x.Id) == AuditApplicabilityStatuses.NotApplicableApproved);
-    var hasBlockingEvidence = cutOffs.Any(x => x) ||
-      matches.Any(x => x != AuditSubsequentMatchStates.Matched) ||
+    var hasBlockingEvidence = cutOffs is { Exceptions: > 0 } ||
+      (matches is not null && matches.Matched < matches.Total) ||
       areaDifferences.Any(x => x.Status != AuditDifferenceStatuses.VerifiedReflected &&
         x.Status != AuditDifferenceStatuses.Corrected);
 
@@ -151,9 +159,9 @@ public static class AuditAreaSummaryQuery
       selections.Count, selectionItems.Count,
       currentTests.Count(x => x.Result != AuditItemTestResults.Pending),
       currentTests.Count(x => x.Result is AuditItemTestResults.Exception or AuditItemTestResults.Limitation),
-      cutOffs.Count, cutOffs.Count(x => x),
-      matches.Count, matches.Count(x => x == AuditSubsequentMatchStates.Matched),
-      confirmations.Count, confirmations.Count(x => x == AuditConfirmationStatuses.Closed),
+      cutOffs?.Total ?? 0, cutOffs?.Exceptions ?? 0,
+      matches?.Total ?? 0, matches?.Matched ?? 0,
+      confirmations?.Total ?? 0, confirmations?.Closed ?? 0,
       areaDifferences, allCurrentReviewed, hasBlockingEvidence));
   }
 

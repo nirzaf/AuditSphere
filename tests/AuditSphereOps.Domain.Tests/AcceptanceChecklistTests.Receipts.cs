@@ -277,7 +277,7 @@ public sealed partial class AcceptanceChecklistTests
       request = await ReviewAsync(review, w.Staff, w.ClientId, new("ANSWER", "1", "0", "CE-001", "Yes", "DOC"));
     await using var blocker = new AuditSphereDbContext(pg.Options);
     await using var tx = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={w.FirmId} FOR UPDATE").SingleAsync();
+    await blocker.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={w.FirmId} FOR UPDATE").SingleAsync();
     var signal = new ObserveFirmLock();
     await using var writer = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(signal).Options);
     using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));

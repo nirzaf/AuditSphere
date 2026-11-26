@@ -94,7 +94,7 @@ public sealed class DurableOutboxTests
     var fourth = (await h.EnqueueAsync(h.Request with { IdempotencyKey = "fourth" })).Value;
     await using var locked = h.Db();
     await using var tx = await locked.Database.BeginTransactionAsync();
-    await locked.DurableOperations.FromSqlInterpolated($"SELECT * FROM durable_operations WHERE id = {third} FOR UPDATE").ToListAsync();
+    await locked.DurableOperations.FromSql($"SELECT * FROM durable_operations WHERE id = {third} FOR UPDATE").ToListAsync();
     var next = await h.ClaimAsync("d").WaitAsync(TimeSpan.FromSeconds(3));
     Assert.Equal(fourth, next!.Id);
     await tx.RollbackAsync();
@@ -534,7 +534,7 @@ public sealed class DurableOutboxTests
     await h.SqlAsync("UPDATE durable_operations SET lease_expires_at = statement_timestamp() + interval '1 second'");
     await using var locked = h.Db();
     await using var tx = await locked.Database.BeginTransactionAsync();
-    await locked.DurableOperations.FromSqlInterpolated($"SELECT * FROM durable_operations WHERE id = {op.Id} FOR UPDATE").ToListAsync();
+    await locked.DurableOperations.FromSql($"SELECT * FROM durable_operations WHERE id = {op.Id} FOR UPDATE").ToListAsync();
     var pid = ((NpgsqlConnection)locked.Database.GetDbConnection()).ProcessID;
     var renew = h.Store.RenewAsync(op, h.Options, default);
     await using var observer = h.Db();
@@ -585,7 +585,7 @@ public sealed class DurableOutboxTests
       var target = Guid.NewGuid();
       await using var db = new AuditSphereDbContext(pg.Options);
       await db.Database.ExecuteSqlRawAsync("CREATE TABLE simulated_effects (operation_id uuid PRIMARY KEY, digest text NOT NULL); CREATE TABLE simulated_targets (id uuid PRIMARY KEY, firm_id uuid NOT NULL, revision bigint NOT NULL)");
-      await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO simulated_targets VALUES ({target}, {scope.FirmId}, 1)");
+      await db.Database.ExecuteSqlAsync($"INSERT INTO simulated_targets VALUES ({target}, {scope.FirmId}, 1)");
       return new() { Pg = pg, Factory = factory, Store = new(factory), Options = new(scope.FirmId, "Test", true),
         Request = new(scope.FirmId, scope.ClientId, scope.EngagementId, "SyntheticEffect.v1", target, 1, "key", "{\"value\":\"fixture\"}"),
         Handler = new(factory) };
@@ -736,7 +736,7 @@ public sealed class DurableOutboxTests
       var result = Expected(op);
       await using var remote = await factory.CreateAsync(ct);
       // Independent committed provider state survives a later application rollback.
-      await remote.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO simulated_effects VALUES ({op.Id}, {result.Digest}) ON CONFLICT DO NOTHING", ct);
+      await remote.Database.ExecuteSqlAsync($"INSERT INTO simulated_effects VALUES ({op.Id}, {result.Digest}) ON CONFLICT DO NOTHING", ct);
       Started.TrySetResult();
       if (Fault == "pause") await Release.Task.WaitAsync(ct);
       return await ReconcileAsync(op, ct);

@@ -163,7 +163,7 @@ public static class SpecialistSchedulePreparationWorkspace
     await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
     var locked = await GeneralLedgerCompletenessWorkspace.LockAsync(db, actor, f.ClientId, engagementId, ct);
     if (!locked.Succeeded) return Fail<SpecialistPreparationReceipt>(locked.ErrorCode!, locked.Message!);
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
     var hash = RequestHash(actor, engagementId, request);
     var existing = await db.SpecialistSchedulePreparations.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.ActorId == actor.UserId && x.RequestId == request.RequestId, ct);

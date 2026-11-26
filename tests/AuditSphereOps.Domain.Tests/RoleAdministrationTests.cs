@@ -215,7 +215,7 @@ public sealed class RoleAdministrationTests
     var actorContext = new ActorContext(actor.Id, firmId, actor.SessionEpoch, ["Administrator"]);
     await using var blocker = new AuditSphereDbContext(pg.Options);
     await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated(
+    await blocker.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleAsync();
 
     var signal = new ObserveFirmAdministrationLock();

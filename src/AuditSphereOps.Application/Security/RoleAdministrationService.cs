@@ -398,7 +398,7 @@ public static class RoleAdministrationService
   internal static async Task<CommandResult> LockFirmAndReauthorizeAsync(
     IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
   {
-    var firmGuard = await db.FirmSafetyStates.FromSqlInterpolated(
+    var firmGuard = await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (firmGuard is null)

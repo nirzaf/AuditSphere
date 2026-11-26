@@ -48,7 +48,7 @@ public static class ClientOpenItemAllocationWorkflow
     AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, clientId, RequiredRoles: roles, InternalOnly: true), ct);
 
   private static async Task<bool> LockClient(IClientAccountingDbContext db, ActorContext actor, Guid clientId, CancellationToken ct) =>
-    await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct) is not null;
+    await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct) is not null;
 
   public static async Task<CommandResult<IReadOnlyList<ClientOpenItemBalance>>> BalancesAsync(IClientAccountingDbContext db,
     ActorContext actor, Guid clientId, DateOnly asOfDate, CancellationToken ct = default)

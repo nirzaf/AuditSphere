@@ -82,7 +82,7 @@ public static partial class FinancialStatementService
     {
       if (db is not IClientAccountingDbContext creationDb)
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The typed mapping creation context is required.");
-      var engagement = await creationDb.Engagements.FromSqlInterpolated(
+      var engagement = await creationDb.Engagements.FromSql(
         $"SELECT * FROM engagements WHERE firm_id = {actor.FirmId} AND id = {dataset.EngagementId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
       if (engagement?.PracticeClientId != dataset.ClientId)
         return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -180,7 +180,7 @@ public static partial class FinancialStatementService
     if (client is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
     var mapping = await db.MappingVersions
-      .FromSqlInterpolated($"SELECT * FROM mapping_versions WHERE id = {mappingVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
+      .FromSql($"SELECT * FROM mapping_versions WHERE id = {mappingVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (mapping is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");

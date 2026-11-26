@@ -25,7 +25,7 @@ public sealed class AccountingBackfillMigrationTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       // Insert with the legacy column set: the current AppUser model has columns added by later migrations.
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO users (id, firm_id, subject, tenant_id, email, display_name, user_kind, disabled, session_epoch, created_at)
         VALUES ({userId}, {firmId}, 'backfill-user', 'test', 'backfill@example.invalid', 'Backfill fixture', 'Staff', false, 1, {DateTimeOffset.UtcNow})
         """);
@@ -37,7 +37,7 @@ public sealed class AccountingBackfillMigrationTests
       foreach (var fixture in new[] { exact, ambiguous })
       {
         var m = fixture.Mapping;
-        await db.Database.ExecuteSqlInterpolatedAsync($"""
+        await db.Database.ExecuteSqlAsync($"""
           INSERT INTO mapping_versions
             (id, firm_id, client_id, engagement_id, dataset_id, version, generation,
              taxonomy_version, period_start, period_end, status, created_by_user_id, created_at)
@@ -67,7 +67,7 @@ public sealed class AccountingBackfillMigrationTests
     Assert.Contains(quarantine, x => x.TargetId == ambiguous.Dataset.Id && x.ContextKind == "REPORTING_PERIOD");
     Assert.Contains(quarantine, x => x.TargetId == ambiguous.Mapping.Id && x.ContextKind == "CLIENT_CHART_VERSION");
 
-    var error = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+    var error = await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlAsync(
       $"DELETE FROM accounting_backfill_quarantines WHERE id = {quarantine[0].Id}"));
     Assert.Contains("append-only", error.MessageText);
   }
@@ -122,7 +122,7 @@ public sealed class AccountingBackfillMigrationTests
 
   private static async Task AddAsync(AuditSphereDbContext db, Fixture fixture)
   {
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
+    await db.Database.ExecuteSqlAsync($"""
       INSERT INTO practice_clients (id, firm_id, legal_name, created_at, status)
       VALUES ({fixture.Client.Id}, {fixture.Client.FirmId}, {fixture.Client.LegalName}, {fixture.Client.CreatedAt}, 'Active')
       """);

@@ -44,7 +44,7 @@ public sealed class AutomaticFeeInvoiceHandler(AutomaticFeeInvoicePolicy policy)
         !(await AuthorizationDecision.AuthorizeAsync(db, finance, new(op.FirmId, RequiredRoles: ["FinanceManager"], InternalOnly: true, RequireFirmWide: true), ct)).Succeeded ||
         !(await AuthorizationDecision.AuthorizeAsync(db, administrator, new(op.FirmId, RequiredRoles: ["Administrator"], InternalOnly: true, RequireFirmWide: true), ct)).Succeeded)
       throw new OperationBlockedException("fee-invoice-standing-authority-revoked", authorization: true);
-    var milestone = await db.FeeMilestones.FromSqlInterpolated($"SELECT * FROM fee_milestones WHERE id = {op.TargetId} AND firm_id = {op.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var milestone = await db.FeeMilestones.FromSql($"SELECT * FROM fee_milestones WHERE id = {op.TargetId} AND firm_id = {op.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     var agreement = await db.EngagementFeeAgreements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == op.FirmId && x.Id == intent.AgreementId && x.PracticeClientId == op.ClientId && x.EngagementId == op.EngagementId, ct);
     if (milestone is null || agreement is null || milestone.AgreementId != agreement.Id || milestone.Kind != intent.Kind)
       throw new OperationBlockedException("fee-invoice-scope-mismatch", authorization: true);

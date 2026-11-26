@@ -271,7 +271,7 @@ public sealed partial class PbcTransferTests
       {
         await using var holder = new AuditSphereDbContext(pg.Options);
         await using var held = await holder.Database.BeginTransactionAsync(timeout.Token);
-        await holder.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={f.FirmId} FOR UPDATE")
+        await holder.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={f.FirmId} FOR UPDATE")
           .AsNoTracking().SingleAsync(timeout.Token);
         var holderPid = await holder.Database.SqlQueryRaw<int>("SELECT pg_backend_pid() AS \"Value\"").SingleAsync(timeout.Token);
         var nameA = "task03-approve-a-" + Guid.NewGuid().ToString("N");
@@ -338,7 +338,7 @@ public sealed partial class PbcTransferTests
           Reason = "Revoke the earlier synthetic approval after source change.", IdempotencyKey = Guid.NewGuid() });
       Assert.True(revoked.Succeeded, revoked.Message);
       Assert.Equal(3, await commands.WorkflowTaskApplicabilityDecisions.CountAsync());
-      var update = await Assert.ThrowsAsync<PostgresException>(() => commands.Database.ExecuteSqlInterpolatedAsync(
+      var update = await Assert.ThrowsAsync<PostgresException>(() => commands.Database.ExecuteSqlAsync(
         $"UPDATE workflow_task_applicability_proposals SET reason='rewrite' WHERE id={proposal.Value.ProposalId}"));
       Assert.Equal(PostgresErrorCodes.RaiseException, update.SqlState);
       var truncate = await Assert.ThrowsAsync<PostgresException>(() => commands.Database.ExecuteSqlRawAsync(

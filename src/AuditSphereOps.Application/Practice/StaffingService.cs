@@ -50,7 +50,7 @@ public static class StaffingService
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (StaffingLevels.Rank(level) > await ActorRankAsync(db, actor, engagement.PracticeClientId, engagement.Id, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "You cannot staff someone above your own level.");
-    var target = await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={request.UserId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var target = await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={request.UserId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (target is null || target.Disabled || target.UserKind != "Staff")
       return CommandResult<Guid>.Fail("staffing.ineligible", "Only an enabled staff identity can be staffed.");
     var active = await db.EngagementStaffAssignments.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagement.Id && x.RevokedAt == null).ToListAsync(ct);
@@ -117,7 +117,7 @@ public static class StaffingService
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (StaffingLevels.Rank(snapshot.StaffingLevel) > await ActorRankAsync(db, actor, snapshot.ClientId, snapshot.EngagementId, ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "You cannot revoke someone above your own level.");
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={snapshot.UserId} FOR UPDATE")
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={snapshot.UserId} FOR UPDATE")
       .AsNoTracking().SingleAsync(ct);
     var assignment = await db.EngagementStaffAssignments.SingleAsync(x => x.Id == assignmentId && x.FirmId == actor.FirmId, ct);
     if (assignment.RevokedAt is not null) return CommandResult.Ok();
@@ -148,11 +148,11 @@ public static class StaffingService
   private static async Task<bool> LockAuthorityAsync(IAuditSphereDbContext db, ActorContext actor,
     Guid clientId, Guid engagementId, CancellationToken ct)
   {
-    if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
+    if (await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
-    if (await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE")
+    if (await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
-    if (await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE")
+    if (await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
     return (await AuthorizationDecision.AuthorizeAsync(db, actor,
       new(actor.FirmId, clientId, engagementId, StaffingRoles, InternalOnly: true), ct)).Succeeded;

@@ -28,10 +28,10 @@ public sealed partial class ClientAccountingTests
     Assert.True(created.Succeeded, created.Message);
     var openingId = created.Value!.Opening.Id;
     var proof = await db.ClientOperationalOpeningSuccessorProofs.AsNoTracking().SingleAsync(x => x.OpeningId == openingId);
-    var update = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    var update = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE client_operational_opening_successor_proofs SET proof_json='{{}}' WHERE opening_id={openingId}"));
     Assert.Equal("55000", update.SqlState);
-    var delete = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    var delete = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"DELETE FROM client_operational_opening_successor_proofs WHERE opening_id={openingId}"));
     Assert.Equal("55000", delete.SqlState);
     var truncate = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync(

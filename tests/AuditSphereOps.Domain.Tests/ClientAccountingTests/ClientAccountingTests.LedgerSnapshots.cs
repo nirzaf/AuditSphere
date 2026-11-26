@@ -27,7 +27,7 @@ public sealed partial class ClientAccountingTests
     {
       // This fixture deliberately stops before later acceptance columns were introduced;
       // seed its historical shape instead of asking the current EF model to write future fields.
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO acceptance_decisions
           (id,firm_id,practice_client_id,engagement_id,decision,service_route,generation,decided_by_user_id,decided_at,
            conditions,evaluation_snapshot_digest,evaluation_template_version,rationale,path,prior_decision_id)
@@ -75,30 +75,30 @@ public sealed partial class ClientAccountingTests
       await using var transaction = await db.Database.BeginTransactionAsync();
       // Seed a legitimate pre-upgrade posted row without EF's current model column,
       // which does not exist until the migration under test runs.
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO client_operational_journals
           (id,firm_id,client_id,period_id,journal_number,description,posting_date,currency,status,revision,created_by_user_id,created_at)
         VALUES ({journalId},{scope.FirmId},{scope.ClientA},{periodId},{"J-LEGACY-SNAPSHOT"},{"Posted before snapshot migration"},
           {new DateOnly(2026, 1, 15)},{"QAR"},{"DRAFT"},{1L},{scope.Preparer.Id},{now})
         """);
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO client_operational_journal_lines
           (id,firm_id,client_id,journal_id,line_number,client_account_id,account_code,account_name,description,debit,credit)
         VALUES ({Guid.CreateVersion7()},{scope.FirmId},{scope.ClientA},{journalId},{1},{expense.Id},{expense.AccountCode},{expense.AccountName},{"Expense"},{40m},{0m}),
           ({Guid.CreateVersion7()},{scope.FirmId},{scope.ClientA},{journalId},{2},{cash.Id},{cash.AccountCode},{cash.AccountName},{"Cash"},{0m},{40m})
         """);
-      await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE client_operational_journals SET status='SUBMITTED',revision=2,submitted_at={now} WHERE id={journalId}");
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"UPDATE client_operational_journals SET status='SUBMITTED',revision=2,submitted_at={now} WHERE id={journalId}");
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO client_operational_journal_decisions
           (id,firm_id,client_id,journal_id,journal_revision,decision,reason,actor_user_id,created_at)
         VALUES ({Guid.CreateVersion7()},{scope.FirmId},{scope.ClientA},{journalId},{2L},{"APPROVE"},{"Reviewed before snapshot migration"},{scope.Reviewer.Id},{now})
         """);
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         UPDATE client_operational_journals
         SET status='POSTED',revision=3,posted_by_user_id={scope.Reviewer.Id},posted_at={now}
         WHERE id={journalId}
         """);
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO client_operational_posting_receipts
           (id,firm_id,client_id,command_id,journal_id,actor_user_id,submitted_revision,posted_revision,intent_hash,preview_digest,recorded_at)
         VALUES ({Guid.CreateVersion7()},{scope.FirmId},{scope.ClientA},{commandId},{journalId},{scope.Reviewer.Id},{2L},{3L},

@@ -96,7 +96,7 @@ public sealed class WorkpaperCommandReceiptTests
   public async Task FirstReturnAndOriginalRecoveryUseCanonicalUtcAndPersistedPrecision(string zone)
   {
     await using var pg=await PgTestSchema.CreateAsync();var w=await WorkpaperCommandReceiptSeed.SeedAsync(pg);await using var db=new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(new ReceiptInterceptor()).Options);
-    await db.Database.OpenConnectionAsync();await db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('TimeZone',{zone},false)");
+    await db.Database.OpenConnectionAsync();await db.Database.ExecuteSqlAsync($"SELECT set_config('TimeZone',{zone},false)");
     var r=await WorkpaperCommandReceiptSeed.SaveAsync(db,w);var first=await WorkpaperCommandWorkspace.ExecuteAsync(db,w.Staff,w.WorkpaperId,r);Assert.True(first.Succeeded,first.Message);Assert.Equal(0,first.Value!.CreatedAt.Ticks%10);Assert.Equal(TimeSpan.Zero,first.Value.CommandEvent.After.Draft!.LastSavedAt.Offset);
     await using var fresh=new AuditSphereDbContext(pg.Options);Assert.Equal(Exact(first.Value),Exact((await WorkpaperCommandWorkspace.ExecuteAsync(fresh,w.Staff,w.WorkpaperId,r)).Value));Assert.Equal(Exact(first.Value),Exact((await WorkpaperCommandWorkspace.LookupAsync(fresh,w.Staff,w.WorkpaperId,r.RequestId,r.ExpectedRequestHash)).Value!.Receipt));
   }
@@ -154,7 +154,7 @@ public sealed class WorkpaperCommandReceiptTests
     await using var pg=await PgTestSchema.CreateAsync();var w=await WorkpaperCommandReceiptSeed.SeedAsync(pg);
     await using var setup=new AuditSphereDbContext(pg.Options);var request=await WorkpaperCommandReceiptSeed.SaveAsync(setup,w);
     await using var revoker=new AuditSphereDbContext(pg.Options);await using var tx=await revoker.Database.BeginTransactionAsync();
-    await revoker.Database.ExecuteSqlInterpolatedAsync($"SELECT id FROM firm_safety_states WHERE id={w.Fixture.FirmId} FOR UPDATE");
+    await revoker.Database.ExecuteSqlAsync($"SELECT id FROM firm_safety_states WHERE id={w.Fixture.FirmId} FOR UPDATE");
     await using var writer=new AuditSphereDbContext(pg.Options);var publish=WorkpaperCommandWorkspace.ExecuteAsync(writer,w.Staff,w.WorkpaperId,request);
     await Task.Delay(150);Assert.False(publish.IsCompleted);
     await revoker.RoleGrants.Where(x=>x.UserId==w.Staff.UserId).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.RevokedAt,DateTimeOffset.UtcNow));await tx.CommitAsync();
@@ -245,7 +245,7 @@ public sealed class WorkpaperCommandReceiptTests
     await using var pg=await PgTestSchema.CreateAsync();var w=await WorkpaperCommandReceiptSeed.SeedAsync(pg);await using var db=new AuditSphereDbContext(pg.Options);
     var id=Guid.NewGuid();var actor=w.Staff.UserId.ToString();var epoch=w.Staff.SessionEpoch.ToString();var contextPaper=(exactPaper?id:Guid.NewGuid()).ToString();
     await using var tx=await db.Database.BeginTransactionAsync();
-    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('audit.workpaper_action','PROCEDURE_SUBMIT',true),set_config('audit.workpaper_actor_id',{actor},true),set_config('audit.workpaper_actor_epoch',{epoch},true),set_config('audit.workpaper_procedure_paper',{contextPaper},true)");
+    await db.Database.ExecuteSqlAsync($"SELECT set_config('audit.workpaper_action','PROCEDURE_SUBMIT',true),set_config('audit.workpaper_actor_id',{actor},true),set_config('audit.workpaper_actor_epoch',{epoch},true),set_config('audit.workpaper_procedure_paper',{contextPaper},true)");
     db.Workpapers.Add(new Workpaper{Id=id,FirmId=w.Fixture.FirmId,ClientId=w.Fixture.ClientId,EngagementId=w.Fixture.EngagementId,ProcedureId=w.ProcedureId,ActorId=w.Staff.UserId,Index="SYN-FORGED",Title="Synthetic refusal",Objective="Synthetic refusal",TemplateVersion="synthetic",Procedure="Synthetic",Revision=1,Status=WorkpaperStatuses.SubmittedSnapshot,WorkPerformed="Synthetic",Conclusion="Synthetic",CreatedAt=DateTimeOffset.UtcNow,SubmittedAt=DateTimeOffset.UtcNow});
     if(exactPaper){await db.SaveChangesAsync();Assert.Equal("23514",(await Assert.ThrowsAsync<PostgresException>(()=>tx.CommitAsync())).SqlState);}
     else {var error=await Assert.ThrowsAnyAsync<Exception>(()=>db.SaveChangesAsync());Assert.Equal("55000",Assert.IsType<PostgresException>(error.GetBaseException()).SqlState);}

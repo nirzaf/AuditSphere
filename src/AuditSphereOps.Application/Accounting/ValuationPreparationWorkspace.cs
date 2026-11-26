@@ -138,7 +138,7 @@ public static class ValuationPreparationWorkspace
     await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
     var locked=await GeneralLedgerCompletenessWorkspace.LockAsync(db,a,context.ClientId,context.EngagementId,ct);
     if(!locked.Succeeded)return Fail<ValuationPreparationReceipt>(locked.ErrorCode!,locked.Message!);
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
     var hash=Hash(a,kind,id,request);
     var prior=await db.ValuationPreparations.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId&&x.ActorId==a.UserId&&x.RequestId==request.RequestId,ct);
     if(prior is not null)
@@ -149,7 +149,7 @@ public static class ValuationPreparationWorkspace
     }
     var mutable=await GeneralLedgerCompletenessWorkspace.MutablePeriodAsync(db,a,context.ClientId,context.EngagementId,context.PeriodId,context.BookId,ct);
     if(!mutable.Succeeded)return Fail<ValuationPreparationReceipt>(mutable.ErrorCode!,mutable.Message!);
-    await db.AccountingReconciliations.FromSqlInterpolated($"SELECT * FROM accounting_reconciliations WHERE id={id} AND firm_id={a.FirmId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    await db.AccountingReconciliations.FromSql($"SELECT * FROM accounting_reconciliations WHERE id={id} AND firm_id={a.FirmId} FOR SHARE").AsNoTracking().SingleAsync(ct);
     var preview=await PreviewAsync(db,a,kind,id,request,ct);
     if(!preview.Succeeded)return Fail<ValuationPreparationReceipt>(preview.ErrorCode!,preview.Message!);
     if(!preview.Value!.CanProceed)return Fail<ValuationPreparationReceipt>(ErrorCodes.GateBlocked,preview.Value.Blockers.First());

@@ -147,6 +147,66 @@ public sealed class AdministrationAccessInvitationApiTests
     db.SpecialistClearances.Add(new(){Id=Guid.NewGuid(),FirmId=seed.FirmId,PracticeClientId=seed.ClientId,Area="Independence",SpecialistName="Synthetic reviewer",Status="HOLD",CreatedAt=DateTimeOffset.UtcNow});await db.SaveChangesAsync();
     using var result=await PostAsync(client,"/api/ui/administration/access/"+action,JsonContent.Create(new{request,reviewDigest=digest,reviewed=true}),proof);Assert.Equal(HttpStatusCode.Conflict,result.StatusCode);Assert.Empty(await db.UserAccessInvitations.ToListAsync());Assert.False(await db.RoleGrants.AnyAsync(x=>x.UserId==seed.Staff.Id && x.Role=="Manager"));
   }
+
+  [Fact]
+  public async Task FirmWidePartnerLookupPaginatesAndRejectsInvalidRequests()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-FIRM-PARTNER-LOOKUP");
+    var seed = await PbcSeed.SeedAsync(pg);
+    var partnerIds = new[]
+    {
+      Guid.Parse("00000000-0000-0000-0000-000000000101"),
+      Guid.Parse("00000000-0000-0000-0000-000000000202")
+    };
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      foreach (var (id, name) in partnerIds.Zip(new[] { "First Partner", "Second Partner" }))
+      {
+        var partner = PbcSeed.User(seed.FirmId, "Staff");
+        partner.Id = id;
+        partner.DisplayName = name;
+        partner.Email = name.Replace(' ', '.').ToLowerInvariant() + "@example.test";
+        var grant = PbcSeed.Grant(seed.FirmId, partner, "Partner");
+        grant.GrantedByUserId = seed.Admin.Id;
+        db.Users.Add(partner);
+        db.RoleGrants.Add(grant);
+      }
+      await db.SaveChangesAsync();
+    }
+
+    using (var staffFactory = Factory(pg.ConnectionString, seed.Staff.Subject, seed.Staff.TenantId))
+    using (var staff = staffFactory.CreateClient(new() { AllowAutoRedirect = false }))
+    {
+      await SignInAsync(staff);
+      Assert.Equal(HttpStatusCode.Forbidden,
+        (await staff.GetAsync("/api/ui/administration/access/partners?pageSize=1")).StatusCode);
+    }
+
+    using var adminFactory = Factory(pg.ConnectionString, seed.Admin.Subject, seed.Admin.TenantId);
+    using var admin = adminFactory.CreateClient(new() { AllowAutoRedirect = false });
+    await SignInAsync(admin);
+    using var first = await admin.GetAsync("/api/ui/administration/access/partners?pageSize=1");
+    Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+    Assert.Equal("private, no-store", first.Headers.CacheControl?.ToString());
+    var firstValue = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value");
+    Assert.Equal(partnerIds[0], firstValue.GetProperty("rows")[0].GetProperty("userId").GetGuid());
+    var cursor = firstValue.GetProperty("nextCursor").GetString();
+    Assert.False(string.IsNullOrWhiteSpace(cursor));
+
+    using var second = await admin.GetAsync("/api/ui/administration/access/partners?pageSize=1&cursor=" + Uri.EscapeDataString(cursor!));
+    Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+    var secondValue = (await second.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("value");
+    Assert.Equal(partnerIds[1], secondValue.GetProperty("rows")[0].GetProperty("userId").GetGuid());
+    Assert.Equal(JsonValueKind.Null, secondValue.GetProperty("nextCursor").ValueKind);
+
+    Assert.Equal(HttpStatusCode.BadRequest,
+      (await admin.GetAsync("/api/ui/administration/access/partners?pageSize=51")).StatusCode);
+    Assert.Equal(HttpStatusCode.BadRequest,
+      (await admin.GetAsync("/api/ui/administration/access/partners?unexpected=1")).StatusCode);
+    Assert.Equal(HttpStatusCode.BadRequest,
+      (await admin.GetAsync("/api/ui/administration/access/partners?pageSize=1&cursor=not-a-protected-cursor")).StatusCode);
+  }
+
   [Fact]
   public async Task InvitationRequiresExpansionAssentEvenWithReviewedEnvelopeAndRejectsRevokedAdministrator()
   {

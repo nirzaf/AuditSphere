@@ -65,10 +65,10 @@ public static partial class ResourcePlanningService
     }))).ToLowerInvariant();
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     // Serialize review heads and retries with staffing/role publication before reading the exact source.
-    if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
+    if (await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    if (await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR UPDATE")
+    if (await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor, authority, ct);
@@ -80,7 +80,7 @@ public static partial class ResourcePlanningService
     var source = await db.StaffCertifications.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == request.CertificationId, ct);
     if (source is null || source.UserId == actor.UserId || source.RecordedByUserId == actor.UserId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "An independent authorized reviewer is required.");
-    var subject = await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={source.UserId} FOR UPDATE")
+    var subject = await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={source.UserId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (subject is null || subject.UserKind != "Staff" || decision == "VERIFIED" && subject.Disabled)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Current staff identity is required.");

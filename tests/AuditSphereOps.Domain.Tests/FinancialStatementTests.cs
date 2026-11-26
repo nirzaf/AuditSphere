@@ -366,7 +366,7 @@ public sealed class FinancialStatementTests
         Assert.Equal(source.BatchId, link.GetProperty("SourceImportBatchId").GetGuid());
         Assert.Matches("^[a-f0-9]{64}$", link.GetProperty("SourceLineHash").GetString());
       }
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE financial_package_note_lines SET source_lineage_json = '[]'::jsonb WHERE id = {linkedNote.Id}"));
       var historicalPackage = await db.FinancialPackages.AsNoTracking().SingleAsync(x => x.Id == first.PackageId);
       Assert.Equal(request.TemplateVersion, historicalPackage.TemplateVersion);
@@ -387,13 +387,13 @@ public sealed class FinancialStatementTests
       Assert.Contains(checks, x => x.Code == "NOTE_TO_FACE_TOTALS" && x.Passed);
 
       var cashFlowLineId = await db.FinancialPackageCashFlowLines.Where(x => x.FinancialPackageId == completePackageId).Select(x => x.Id).SingleAsync();
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE financial_package_cash_flow_lines SET amount = amount + 1 WHERE id = {cashFlowLineId}"));
       var equityLineId = await db.FinancialPackageEquityLines.Where(x => x.FinancialPackageId == completePackageId && x.LineCode == "RETAINED_EARNINGS")
         .Select(x => x.Id).SingleAsync();
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE financial_package_equity_lines SET closing_amount = closing_amount + 1 WHERE id = {equityLineId}"));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE financial_package_equity_transfers SET amount = amount + 1 WHERE id = {transfer.Id}"));
     }
 
@@ -419,7 +419,7 @@ public sealed class FinancialStatementTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var lineId = await db.FinancialPackageLines.Select(x => x.Id).FirstAsync();
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE financial_package_lines SET amount = amount + 1 WHERE id = {lineId}"));
     }
   }
@@ -998,13 +998,13 @@ public sealed class FinancialStatementTests
       }
 
       // Both the immutable input snapshot and the exact rendered bytes are protected by database triggers.
-      var updatePin = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      var updatePin = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE financial_statement_presentation_revisions SET display_policy = {"tampered"} WHERE id = {pin.RevisionId}"));
       Assert.Equal("P0001", updatePin.SqlState);
-      var updateBytes = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      var updateBytes = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE financial_package_artifacts SET artifact_sha256_hex = {new string('0', 64)} WHERE id = {firstPinnedDocx.Value.ArtifactId}"));
       Assert.Equal("P0001", updateBytes.SqlState);
-      var deleteArtifact = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      var deleteArtifact = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"DELETE FROM financial_statement_presentation_artifacts WHERE id = {firstPinnedDocx.Value.ArtifactId}"));
       Assert.Equal("P0001", deleteArtifact.SqlState);
 

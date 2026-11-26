@@ -159,7 +159,7 @@ public static class TrialBalanceImportService
       return CommandResult<IReadOnlyList<Guid>>.Fail(source.ErrorCode!, source.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var lockedEngagement = await db.Engagements.FromSqlInterpolated($"""
+    var lockedEngagement = await db.Engagements.FromSql($"""
       SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {engagement.FirmId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     if (lockedEngagement is null || lockedEngagement.PracticeClientId != clientId)
@@ -224,7 +224,7 @@ public static class TrialBalanceImportService
     try
     {
       await db.SaveChangesAsync(ct);
-      await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE trial_balance_datasets SET import_state = 'SEALED' WHERE import_batch_id = {batch.Id}", ct);
+      await db.Database.ExecuteSqlAsync($"UPDATE trial_balance_datasets SET import_state = 'SEALED' WHERE import_batch_id = {batch.Id}", ct);
       batch.Status = TrialBalanceImportStates.Sealed;
       await db.SaveChangesAsync(ct);
       await tx.CommitAsync(ct);
@@ -276,14 +276,14 @@ public static class TrialBalanceImportService
     // clients/engagements. The parent is first persisted as LOADING, rows are
     // inserted, and only then is the parent promoted to SEALED in this transaction.
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var lockedEngagement = await db.Engagements.FromSqlInterpolated($"""
+    var lockedEngagement = await db.Engagements.FromSql($"""
       SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {engagement.FirmId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     if (lockedEngagement is null || lockedEngagement.PracticeClientId != clientId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     // Fence period closure and changed currency/basis at the actual per-period publication boundary.
-    await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE id = {sourceContext.PeriodId} AND firm_id = {actor.FirmId} FOR UPDATE")
+    await db.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE id = {sourceContext.PeriodId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     source = await ResolveSourceContextAsync(db, actor, clientId, engagementId, sourceContext, parsed.Currency, ct);
     if (!source.Succeeded) return CommandResult<Guid>.Fail(source.ErrorCode!, source.Message!);

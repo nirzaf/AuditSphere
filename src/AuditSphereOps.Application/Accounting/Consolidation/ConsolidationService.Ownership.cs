@@ -34,10 +34,10 @@ public static partial class ConsolidationService
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     // Serialize perimeter changes, ownership graph edits and perimeter approval in that order.
-    var group = await db.ClientGroups.FromSqlInterpolated(
+    var group = await db.ClientGroups.FromSql(
       $"SELECT * FROM client_groups WHERE id = {scope.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
-    scope = await db.ConsolidationScopeVersions.FromSqlInterpolated(
+    scope = await db.ConsolidationScopeVersions.FromSql(
       $"SELECT * FROM consolidation_scope_versions WHERE id = {request.ScopeVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (scope is null || group is null || scope.GroupId != group.Id)

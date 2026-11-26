@@ -26,7 +26,7 @@ public static partial class ConsolidationService
   // take this row exclusively; current group authority is rechecked after the locks.
   private static async Task<bool> LockGroupAuthorityFenceAsync(
     IClientAccountingDbContext db, Guid firmId, CancellationToken ct) =>
-    await db.FirmSafetyStates.FromSqlInterpolated(
+    await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is not null;
 

@@ -55,8 +55,8 @@ public sealed class ConfirmationApiTests
       var proof=await proofDb.AuditConfirmationClosures.SingleAsync();Assert.Equal(closure.GetProperty("id").GetGuid(),proof.Id);
       Assert.Equal(proof.EvidenceSha256,Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(proof.EvidenceSnapshotJson))));
       using var snapshot=JsonDocument.Parse(proof.EvidenceSnapshotJson);Assert.Equal(2,snapshot.RootElement.GetProperty("CurrentResponse").GetProperty("Revision").GetInt64());Assert.Equal(latest.GetProperty("id").GetGuid(),snapshot.RootElement.GetProperty("CurrentResponse").GetProperty("Id").GetGuid());
-      await Assert.ThrowsAsync<Npgsql.PostgresException>(()=>proofDb.Database.ExecuteSqlInterpolatedAsync($"UPDATE audit_confirmation_closures SET conclusion = 'tampered' WHERE id = {proof.Id}"));
-      await Assert.ThrowsAsync<Npgsql.PostgresException>(()=>proofDb.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM audit_confirmation_closures WHERE id = {proof.Id}"));
+      await Assert.ThrowsAsync<Npgsql.PostgresException>(()=>proofDb.Database.ExecuteSqlAsync($"UPDATE audit_confirmation_closures SET conclusion = 'tampered' WHERE id = {proof.Id}"));
+      await Assert.ThrowsAsync<Npgsql.PostgresException>(()=>proofDb.Database.ExecuteSqlAsync($"DELETE FROM audit_confirmation_closures WHERE id = {proof.Id}"));
     }
 
     await using var db=new AuditSphereDbContext(pg.Options);Assert.Single(await db.AuditConfirmationCases.ToListAsync());Assert.Equal(2,await db.AuditConfirmationResponses.CountAsync());

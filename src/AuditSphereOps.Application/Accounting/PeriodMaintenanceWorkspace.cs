@@ -25,8 +25,8 @@ public static class PeriodMaintenanceWorkspace
     if (db.Database.CurrentTransaction is null) throw new InvalidOperationException("Request recovery requires a transaction.");
     var digest = Hashing.Sha256Hex(JsonSerializer.Serialize(new { Namespace = "period-maintenance-request-v1", actor.FirmId, actor.UserId, requestId }));
     var key = unchecked((long)Convert.ToUInt64(digest[..16], 16));
-    if (publishing) await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", ct);
-    else await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
+    if (publishing) await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({key})", ct);
+    else await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
   }
 
   internal static PeriodMaintenanceRequest Normalize(PeriodMaintenanceRequest r) => r with
@@ -181,9 +181,9 @@ public static class PeriodMaintenanceWorkspace
     var auth = await AuthorizeAsync(db, a, clientId, PeriodMaintenanceActions.RollForward, ct);
     if (!auth.Succeeded) return Fail<PeriodMaintenanceLookup>(auth.ErrorCode!, auth.Message!);
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-    await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={clientId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={clientId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
     // One actor/request barrier also covers mismatched-client lookups while publication is pending.
     await RequestBarrierAsync(db, a, requestId, false, ct);
     auth = await AuthorizeAsync(db, a, clientId, PeriodMaintenanceActions.RollForward, ct);

@@ -222,12 +222,12 @@ public static partial class AdjustmentPlanWorkspace
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var locked = await GeneralLedgerCompletenessWorkspace.LockAsync(db, actor, client, engagement, ct);
     if (!locked.Succeeded) return Fail<PlanCommandReceipt>(locked.ErrorCode!, locked.Message!);
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
-    await db.TrialBalanceDatasets.FromSqlInterpolated($"SELECT * FROM trial_balance_datasets WHERE firm_id={actor.FirmId} AND id={dataset} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    await db.TrialBalanceDatasets.FromSql($"SELECT * FROM trial_balance_datasets WHERE firm_id={actor.FirmId} AND id={dataset} FOR SHARE").AsNoTracking().SingleAsync(ct);
     if (r.Action == "FINALIZE")
     {
-      await db.AdjustmentPlans.FromSqlInterpolated($"SELECT * FROM adjustment_plans WHERE firm_id={actor.FirmId} AND id={target} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-      await db.AdjustmentPlanLines.FromSqlInterpolated($"SELECT * FROM adjustment_plan_lines WHERE plan_id={target} ORDER BY id LIMIT 101 FOR SHARE").AsNoTracking().ToListAsync(ct);
+      await db.AdjustmentPlans.FromSql($"SELECT * FROM adjustment_plans WHERE firm_id={actor.FirmId} AND id={target} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+      await db.AdjustmentPlanLines.FromSql($"SELECT * FROM adjustment_plan_lines WHERE plan_id={target} ORDER BY id LIMIT 101 FOR SHARE").AsNoTracking().ToListAsync(ct);
     }
     var prior = await LookupCommandAsync(db, actor, target, r.Action, r.RequestId, CommandHash(actor, target, r), ct);
     if (!prior.Succeeded) return Fail<PlanCommandReceipt>(prior.ErrorCode!, prior.Message!);
@@ -249,10 +249,10 @@ public static partial class AdjustmentPlanWorkspace
         return Fail<PlanCommandReceipt>(ErrorCodes.GateBlocked, "The plan exceeds the interactive calculation limit.");
       journalIds = membership.Value.Journals.Where(j => j.JournalId.HasValue).Select(j => j.JournalId!.Value).Distinct().ToArray();
     }
-    var lockedJournals = await db.AdjustmentJournals.FromSqlInterpolated($"SELECT * FROM adjustment_journals WHERE firm_id={actor.FirmId} AND client_id={client} AND engagement_id={engagement} AND id=ANY({journalIds}) ORDER BY id FOR SHARE").AsNoTracking().ToListAsync(ct);
+    var lockedJournals = await db.AdjustmentJournals.FromSql($"SELECT * FROM adjustment_journals WHERE firm_id={actor.FirmId} AND client_id={client} AND engagement_id={engagement} AND id=ANY({journalIds}) ORDER BY id FOR SHARE").AsNoTracking().ToListAsync(ct);
     var numbers = lockedJournals.Select(j => j.JournalNumber).Distinct().ToArray();
     // Existing selected decisions cannot change while the exact calculation is committed.
-    await db.JournalSourceReconciliations.FromSqlInterpolated($"SELECT * FROM journal_source_reconciliations WHERE firm_id={actor.FirmId} AND client_id={client} AND engagement_id={engagement} AND base_dataset_id={dataset} AND logical_journal_number=ANY({numbers}) ORDER BY id FOR SHARE").AsNoTracking().ToListAsync(ct);
+    await db.JournalSourceReconciliations.FromSql($"SELECT * FROM journal_source_reconciliations WHERE firm_id={actor.FirmId} AND client_id={client} AND engagement_id={engagement} AND base_dataset_id={dataset} AND logical_journal_number=ANY({numbers}) ORDER BY id FOR SHARE").AsNoTracking().ToListAsync(ct);
     var preview = await PreviewCommandAsync(db, actor, target, r, ct); if (!preview.Succeeded) return Fail<PlanCommandReceipt>(preview.ErrorCode!, preview.Message!);
     var p = preview.Value!; if (!p.CanProceed) return Fail<PlanCommandReceipt>(ErrorCodes.GateBlocked, p.Blocker!);
     var planId = target; FinalizedPlan? calculated = null;

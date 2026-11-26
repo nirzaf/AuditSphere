@@ -3,7 +3,7 @@
 [![.NET 11](https://img.shields.io/badge/.NET-11-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![Angular 22](https://img.shields.io/badge/Angular-22-DD0031?logo=angular&logoColor=white)](src/AuditSphereOps.Ui/auditsphere-angular-development.md)
 [![PostgreSQL 19](https://img.shields.io/badge/PostgreSQL-19-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![EF Core 10](https://img.shields.io/badge/EF%20Core-10-0078D4)](https://learn.microsoft.com/ef/core/)
+[![EF Core 11](https://img.shields.io/badge/EF%20Core-11-0078D4)](https://learn.microsoft.com/ef/core/)
 
 **AuditSphereOps** is an audit, accounting, and practice-management platform for accounting firms. It connects client onboarding, engagement management, professional audit work, financial-statement preparation, time and billing, controlled deliverable release, records, and group consolidation within a **.NET modular monolith with an Angular frontend**.
 
@@ -212,7 +212,7 @@ flowchart TB
 | --- | --- |
 | `src/AuditSphereOps.Domain/` | Domain entities, state rules, immutable financial and audit invariants, pure calculations |
 | `src/AuditSphereOps.Application/` | Static capability services, commands, queries, scope authorization, workflow rules and operation contracts |
-| `src/AuditSphereOps.Infrastructure/` | EF Core 10, Npgsql, the capability-split `AuditSphereDbContext`, migrations and provider implementations |
+| `src/AuditSphereOps.Infrastructure/` | EF Core 11, Npgsql, the capability-split `AuditSphereDbContext`, migrations and provider implementations |
 | `src/AuditSphereOps.Api/` | ASP.NET Core 11 API, secure session boundary, OpenAPI, Angular asset hosting, protected upload/download transports |
 | `src/AuditSphereOps.Ui/` | Angular 22, TypeScript, Material/CDK, standalone staff and client experiences |
 | `src/AuditSphereOps.Worker/` | Durable background processing, idempotent retries, reconciliation, isolated external-effect workers |
@@ -237,7 +237,7 @@ Use the exact versions pinned by the reviewed committed source baseline, not whi
 | --- | --- |
 | .NET SDK | **11.0.100** (STS), exact match via `global.json` |
 | C# | **15** by default for `net11.0`. Nullable references and warnings as errors are enabled centrally. |
-| EF Core / Npgsql | EF Core **10.0.12**, Npgsql EF provider and driver **10.0.0**, and `dotnet-ef` **10.0.12**, from central package/tool pins and locked restores. |
+| EF Core / Npgsql | EF Core **11.0.0**, Npgsql EF provider and driver **11.0.0**, and `dotnet-ef` **11.0.0**, from central package/tool pins and locked restores. |
 | Node.js | **26.13.0 (LTS)** from `src/AuditSphereOps.Ui/.nvmrc` |
 | npm | **11.20.0** declared in Angular `package.json` |
 | Angular / Material/CDK | **22.2.1** dependency pins; Angular CLI **22.2.3** |

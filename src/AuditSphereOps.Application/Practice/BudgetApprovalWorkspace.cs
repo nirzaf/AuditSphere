@@ -78,13 +78,13 @@ public static class BudgetApprovalWorkspace
       !HashValid(r.RequestHash) || !HashValid(r.ReviewBasis) || r.RequestHash != RequestHash(a, id, r.RequestId, fields))
       return CommandResult<BudgetApprovalReceipt>.Fail("request.invalid", "Preview and confirm the exact budget approval.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR UPDATE")
+    if (await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return Unavailable<BudgetApprovalReceipt>();
     var e = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == a.FirmId && x.Id == id, ct);
     if (e is null) return Unavailable<BudgetApprovalReceipt>();
-    if (await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={e.PracticeClientId} FOR UPDATE")
+    if (await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={e.PracticeClientId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return Unavailable<BudgetApprovalReceipt>();
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE")
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE")
       .AsNoTracking().SingleAsync(ct);
     if (!await Authorized(db, a, id, ct)) return Unavailable<BudgetApprovalReceipt>();
     var prior = await db.BudgetApprovals.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == a.FirmId && x.ActorId == a.UserId && x.RequestId == r.RequestId, ct);
@@ -119,7 +119,7 @@ public static class BudgetApprovalWorkspace
     if (!await Authorized(db, a, id, ct) || requestId == Guid.Empty || !HashValid(hash)) return Unavailable<BudgetApprovalLookup>();
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     // Wait for the same publication lock: absence is definitive only after an in-flight writer finishes.
-    if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR SHARE")
+    if (await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is null) return Unavailable<BudgetApprovalLookup>();
     var row = await db.BudgetApprovals.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == a.FirmId && x.ActorId == a.UserId && x.RequestId == requestId, ct);
     if (row is not null && (row.EngagementId != id || row.RequestHash != hash))

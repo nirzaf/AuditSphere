@@ -31,7 +31,7 @@ public sealed class EngagementCreationReviewTests
     var changed=r with{ReviewBasis=fresh.ReviewBasis,Fields=r.Fields with{ServiceProfile="OTHER",PeriodStart="2028-01-01",PeriodEnd="2028-12-31"}};
     var cp=(await EngagementCreationWorkspace.PreviewAsync(db,a,f.ClientId,changed)).Value!;
     Assert.Equal("idempotency.conflict",(await EngagementCreationWorkspace.ExecuteAsync(db,a,f.ClientId,changed with{ExpectedRequestHash=cp.RequestHash})).ErrorCode);
-    Assert.Equal("P0001",(await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE engagement_creations SET input_json='{{}}' WHERE id={receipt.Id}"))).SqlState);
+    Assert.Equal("P0001",(await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE engagement_creations SET input_json='{{}}' WHERE id={receipt.Id}"))).SqlState);
   }
   [Fact]
   public async Task CurrentClientScopeEpochAndRevisionAreRequiredAndInvalidOrUnreviewedIntentsDoNotWrite()
@@ -100,7 +100,7 @@ public sealed class EngagementCreationReviewTests
     public override async ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData d,int result,CancellationToken ct=default)
     {
       var receipt=d.Context!.ChangeTracker.Entries<AuditSphereOps.Domain.Engagements.EngagementCreation>().Select(x=>x.Entity).SingleOrDefault();
-      if(receipt is not null)await d.Context.Database.ExecuteSqlInterpolatedAsync($"UPDATE engagements SET service_profile_id='CHANGED' WHERE id={receipt.EngagementId}",ct);
+      if(receipt is not null)await d.Context.Database.ExecuteSqlAsync($"UPDATE engagements SET service_profile_id='CHANGED' WHERE id={receipt.EngagementId}",ct);
       return result;
     }
   }

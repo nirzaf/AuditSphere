@@ -171,11 +171,11 @@ public sealed class LedgerTests
       Assert.Equal(2, await db.FirmPostingLines.CountAsync(x => x.PostingId == postingId));
       var persistedJournal = await db.FirmJournals.SingleAsync(x => x.Id == journalId);
       Assert.Equal(LedgerStates.JournalPosted, persistedJournal.Status);
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE firm_postings SET currency = 'USD' WHERE id = {postingId} AND firm_id = {fixture.FirmId}"));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"DELETE FROM firm_posting_lines WHERE posting_id = {postingId} AND firm_id = {fixture.FirmId}"));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE firm_journals SET source_key = 'tampered' WHERE id = {journalId} AND firm_id = {fixture.FirmId}"));
 
       var reversal = await LedgerService.ReverseFirmPostingAsync(db, fixture.ReviewerActor,
@@ -339,7 +339,7 @@ public sealed class LedgerTests
     Assert.Equal("opening-schedule.txt", journal.SupportingEvidenceFileName);
     Assert.Equal(Hashing.Sha256Hex(content), journal.SupportingEvidenceSha256);
     Assert.Equal(fixture.Manager.Id, journal.SupportingEvidenceUploadedByUserId);
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE firm_journals SET supporting_evidence_content = {Encoding.UTF8.GetBytes("tampered")} WHERE firm_id = {fixture.FirmId} AND id = {journal.Id}"));
   }
 

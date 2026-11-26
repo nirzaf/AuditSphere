@@ -26,7 +26,7 @@ public static partial class ClientOperationalLedgerWorkspace
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var auth = await AuthorizeAsync(db, actor, clientId, Preparers, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, "Access denied.");
-    var original = await db.ClientOperationalJournals.FromSqlInterpolated(
+    var original = await db.ClientOperationalJournals.FromSql(
       $"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={originalJournalId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (original is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");

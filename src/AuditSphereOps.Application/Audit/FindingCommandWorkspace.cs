@@ -42,8 +42,8 @@ public static class FindingCommandWorkspace
   {
     var digest = Hashing.Sha256Hex(JsonSerializer.Serialize(new { Namespace = "finding-command-request-v1", a.FirmId, a.UserId, requestId }));
     var key = unchecked((long)Convert.ToUInt64(digest[..16], 16));
-    if (publish) await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", ct);
-    else await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
+    if (publish) await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({key})", ct);
+    else await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
   }
   internal static async Task<IReadOnlyList<string>> WriteBlockersAsync(IAuditSphereDbContext db, ActorContext a, Finding f, string action, CancellationToken ct)
   {
@@ -171,7 +171,7 @@ public static class FindingCommandWorkspace
       if (hash != request.ExpectedRequestHash) return Fail<FindingCommandReceiptView>(ErrorCodes.IdempotencyConflict, "The submitted intent differs from its exact preview hash.");
       var scope = await AuditPlanningService.LockedEngagementAsync(db, a, finding.EngagementId, ct, finding.ClientId);
       if (scope.Denied is not null) return Fail<FindingCommandReceiptView>(scope.Denied, scope.Message);
-      var current = await db.Findings.FromSqlInterpolated($"SELECT * FROM findings WHERE firm_id={a.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+      var current = await db.Findings.FromSql($"SELECT * FROM findings WHERE firm_id={a.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
       if (current is null || current.ClientId != finding.ClientId || current.EngagementId != finding.EngagementId) return Fail<FindingCommandReceiptView>(ErrorCodes.ScopeDenied, "Access denied.");
       var preview = await PreviewAsync(db, a, id, request with { Fields = fields }, ct);
       if (!preview.Succeeded) return Fail<FindingCommandReceiptView>(preview.ErrorCode!, preview.Message!);

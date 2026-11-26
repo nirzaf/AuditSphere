@@ -190,9 +190,9 @@ public sealed class BillingTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE invoices SET total = 1 WHERE id = {invoiceId} AND firm_id = {fixture.FirmId}"));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"DELETE FROM receipts WHERE id = {receiptId} AND firm_id = {fixture.FirmId}"));
     }
   }
@@ -234,7 +234,7 @@ public sealed class BillingTests
     using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
     await using var blocker = new AuditSphereDbContext(pg.Options);
     await using var transaction = await blocker.Database.BeginTransactionAsync(deadline.Token);
-    await blocker.FirmSafetyStates.FromSqlInterpolated(
+    await blocker.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {fixture.FirmId} FOR UPDATE")
       .SingleAsync(deadline.Token);
     var firstLock = new ObserveBillingFirmLock();
@@ -647,7 +647,7 @@ public sealed class BillingTests
     await using var blocker = new AuditSphereDbContext(pg.Options);
     await blocker.Database.OpenConnectionAsync();
     await using var gate = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated(
+    await blocker.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {fixture.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
 
     await using var firstCommandDb = new AuditSphereDbContext(pg.Options);

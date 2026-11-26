@@ -624,7 +624,7 @@ public sealed partial class ClientAccountingTests
       var approvedAgain = await ClientOperationalOpeningBalanceWorkspace.ApproveAsync(db, reviewer, scope.ClientA, created.Value,
         1, beforeApproval.ManifestSha256);
       Assert.Equal(ErrorCodes.ScopeDenied, approvedAgain.ErrorCode);
-      var immutableEvidence = await Record.ExceptionAsync(async () => await db.Database.ExecuteSqlInterpolatedAsync(
+      var immutableEvidence = await Record.ExceptionAsync(async () => await db.Database.ExecuteSqlAsync(
         $"UPDATE client_operational_opening_balances SET evidence_reference='tampered' WHERE id={created.Value}"));
       Assert.IsType<PostgresException>(immutableEvidence);
       Assert.Equal(PostgresErrorCodes.CheckViolation, ((PostgresException)immutableEvidence!).SqlState);

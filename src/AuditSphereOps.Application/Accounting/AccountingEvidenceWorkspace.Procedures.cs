@@ -68,7 +68,7 @@ public static partial class AccountingEvidenceWorkspace
   }
 
   private static Task<int> LockEvidenceAsync(IClientAccountingDbContext db, Guid firm, string kind, Guid id, CancellationToken ct) =>
-    db.Database.ExecuteSqlInterpolatedAsync(kind switch {
+    db.Database.ExecuteSqlAsync(kind switch {
       "ECL" => $"SELECT id FROM ecl_assessments WHERE firm_id={firm} AND id={id} FOR UPDATE",
       "INVENTORY" => $"SELECT id FROM inventory_valuation_assessments WHERE firm_id={firm} AND id={id} FOR UPDATE",
       "SPECIALIST" => $"SELECT id FROM specialist_accounting_schedules WHERE firm_id={firm} AND id={id} FOR UPDATE",

@@ -70,7 +70,7 @@ public static class ClientSalesInvoiceDraftWorkspace
     var intent = Hash(JsonSerializer.Serialize(new { Version = "client-sales-draft-intent-v1", actor.FirmId, clientId, ActorId = actor.UserId, Request = normalized }));
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!(await Authorize(db, actor, clientId, ct)).Succeeded) return CommandResult<ClientSalesInvoiceDraftView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var client = await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var client = await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (client is null) return CommandResult<ClientSalesInvoiceDraftView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var receipt = await db.ClientSalesInvoiceDrafts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.CreatedByUserId == actor.UserId && x.CommandId == request.CommandId, ct);
     if (receipt is not null)
@@ -84,7 +84,7 @@ public static class ClientSalesInvoiceDraftWorkspace
       return CommandResult<ClientSalesInvoiceDraftView>.Fail(ErrorCodes.GateBlocked, "A current accepted native bookkeeping service is required.");
     var calculation = ClientInvoiceCalculator.Calculate("INVOICE", request.Currency, profile.FunctionalCurrency, request.Policy, request.Lines);
     if (!calculation.Valid) return CommandResult<ClientSalesInvoiceDraftView>.Fail(ErrorCodes.Accounting.MappingInvalid, calculation.Error!);
-    var period = await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={request.PeriodId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var period = await db.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={request.PeriodId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (period is null || period.Status == AccountingWorkflowStates.Closed || request.AccountingDate < period.StartDate || request.AccountingDate > period.EndDate || period.Currency != request.Currency)
       return CommandResult<ClientSalesInvoiceDraftView>.Fail(ErrorCodes.GateBlocked, "Choose an open matching client period containing the accounting date.");
     var customer = await db.ClientBookkeepingCounterparties.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.Id == request.CustomerId && (x.Role == "CUSTOMER" || x.Role == "BOTH"), ct);

@@ -104,7 +104,7 @@ public static class ClientPurchaseInvoiceWorkflow
     var intent = Hash(JsonSerializer.Serialize(new { Version = "client-purchase-draft-v1", actor.FirmId, clientId, actor.UserId, Request = request }));
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded) return CommandResult<ClientPurchaseInvoiceDraftView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var client = await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var client = await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (client is null) return CommandResult<ClientPurchaseInvoiceDraftView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var replay = await db.ClientPurchaseInvoiceDrafts.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.CreatedByUserId == actor.UserId && x.CommandId == request.CommandId, ct);
     if (replay is not null)
@@ -115,7 +115,7 @@ public static class ClientPurchaseInvoiceWorkflow
     var profile = await db.ClientAccountingProfiles.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.SourceMode == ClientAccountingSourceModes.NativeBookkeeping, ct);
     if (profile is null || !await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db, actor.FirmId, clientId, ct: ct))
       return CommandResult<ClientPurchaseInvoiceDraftView>.Fail(ErrorCodes.GateBlocked, "A current accepted native client bookkeeping service is required.");
-    var period = await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={request.PeriodId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var period = await db.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={request.PeriodId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (period is null || period.Status == AccountingWorkflowStates.Closed || request.AccountingDate < period.StartDate || request.AccountingDate > period.EndDate || period.Currency != request.Currency || profile.FunctionalCurrency != request.Currency)
       return CommandResult<ClientPurchaseInvoiceDraftView>.Fail(ErrorCodes.GateBlocked, "Choose an open period in the client's functional currency containing the accounting date.");
     var supplier = await db.ClientBookkeepingCounterparties.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.Id == request.SupplierId && (x.Role == "SUPPLIER" || x.Role == "BOTH"), ct);
@@ -315,7 +315,7 @@ public static class ClientPurchaseInvoiceWorkflow
     if (profile is null || profile.Id != saved.ProfileId || profile.Revision.ToString(CultureInfo.InvariantCulture) != saved.ProfileRevision || profile.FunctionalCurrency != draft.Currency || mandate is not { Decision: "Accepted", Conditions: null or "" })
       return CommandResult<ClientPurchaseInvoicePreview>.Fail(ErrorCodes.GateBlocked, "The current accepted client bookkeeping mandate and frozen currency profile are required.");
     var accountingDate = DateOnly.ParseExact(saved.AccountingDate, "yyyy-MM-dd", CultureInfo.InvariantCulture);
-    var period = await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={draft.PeriodId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var period = await db.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={draft.PeriodId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (period is null || period.Status == AccountingWorkflowStates.Closed || accountingDate < period.StartDate || accountingDate > period.EndDate || period.Currency != draft.Currency)
       return CommandResult<ClientPurchaseInvoicePreview>.Fail(ErrorCodes.GateBlocked, "The original accounting period must still be open for purchase posting.");
     var supplier = await db.ClientBookkeepingCounterparties.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.Id == saved.SupplierId && (x.Role == "SUPPLIER" || x.Role == "BOTH"), ct);
@@ -390,7 +390,7 @@ public static class ClientPurchaseInvoiceWorkflow
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded || !await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db, actor.FirmId, clientId, ct: ct))
       return CommandResult<ClientPurchaseInvoiceReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var client = await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var client = await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (client is null) return CommandResult<ClientPurchaseInvoiceReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var replay = await db.ClientPurchaseInvoiceSubmissions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.CreatedByUserId == actor.UserId && x.CommandId == request.CommandId, ct);
     if (replay is not null) return replay.IntentHash == intent ? CommandResult<ClientPurchaseInvoiceReceipt>.Ok(Receipt(replay)) : CommandResult<ClientPurchaseInvoiceReceipt>.Fail(ErrorCodes.IdempotencyConflict, "The purchase submission key is bound to different content.");
@@ -415,7 +415,7 @@ public static class ClientPurchaseInvoiceWorkflow
       if (draft.Revision <= previous.DraftRevision || !await db.ClientPurchaseInvoiceDecisions.AsNoTracking().AnyAsync(x =>
           x.FirmId == actor.FirmId && x.ClientId == clientId && x.SubmissionId == previous.Id && x.Decision == "RETURN", ct))
         return CommandResult<ClientPurchaseInvoiceReceipt>.Fail(ErrorCodes.ProtectedState, "Return and revise the exact supplier invoice before resubmission.");
-      journal = (await db.ClientOperationalJournals.FromSqlInterpolated(
+      journal = (await db.ClientOperationalJournals.FromSql(
         $"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={previous.JournalId} FOR UPDATE")
         .SingleOrDefaultAsync(ct))!;
       if (journal is null || journal.Status != "RETURNED" || journal.CreatedByUserId != actor.UserId ||
@@ -499,7 +499,7 @@ public static class ClientPurchaseInvoiceWorkflow
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!(await Authorize(db, actor, clientId, Reviewers, ct)).Succeeded || !await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db, actor.FirmId, clientId, ct: ct))
       return CommandResult<ClientPurchaseInvoiceReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var client = await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var client = await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (client is null) return CommandResult<ClientPurchaseInvoiceReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var replay = await db.ClientPurchaseInvoiceDecisions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.ActorUserId == actor.UserId && x.CommandId == request.CommandId, ct);
     if (replay is not null)
@@ -516,7 +516,7 @@ public static class ClientPurchaseInvoiceWorkflow
       return CommandResult<ClientPurchaseInvoiceReceipt>.Fail(ErrorCodes.StaleRevision, "Refresh the exact supplier invoice, current duplicate warnings and resolution rationale before approval.");
     if (await db.ClientPurchaseInvoiceDecisions.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.SubmissionId == submission.Id, ct))
       return CommandResult<ClientPurchaseInvoiceReceipt>.Fail(ErrorCodes.IdempotencyConflict, "This supplier invoice already has an immutable decision.");
-    var journal = await db.ClientOperationalJournals.FromSqlInterpolated($"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={submission.JournalId} FOR UPDATE").SingleAsync(ct);
+    var journal = await db.ClientOperationalJournals.FromSql($"SELECT * FROM client_operational_journals WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={submission.JournalId} FOR UPDATE").SingleAsync(ct);
     var now = DateTimeOffset.UtcNow;
     var retained = new ClientPurchaseInvoiceDecision { Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId,
       SubmissionId = submission.Id, CommandId = request.CommandId, IntentHash = intent, Decision = decision,

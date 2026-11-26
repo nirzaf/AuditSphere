@@ -358,7 +358,7 @@ public sealed class AuditCompletionTests
     var reviewer = world.Reviewer with { SessionEpoch = epoch };
 
     await using var fence = await locker.Database.BeginTransactionAsync(ct);
-    await locker.FirmSafetyStates.FromSqlInterpolated($"""
+    await locker.FirmSafetyStates.FromSql($"""
       SELECT * FROM firm_safety_states WHERE id = {scope.FirmId} FOR UPDATE
       """).AsNoTracking().SingleAsync(ct);
     var review = AuditCompletionService.ReviewCompletionRecordAsync(publisher, reviewer,

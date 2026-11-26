@@ -663,14 +663,14 @@ public static partial class AccountingAnalysisService
 
   private static Task<ClientReportingPeriod?> LockReconciliationTargetPeriodAsync(
     IClientAccountingDbContext db, Guid firmId, Guid clientId, Guid periodId, CancellationToken ct) =>
-    db.ClientReportingPeriods.FromSqlInterpolated(
+    db.ClientReportingPeriods.FromSql(
       $"SELECT * FROM client_reporting_periods WHERE firm_id = {firmId} AND client_id = {clientId} AND id = {periodId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
 
   private static async Task<AccountingReconciliation?> LockReconciliationForWriteAsync(
     IClientAccountingDbContext db, Guid firmId, AccountingReconciliation reconciliation, CancellationToken ct)
   {
-    var locked = await db.AccountingReconciliations.FromSqlInterpolated(
+    var locked = await db.AccountingReconciliations.FromSql(
       $"SELECT * FROM accounting_reconciliations WHERE firm_id = {firmId} AND client_id = {reconciliation.ClientId} AND engagement_id = {reconciliation.EngagementId} AND period_id = {reconciliation.PeriodId} AND id = {reconciliation.Id} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (locked is not null)

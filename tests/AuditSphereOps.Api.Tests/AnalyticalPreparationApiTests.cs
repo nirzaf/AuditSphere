@@ -41,9 +41,9 @@ public sealed class AnalyticalPreparationApiTests
     await using var db=new AuditSphereDbContext(pg.Options);var stored=await db.AccountingAnalysisPreparations.SingleAsync(x=>x.RequestId==request.RequestId);
     Assert.Equal(f.Staff.Id,stored.ActorId);Assert.Contains("prior-year total",stored.InputJson);Assert.Contains("SYNTHETIC-ANALYTICAL-REF",stored.EvidenceReference);
     var evidence=await db.AnalyticalReviews.SingleAsync(x=>x.Id==stored.EvidenceId);Assert.Equal("DRAFT",evidence.Status);Assert.Null(evidence.ReviewedAt);
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE accounting_analysis_preparations SET reason='changed' WHERE id={stored.Id}"));
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM accounting_analysis_preparations WHERE id={stored.Id}"));
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE analytical_reviews SET current_amount=999 WHERE id={stored.EvidenceId}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE accounting_analysis_preparations SET reason='changed' WHERE id={stored.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"DELETE FROM accounting_analysis_preparations WHERE id={stored.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE analytical_reviews SET current_amount=999 WHERE id={stored.EvidenceId}"));
     var linked=await AccountingAnalysisService.LinkAccountingEvidenceToProcedureAsync(db,PbcSeed.Actor(f.Staff,"AccountingPreparer"),
       new("ANALYTICAL",stored.EvidenceId,seed.ProcedureResultIds[0]));Assert.True(linked.Succeeded,linked.Message);
     var reviewer=PbcSeed.Actor(f.Reviewer,"AccountingReviewer");

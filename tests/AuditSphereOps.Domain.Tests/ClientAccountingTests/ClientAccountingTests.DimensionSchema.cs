@@ -53,7 +53,7 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(reviewer.UserId, (await db.ClientAccountingDimensionSchemaRevisions
         .SingleAsync(x => x.Id == firstDraft.DraftRevisionRef)).PublishedByUserId);
 
-      var immutable = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      var immutable = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE client_accounting_dimension_schema_revisions SET canonical_digest = {new string('0', 64)} WHERE id = {firstDraft.DraftRevisionRef}"));
       Assert.Equal("23514", immutable.SqlState);
 

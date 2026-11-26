@@ -45,7 +45,7 @@ public sealed class AuditScopeIntegrityTests
         db.ChangeTracker.Clear();
 
         // The same defect expressed directly in SQL fails identically.
-        await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+        await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
           INSERT INTO workpapers (id, firm_id, client_id, engagement_id, actor_id, wp_index, title,
             objective, template_version, procedure, revision, status, created_at)
           VALUES ({Guid.NewGuid()}, {firmId}, {clientId}, {otherEngagement},
@@ -69,7 +69,7 @@ public sealed class AuditScopeIntegrityTests
         Assert.True(created.Succeeded);
 
         // §42.3: professional records never disappear through a cascade delete.
-        var ex = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+        var ex = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
           DELETE FROM engagements WHERE id = {scope.EngagementId}
           """));
         // ON DELETE RESTRICT reports a restrict violation rather than a plain foreign-key failure.
@@ -130,7 +130,7 @@ public sealed class AuditScopeIntegrityTests
         var created = await AuditPlanningService.CreateWorkpaperAsync(db, scope.Actor,
             new CreateWorkpaperRequest(scope.EngagementId, "W-01", "Editable", "Objective", "T-1", null, "Steps"));
 
-        await db.Database.ExecuteSqlInterpolatedAsync($"""
+        await db.Database.ExecuteSqlAsync($"""
           UPDATE workpapers SET work_performed = {("drafted note")} WHERE id = {created.Value!.WorkpaperId}
           """);
         Assert.Equal("drafted note", (await db.Workpapers.AsNoTracking().SingleAsync()).WorkPerformed);
@@ -176,7 +176,7 @@ public sealed class AuditScopeIntegrityTests
         var fixture = await PlanningSeed.CreateAsync(pg);
         await using var db = new AuditSphereDbContext(pg.Options);
 
-        await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+        await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
           INSERT INTO audit_risks (id, firm_id, client_id, engagement_id, actor_id, account_area,
             assertion, description, drivers, severity, significance_decision, response_description,
             status, created_at)
@@ -194,7 +194,7 @@ public sealed class AuditScopeIntegrityTests
         var scope = fixture.Primary;
         await using var db = new AuditSphereDbContext(pg.Options);
 
-        var ex = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+        var ex = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
           INSERT INTO audit_risks (id, firm_id, client_id, engagement_id, actor_id, account_area,
             assertion, description, drivers, severity, significance_decision, response_description,
             status, created_at)
@@ -300,7 +300,7 @@ public sealed class AuditScopeIntegrityTests
 
         await using (var db = new AuditSphereDbContext(pg.Options))
         {
-          await db.Database.ExecuteSqlInterpolatedAsync($"""
+          await db.Database.ExecuteSqlAsync($"""
             INSERT INTO materiality_assessments (id, engagement_id, actor_id, benchmark_source,
               benchmark_version, rationale, benchmark_amount, rate_applied, overall_materiality,
               performance_materiality, clearly_trivial_threshold, status, created_at)

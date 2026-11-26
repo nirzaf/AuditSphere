@@ -24,9 +24,9 @@ public static class CurrencyRemeasurementWorkspace
   private static string Digest(object value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value))));
   private static async Task Lock(IClientAccountingDbContext db, ActorContext a, Guid client, Guid engagement, CancellationToken ct)
   {
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {a.FirmId} FOR SHARE").LoadAsync(ct);
-    await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id = {a.FirmId} AND id = {client} FOR UPDATE").LoadAsync(ct);
-    await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE firm_id = {a.FirmId} AND id = {engagement} FOR UPDATE").LoadAsync(ct);
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {a.FirmId} FOR SHARE").LoadAsync(ct);
+    await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id = {a.FirmId} AND id = {client} FOR UPDATE").LoadAsync(ct);
+    await db.Engagements.FromSql($"SELECT * FROM engagements WHERE firm_id = {a.FirmId} AND id = {engagement} FOR UPDATE").LoadAsync(ct);
   }
   public static async Task<CommandResult<RemeasurementReview>> DetailAsync(IClientAccountingDbContext db, ActorContext a, Guid id, CancellationToken ct = default)
   {
@@ -72,7 +72,7 @@ public static class CurrencyRemeasurementWorkspace
     if (!auth.Succeeded) return auth;
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     await Lock(db, a, v.ClientId, v.EngagementId, ct);
-    await db.CurrencyRemeasurementSchedules.FromSqlInterpolated($"SELECT * FROM currency_remeasurement_schedules WHERE firm_id = {a.FirmId} AND id = {id} FOR UPDATE").LoadAsync(ct);
+    await db.CurrencyRemeasurementSchedules.FromSql($"SELECT * FROM currency_remeasurement_schedules WHERE firm_id = {a.FirmId} AND id = {id} FOR UPDATE").LoadAsync(ct);
     auth = await Auth(db, a, v.ClientId, v.EngagementId, ReviewRoles, true, ct);
     if (!auth.Succeeded) return auth;
     var current = await DetailAsync(db, a, id, ct);

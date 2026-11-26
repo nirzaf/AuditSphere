@@ -321,7 +321,7 @@ public sealed class CommercialWorkflowTests
     var before = await SnapshotAsync();
     await using var blocker = new AuditSphereDbContext(pg.Options);
     await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated(
+    await blocker.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {w.FirmId} FOR UPDATE").SingleAsync();
 
     var lockAttempt = new ObserveFirmLockAttempt();
@@ -429,7 +429,7 @@ public sealed class CommercialWorkflowTests
 
     await using var blocker = new AuditSphereDbContext(pg.Options);
     await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated(
+    await blocker.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {w.FirmId} FOR UPDATE").SingleAsync();
 
     var lockAttempt = new ObserveFirmLockAttempt();
@@ -968,9 +968,9 @@ public sealed class CommercialWorkflowTests
     Assert.NotEqual(Guid.Empty, terms.Value);
 
     // Database guards: an approved version's fee and hash cannot be rewritten, and history cannot be deleted.
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE quotation_versions SET fee = 1 WHERE id = {final.Value} AND firm_id = {w.FirmId}"));
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"DELETE FROM quotation_approvals WHERE firm_id = {w.FirmId}"));
   }
 
@@ -1288,9 +1288,9 @@ public sealed class CommercialWorkflowTests
     Assert.Equal(revokeStandingAuthority ? 2 : 4, (await CommercialDocumentService.ListAsync(db, w.Prep, proposalId)).Value!.Count);
 
     // Generated documents are append-only, and a stranger from another firm cannot read them.
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE commercial_documents SET file_name = 'x.docx' WHERE id = {q.Id} AND firm_id = {w.FirmId}"));
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"DELETE FROM commercial_documents WHERE id = {q.Id} AND firm_id = {w.FirmId}"));
     var outsider = User(Guid.NewGuid(), "outsider");
     Assert.False((await CommercialDocumentService.GetAsync(db, Actor(outsider, "Partner"), q.Id)).Succeeded);
@@ -1377,7 +1377,7 @@ public sealed class CommercialWorkflowTests
     Assert.Single(await db.CommercialDocuments.AsNoTracking().Where(x =>
       x.ProposalId == proposalId && x.QuotationVersionId == quote.Value &&
       x.Kind == CommercialDocumentKinds.ComprehensiveProposal).ToListAsync());
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE commercial_documents SET file_name = 'changed' WHERE id = {document.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"UPDATE commercial_documents SET file_name = 'changed' WHERE id = {document.Id}"));
 
     var (_, _, legacyProposalId) = await DraftProposalSecondAsync(pg, w);
     var legacyQuote = await QuotationService.SaveAsync(db, w.Prep, Quote(legacyProposalId));
@@ -1575,7 +1575,7 @@ public sealed class CommercialWorkflowTests
         Task<CommandResult<AdvancePaymentOutcome>>? reviewerTask = null;
         try
         {
-          await paymentGate.FirmSafetyStates.FromSqlInterpolated(
+          await paymentGate.FirmSafetyStates.FromSql(
             $"SELECT * FROM firm_safety_states WHERE id = {w.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(paymentTimeout.Token);
           managerTask = recordPayment(managerPaymentDb, w.FinanceManager, amount, reference, paymentTimeout.Token);
           reviewerTask = recordPayment(reviewerPaymentDb, w.FinanceReviewer, amount, reference, paymentTimeout.Token);
@@ -2248,7 +2248,7 @@ public sealed class CommercialWorkflowTests
     await using (var observer = new AuditSphereDbContext(pg.Options))
     {
       await using var fence = await blocker.Database.BeginTransactionAsync();
-      await blocker.FirmSafetyStates.FromSqlInterpolated(
+      await blocker.FirmSafetyStates.FromSql(
         $"SELECT * FROM firm_safety_states WHERE id = {w.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
       using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
       async Task WaitForFirmWaiters(int expected)
@@ -2564,7 +2564,7 @@ public sealed class CommercialWorkflowTests
     var create = action.StartsWith("CREATE_", StringComparison.Ordinal);
     await using var blocker = new AuditSphereDbContext(pg.Options);
     await using var blockerTransaction = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated(
+    await blocker.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {w.FirmId} FOR UPDATE").SingleAsync();
 
     var lockAttempt = new ObserveFirmLockAttempt();

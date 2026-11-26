@@ -55,7 +55,7 @@ public sealed partial class ClientAccountingTests
 
     await using var revocation = new AuditSphereDbContext(pg.Options);
     await using var tx = await revocation.Database.BeginTransactionAsync();
-    await revocation.FirmSafetyStates.FromSqlInterpolated(
+    await revocation.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {scope.FirmId} FOR UPDATE").SingleAsync();
     var grant = await revocation.RoleGrants.SingleAsync(x => x.FirmId == scope.FirmId && x.UserId == manager.Id);
     grant.RevokedAt = DateTimeOffset.UtcNow;
@@ -996,7 +996,7 @@ public sealed partial class ClientAccountingTests
     await using (var update = new AuditSphereDbContext(pg.Options))
     {
       var immutableBytes = await Assert.ThrowsAsync<PostgresException>(() =>
-        update.Database.ExecuteSqlInterpolatedAsync(
+        update.Database.ExecuteSqlAsync(
           $"UPDATE group_deliverables SET deliverable_sha256 = {new string('0', 64)} WHERE firm_id = {scope.FirmId} AND id = {deliverableId}"));
       Assert.Equal("55000", immutableBytes.SqlState);
     }
@@ -1004,7 +1004,7 @@ public sealed partial class ClientAccountingTests
     await using (var delete = new AuditSphereDbContext(pg.Options))
     {
       var immutableDelete = await Assert.ThrowsAsync<PostgresException>(() =>
-        delete.Database.ExecuteSqlInterpolatedAsync(
+        delete.Database.ExecuteSqlAsync(
           $"DELETE FROM group_deliverables WHERE firm_id = {scope.FirmId} AND id = {deliverableId}"));
       Assert.Equal("55000", immutableDelete.SqlState);
     }

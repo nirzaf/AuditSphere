@@ -88,7 +88,7 @@ public static partial class Microsoft365ConfigurationService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var authorization = await LockSelectedResourceAdministratorAsync(db, actor, ct);
     if (!authorization.Succeeded) return CommandResult<Guid>.Fail(authorization.ErrorCode!, authorization.Message!);
-    var draft = await db.Microsoft365SetupDrafts.FromSqlInterpolated($"""
+    var draft = await db.Microsoft365SetupDrafts.FromSql($"""
       SELECT * FROM m365_setup_drafts WHERE id = {request.DraftId} AND firm_id = {actor.FirmId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (draft is null || !string.Equals(draft.ExpectedTenantId, configuredTenantId, StringComparison.OrdinalIgnoreCase))

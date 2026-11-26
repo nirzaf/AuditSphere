@@ -32,10 +32,10 @@ public sealed class ValuationPreparationApiTests
       Assert.Equal(HttpStatusCode.Conflict,(await Post(c,csrf,Url(rec,kind),request with{Reviewed=true,Fields=request.Fields with{Reason="Changed intent"}})).StatusCode);
       Assert.True((await Read(c,Url(rec,kind)+"/receipts/"+request.RequestId+"?requestHash="+receipt.GetProperty("requestHash").GetString())).GetProperty("found").GetBoolean());
       var row=await db.ValuationPreparations.SingleAsync(x=>x.RequestId==request.RequestId);Assert.Contains("100.123456",row.ContextJson);Assert.Contains("Synthetic source rationale",row.InputJson);
-      await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE valuation_preparations SET reason='changed' WHERE id={row.Id}"));
-      await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM valuation_preparations WHERE id={row.Id}"));
-      if(kind=="ECL")await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE ecl_assessments SET management_overlay=999 WHERE id={row.EvidenceId}"));
-      else await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE inventory_valuation_assessments SET quantity=999 WHERE id={row.EvidenceId}"));
+      await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE valuation_preparations SET reason='changed' WHERE id={row.Id}"));
+      await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"DELETE FROM valuation_preparations WHERE id={row.Id}"));
+      if(kind=="ECL")await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE ecl_assessments SET management_overlay=999 WHERE id={row.EvidenceId}"));
+      else await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE inventory_valuation_assessments SET quantity=999 WHERE id={row.EvidenceId}"));
       var view=await Read(c,$"/api/ui/accounting/evidence/{kind}/{row.EvidenceId}");Assert.Equal("DRAFT",view.GetProperty("status").GetString());Assert.Null(view.GetProperty("reviewedAt").GetString());
     }
     Assert.Equal(2,await db.ValuationPreparations.CountAsync());Assert.Equal(100.123456m,await db.AccountingReconciliations.Where(x=>x.Id==rec).Select(x=>x.SourceTotal).SingleAsync());
@@ -125,7 +125,7 @@ public sealed class ValuationPreparationApiTests
   {
     private bool fired;
     public override async ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData d,int result,CancellationToken ct=default)
-    {if(!fired){fired=true;await d.Context!.Database.ExecuteSqlInterpolatedAsync($"UPDATE users SET session_epoch=session_epoch+1 WHERE id={user}",ct);}return result;}
+    {if(!fired){fired=true;await d.Context!.Database.ExecuteSqlAsync($"UPDATE users SET session_epoch=session_epoch+1 WHERE id={user}",ct);}return result;}
   }
   private static ValuationFields Fields(string k)=>k=="ECL"?
     new("PROVISION_MATRIX_V1","synthetic.ecl.v1",new('a',64),"0.100000","0.500000","2.000000","8.000000","8.000000",null,null,null,null,null,"Synthetic source rationale","Synthetic assumptions evidence"):

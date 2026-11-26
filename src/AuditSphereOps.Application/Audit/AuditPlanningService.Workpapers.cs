@@ -44,7 +44,7 @@ public static partial class AuditPlanningService
         if (scope.Denied is not null)
             return CommandResult<WorkpaperResult>.Fail(scope.Denied, scope.Message);
 
-        var target = await db.Workpapers.FromSqlInterpolated($"""
+        var target = await db.Workpapers.FromSql($"""
             SELECT * FROM workpapers WHERE id = {req.WorkpaperId} AND firm_id = {actor.FirmId} FOR UPDATE
             """).AsNoTracking().SingleOrDefaultAsync(ct);
         if (target is null || target.ClientId != snapshot.ClientId ||
@@ -61,7 +61,7 @@ public static partial class AuditPlanningService
         var generations = await ReadGenerationsAsync(db, target.FirmId, target.ClientId, ct);
         if (generations.InputGeneration < 1 || generations.PolicyGeneration < 1)
             return CommandResult<WorkpaperResult>.Fail(ErrorCodes.GateBlocked,"Workpaper safety state is unavailable.");
-        var activeDraft = await db.WorkpaperDrafts.FromSqlInterpolated($"""
+        var activeDraft = await db.WorkpaperDrafts.FromSql($"""
             SELECT * FROM workpaper_drafts
             WHERE firm_id = {target.FirmId} AND client_id = {target.ClientId}
               AND engagement_id = {target.EngagementId} AND workpaper_id = {target.Id}
@@ -240,7 +240,7 @@ public static partial class AuditPlanningService
             return CommandResult<WorkpaperDraftResult>.Fail(ErrorCodes.GenerationStale,
                 "The engagement inputs or policy changed; reload the workpaper before saving.");
 
-        var draft = await db.WorkpaperDrafts.FromSqlInterpolated($"""
+        var draft = await db.WorkpaperDrafts.FromSql($"""
             SELECT * FROM workpaper_drafts
             WHERE firm_id = {target.FirmId} AND client_id = {target.ClientId}
               AND engagement_id = {target.EngagementId} AND workpaper_id = {target.Id}
@@ -358,7 +358,7 @@ public static partial class AuditPlanningService
         var scope = await LockedEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId);
         if (scope.Denied is not null)
             return CommandResult.Fail(scope.Denied, scope.Message);
-        var draft = await db.WorkpaperDrafts.FromSqlInterpolated($"""
+        var draft = await db.WorkpaperDrafts.FromSql($"""
             SELECT * FROM workpaper_drafts
             WHERE firm_id = {actor.FirmId} AND client_id = {snapshot.ClientId}
               AND engagement_id = {snapshot.EngagementId} AND workpaper_id = {workpaperId}

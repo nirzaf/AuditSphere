@@ -114,9 +114,9 @@ public static class EngagementActivationWorkspace
     await using var tx=await db.Database.BeginTransactionAsync(ct);
     // Firm -> client -> actor, as in ActivateAsync: commercial-key mutations hold the firm row, so it is never taken after the client row.
     if(!await AcceptanceCommandAuthority.LockFirmAsync(db,a,ct))return Unavailable<EngagementActivationReceipt>();
-    var guard=await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={e.PracticeClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var guard=await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={e.PracticeClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if(guard is null)return Unavailable<EngagementActivationReceipt>();
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
     var prior=await db.EngagementActivations.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId&&x.ActivatedByUserId==a.UserId&&x.RequestId==r.RequestId,ct);
     if(prior is not null) {
       if(prior.EngagementId!=id || prior.RequestHash!=r.ExpectedRequestHash)return CommandResult<EngagementActivationReceipt>.Fail(ErrorCodes.IdempotencyConflict,"This request belongs to a different activation intent.");
@@ -136,7 +136,7 @@ public static class EngagementActivationWorkspace
     var client=await db.Engagements.AsNoTracking().Where(x=>x.FirmId==a.FirmId&&x.Id==id).Select(x=>x.PracticeClientId).SingleAsync(ct);
     await using var tx=await db.Database.BeginTransactionAsync(ct);
     // Wait for a dispatched activation's guarded transaction before reporting an absent receipt.
-    await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={client} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={client} FOR SHARE").AsNoTracking().SingleAsync(ct);
     var row=await db.EngagementActivations.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId&&x.ActivatedByUserId==a.UserId&&x.RequestId==requestId,ct);
     if(row is not null && (row.EngagementId!=id || row.RequestHash!=requestHash))return CommandResult<EngagementActivationLookup>.Fail(ErrorCodes.IdempotencyConflict,"This reference belongs to a different activation intent.");
     if(!(await Authorize(db,a,id,ct)).Succeeded)return Unavailable<EngagementActivationLookup>();

@@ -33,7 +33,7 @@ public static class ClientAccountRoleWorkspace
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, "Provide an explicit account role, supported interval and reason.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var client = await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var client = await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (client is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (!await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db, actor.FirmId, clientId, ct: ct) || !await db.ClientAccountingProfiles.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.SourceMode == ClientAccountingSourceModes.NativeBookkeeping, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Current accepted native bookkeeping service is required.");
@@ -54,7 +54,7 @@ public static class ClientAccountRoleWorkspace
     if (decision is not ("APPROVE" or "REJECT") || reason.Length is 0 or > 2000) return CommandResult.Fail(ErrorCodes.Accounting.MappingInvalid, "Choose approval/rejection with a reason.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!(await Authorize(db, actor, clientId, Reviewers, ct)).Succeeded) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var client = await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var client = await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
     var row = await db.ClientAccountRoleConfigurations.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.Id == configurationId, ct);
     if (client is null || row is null || row.ProposedByUserId == actor.UserId) return CommandResult.Fail(ErrorCodes.ScopeDenied, "An independent scoped reviewer is required.");
     var existing = await db.ClientAccountRoleDecisions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.ConfigurationId == configurationId, ct);

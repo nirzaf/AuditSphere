@@ -33,8 +33,8 @@ public sealed class AuditPlanningCommandReceiptTests
     Assert.Single(await db2.AuditPlanningCommandReceipts.ToListAsync());
     Assert.Equal(before, await db2.ClientSafetyStates.Where(x => x.Id == f.ClientId).Select(x => x.InputGeneration).SingleAsync());
     Assert.Equal(ErrorCodes.IdempotencyConflict, (await AuditPlanningCommandWorkspace.ExecuteAsync(db2, a, f.EngagementId, request with { ReviewBasis = new('b',64) })).ErrorCode);
-    await Assert.ThrowsAsync<PostgresException>(() => db2.Database.ExecuteSqlInterpolatedAsync($"UPDATE audit_planning_command_receipts SET result_json='{{}}' WHERE id={saved.Id}"));
-    await Assert.ThrowsAsync<PostgresException>(() => db2.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM audit_planning_command_receipts WHERE id={saved.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db2.Database.ExecuteSqlAsync($"UPDATE audit_planning_command_receipts SET result_json='{{}}' WHERE id={saved.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db2.Database.ExecuteSqlAsync($"DELETE FROM audit_planning_command_receipts WHERE id={saved.Id}"));
   }
 
   [Fact, Trait("Profile", "Database")]
@@ -279,7 +279,7 @@ public sealed class AuditPlanningCommandReceiptTests
     var (a, fields) = await AuditPlanningReceiptSeed.FieldsAsync(pg, w, AuditPlanningActions.CreateRisk); AuditPlanningCommandRequest request;
     await using (var setup = new AuditSphereDbContext(pg.Options)) request = await AuditPlanningReceiptSeed.ReviewAsync(setup, a, f.EngagementId, fields);
     await using var revoke = new AuditSphereDbContext(pg.Options); await using var tx = await revoke.Database.BeginTransactionAsync();
-    await revoke.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={f.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
+    await revoke.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={f.FirmId} FOR UPDATE").AsNoTracking().SingleAsync();
     await using var planning = new AuditSphereDbContext(pg.Options); using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
     var pending = AuditPlanningCommandWorkspace.ExecuteAsync(planning, a, f.EngagementId, request, timeout.Token);
     await WaitForLockAsync(revoke, "firm_safety_states", timeout.Token);

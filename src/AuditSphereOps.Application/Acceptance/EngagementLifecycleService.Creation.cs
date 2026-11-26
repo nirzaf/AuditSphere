@@ -25,12 +25,12 @@ public static partial class EngagementLifecycleService
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     // Serialize creation for this client so concurrent retries cannot insert duplicate service-period shells.
-    var clientGuard = await db.ClientSafetyStates.FromSqlInterpolated(
+    var clientGuard = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE id = {request.PracticeClientId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (clientGuard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
     // Epoch-changing administration waits behind this actor lock. Role scope is still re-read.
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE")
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE")
       .AsNoTracking().SingleAsync(ct);
     auth = await AuthorizeDraftAsync(db, actor, request.PracticeClientId, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);

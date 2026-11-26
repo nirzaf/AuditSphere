@@ -259,8 +259,8 @@ public static class AuditCompletionVarianceWorkspace
   {
     var digest = Hashing.Sha256Hex(JsonSerializer.Serialize(new { Namespace = "audit-completion-variance-command-v1", actor.FirmId, actor.UserId, requestId }));
     var key = unchecked((long)Convert.ToUInt64(digest[..16], 16));
-    if (write) await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", ct);
-    else await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
+    if (write) await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({key})", ct);
+    else await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
   }
 
   private static VarianceInvestigationCommandReceiptView View(AuditCompletionVarianceCommandReceipt receipt) =>
@@ -286,7 +286,7 @@ public static class AuditCompletionVarianceWorkspace
   {
     var locked = await AuditPlanningCommandWorkspace.LockAsync(db, actor, engagementId, true, ct);
     if (!locked.Succeeded) return locked;
-    var engagement = await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={engagementId} FOR UPDATE")
+    var engagement = await db.Engagements.FromSql($"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={engagementId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     return engagement is not null && engagement.PracticeClientId == clientId
       ? CommandResult.Ok() : CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");

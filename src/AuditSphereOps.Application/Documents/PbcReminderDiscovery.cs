@@ -56,21 +56,21 @@ public static class PbcReminderEligibility
     if (firmId == Guid.Empty || clientId == Guid.Empty || engagementId == Guid.Empty || requestId == Guid.Empty)
       return null;
 
-    var engagement = await db.Engagements.FromSqlInterpolated($"""
+    var engagement = await db.Engagements.FromSql($"""
       SELECT * FROM engagements WHERE firm_id = {firmId} AND practice_client_id = {clientId}
         AND id = {engagementId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     if (engagement is null || !string.Equals(engagement.Status, "Active", StringComparison.OrdinalIgnoreCase))
       return null;
 
-    var request = await db.PbcRequests.FromSqlInterpolated($"""
+    var request = await db.PbcRequests.FromSql($"""
       SELECT * FROM pbc_requests WHERE firm_id = {firmId} AND client_id = {clientId}
         AND engagement_id = {engagementId} AND id = {requestId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     if (request is null || !ReminderStates.Contains(request.State, StringComparer.Ordinal))
       return null;
 
-    var owner = await db.Users.FromSqlInterpolated($"""
+    var owner = await db.Users.FromSql($"""
       SELECT * FROM users WHERE firm_id = {firmId} AND id = {request.ClientOwnerUserId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     if (owner is null || owner.Disabled || owner.UserKind != "Client" || string.IsNullOrWhiteSpace(owner.Email))
@@ -78,7 +78,7 @@ public static class PbcReminderEligibility
 
     // Only an exact client or engagement ClientUser grant is eligible. A broad firm-wide grant
     // never becomes an implicit reminder destination.
-    await db.RoleGrants.FromSqlInterpolated($"""
+    await db.RoleGrants.FromSql($"""
       SELECT * FROM role_grants WHERE firm_id = {firmId} AND user_id = {owner.Id} AND role = 'ClientUser'
         AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > {now})
         AND client_id = {clientId} AND (engagement_id IS NULL OR engagement_id = {engagementId})

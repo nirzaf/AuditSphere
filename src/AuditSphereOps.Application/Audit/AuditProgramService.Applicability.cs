@@ -124,19 +124,19 @@ public static partial class AuditProgramService
     if (snapshot is null)
       return CommandResult<ProcedureApplicabilityResult>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE")
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     var inputGeneration = await AuditPlanningInputGeneration.LockAndReadAsync(db, actor.FirmId, snapshot.ClientId, ct);
     if (inputGeneration is null || inputGeneration < 1)
       return CommandResult<ProcedureApplicabilityResult>.Fail(ErrorCodes.GateBlocked,
         "Current client input generation is unavailable; applicability was not changed.");
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE")
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     var scope = await ResolveEngagementAsync(db, actor, snapshot.EngagementId, ct, snapshot.ClientId, roles);
     if (scope.Denied is not null)
       return CommandResult<ProcedureApplicabilityResult>.Fail(scope.Denied, scope.Message);
 
-    var procedure = await db.AuditProcedures.FromSqlInterpolated($"""
+    var procedure = await db.AuditProcedures.FromSql($"""
       SELECT * FROM audit_procedures
       WHERE firm_id={actor.FirmId} AND id={request.AuditProcedureId}
       FOR UPDATE

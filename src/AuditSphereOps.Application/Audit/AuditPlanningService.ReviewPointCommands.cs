@@ -35,7 +35,7 @@ public static partial class AuditPlanningService
     if (scope.Denied is not null) return CommandResult.Fail(scope.Denied,scope.Message);
     var auth = await ReviewPointCommandWorkspace.AuthorizeAsync(db,actor,snapshot,ct);
     if (!auth.Succeeded) return auth;
-    var current = await db.ReviewPoints.FromSqlInterpolated($"SELECT * FROM review_points WHERE firm_id={actor.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var current = await db.ReviewPoints.FromSql($"SELECT * FROM review_points WHERE firm_id={actor.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (current is null || current.ClientId != snapshot.ClientId || current.EngagementId != snapshot.EngagementId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied,"Access denied.");
     if (current.DispositionRevision != expected) return CommandResult.Fail(ErrorCodes.StaleRevision,"The review point disposition changed; refresh before deciding again.");
@@ -47,7 +47,7 @@ public static partial class AuditPlanningService
     if(!writable.Succeeded)return writable;
     var actorId=actor.UserId.ToString();var epoch=actor.SessionEpoch.ToString(CultureInfo.InvariantCulture);var eventId=Guid.CreateVersion7().ToString();
     var action=cleared?ReviewPointCommandActions.Clear:ReviewPointCommandActions.Reopen;
-    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('audit.review_point_actor_id',{actorId},true), set_config('audit.review_point_actor_epoch',{epoch},true), set_config('audit.review_point_action',{action},true), set_config('audit.review_point_event_id',{eventId},true)",ct);
+    await db.Database.ExecuteSqlAsync($"SELECT set_config('audit.review_point_actor_id',{actorId},true), set_config('audit.review_point_actor_epoch',{epoch},true), set_config('audit.review_point_action',{action},true), set_config('audit.review_point_event_id',{eventId},true)",ct);
     var next=expected+1;
     var count=await db.ReviewPoints.Where(x=>x.Id==id && x.FirmId==actor.FirmId && x.ClientId==current.ClientId && x.EngagementId==current.EngagementId && x.DispositionRevision==expected)
       .ExecuteUpdateAsync(s=>s.SetProperty(x=>x.Cleared,cleared).SetProperty(x=>x.DispositionRevision,next),ct);

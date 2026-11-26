@@ -17,7 +17,7 @@ public static partial class AuditDeliverableService
         size.Width is < 50 or > 2000 || size.Height is < 20 or > 1000 || !AuditDeliverableRenderer.IsRenderablePng(png))
       return CommandResult<Guid>.Fail(ErrorCodes.AuditPlanning.Invalid, "Upload the approved firm seal as a usable PNG of at most 512 KB.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var guard = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var guard = await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var sha = Hashing.Sha256Hex(png);
     var prior = await db.FirmSealSpecimens.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);

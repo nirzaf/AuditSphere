@@ -955,7 +955,7 @@ public sealed class RecordsArchiveTests
     Assert.Equal(ArchiveStates.ProtectionObserved, (await db.Archives.AsNoTracking().SingleAsync(x => x.Id == archiveId)).Status);
     Assert.Equal(new[] { "REQUESTED", "OBSERVED" }, await db.RecordsActionEvidences.Where(x => x.ArchiveId == archiveId)
       .OrderBy(x => x.Sequence).Select(x => x.EventKind).ToArrayAsync());
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
       UPDATE records_action_evidence SET event_kind = 'FAILED' WHERE archive_id = {archiveId}
       """));
 
@@ -1069,7 +1069,7 @@ public sealed class RecordsArchiveTests
         "ALTER TABLE archive_manifest_entries DISABLE TRIGGER trg_archive_manifest_entry_mutation");
       try
       {
-        var changed = await corruption.Database.ExecuteSqlInterpolatedAsync($"""
+        var changed = await corruption.Database.ExecuteSqlAsync($"""
           UPDATE archive_manifest_entries SET metadata_json = {tamperedMetadata}
           WHERE firm_id = {scope.FirmId} AND id = {duplicate.Id}
           """);
@@ -1245,7 +1245,7 @@ public sealed class RecordsArchiveTests
       };
       seed.ArchiveManifests.Add(manifest);
       await seed.SaveChangesAsync();
-      await Assert.ThrowsAsync<PostgresException>(() => seed.Database.ExecuteSqlInterpolatedAsync($"""
+      await Assert.ThrowsAsync<PostgresException>(() => seed.Database.ExecuteSqlAsync($"""
         UPDATE archives SET status = 'ARCHIVE_VERIFIED' WHERE id = {archiveId}
         """));
     }
@@ -1367,13 +1367,13 @@ public sealed class RecordsArchiveTests
 
     await using (var raw = new AuditSphereDbContext(pg.Options))
     {
-      var deniedDelete = await Assert.ThrowsAsync<PostgresException>(() => raw.Database.ExecuteSqlInterpolatedAsync(
+      var deniedDelete = await Assert.ThrowsAsync<PostgresException>(() => raw.Database.ExecuteSqlAsync(
         $"DELETE FROM archive_manifest_entries WHERE id = {reviewedEntry.Id}"));
       Assert.Equal("55000", deniedDelete.SqlState);
       var deniedTruncate = await Assert.ThrowsAsync<PostgresException>(() => raw.Database.ExecuteSqlRawAsync(
         "TRUNCATE TABLE archive_manifest_entries"));
       Assert.Equal("55000", deniedTruncate.SqlState);
-      var deniedRegression = await Assert.ThrowsAsync<PostgresException>(() => raw.Database.ExecuteSqlInterpolatedAsync(
+      var deniedRegression = await Assert.ThrowsAsync<PostgresException>(() => raw.Database.ExecuteSqlAsync(
         $"UPDATE archive_manifests SET status = 'BUILT' WHERE id = {manifest2.Id}"));
       Assert.Equal("55000", deniedRegression.SqlState);
     }
@@ -1394,18 +1394,18 @@ public sealed class RecordsArchiveTests
       var tamperedPayload = "{\"controlledTamper\":true}";
       var refusedStructuredMutations = new Func<Task>[]
       {
-        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET payload_json = {tamperedPayload} WHERE id = {structuredExportId}"),
-        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET schema = 'records-export.v1' WHERE id = {structuredExportId}"),
-        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET content_hash = repeat('a', 64) WHERE id = {structuredExportId}"),
-        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET byte_count = byte_count + 1 WHERE id = {structuredExportId}"),
-        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET firm_id = {otherId} WHERE id = {structuredExportId}"),
-        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET client_id = {otherId} WHERE id = {structuredExportId}"),
-        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET engagement_id = {otherId} WHERE id = {structuredExportId}"),
-        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET archive_id = {otherId} WHERE id = {structuredExportId}"),
-        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET archive_manifest_id = {otherId} WHERE id = {structuredExportId}"),
-        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET id = {otherId} WHERE id = {structuredExportId}"),
-        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET version = version + 1 WHERE id = {structuredExportId}"),
-        () => structuredRaw.Database.ExecuteSqlInterpolatedAsync($"UPDATE archive_structured_exports SET created_at = created_at + interval '1 minute' WHERE id = {structuredExportId}")
+        () => structuredRaw.Database.ExecuteSqlAsync($"UPDATE archive_structured_exports SET payload_json = {tamperedPayload} WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlAsync($"UPDATE archive_structured_exports SET schema = 'records-export.v1' WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlAsync($"UPDATE archive_structured_exports SET content_hash = repeat('a', 64) WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlAsync($"UPDATE archive_structured_exports SET byte_count = byte_count + 1 WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlAsync($"UPDATE archive_structured_exports SET firm_id = {otherId} WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlAsync($"UPDATE archive_structured_exports SET client_id = {otherId} WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlAsync($"UPDATE archive_structured_exports SET engagement_id = {otherId} WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlAsync($"UPDATE archive_structured_exports SET archive_id = {otherId} WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlAsync($"UPDATE archive_structured_exports SET archive_manifest_id = {otherId} WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlAsync($"UPDATE archive_structured_exports SET id = {otherId} WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlAsync($"UPDATE archive_structured_exports SET version = version + 1 WHERE id = {structuredExportId}"),
+        () => structuredRaw.Database.ExecuteSqlAsync($"UPDATE archive_structured_exports SET created_at = created_at + interval '1 minute' WHERE id = {structuredExportId}")
       };
 
       foreach (var mutation in refusedStructuredMutations)
@@ -1423,7 +1423,7 @@ public sealed class RecordsArchiveTests
       }
 
       var refusedStructuredDelete = await Assert.ThrowsAsync<PostgresException>(() =>
-        structuredRaw.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM archive_structured_exports WHERE id = {structuredExportId}"));
+        structuredRaw.Database.ExecuteSqlAsync($"DELETE FROM archive_structured_exports WHERE id = {structuredExportId}"));
       Assert.Equal("55000", refusedStructuredDelete.SqlState);
       var refusedStructuredTruncate = await Assert.ThrowsAsync<PostgresException>(() =>
         structuredRaw.Database.ExecuteSqlRawAsync("TRUNCATE TABLE archive_structured_exports"));
@@ -1474,7 +1474,7 @@ public sealed class RecordsArchiveTests
       DROP FUNCTION IF EXISTS guard_archive_structured_export_mutation();
       DROP FUNCTION IF EXISTS guard_archive_structured_export_insert();
       """);
-    await migrationDb.Database.ExecuteSqlInterpolatedAsync($"""
+    await migrationDb.Database.ExecuteSqlAsync($"""
       DELETE FROM "__EFMigrationsHistory" WHERE "MigrationId" = {structuredExportGuardMigration}
       """);
     await migrator.MigrateAsync();
@@ -1503,7 +1503,7 @@ public sealed class RecordsArchiveTests
       DROP TRIGGER IF EXISTS trg_archive_structured_export_mutation ON archive_structured_exports;
       DROP TRIGGER IF EXISTS trg_archive_structured_export_insert ON archive_structured_exports;
       """);
-    await migrationDb.Database.ExecuteSqlInterpolatedAsync($"""
+    await migrationDb.Database.ExecuteSqlAsync($"""
       DELETE FROM archive_structured_exports WHERE firm_id = {scope.FirmId} AND archive_id = {archiveId}
       """);
 
@@ -1520,7 +1520,7 @@ public sealed class RecordsArchiveTests
     {
       const string attemptedTamper = "{\"controlledTamper\":true}";
       var refusedMutation = await Assert.ThrowsAsync<PostgresException>(() =>
-        guardCheck.Database.ExecuteSqlInterpolatedAsync($"""
+        guardCheck.Database.ExecuteSqlAsync($"""
           UPDATE archive_manifest_entries SET metadata_json = {attemptedTamper}
           WHERE firm_id = {scope.FirmId} AND archive_manifest_id = {manifest2.Id}
           """));
@@ -1585,7 +1585,7 @@ public sealed class RecordsArchiveTests
     pidCommand.CommandText = "SELECT pg_backend_pid()";
     var insertPid = Convert.ToInt32(await pidCommand.ExecuteScalarAsync());
     var lateId = Guid.CreateVersion7();
-    var insertTask = insert.Database.ExecuteSqlInterpolatedAsync($"""
+    var insertTask = insert.Database.ExecuteSqlAsync($"""
       INSERT INTO archive_structured_exports
         (id, firm_id, client_id, engagement_id, archive_id, archive_manifest_id, version,
          schema, payload_json, content_hash, byte_count, created_at)

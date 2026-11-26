@@ -236,7 +236,7 @@ public sealed class PbcHttpTests
     var expiredBytes = "synthetic expired upload"u8.ToArray();
     var expired = await StartUploadAsync(pg, fixture, clientActor, requestId, expiredBytes);
     await using (var expire = new AuditSphereDbContext(pg.Options))
-      await expire.Database.ExecuteSqlInterpolatedAsync($"""
+      await expire.Database.ExecuteSqlAsync($"""
         UPDATE pbc_upload_intents
         SET created_at = statement_timestamp() - interval '2 days',
             expires_at = statement_timestamp() - interval '1 day'

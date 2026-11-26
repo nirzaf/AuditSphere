@@ -93,7 +93,7 @@ public static partial class AuditFieldworkService
     auth = await AuthorizeEntityAsync(db, actor, existing, ReviewRoles, ct);
     if (!auth.Succeeded)
       return CommandResult<DifferenceValue>.Fail(auth.ErrorCode!, auth.Message!);
-    var locked = await db.AuditDifferences.FromSqlInterpolated(
+    var locked = await db.AuditDifferences.FromSql(
       $"SELECT * FROM audit_differences WHERE id={existing.Id} AND firm_id={actor.FirmId} AND client_id={existing.ClientId} AND engagement_id={existing.EngagementId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (locked is null)

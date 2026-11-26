@@ -223,6 +223,6 @@ public sealed class WorkflowReminderDiscovery(
 
   private Task<AuditSphereOps.Domain.Completion.FirmSafetyState?> LockFirmAsync(
     IAuditSphereDbContext db, CancellationToken ct) =>
-    db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {worker.FirmId} FOR UPDATE")
+    db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {worker.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
 }

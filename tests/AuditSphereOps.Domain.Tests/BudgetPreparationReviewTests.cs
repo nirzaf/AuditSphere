@@ -22,7 +22,7 @@ public sealed class BudgetPreparationReviewTests
     await db.ClientSafetyStates.Where(x=>x.Id==f.ClientId).ExecuteUpdateAsync(x=>x.SetProperty(y=>y.InputGeneration,y=>y.InputGeneration+1));
     Assert.True((await BudgetPreparationWorkspace.ExecuteAsync(db,a,f.EngagementId,request)).Succeeded);
     Assert.False((await BudgetPreparationWorkspace.ExecuteAsync(db,a,f.EngagementId,request with{Fields=request.Fields with{Currency="USD"}})).Succeeded);
-    Assert.Equal("P0001",(await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE budget_preparations SET preview_json='{{}}' WHERE id={receipt.Id}"))).SqlState);
+    Assert.Equal("P0001",(await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE budget_preparations SET preview_json='{{}}' WHERE id={receipt.Id}"))).SqlState);
   }
   [Fact]
   public async Task StaleRateOrRevisionUnreviewedAndUnauthorizedRequestsNeverCreateBudgets()

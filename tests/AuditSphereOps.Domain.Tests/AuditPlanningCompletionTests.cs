@@ -127,7 +127,7 @@ public sealed class AuditPlanningCompletionTests
     var engagementId = Guid.NewGuid();
     var verificationId = Guid.NewGuid();
     var now = DateTimeOffset.UtcNow;
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
+    await db.Database.ExecuteSqlAsync($"""
       INSERT INTO practice_clients
         (id, firm_id, legal_name, commercial_name, status, billing_account_id, created_at,
          jurisdiction, registration_number, restricted_profile, entity_type, tax_registration_number)
@@ -135,7 +135,7 @@ public sealed class AuditPlanningCompletionTests
         ({clientId}, {firmId}, 'Synthetic migration guard client', NULL, {CrmStates.ClientProspect}, NULL, {now},
          NULL, NULL, NULL, NULL, NULL)
       """);
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
+    await db.Database.ExecuteSqlAsync($"""
       INSERT INTO engagements
         (id, firm_id, practice_client_id, service_route, period_start, period_end, service_profile_id,
          status, professional_work_blocked, generation, created_at)
@@ -143,7 +143,7 @@ public sealed class AuditPlanningCompletionTests
         ({engagementId}, {firmId}, {clientId}, 'FinancialStatementAudit', '2025-01-01', '2025-12-31',
          'migration-guard', 'Active', FALSE, 1, {now})
       """);
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
+    await db.Database.ExecuteSqlAsync($"""
       INSERT INTO opening_balance_verifications
         (id, firm_id, client_id, engagement_id, procedure_id, prior_period_id, prior_reference, as_of_date,
          currency, opening_signed_total, agreed_signed_total, difference_amount, accounting_policies_consistent,

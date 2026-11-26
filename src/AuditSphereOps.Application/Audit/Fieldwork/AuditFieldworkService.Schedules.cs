@@ -145,7 +145,7 @@ public static partial class AuditFieldworkService
       return CommandResult<ScheduleValue>.Fail(auth.ErrorCode!, auth.Message!);
     await using var tx = ownTransaction ? await db.Database.BeginTransactionAsync(ct) : null;
     await LockConfirmationScopeAsync(db, actor, scheduleSnapshot!.EngagementId, ct);
-    var current = await db.AuditSchedules.FromSqlInterpolated(
+    var current = await db.AuditSchedules.FromSql(
       $"SELECT * FROM audit_schedules WHERE firm_id = {actor.FirmId} AND client_id = {scheduleSnapshot.ClientId} AND engagement_id = {scheduleSnapshot.EngagementId} AND id = {request.ScheduleId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (current is null) return Denied<ScheduleValue>();

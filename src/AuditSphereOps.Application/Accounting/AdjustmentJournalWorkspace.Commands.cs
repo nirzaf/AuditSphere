@@ -109,7 +109,7 @@ public static partial class AdjustmentJournalWorkspace
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var locked = await GeneralLedgerCompletenessWorkspace.LockAsync(db, actor, current.Value.Journal.ClientId, current.Value.Journal.EngagementId, ct);
     if (!locked.Succeeded) return Fail<JournalActionReceipt>(locked.ErrorCode!, locked.Message!);
-    await db.AdjustmentJournals.FromSqlInterpolated($"SELECT * FROM adjustment_journals WHERE firm_id = {actor.FirmId} AND id = {id} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    await db.AdjustmentJournals.FromSql($"SELECT * FROM adjustment_journals WHERE firm_id = {actor.FirmId} AND id = {id} FOR UPDATE").AsNoTracking().SingleAsync(ct);
     var prior = await evidenceDb.AdjustmentJournalActions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.ActorId == actor.UserId && x.RequestId == r.RequestId, ct);
     if (prior is not null)
     {
@@ -120,7 +120,7 @@ public static partial class AdjustmentJournalWorkspace
       return CommandResult<JournalActionReceipt>.Ok(Receipt(prior));
     }
     // Lock the source metadata before checking the exact current review.
-    await db.TrialBalanceDatasets.FromSqlInterpolated($"SELECT * FROM trial_balance_datasets WHERE firm_id = {actor.FirmId} AND id = {current.Value.Journal.BaseDatasetId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    await db.TrialBalanceDatasets.FromSql($"SELECT * FROM trial_balance_datasets WHERE firm_id = {actor.FirmId} AND id = {current.Value.Journal.BaseDatasetId} FOR SHARE").AsNoTracking().SingleAsync(ct);
     var proof = await PreviewAsync(db, evidenceDb, actor, id, r, ct);
     if (!proof.Succeeded) return Fail<JournalActionReceipt>(proof.ErrorCode!, proof.Message!);
     if (!proof.Value!.CanProceed) return Fail<JournalActionReceipt>(ErrorCodes.GateBlocked, proof.Value.Errors.FirstOrDefault() ?? proof.Value.Blocker!);

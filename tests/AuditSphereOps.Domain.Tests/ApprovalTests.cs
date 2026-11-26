@@ -55,11 +55,11 @@ public sealed class ApprovalTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         UPDATE approvals SET manifest_digest = {new string('b', 64)}
         WHERE firm_id = {fixture.FirmId} AND id = {approvalId}
         """));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         DELETE FROM approvals WHERE firm_id = {fixture.FirmId} AND id = {approvalId}
         """));
     }

@@ -526,7 +526,7 @@ public static partial class AuditPlanningService
 
     private static async Task<Workpaper?> LockedWorkpaperAsync(
         IAuditSphereDbContext db, Guid firmId, Guid workpaperId, CancellationToken ct) =>
-        await db.Workpapers.FromSqlInterpolated($"""
+        await db.Workpapers.FromSql($"""
             SELECT * FROM workpapers WHERE id = {workpaperId} AND firm_id = {firmId} FOR UPDATE
             """).AsNoTracking().SingleOrDefaultAsync(ct);
 
@@ -571,7 +571,7 @@ public static partial class AuditPlanningService
         IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct,
         Guid? expectedClientId = null, bool requireProfessionalWork = true)
     {
-        var engagement = await db.Engagements.FromSqlInterpolated($"""
+        var engagement = await db.Engagements.FromSql($"""
             SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} FOR UPDATE
             """).AsNoTracking().SingleOrDefaultAsync(ct);
         if (engagement is null ||

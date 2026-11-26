@@ -53,9 +53,9 @@ public static class AccountingSourceAcceptanceService
     // Serialize decisions and generation changes. Locks follow firm -> client -> engagement -> source/period.
     // A failed command rolls back its local publication, including a late authority change.
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var firm = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE").SingleOrDefaultAsync(ct);
-    var safety = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {request.ClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
-    var engagement = await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE firm_id = {actor.FirmId} AND id = {request.EngagementId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var firm = await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE").SingleOrDefaultAsync(ct);
+    var safety = await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {request.ClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var engagement = await db.Engagements.FromSql($"SELECT * FROM engagements WHERE firm_id = {actor.FirmId} AND id = {request.EngagementId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (firm is null || safety is null || engagement is null || engagement.PracticeClientId != request.ClientId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
@@ -71,7 +71,7 @@ public static class AccountingSourceAcceptanceService
     {
       if (request.TrialBalanceDatasetId is { } datasetId)
       {
-        var dataset = await db.TrialBalanceDatasets.FromSqlInterpolated($"SELECT * FROM trial_balance_datasets WHERE firm_id = {actor.FirmId} AND id = {datasetId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(x =>
+        var dataset = await db.TrialBalanceDatasets.FromSql($"SELECT * FROM trial_balance_datasets WHERE firm_id = {actor.FirmId} AND id = {datasetId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(x =>
           x.Id == datasetId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
           x.EngagementId == request.EngagementId && (x.SourceKind == "Raw" || x.SourceKind == NativeTrialBalanceSourceWorkspace.SourceKind) &&
           x.ImportState == TrialBalanceImportStates.Sealed && x.ValidationStatus == "Accepted" && x.Balanced, ct);
@@ -94,7 +94,7 @@ public static class AccountingSourceAcceptanceService
     {
       if (request.ImportBatchId is { } batchId)
       {
-        var batch = await db.SourceImportBatches.FromSqlInterpolated($"SELECT * FROM source_import_batches WHERE firm_id = {actor.FirmId} AND id = {batchId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(x =>
+        var batch = await db.SourceImportBatches.FromSql($"SELECT * FROM source_import_batches WHERE firm_id = {actor.FirmId} AND id = {batchId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(x =>
           x.Id == batchId && x.FirmId == actor.FirmId && x.ClientId == request.ClientId &&
           x.EngagementId == request.EngagementId && x.SourceKind == AccountingSourceKinds.GeneralLedger && x.Status == "SEALED", ct);
         if (batch is null)
@@ -119,7 +119,7 @@ public static class AccountingSourceAcceptanceService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The sealed source has no valid immutable identity digest.");
     if (periodId is { } period)
     {
-      var currentPeriod = await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id = {actor.FirmId} AND id = {period} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+      var currentPeriod = await db.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE firm_id = {actor.FirmId} AND id = {period} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
       if (currentPeriod is null || currentPeriod.ClientId != request.ClientId || !AccountingWorkflowStates.IsOpenReportingPeriodStatus(currentPeriod.Status))
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The source reporting period is unavailable or closed.");
     }

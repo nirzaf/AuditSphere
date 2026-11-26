@@ -124,7 +124,7 @@ public static class JournalManagementWorkspace
     var j=current.Value!.Journal;var auth=await Auth(db,actor,j,client,true,ct);if(!auth.Succeeded)return Fail<JournalManagementReceipt>(auth.ErrorCode!,auth.Message!);
     await using var tx=await db.Database.BeginTransactionAsync(ct);
     var locked=await GeneralLedgerCompletenessWorkspace.LockAsync(db,actor,j.ClientId,j.EngagementId,ct);if(!locked.Succeeded)return Fail<JournalManagementReceipt>(locked.ErrorCode!,locked.Message!);
-    await db.AdjustmentJournals.FromSqlInterpolated($"SELECT * FROM adjustment_journals WHERE firm_id={actor.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    await db.AdjustmentJournals.FromSql($"SELECT * FROM adjustment_journals WHERE firm_id={actor.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleAsync(ct);
     var prior=await evidenceDb.AdjustmentJournalActions.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==actor.FirmId && x.ActorId==actor.UserId && x.RequestId==r.RequestId,ct);
     if(prior is not null)
     {
@@ -132,7 +132,7 @@ public static class JournalManagementWorkspace
       auth=await Auth(db,actor,j,client,true,ct);if(!auth.Succeeded)return Fail<JournalManagementReceipt>(auth.ErrorCode!,auth.Message!);
       await tx.CommitAsync(ct);return CommandResult<JournalManagementReceipt>.Ok(Receipt(prior));
     }
-    await db.TrialBalanceDatasets.FromSqlInterpolated($"SELECT * FROM trial_balance_datasets WHERE firm_id={actor.FirmId} AND id={j.BaseDatasetId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    await db.TrialBalanceDatasets.FromSql($"SELECT * FROM trial_balance_datasets WHERE firm_id={actor.FirmId} AND id={j.BaseDatasetId} FOR SHARE").AsNoTracking().SingleAsync(ct);
     if(j.PeriodId is not { } periodId)return Fail<JournalManagementReceipt>(ErrorCodes.GateBlocked,"Bind the exact reporting period before recording evidence.");
     var mutable=await GeneralLedgerCompletenessWorkspace.MutablePeriodAsync(db,actor,j.ClientId,j.EngagementId,periodId,j.BookId,ct);if(!mutable.Succeeded)return Fail<JournalManagementReceipt>(mutable.ErrorCode!,mutable.Message!);
     var preview=await PreviewAsync(db,evidenceDb,actor,id,client,r,ct);if(!preview.Succeeded)return Fail<JournalManagementReceipt>(preview.ErrorCode!,preview.Message!);

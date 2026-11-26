@@ -19,7 +19,7 @@ COPY src/ src/
 # EF also generates a RID-specific bundle project and invokes a second `dotnet publish`; pass
 # the same compiler, project-reference, and API-host publication limits through the inherited
 # MSBuild environment.
-RUN dotnet tool install --global dotnet-ef --version 10.0.12 \
+RUN dotnet tool install --global dotnet-ef --version 11.0.0 \
   && dotnet restore src/AuditSphereOps.Api/AuditSphereOps.Api.csproj --locked-mode
 RUN dotnet build src/AuditSphereOps.Api/AuditSphereOps.Api.csproj \
     --configuration Release --no-restore -m:1 -p:BuildInParallel=false \

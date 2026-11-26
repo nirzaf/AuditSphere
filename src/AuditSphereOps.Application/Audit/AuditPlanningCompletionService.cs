@@ -106,7 +106,7 @@ public static class AuditPlanningCompletionService
         }
       }
       var engagement = await db.Engagements.AsNoTracking().SingleAsync(x => x.FirmId == actor.FirmId && x.Id == request.EngagementId, ct);
-      var existing = await db.OpeningBalanceVerifications.FromSqlInterpolated($"SELECT * FROM opening_balance_verifications WHERE firm_id={actor.FirmId} AND engagement_id={request.EngagementId} AND as_of_date={request.AsOfDate} FOR UPDATE")
+      var existing = await db.OpeningBalanceVerifications.FromSql($"SELECT * FROM opening_balance_verifications WHERE firm_id={actor.FirmId} AND engagement_id={request.EngagementId} AND as_of_date={request.AsOfDate} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       if ((existing?.Revision ?? 0) != request.ExpectedRevision || existing?.Id != request.ExpectedVerificationId || request.ExpectedRevision == long.MaxValue)
         return Failure<OpeningBalanceVerificationValue>(ErrorCodes.StaleRevision, "The opening-balance verification changed. Read its current revision before submitting.");
@@ -201,7 +201,7 @@ public static class AuditPlanningCompletionService
         if (!recovered.Succeeded) return CommandResult.Fail(recovered.ErrorCode!, recovered.Message!);
         if (recovered.Value!.Found) { await tx.CommitAsync(ct); return CommandResult.Ok(); }
       }
-      var verification = await db.OpeningBalanceVerifications.FromSqlInterpolated($"SELECT * FROM opening_balance_verifications WHERE id={request.VerificationId} AND firm_id={actor.FirmId} AND engagement_id={request.EngagementId} FOR UPDATE")
+      var verification = await db.OpeningBalanceVerifications.FromSql($"SELECT * FROM opening_balance_verifications WHERE id={request.VerificationId} AND firm_id={actor.FirmId} AND engagement_id={request.EngagementId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       if (verification is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
       auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, verification.ClientId, request.EngagementId,
@@ -278,7 +278,7 @@ public static class AuditPlanningCompletionService
   {
     var locked = await AuditPlanningCommandWorkspace.LockAsync(db, actor, engagementId, true, ct);
     if (!locked.Succeeded) return locked;
-    await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={engagementId} FOR UPDATE")
+    await db.Engagements.FromSql($"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={engagementId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     return await AuthorizeAsync(db, actor, engagementId, roles, true, ct);
   }

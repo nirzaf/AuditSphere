@@ -795,10 +795,10 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       var refusal = await Record.ExceptionAsync(async () =>
       {
         if (foreignParent == "client")
-          await db.Database.ExecuteSqlInterpolatedAsync(
+          await db.Database.ExecuteSqlAsync(
             $"UPDATE client_portal_intents SET practice_client_id = {foreignClientId} WHERE id = {ownIntentId}");
         else
-          await db.Database.ExecuteSqlInterpolatedAsync(
+          await db.Database.ExecuteSqlAsync(
             $"UPDATE client_portal_intents SET client_contact_id = {foreignContactId}, recipient_email = {foreignRecipientEmail} WHERE id = {ownIntentId}");
       });
 
@@ -942,7 +942,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     Assert.Contains(originalForeignKeys, x => x.StartsWith("FK_client_portal_intents_practice_clients_practice_client_id|", StringComparison.Ordinal));
 
     await using (var db = new AuditSphereDbContext(pg.Options))
-      await db.Database.ExecuteSqlInterpolatedAsync(
+      await db.Database.ExecuteSqlAsync(
         $"UPDATE client_portal_intents SET client_contact_id = {foreignContactId} WHERE id = {ownIntentId}");
     var invalidRows = await ReadColumnAsync(pg,
       "SELECT to_jsonb(i)::text FROM client_portal_intents i ORDER BY id");
@@ -968,7 +968,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       """));
 
     await using (var db = new AuditSphereDbContext(pg.Options))
-      await db.Database.ExecuteSqlInterpolatedAsync(
+      await db.Database.ExecuteSqlAsync(
         $"UPDATE client_portal_intents SET client_contact_id = {ownContactId} WHERE id = {ownIntentId}");
     Assert.Equal(retainedRows, await ReadColumnAsync(pg,
       "SELECT to_jsonb(i)::text FROM client_portal_intents i ORDER BY id"));
@@ -1068,14 +1068,14 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
       seedDb.ClientDeliverableReviews.Add(ownReview);
       seedDb.ClientDeliverableComments.Add(ownComment);
       await seedDb.SaveChangesAsync();
-      await seedDb.Database.ExecuteSqlInterpolatedAsync($"""
+      await seedDb.Database.ExecuteSqlAsync($"""
         INSERT INTO client_deliverable_reviews
           (id, firm_id, client_id, engagement_id, deliverable_id, shared_by_user_id, shared_at,
            acknowledged_by_user_id, acknowledged_at, acknowledged_sha256)
         VALUES ({Guid.NewGuid()}, {own.FirmId}, {own.ClientId}, {own.EngagementId}, {foreignDeliverable.Id},
                 {own.Staff.Id}, {now}, NULL, NULL, NULL)
         """);
-      await seedDb.Database.ExecuteSqlInterpolatedAsync($"""
+      await seedDb.Database.ExecuteSqlAsync($"""
         INSERT INTO client_deliverable_comments
           (id, firm_id, review_id, body, author_user_id, from_client, created_at,
            resolved_by_user_id, resolved_at, resolution, request_id, request_sha256)
@@ -1196,7 +1196,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
 
     var invalidReviewId = Guid.NewGuid();
     await using (var db = new AuditSphereDbContext(pg.Options))
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO client_deliverable_reviews
           (id, firm_id, client_id, engagement_id, deliverable_id, shared_by_user_id, shared_at,
            acknowledged_by_user_id, acknowledged_at, acknowledged_sha256)
@@ -1219,13 +1219,13 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     Assert.Equal(originalIndexes, await ReadIndexesAsync(pg));
 
     await using (var db = new AuditSphereDbContext(pg.Options))
-      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM client_deliverable_reviews WHERE id = {invalidReviewId}");
+      await db.Database.ExecuteSqlAsync($"DELETE FROM client_deliverable_reviews WHERE id = {invalidReviewId}");
     Assert.Equal(originalReviewRows, await ReadRowsAsync(pg,
       "SELECT to_jsonb(r)::text FROM client_deliverable_reviews r ORDER BY id"));
 
     var invalidCommentId = Guid.NewGuid();
     await using (var db = new AuditSphereDbContext(pg.Options))
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO client_deliverable_comments
           (id, firm_id, review_id, body, author_user_id, from_client, created_at,
            resolved_by_user_id, resolved_at, resolution, request_id, request_sha256)
@@ -1248,7 +1248,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     Assert.Equal(originalIndexes, await ReadIndexesAsync(pg));
 
     await using (var db = new AuditSphereDbContext(pg.Options))
-      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM client_deliverable_comments WHERE id = {invalidCommentId}");
+      await db.Database.ExecuteSqlAsync($"DELETE FROM client_deliverable_comments WHERE id = {invalidCommentId}");
     Assert.Equal(originalCommentRows, await ReadRowsAsync(pg,
       "SELECT to_jsonb(c)::text FROM client_deliverable_comments c ORDER BY id"));
 
@@ -1277,7 +1277,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var postMigrationReviewRefusal = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      var postMigrationReviewRefusal = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         INSERT INTO client_deliverable_reviews
           (id, firm_id, client_id, engagement_id, deliverable_id, shared_by_user_id, shared_at,
            acknowledged_by_user_id, acknowledged_at, acknowledged_sha256)
@@ -1286,7 +1286,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
         """));
       Assert.Equal("23503", postMigrationReviewRefusal.SqlState);
       Assert.Equal("fk_client_deliverable_review_deliverable_scope", postMigrationReviewRefusal.ConstraintName);
-      var postMigrationCommentRefusal = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      var postMigrationCommentRefusal = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         INSERT INTO client_deliverable_comments
           (id, firm_id, review_id, body, author_user_id, from_client, created_at,
            resolved_by_user_id, resolved_at, resolution, request_id, request_sha256)
@@ -1314,7 +1314,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     {
       var mismatchedId = Guid.NewGuid();
       await using var db = new AuditSphereDbContext(pg.Options);
-      var refusal = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      var refusal = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         INSERT INTO client_deliverable_reviews
           (id, firm_id, client_id, engagement_id, deliverable_id, shared_by_user_id, shared_at,
            acknowledged_by_user_id, acknowledged_at, acknowledged_sha256)
@@ -1634,7 +1634,7 @@ public sealed partial class CompletionSchemaInvariantTests(Xunit.Abstractions.IT
     };
     db.TechnicalLibraryDocuments.Add(foreignDocument);
     await db.SaveChangesAsync();
-    Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+    Assert.Equal(1, await db.Database.ExecuteSqlAsync($"""
       INSERT INTO technical_library_versions
       SELECT (jsonb_populate_record(NULL::technical_library_versions, to_jsonb(v) || jsonb_build_object(
         'id', {Guid.NewGuid()}, 'document_id', {foreignDocument.Id}))).*

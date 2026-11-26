@@ -23,7 +23,7 @@ public sealed class OutboxMigrationTests
       // legacy table shape before asking the current model to migrate it forward.
       const string legacyName = "Migration fixture";
       const string legacyStatus = "Prospect";
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO practice_clients (id, firm_id, legal_name, commercial_name, status, billing_account_id, created_at)
         VALUES ({client}, {firm}, {legacyName}, NULL, {legacyStatus}, NULL, statement_timestamp())
         """);
@@ -33,7 +33,7 @@ public sealed class OutboxMigrationTests
       // The current EF model contains the import-state column introduced after
       // this fixture's target migration. Seed the legacy shape explicitly so
       // the migration itself, rather than EF's current model, adds that column.
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO trial_balance_datasets
           (id, firm_id, client_id, engagement_id, source_kind, revision, currency,
            sha256_hex, balanced, control_total, imported_at, imported_by_user_id,
@@ -41,7 +41,7 @@ public sealed class OutboxMigrationTests
         VALUES ({dataset}, {firm}, {client}, {engagement}, 'Legacy', 1, 'QAR',
                 'legacy-fixture', FALSE, 123.456789, statement_timestamp(), {Guid.Empty}, 'Pending')
         """);
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO trial_balance_rows
           (id, dataset_id, account_code, account_name, amount, currency, entity, mapping_code)
         VALUES ({Guid.NewGuid()}, {dataset}, '001', 'Legacy account', 123.456789, 'QAR', 'Legacy', NULL)
@@ -64,7 +64,7 @@ public sealed class OutboxMigrationTests
     await using var pg = await PgTestSchema.CreateAsync(Previous);
     await using var db = new AuditSphereDbContext(pg.Options);
     var id = Guid.NewGuid();
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
+    await db.Database.ExecuteSqlAsync($"""
       INSERT INTO durable_operations
         (id, firm_id, operation_kind, payload_json, idempotency_key, request_digest, status, attempt, created_at)
       VALUES ({id}, {Guid.NewGuid()}, 'Legacy', {"{}"}, 'legacy-key', '', 'Leased', 3, statement_timestamp())
@@ -85,7 +85,7 @@ public sealed class OutboxMigrationTests
     await using var db = new AuditSphereDbContext(pg.Options);
     var accountId = Guid.NewGuid();
     var firmId = Guid.NewGuid();
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
+    await db.Database.ExecuteSqlAsync($"""
       INSERT INTO firm_accounts (id, firm_id, code, name, normal_side, posting_allowed)
       VALUES ({accountId}, {firmId}, '1000', 'Legacy cash', 'Debit', TRUE)
       """);
@@ -104,7 +104,7 @@ public sealed class OutboxMigrationTests
     await using var pg = await PgTestSchema.CreateAsync(Previous);
     await using var db = new AuditSphereDbContext(pg.Options);
     var id = Guid.NewGuid();
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
+    await db.Database.ExecuteSqlAsync($"""
       INSERT INTO document_references
         (id, firm_id, client_id, engagement_id, provider, drive_id, item_id, path, purpose, created_at)
       VALUES ({id}, {Guid.NewGuid()}, {Guid.NewGuid()}, {Guid.NewGuid()}, 'SharePoint', 'drive', 'item', '/legacy', 'Evidence', statement_timestamp())
@@ -124,7 +124,7 @@ public sealed class OutboxMigrationTests
     await using var pg = await PgTestSchema.CreateAsync(Previous);
     await using var db = new AuditSphereDbContext(pg.Options);
     var id = Guid.NewGuid();
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
+    await db.Database.ExecuteSqlAsync($"""
       INSERT INTO approvals
         (id, firm_id, client_id, engagement_id, target_kind, target_id, target_revision,
          input_generation, policy_generation, manifest_digest, decided_by_user_id, decided_at)
@@ -146,7 +146,7 @@ public sealed class OutboxMigrationTests
     await using var pg = await PgTestSchema.CreateAsync(Previous);
     await using var db = new AuditSphereDbContext(pg.Options);
     var id = Guid.NewGuid();
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
+    await db.Database.ExecuteSqlAsync($"""
       INSERT INTO releases
         (id, firm_id, client_id, engagement_id, package_id, package_revision,
          manifest_digest, external_checkpoint, released_at, released_by_user_id)
@@ -168,7 +168,7 @@ public sealed class OutboxMigrationTests
     await using var pg = await PgTestSchema.CreateAsync(Previous);
     await using var db = new AuditSphereDbContext(pg.Options);
     var id = Guid.NewGuid();
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
+    await db.Database.ExecuteSqlAsync($"""
       INSERT INTO financial_packages
         (id, firm_id, client_id, engagement_id, adjusted_dataset_id, currency,
          revision, generation, status, created_at)

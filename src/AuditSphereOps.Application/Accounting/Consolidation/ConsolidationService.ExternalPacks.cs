@@ -312,10 +312,10 @@ public static partial class ConsolidationService
     if (!await LockGroupAuthorityFenceAsync(db, actor.FirmId, ct))
       return CommandResult<ExternalPackScopeLock>.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
 
-    var group = await db.ClientGroups.FromSqlInterpolated($"""
+    var group = await db.ClientGroups.FromSql($"""
       SELECT * FROM client_groups WHERE id = {scopeIdentity.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
-    var scope = await db.ConsolidationScopeVersions.FromSqlInterpolated($"""
+    var scope = await db.ConsolidationScopeVersions.FromSql($"""
       SELECT * FROM consolidation_scope_versions
       WHERE id = {scopeVersionId} AND group_id = {scopeIdentity.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
@@ -353,7 +353,7 @@ public static partial class ConsolidationService
     if (scopeLock.Group.Id != identity.GroupId)
       return CommandResult<ExternalPackLock>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
-    var freshPack = await db.ExternalComponentPacks.FromSqlInterpolated($"""
+    var freshPack = await db.ExternalComponentPacks.FromSql($"""
       SELECT * FROM external_component_packs
       WHERE id = {packId} AND firm_id = {actor.FirmId} AND group_id = {scopeLock.Group.Id}
         AND scope_version_id = {scopeLock.Scope.Id} FOR UPDATE

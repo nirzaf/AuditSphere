@@ -57,7 +57,7 @@ public static class Microsoft365OnboardingService
       return CommandResult<Guid>.Fail("m365.bootstrap.invalid", "A valid administrator contact is required.");
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var session = await db.Microsoft365SetupSessions.FromSqlInterpolated($"""
+    var session = await db.Microsoft365SetupSessions.FromSql($"""
       SELECT * FROM m365_setup_sessions WHERE id = {request.SessionId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (session is null || session.ExpiresAt <= now || session.State != Microsoft365SetupStates.Claimed ||

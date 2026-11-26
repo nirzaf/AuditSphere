@@ -23,11 +23,11 @@ public static partial class FinancialStatementService
 
   private static async Task<FirmSafetyState?> LockFirmAsync(
     IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
-    await db.FirmSafetyStates.FromSqlInterpolated(
+    await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
 
   private static async Task<ClientSafetyState?> LockClientAsync(
     IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct) =>
-    await db.ClientSafetyStates.FromSqlInterpolated(
+    await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE firm_id = {firmId} AND id = {clientId} FOR UPDATE").SingleOrDefaultAsync(ct);
 }

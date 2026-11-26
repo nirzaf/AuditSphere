@@ -194,16 +194,16 @@ public static partial class PbcService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (createWorkflowTask)
     {
-      var firm = await db.FirmSafetyStates.FromSqlInterpolated(
+      var firm = await db.FirmSafetyStates.FromSql(
         $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
       if (firm is null)
         return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
-      var clientGuard = await db.ClientSafetyStates.FromSqlInterpolated($"""
+      var clientGuard = await db.ClientSafetyStates.FromSql($"""
         SELECT * FROM client_safety_states WHERE id = {current.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE
         """).SingleOrDefaultAsync(ct);
       if (clientGuard is null)
         return CommandResult.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
-      var lockedEngagement = await db.Engagements.FromSqlInterpolated($"""
+      var lockedEngagement = await db.Engagements.FromSql($"""
         SELECT * FROM engagements WHERE firm_id = {actor.FirmId} AND practice_client_id = {current.ClientId}
           AND id = {current.EngagementId} FOR UPDATE
         """).SingleOrDefaultAsync(ct);
@@ -212,7 +212,7 @@ public static partial class PbcService
       auth = await AuthorizeStaffAsync(db, actor, current.ClientId, current.EngagementId, ct);
       if (!auth.Succeeded) return auth;
     }
-    var request = await db.PbcRequests.FromSqlInterpolated($"""
+    var request = await db.PbcRequests.FromSql($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {requestId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (request is null)
@@ -304,7 +304,7 @@ public static partial class PbcService
     if (!auth.Succeeded) return auth;
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var request = await db.PbcRequests.FromSqlInterpolated($"""
+    var request = await db.PbcRequests.FromSql($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {input.PbcRequestId} FOR UPDATE
       """).SingleAsync(ct);
     if (request.State is PbcStates.Draft or PbcStates.Accepted or PbcStates.Closed)
@@ -471,11 +471,11 @@ public static partial class PbcService
     if (clientAction)
     {
       // Keep client request acknowledgements/resubmissions inside the same release window as replies and uploads.
-      _ = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-      _ = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {current.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-      _ = await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {current.EngagementId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+      _ = await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+      _ = await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE id = {current.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+      _ = await db.Engagements.FromSql($"SELECT * FROM engagements WHERE id = {current.EngagementId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
     }
-    var request = await db.PbcRequests.FromSqlInterpolated($"""
+    var request = await db.PbcRequests.FromSql($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {input.PbcRequestId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (request is null)
@@ -655,7 +655,7 @@ public static partial class PbcService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!await LockUploadScopeAsync(db, actor, request.ClientId, request.EngagementId, ct))
       return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var lockedRequest = await db.PbcRequests.FromSqlInterpolated($"""
+    var lockedRequest = await db.PbcRequests.FromSql($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {input.PbcRequestId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (lockedRequest is null)
@@ -743,7 +743,7 @@ public static partial class PbcService
     if (!await LockUploadScopeAsync(db, actor, current.ClientId, current.EngagementId, ct))
       return CommandResult<PbcUploadResumeReceipt>.Fail(ErrorCodes.ScopeDenied, "Upload unavailable.");
 
-    var request = await db.PbcRequests.FromSqlInterpolated($"""
+    var request = await db.PbcRequests.FromSql($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {input.PbcRequestId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (request is not null) await db.PbcRequests.Attach(request).ReloadAsync(ct);
@@ -764,7 +764,7 @@ public static partial class PbcService
       return CommandResult<PbcUploadResumeReceipt>.Fail(writable.ErrorCode!, "Upload unavailable.");
     }
 
-    var intent = await db.PbcUploadIntents.FromSqlInterpolated($"""
+    var intent = await db.PbcUploadIntents.FromSql($"""
       SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {input.UploadIntentId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     // A locking tracking query can reuse an earlier command's cached values; refresh under the row lock.
@@ -825,7 +825,7 @@ public static partial class PbcService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!await LockUploadScopeAsync(db, actor, request.ClientId, request.EngagementId, ct))
       return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var lockedRequest = await db.PbcRequests.FromSqlInterpolated($"""
+    var lockedRequest = await db.PbcRequests.FromSql($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {request.Id} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (lockedRequest is null) return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
@@ -834,7 +834,7 @@ public static partial class PbcService
       return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     auth = await AuthorizeUploadActorAsync(db, actor, lockedRequest, ct);
     if (!auth.Succeeded) return CommandResult<PbcUploadReceipt>.Fail(auth.ErrorCode!, auth.Message!);
-    intent = await db.PbcUploadIntents.FromSqlInterpolated($"""
+    intent = await db.PbcUploadIntents.FromSql($"""
       SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {input.UploadIntentId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (intent is null)
@@ -919,7 +919,7 @@ public static partial class PbcService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!await LockUploadScopeAsync(db, actor, current.ClientId, current.EngagementId, ct))
       return CommandResult<PbcUploadReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    intent = await db.PbcUploadIntents.FromSqlInterpolated($"""
+    intent = await db.PbcUploadIntents.FromSql($"""
       SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {input.UploadIntentId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (intent is null)
@@ -1069,11 +1069,11 @@ public static partial class PbcService
   private static async Task<bool> LockUploadScopeAsync(IAuditSphereDbContext db, ActorContext actor,
     Guid clientId, Guid engagementId, CancellationToken ct)
   {
-    if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE")
+    if (await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
-    if (await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE")
+    if (await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {actor.FirmId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null) return false;
-    return await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} AND practice_client_id = {clientId} FOR SHARE")
+    return await db.Engagements.FromSql($"SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} AND practice_client_id = {clientId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is not null;
   }
 

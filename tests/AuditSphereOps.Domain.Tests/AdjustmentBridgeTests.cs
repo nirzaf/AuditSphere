@@ -420,7 +420,7 @@ public sealed class AdjustmentBridgeTests
       }));
     }
     await db.SaveChangesAsync();
-    await db.Database.ExecuteSqlInterpolatedAsync(
+    await db.Database.ExecuteSqlAsync(
       $"UPDATE trial_balance_datasets SET import_state = 'SEALED' WHERE import_batch_id = {batchId}");
     batch.Status = TrialBalanceImportStates.Sealed;
     await db.SaveChangesAsync();

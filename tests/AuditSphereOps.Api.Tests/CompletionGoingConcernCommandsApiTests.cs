@@ -348,7 +348,7 @@ public sealed partial class CompletionVarianceCommandsApiTests
     await using var firmBlocker = new AuditSphereDbContext(pg.Options);
     await using var observer = new AuditSphereDbContext(pg.Options);
     await using var firmFence = await firmBlocker.Database.BeginTransactionAsync();
-    await firmBlocker.FirmSafetyStates.FromSqlInterpolated($"""
+    await firmBlocker.FirmSafetyStates.FromSql($"""
       SELECT * FROM firm_safety_states WHERE id = {world.Primary.FirmId} FOR UPDATE
       """).AsNoTracking().SingleAsync();
     await using var revoker = new AuditSphereDbContext(pg.Options);

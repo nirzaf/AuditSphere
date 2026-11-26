@@ -99,7 +99,7 @@ public sealed class PbcReminderTests
     var malformedRequestId = await CreateDueSentRequestAsync(pg, fixture, "2026-10-13");
     await using (var arrange = new AuditSphereDbContext(pg.Options))
     {
-      await arrange.Database.ExecuteSqlInterpolatedAsync($"""
+      await arrange.Database.ExecuteSqlAsync($"""
         UPDATE pbc_requests SET due_date = {"0000-00-00"} WHERE id = {malformedRequestId}
         """);
     }
@@ -370,7 +370,7 @@ public sealed class PbcReminderTests
         (await db.PbcCommunications.AsNoTracking().SingleAsync(x => x.Id == communicationId)).DeliveryState);
       // Only this disposable fixture's scheduler clock is advanced; no intent,
       // receipt, scope, lease or approval is rewritten to make it eligible.
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         UPDATE durable_operations SET next_attempt_at = statement_timestamp() - interval '1 second'
         WHERE id = {operationId}
         """);

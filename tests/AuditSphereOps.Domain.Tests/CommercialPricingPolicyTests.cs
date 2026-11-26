@@ -315,9 +315,9 @@ public sealed class CommercialPricingPolicyTests
     Assert.Equal(ProposalResponseChannels.Email, response.Channel);
     Assert.Equal(w.Prep.UserId, response.RecordedByUserId);
     Assert.NotEqual(default, response.RecordedAt);
-    await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE proposal_response_records SET reason = 'rewritten' WHERE firm_id = {w.FirmId} AND id = {response.Id}"));
-    await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"DELETE FROM proposal_response_records WHERE firm_id = {w.FirmId} AND id = {response.Id}"));
   }
 

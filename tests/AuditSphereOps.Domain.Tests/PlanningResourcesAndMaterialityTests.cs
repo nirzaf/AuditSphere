@@ -395,7 +395,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       var completion = await AuditFieldworkService.EvaluateCompletionAsync(db, w.Actor("partner", "Partner"), w.EngagementId);
       Assert.Contains("materiality:stale", completion.Value!.Blockers);
       var calc = await db.MaterialityCalculations.AsNoTracking().FirstAsync();
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE materiality_calculations SET planning_materiality = 1 WHERE id = {calc.Id}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"UPDATE materiality_calculations SET planning_materiality = 1 WHERE id = {calc.Id}"));
     }
   }
 
@@ -522,11 +522,11 @@ public sealed partial class PlanningResourcesAndMaterialityTests
       Assert.DoesNotContain((await AuditFieldworkService.EvaluateCompletionAsync(db, partner, w.EngagementId)).Value!.Blockers, x => x.StartsWith($"risk:{red}", StringComparison.Ordinal));
 
       // No bypass by editing colour: an inconsistent band or significance is rejected by the database.
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         INSERT INTO risk_band_assessments (id, firm_id, client_id, engagement_id, risk_id, likelihood_score, magnitude_score, significant, fraud_risk, band, rule_version, rationale, assessed_by_user_id, assessed_at)
         VALUES ({Guid.NewGuid()}, {w.FirmId}, {w.ClientId}, {w.EngagementId}, {red}, 1, 1, false, false, 'GREEN', 'x', 'bypass', {w.Users["senior"].Id}, now())
         """));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         INSERT INTO risk_band_assessments (id, firm_id, client_id, engagement_id, risk_id, likelihood_score, magnitude_score, significant, fraud_risk, band, rule_version, rationale, assessed_by_user_id, assessed_at)
         VALUES ({Guid.NewGuid()}, {w.FirmId}, {w.ClientId}, {w.EngagementId}, {amber}, 3, 3, false, false, 'AMBER', 'x', 'bypass', {w.Users["senior"].Id}, now())
         """));

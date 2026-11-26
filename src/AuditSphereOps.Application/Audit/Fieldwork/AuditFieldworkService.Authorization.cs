@@ -36,13 +36,13 @@ public static partial class AuditFieldworkService
   internal static async Task LockConfirmationScopeAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
   {
-    await db.FirmSafetyStates.FromSqlInterpolated(
+    await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE").LoadAsync(ct);
     var engagement = await db.Engagements.AsNoTracking()
       .SingleAsync(x => x.FirmId == actor.FirmId && x.Id == engagementId, ct);
-    await db.ClientSafetyStates.FromSqlInterpolated(
+    await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {engagement.PracticeClientId} FOR UPDATE").LoadAsync(ct);
-    await db.Engagements.FromSqlInterpolated(
+    await db.Engagements.FromSql(
       $"SELECT * FROM engagements WHERE firm_id = {actor.FirmId} AND id = {engagementId} FOR UPDATE").LoadAsync(ct);
   }
 
@@ -51,7 +51,7 @@ public static partial class AuditFieldworkService
   internal static async Task<bool> LockConfirmationScopeForAuthorizedScopeAsync(
     IAuditSphereDbContext db, Guid firmId, Guid clientId, Guid engagementId, CancellationToken ct)
   {
-    if (await db.FirmSafetyStates.FromSqlInterpolated(
+    if (await db.FirmSafetyStates.FromSql(
           $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR SHARE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return false;
@@ -59,11 +59,11 @@ public static partial class AuditFieldworkService
       x.FirmId == firmId && x.Id == engagementId, ct);
     if (engagement is null || engagement.PracticeClientId != clientId)
       return false;
-    if (await db.ClientSafetyStates.FromSqlInterpolated(
+    if (await db.ClientSafetyStates.FromSql(
           $"SELECT * FROM client_safety_states WHERE firm_id = {firmId} AND id = {clientId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return false;
-    return await db.Engagements.FromSqlInterpolated(
+    return await db.Engagements.FromSql(
         $"SELECT * FROM engagements WHERE firm_id = {firmId} AND practice_client_id = {clientId} AND id = {engagementId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is not null;
   }

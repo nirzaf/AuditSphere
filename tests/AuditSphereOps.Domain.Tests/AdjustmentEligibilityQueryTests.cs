@@ -250,7 +250,7 @@ public sealed class AdjustmentEligibilityQueryTests
     Assert.Equal(retained, await ReadEvidenceAsync());
     Assert.Equal(indexes, await ReadIndexesAsync());
     Assert.Equal(constraints, await ReadConstraintsAsync());
-    Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+    Assert.Equal(1, await db.Database.ExecuteSqlAsync($"""
       INSERT INTO adjustment_journals
       SELECT (jsonb_populate_record(NULL::adjustment_journals, to_jsonb(j) || jsonb_build_object(
         'id', {Guid.NewGuid()}, 'base_dataset_id', {foreign.DatasetId}, 'journal_number', 'AJ-INCONSISTENT-HISTORY'))).*

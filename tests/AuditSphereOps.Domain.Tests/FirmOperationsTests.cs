@@ -127,7 +127,7 @@ public sealed partial class FirmOperationsTests
     Assert.Equal(TechnicalLibraryStates.Superseded, entry.History.Single(x => x.Version == 1).Status);
     Assert.Contains("ability to continue as a going concern", (await TechnicalLibraryService.OpenAsync(db, staff, isa.Value, 1)).Value!.Version.Body);
     var v1 = entry.History.Single(x => x.Version == 1);
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE technical_library_versions SET body = 'changed' WHERE id = {v1.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"UPDATE technical_library_versions SET body = 'changed' WHERE id = {v1.Id}"));
     Assert.Equal(retainedBeforeSupersession, await db.Database.SqlQuery<string>($"""
       SELECT (to_jsonb(v) - 'status')::text AS "Value" FROM technical_library_versions v WHERE id = {v1.Id}
       """).SingleAsync());

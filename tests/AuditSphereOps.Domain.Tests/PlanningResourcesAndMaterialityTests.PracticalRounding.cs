@@ -124,7 +124,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var decision = await db.MaterialityRoundingDecisions.AsNoTracking().FirstAsync(x => x.EffectiveAssessmentId == firstRoundingId);
-      var ex = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      var ex = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE materiality_rounding_decisions SET adjusted_planning_materiality = 1 WHERE id = {decision.Id}"));
       Assert.Contains("immutable evidence", ex.MessageText, StringComparison.Ordinal);
     }

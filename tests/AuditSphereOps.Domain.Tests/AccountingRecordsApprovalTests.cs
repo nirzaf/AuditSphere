@@ -84,7 +84,7 @@ public sealed class AccountingRecordsApprovalTests
       Assert.Equal(2, await db.AccountingReconciliationProofs.CountAsync(x => x.ReconciliationId == reconciliationId));
       var firstProof = await db.AccountingReconciliationProofs.AsNoTracking()
         .SingleAsync(x => x.Id == proof.Value.ProofId);
-      var tamper = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      var tamper = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE accounting_reconciliation_proofs SET residual = 5 WHERE id = {firstProof.Id}"));
       Assert.Equal("55000", tamper.SqlState);
     }

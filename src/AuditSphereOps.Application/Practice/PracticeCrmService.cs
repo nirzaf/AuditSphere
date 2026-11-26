@@ -112,7 +112,7 @@ public static partial class PracticeCrmService
     if (ownerError is not null) return CommandResult<Guid>.Fail(ownerError.ErrorCode!, ownerError.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var guard = await db.FirmSafetyStates.FromSqlInterpolated(
+    var guard = await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     auth = await AuthorizeAsync(db, actor, ct);
@@ -283,7 +283,7 @@ public static partial class PracticeCrmService
     else
     {
       canonicalClient = prospect;
-      if (await db.ClientSafetyStates.FromSqlInterpolated(
+      if (await db.ClientSafetyStates.FromSql(
           $"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={canonicalClient.Id} FOR UPDATE")
           .AsNoTracking().SingleOrDefaultAsync(ct) is null)
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client evaluation state is unavailable.");
@@ -744,7 +744,7 @@ public static partial class PracticeCrmService
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     // Serialize canonical-client conversion per firm. This makes repeated conversion idempotent
     // without creating a generic repository or relying only on a uniqueness exception.
-    var guard = await db.FirmSafetyStates.FromSqlInterpolated(
+    var guard = await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (guard is null) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     auth = await AuthorizeAsync(db, actor, ct);
@@ -849,9 +849,9 @@ public static partial class PracticeCrmService
       new AuthorizationRequest(actor.FirmId, ClientId: request.PracticeClientId,
         RequiredRoles: CommercialRoles, InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    await db.Users.FromSqlInterpolated(
+    await db.Users.FromSql(
       $"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
-    var clientGuard = await db.ClientSafetyStates.FromSqlInterpolated(
+    var clientGuard = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE id = {request.PracticeClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (clientGuard is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
@@ -907,7 +907,7 @@ public static partial class PracticeCrmService
 
   internal static Task<FirmSafetyState?> LockFirmAsync(
     IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
-    db.FirmSafetyStates.FromSqlInterpolated(
+    db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
 
   private static string? ValidateLead(CreateLeadRequest request)

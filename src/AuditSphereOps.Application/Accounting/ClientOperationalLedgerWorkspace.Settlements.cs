@@ -105,7 +105,7 @@ public static partial class ClientOperationalLedgerWorkspace
     await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
     var auth = await AuthorizeAsync(db, actor, request.ClientId, Preparers, ct);
     if (!auth.Succeeded) return CommandResult<ClientManualSettlementReceipt>.Fail(auth.ErrorCode!, auth.Message!);
-    if (await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={request.ClientId} FOR UPDATE").SingleOrDefaultAsync(ct) is null)
+    if (await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id={actor.FirmId} AND id={request.ClientId} FOR UPDATE").SingleOrDefaultAsync(ct) is null)
       return CommandResult<ClientManualSettlementReceipt>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var intent = SettlementIntentHash(actor, request, previewDigest);
     var existing = await db.ClientManualSettlementOrigins.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&

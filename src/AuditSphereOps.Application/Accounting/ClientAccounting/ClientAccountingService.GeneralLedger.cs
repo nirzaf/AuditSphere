@@ -174,7 +174,7 @@ public static partial class ClientAccountingService
     if (observedOwner is null || !await LockGlImportAuthorityAsync(db, actor, observedOwner.ClientId, ct))
       return CommandResult<GeneralLedgerImportBatchSummary>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
-    var batch = await db.SourceImportBatches.FromSqlInterpolated(
+    var batch = await db.SourceImportBatches.FromSql(
       $"SELECT * FROM source_import_batches WHERE id = {request.ImportBatchId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (batch is null || batch.FirmId != observedOwner.FirmId || batch.ClientId != observedOwner.ClientId ||
@@ -436,15 +436,15 @@ public static partial class ClientAccountingService
     IClientAccountingDbContext db, ActorContext actor, Guid clientId, CancellationToken ct)
   {
     // Keep the existing firm -> client -> actor order before Append takes its source batch row.
-    if (await db.FirmSafetyStates.FromSqlInterpolated(
+    if (await db.FirmSafetyStates.FromSql(
           $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return false;
-    if (await db.ClientSafetyStates.FromSqlInterpolated(
+    if (await db.ClientSafetyStates.FromSql(
           $"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {clientId} FOR SHARE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return false;
-    return await db.Users.FromSqlInterpolated(
+    return await db.Users.FromSql(
         $"SELECT * FROM users WHERE firm_id = {actor.FirmId} AND id = {actor.UserId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct) is not null;
   }

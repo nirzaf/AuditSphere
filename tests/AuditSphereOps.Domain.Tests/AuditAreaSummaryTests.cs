@@ -37,6 +37,12 @@ public sealed class AuditAreaSummaryTests
       Assert.Empty(cash.Value.Assessments);
       Assert.Equal(0, cash.Value.SelectionCount);
       Assert.Equal(0, cash.Value.CutOffRecordedCount);
+      Assert.Equal(0, cash.Value.CutOffExceptionCount);
+      Assert.Equal(0, cash.Value.SubsequentRecordedCount);
+      Assert.Equal(0, cash.Value.SubsequentMatchedCount);
+      Assert.Equal(0, cash.Value.ConfirmationCount);
+      Assert.Equal(0, cash.Value.ConfirmationClosedCount);
+      Assert.False(cash.Value.HasBlockingEvidence);
       Assert.False(cash.Value.WorkpapersReviewed);
       Assert.All(cash.Value.Procedures, p => Assert.StartsWith("AWP-02-", p.SourceProcedureId));
 

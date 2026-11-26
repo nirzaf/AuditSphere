@@ -151,15 +151,15 @@ public static class EngagementWorkflowPlanService
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
-    if (await db.FirmSafetyStates.FromSqlInterpolated(
+    if (await db.FirmSafetyStates.FromSql(
           $"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
-    if (await db.ClientSafetyStates.FromSqlInterpolated(
+    if (await db.ClientSafetyStates.FromSql(
           $"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={snapshot.PracticeClientId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
-    var engagement = await db.Engagements.FromSqlInterpolated(
+    var engagement = await db.Engagements.FromSql(
         $"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={engagementId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (engagement is null || engagement.PracticeClientId != snapshot.PracticeClientId)
@@ -182,10 +182,10 @@ public static class EngagementWorkflowPlanService
       return CommandResult<EngagementWorkflowPlanReceipt>.Ok(await ReceiptViewAsync(db, priorByKey, replayed: true, ct));
     }
 
-    var template = await db.WorkflowTemplates.FromSqlInterpolated(
+    var template = await db.WorkflowTemplates.FromSql(
         $"SELECT * FROM workflow_templates WHERE firm_id={actor.FirmId} AND id=(SELECT template_id FROM workflow_template_revisions WHERE firm_id={actor.FirmId} AND id={request.TemplateRevisionId}) FOR UPDATE")
       .SingleOrDefaultAsync(ct);
-    var revision = await db.WorkflowTemplateRevisions.FromSqlInterpolated(
+    var revision = await db.WorkflowTemplateRevisions.FromSql(
         $"SELECT * FROM workflow_template_revisions WHERE firm_id={actor.FirmId} AND id={request.TemplateRevisionId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (template is null || template.ArchivedAt.HasValue || revision is null ||
@@ -409,13 +409,13 @@ public static class EngagementWorkflowPlanService
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
-    if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
+    if (await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
-    if (await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={snapshot.PracticeClientId} FOR UPDATE")
+    if (await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={snapshot.PracticeClientId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return CommandResult<EngagementWorkflowPlanReceipt>.Fail(ErrorCodes.GateBlocked, "Client safety state is unavailable.");
-    var engagement = await db.Engagements.FromSqlInterpolated(
+    var engagement = await db.Engagements.FromSql(
         $"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={engagementId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (engagement is null || engagement.PracticeClientId != snapshot.PracticeClientId)

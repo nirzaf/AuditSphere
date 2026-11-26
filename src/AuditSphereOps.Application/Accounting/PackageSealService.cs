@@ -104,15 +104,15 @@ public static class PackageSealService
       ? await db.Database.BeginTransactionAsync(ct) : null;
     // Source selection and native posting use the same scope fences. Keep them
     // through readiness and publication; a read followed by a later INSERT is not atomic.
-    var firm = await db.FirmSafetyStates.FromSqlInterpolated(
+    var firm = await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-    var client = await db.ClientSafetyStates.FromSqlInterpolated(
+    var client = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={package.ClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
-    var engagement = await db.Engagements.FromSqlInterpolated(
+    var engagement = await db.Engagements.FromSql(
       $"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND practice_client_id={package.ClientId} AND id={package.EngagementId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (firm is null || client is null || engagement is null)
       return CommandResult<PackageSealValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var current = await db.FinancialPackages.FromSqlInterpolated(
+    var current = await db.FinancialPackages.FromSql(
       $"SELECT * FROM financial_packages WHERE firm_id={actor.FirmId} AND client_id={package.ClientId} AND engagement_id={package.EngagementId} AND id={package.Id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (current is null)
       return CommandResult<PackageSealValue>.Fail(ErrorCodes.ScopeDenied, "Access denied.");

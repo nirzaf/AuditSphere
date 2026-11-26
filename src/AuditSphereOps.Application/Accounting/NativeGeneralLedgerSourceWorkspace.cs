@@ -38,10 +38,10 @@ public static partial class NativeGeneralLedgerSourceWorkspace
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var key = long.Parse(Hash(new { actor.FirmId, actor.UserId, actor.SessionEpoch, request.RequestId })[..16],
       NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", ct);
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-    await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={request.ClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
-    await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={request.EngagementId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({key})", ct);
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={request.ClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.Engagements.FromSql($"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={request.EngagementId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     var existing = await db.NativeGeneralLedgerSources.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.ActorId == actor.UserId && x.ActorEpoch == actor.SessionEpoch && x.RequestId == request.RequestId, ct);
     if (existing is not null)
@@ -64,7 +64,7 @@ public static partial class NativeGeneralLedgerSourceWorkspace
       var successorFence = await ClientOperationalOpeningBalanceWorkspace.LockSuccessorPeriodsAsync(db, actor.FirmId, request.ClientId, periodId, ct);
       if (!successorFence.Succeeded) return Fail<NativeGeneralLedgerSourceView>(successorFence.ErrorCode!, successorFence.Message!);
     }
-    await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={request.ClientId} AND id={periodId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={request.ClientId} AND id={periodId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     var captured = await CaptureAsync(db, actor, request, ct);
     if (!captured.Succeeded) return Fail<NativeGeneralLedgerSourceView>(captured.ErrorCode!, captured.Message!);
     var c = captured.Value!;

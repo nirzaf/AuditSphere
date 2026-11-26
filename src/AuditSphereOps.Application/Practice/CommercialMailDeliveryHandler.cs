@@ -40,7 +40,7 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
 
   public async Task LockTargetAsync(IAuditSphereDbContext db, DurableOperation op, CancellationToken ct)
   {
-    var mail = await db.CommercialNotifications.FromSqlInterpolated($"""
+    var mail = await db.CommercialNotifications.FromSql($"""
       SELECT * FROM commercial_notifications WHERE firm_id = {op.FirmId} AND id = {op.TargetId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     // A verified provider receipt is terminal: the send is never repeated. A refused or unknown outcome may be

@@ -45,15 +45,15 @@ public static partial class PbcService
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     // Keep the established firm → client → engagement → request lock order.
-    _ = await db.FirmSafetyStates.FromSqlInterpolated(
+    _ = await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-    _ = await db.ClientSafetyStates.FromSqlInterpolated(
+    _ = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE id = {current.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleAsync(ct);
-    _ = await db.Engagements.FromSqlInterpolated(
+    _ = await db.Engagements.FromSql(
       $"SELECT * FROM engagements WHERE id = {current.EngagementId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleAsync(ct);
-    var request = await db.PbcRequests.FromSqlInterpolated($"""
+    var request = await db.PbcRequests.FromSql($"""
       SELECT * FROM pbc_requests WHERE firm_id = {actor.FirmId} AND id = {requestId} FOR UPDATE
       """).SingleAsync(ct);
     await db.PbcRequests.Attach(request).ReloadAsync(ct);

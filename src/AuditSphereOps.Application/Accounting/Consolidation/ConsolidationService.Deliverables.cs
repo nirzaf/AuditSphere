@@ -416,10 +416,10 @@ public static partial class ConsolidationService
       return CommandResult<LockedGroupDeliverableScope>.Fail(ErrorCodes.ScopeDenied,
         "The firm safety state is unavailable.");
 
-    var group = await db.ClientGroups.FromSqlInterpolated($"""
+    var group = await db.ClientGroups.FromSql($"""
       SELECT * FROM client_groups WHERE id = {groupId.Value} AND firm_id = {actor.FirmId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
-    var scope = await db.ConsolidationScopeVersions.FromSqlInterpolated($"""
+    var scope = await db.ConsolidationScopeVersions.FromSql($"""
       SELECT * FROM consolidation_scope_versions
       WHERE id = {scopeVersionId} AND firm_id = {actor.FirmId} AND group_id = {groupId.Value} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
@@ -434,7 +434,7 @@ public static partial class ConsolidationService
 
   private static Task<GroupDeliverable?> LockGroupDeliverableAsync(
     IClientAccountingDbContext db, Guid firmId, ConsolidationScopeVersion scope, Guid deliverableId, CancellationToken ct) =>
-    db.GroupDeliverables.FromSqlInterpolated($"""
+    db.GroupDeliverables.FromSql($"""
       SELECT * FROM group_deliverables
       WHERE id = {deliverableId} AND firm_id = {firmId} AND group_id = {scope.GroupId}
         AND scope_version_id = {scope.Id} FOR UPDATE

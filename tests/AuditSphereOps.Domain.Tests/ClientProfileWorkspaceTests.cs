@@ -1031,10 +1031,10 @@ public sealed class ClientProfileWorkspaceTests
       .Single(item => item.Key == "OUTSTANDING_INVOICES").Count);
 
     await using (var update = new AuditSphereDbContext(pg.Options))
-      await Assert.ThrowsAsync<PostgresException>(() => update.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => update.Database.ExecuteSqlAsync(
         $"UPDATE client_offboarding_records SET disposition_notes = 'changed' WHERE id = {recorded.Value.RecordId}"));
     await using (var delete = new AuditSphereDbContext(pg.Options))
-      await Assert.ThrowsAsync<PostgresException>(() => delete.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => delete.Database.ExecuteSqlAsync(
         $"DELETE FROM client_offboarding_records WHERE id = {recorded.Value.RecordId}"));
     await using (var truncate = new AuditSphereDbContext(pg.Options))
       await Assert.ThrowsAsync<PostgresException>(() => truncate.Database.ExecuteSqlRawAsync("TRUNCATE TABLE client_offboarding_records"));
@@ -1153,7 +1153,7 @@ public sealed class ClientProfileWorkspaceTests
       ExpectedReadinessDigest: readiness.Value!.ReadinessDigest, RequestKey: Guid.NewGuid().ToString("D"));
     await using var writer = new AuditSphereDbContext(pg.Options);
     await using var mutation = await writer.Database.BeginTransactionAsync();
-    await writer.Database.ExecuteSqlInterpolatedAsync(
+    await writer.Database.ExecuteSqlAsync(
       $"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR UPDATE");
     writer.ClientLifecycleEvents.Add(new ClientLifecycleEvent
     {
@@ -1224,7 +1224,7 @@ public sealed class ClientProfileWorkspaceTests
       ExpectedReadinessDigest: readiness.Value!.ReadinessDigest, RequestKey: Guid.NewGuid().ToString("D"));
 
     await using var mutation = await writer.Database.BeginTransactionAsync();
-    await writer.Database.ExecuteSqlInterpolatedAsync(
+    await writer.Database.ExecuteSqlAsync(
       $"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR UPDATE");
     await reader.Database.OpenConnectionAsync();
     var readerPid = ((NpgsqlConnection)reader.Database.GetDbConnection()).ProcessID;
@@ -1281,7 +1281,7 @@ public sealed class ClientProfileWorkspaceTests
     var archiveCount = await writer.ClientLifecycleEvents.CountAsync();
 
     await using var mutation = await writer.Database.BeginTransactionAsync();
-    await writer.Database.ExecuteSqlInterpolatedAsync(
+    await writer.Database.ExecuteSqlAsync(
       $"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR UPDATE");
     await reader.Database.OpenConnectionAsync();
     var readerPid = ((NpgsqlConnection)reader.Database.GetDbConnection()).ProcessID;

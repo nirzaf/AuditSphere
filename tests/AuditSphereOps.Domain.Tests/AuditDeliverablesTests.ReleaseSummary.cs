@@ -41,7 +41,7 @@ public sealed partial class AuditDeliverablesTests
     var lockKey = unchecked((long)Convert.ToUInt64(lockDigest[..16], 16));
     await using var lockHolder = new AuditSphereDbContext(pg.Options);
     await lockHolder.Database.OpenConnectionAsync(ct);
-    await lockHolder.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_lock({lockKey})", ct);
+    await lockHolder.Database.ExecuteSqlAsync($"SELECT pg_advisory_lock({lockKey})", ct);
     var blockingPid = await lockHolder.Database.SqlQuery<int>($"SELECT pg_backend_pid() AS \"Value\"").SingleAsync(ct);
 
     var applicationName = "eqr-auth-wait-" + Guid.NewGuid().ToString("N");

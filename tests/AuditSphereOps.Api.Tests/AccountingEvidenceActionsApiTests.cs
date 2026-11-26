@@ -41,12 +41,12 @@ public sealed class AccountingEvidenceActionsApiTests
     Assert.Equal(2,await db.AccountingEvidenceActions.CountAsync(x=>x.EvidenceId==id));
     var action=await db.AccountingEvidenceActions.SingleAsync(x=>x.EvidenceId==id&&x.Action=="REVIEW");
     Assert.Contains("7.006173",action.BeforeJson);Assert.Contains("APPROVED",action.AfterJson);Assert.Equal(f.Reviewer.Id,action.ActorId);
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE accounting_evidence_actions SET reason='altered' WHERE id={action.Id}"));
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM accounting_evidence_actions WHERE id={action.Id}"));
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE ecl_assessments SET management_overlay=999 WHERE id={id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE accounting_evidence_actions SET reason='altered' WHERE id={action.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"DELETE FROM accounting_evidence_actions WHERE id={action.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE ecl_assessments SET management_overlay=999 WHERE id={id}"));
     var linkedId=receipt.GetProperty("linkId").GetGuid();
     var otherTarget=Guid.NewGuid();
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE accounting_evidence_audit_links SET evidence_id={otherTarget} WHERE id={linkedId}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE accounting_evidence_audit_links SET evidence_id={otherTarget} WHERE id={linkedId}"));
     foreach(var kind in new[]{"INVENTORY","SPECIALIST","ANALYTICAL"})
     {
       var target=seed.Evidence[kind];var fields=await Read(staff,Url(kind,target)+"/actions");var eligible=await Read(staff,Url(kind,target)+"/procedure-results");
@@ -103,7 +103,7 @@ public sealed class AccountingEvidenceActionsApiTests
   {
     private bool fired;
     public override async ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData data,int result,CancellationToken ct=default)
-    {if(!fired){fired=true;await data.Context!.Database.ExecuteSqlInterpolatedAsync($"UPDATE users SET session_epoch=session_epoch+1 WHERE id={userId}",ct);}return result;}
+    {if(!fired){fired=true;await data.Context!.Database.ExecuteSqlAsync($"UPDATE users SET session_epoch=session_epoch+1 WHERE id={userId}",ct);}return result;}
   }
 
   [Fact]

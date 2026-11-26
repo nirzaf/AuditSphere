@@ -446,7 +446,7 @@ public sealed partial class AuditDeliverablesTests
     var history = (await ReviewNotesService.ListAsync(db, senior, w.ProcedureId)).Single();
     Assert.False(history.Open);
     Assert.Equal(2, history.Events.Count);
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM procedure_review_notes WHERE id = {note.Value}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"DELETE FROM procedure_review_notes WHERE id = {note.Value}"));
   }
   [Fact]
   public async Task LateAndReopenedNotesBlockClearanceUntilRespondedResolvedAndReviewed()
@@ -584,7 +584,7 @@ public sealed partial class AuditDeliverablesTests
       {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-          await probeDb.Database.ExecuteSqlInterpolatedAsync($"UPDATE engagements SET generation = generation WHERE id = {w.EngagementId}", timeout.Token));
+          await probeDb.Database.ExecuteSqlAsync($"UPDATE engagements SET generation = generation WHERE id = {w.EngagementId}", timeout.Token));
       }
       await checkTx.RollbackAsync();
     }
@@ -1213,9 +1213,9 @@ public sealed partial class AuditDeliverablesTests
       var changedBasisReplay = await AuditDeliverableService.RecordEqrDecisionAsync(db, eqrPartner, w.EngagementId,
         concurrenceRequest with { ExpectedFactsDigest = new string('0', 64) });
       Assert.Equal(ErrorCodes.IdempotencyConflict, changedBasisReplay.ErrorCode);
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE eqr_decisions SET notes = 'tampered' WHERE id = {concurred.Value}"));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"DELETE FROM eqr_decisions WHERE id = {concurred.Value}"));
 
       var signed = await AuditDeliverableService.SignIndependentReportAsync(db, partner, iar);
@@ -1237,7 +1237,7 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(ReportSignatureKinds.Visual, (await db.SignatureApplications.AsNoTracking().SingleAsync(x => x.SourceDeliverableId == iar)).SignatureKind);
       var imageOnly = await AuditDeliverableService.VerifyReportSignatureAsync(db, manager, signed.Value);
       Assert.Equal((ReportSignatureKinds.Visual, ReportSignatureStates.NotCertificateSigned), (imageOnly.Value!.SignatureKind, imageOnly.Value.State));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE audit_deliverables SET content_sha256 = {new string('f', 64)} WHERE id = {signed.Value}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"UPDATE audit_deliverables SET content_sha256 = {new string('f', 64)} WHERE id = {signed.Value}"));
 
       // A report can change without changing the EQR case revision.
       var reviewedOldReport = await Reviewed(eqrPartner, "CONCURRED", "Reviewed the prior report.", true);
@@ -1881,9 +1881,9 @@ public sealed partial class AuditDeliverablesTests
     Assert.Equal((ReportSignatureKinds.Certificate, firmCertificate.Subject), (listed.SignatureKind, listed.CertificateSubject));
 
     // The evidence is append-only and a certificate signature can never be recorded without its certificate.
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE signature_applications SET certificate_thumbprint_sha256 = NULL, signature_kind = 'VISUAL' WHERE id = {application.Id}"));
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
       INSERT INTO signature_applications (id, firm_id, engagement_id, specimen_id, source_deliverable_id, signed_deliverable_id, signed_by_user_id, signed_at, signature_kind)
       VALUES ({Guid.NewGuid()}, {application.FirmId}, {application.EngagementId}, {application.SpecimenId}, {Guid.NewGuid()}, {Guid.NewGuid()}, {application.SignedByUserId}, now(), 'CERTIFICATE')
       """));
@@ -1927,10 +1927,10 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(ErrorCodes.ProtectedState, (await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.ManagementLetter)).ErrorCode);
       Assert.Equal(ErrorCodes.ProtectedState, (await EngagementActivityQuery.LockAsync(db, w.A("senior", "Senior"), w.EngagementId, "WP-A1")).ErrorCode);
       Assert.Equal(2, await db.FrozenAccessAttempts.CountAsync(x => x.EngagementId == w.EngagementId));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE engagement_file_freezes SET state = 'AMENDMENT_OPEN' WHERE id = {freeze.Id}"));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"UPDATE engagement_file_freezes SET state = 'AMENDMENT_OPEN' WHERE id = {freeze.Id}"));
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE engagement_file_freezes SET report_deliverable_id = {Guid.NewGuid()} WHERE id = {freeze.Id}"));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"DELETE FROM engagement_file_freezes WHERE id = {freeze.Id}"));
     }
 
@@ -1942,9 +1942,9 @@ public sealed partial class AuditDeliverablesTests
       Assert.Equal(ErrorCodes.ScopeDenied, (await FileFreezeService.ApproveAmendmentAsync(db, partner, amendment)).ErrorCode);
       Assert.Equal(ErrorCodes.ScopeDenied, (await FileFreezeService.ApproveAmendmentAsync(db, manager, amendment)).ErrorCode);
       Assert.True((await FileFreezeService.ApproveAmendmentAsync(db, w.A("partner2", "Partner"), amendment)).Succeeded);
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE file_freeze_amendments SET reason = 'tampered' WHERE id = {amendment}"));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"DELETE FROM file_freeze_amendments WHERE id = {amendment}"));
       Assert.Equal(FileFreezeStates.Frozen,
         (await db.EngagementFileFreezes.AsNoTracking().SingleAsync(x => x.EngagementId == w.EngagementId)).State);
@@ -1957,7 +1957,7 @@ public sealed partial class AuditDeliverablesTests
         (await EngagementActivityQuery.LockAsync(db, senior, w.EngagementId, "WP-A1")).ErrorCode);
       Assert.Equal(ErrorCodes.ProtectedState, (await EngagementActivityQuery.LockAsync(db, w.A("associate", "Staff"), w.EngagementId, "WP-A1")).ErrorCode);
       Assert.True((await FileFreezeService.CloseAmendmentAsync(db, manager, amendment)).Succeeded);
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
         $"UPDATE file_freeze_amendments SET closed_at = NULL, closed_by_user_id = NULL WHERE id = {amendment}"));
       Assert.True((await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == w.EngagementId)).ProfessionalWorkBlocked);
       var view = (await FileFreezeService.GetAsync(db, manager, w.EngagementId, clock.Now))!;

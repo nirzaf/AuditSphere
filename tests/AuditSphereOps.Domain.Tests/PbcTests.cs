@@ -75,9 +75,9 @@ public sealed class PbcTests
     {
       await using var mutation = new AuditSphereDbContext(pg.Options);
       await using var tx = await mutation.Database.BeginTransactionAsync(ct);
-      _ = await mutation.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR SHARE").AsNoTracking().SingleAsync(ct);
-      _ = await mutation.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {f.ClientId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-      var engagement = await mutation.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {f.EngagementId} FOR UPDATE").SingleAsync(ct);
+      _ = await mutation.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+      _ = await mutation.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE id = {f.ClientId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+      var engagement = await mutation.Engagements.FromSql($"SELECT * FROM engagements WHERE id = {f.EngagementId} FOR UPDATE").SingleAsync(ct);
       var signedAt = DateTimeOffset.UtcNow.AddDays(-61);
       var reportId = Guid.NewGuid();
       // Terminal freeze fixture only; this does not assert that a professional report was approved or signed.
@@ -367,7 +367,7 @@ public sealed class PbcTests
 
     await using var verify = new AuditSphereDbContext(pg.Options);
     var chunkId = await verify.PbcUploadChunks.Select(x => x.Id).FirstAsync();
-    await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => verify.Database.ExecuteSqlAsync(
       $"UPDATE pbc_upload_chunks SET byte_count = 7 WHERE id = {chunkId}"));
     PbcSeed.DeleteDirectory(staged.StagingRoot);
   }

@@ -111,15 +111,15 @@ public static partial class FinancialStatementService
 
     // Shared lock order: client safety, then the package, then the reviewer's grants. Authority is checked again once the locks are held.
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
-    await db.ClientSafetyStates.FromSqlInterpolated(
+    await db.ClientSafetyStates.FromSql(
         $"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {package.ClientId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
-    var locked = await db.FinancialPackages.FromSqlInterpolated(
+    var locked = await db.FinancialPackages.FromSql(
         $"SELECT * FROM financial_packages WHERE firm_id = {actor.FirmId} AND id = {packageId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (locked is null || locked.ClientId != package.ClientId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    await db.RoleGrants.FromSqlInterpolated(
+    await db.RoleGrants.FromSql(
         $"SELECT * FROM role_grants WHERE firm_id = {actor.FirmId} AND user_id = {actor.UserId} AND revoked_at IS NULL FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor,

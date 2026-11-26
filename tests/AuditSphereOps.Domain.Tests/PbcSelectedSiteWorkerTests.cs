@@ -68,7 +68,7 @@ public sealed class PbcSelectedSiteWorkerTests
       $"UPDATE document_snapshots SET version_id = '9.0' WHERE id = {snapshot.Id}",
       $"DELETE FROM document_references WHERE id = {reference.Id}"
     })
-      Assert.Equal("55000", (await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(mutation))).SqlState);
+      Assert.Equal("55000", (await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlAsync(mutation))).SqlState);
 
     // Acceptance pins the same upload revision; registration never needs to rewrite accepted evidence.
     var reviewer = PbcSeed.Actor(h.A.Reviewer, "Reviewer");
@@ -122,7 +122,7 @@ public sealed class PbcSelectedSiteWorkerTests
     var b = await db.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == stagedB.UploadIntentId);
     var bindingA = await db.RepositoryBindings.AsNoTracking().SingleAsync(x => x.EngagementId == h.A.EngagementId);
     async Task<string> InsertAsync(Guid clientId, Guid engagementId, Guid intentId, Guid operationId, Guid referenceId, Guid snapshotId, string identity) =>
-      (await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      (await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         INSERT INTO pbc_document_registrations (id, firm_id, client_id, engagement_id, pbc_upload_intent_id, transfer_operation_id,
           document_reference_id, document_snapshot_id, provider_identity, binding_sha256_hex, registered_at)
         VALUES ({Guid.NewGuid()}, {h.A.FirmId}, {clientId}, {engagementId}, {intentId}, {operationId},
@@ -362,7 +362,7 @@ public sealed class PbcSelectedSiteWorkerTests
     var published = await db.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == staged.UploadIntentId);
     var itemId = PbcSelectedSiteIdentity.Parse(published.ProviderIdentity)!.ItemId;
     // Controlled diagnostic: recreate an upload verified before registration existed, bypassing guards only here.
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
+    await db.Database.ExecuteSqlAsync($"""
       SET session_replication_role = replica;
       DELETE FROM pbc_document_registrations WHERE id = {published.Id};
       DELETE FROM document_snapshots WHERE id = {published.DocumentSnapshotId};
@@ -505,7 +505,7 @@ public sealed class PbcSelectedSiteWorkerTests
     await using var db = h.Db();
     var published = await db.PbcDocumentRegistrations.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == staged.UploadIntentId);
     // Controlled diagnostic: recreate an upload verified before registration existed, bypassing guards only here.
-    await db.Database.ExecuteSqlInterpolatedAsync($"""
+    await db.Database.ExecuteSqlAsync($"""
       SET session_replication_role = replica;
       DELETE FROM pbc_document_registrations WHERE id = {published.Id};
       DELETE FROM document_snapshots WHERE id = {published.DocumentSnapshotId};

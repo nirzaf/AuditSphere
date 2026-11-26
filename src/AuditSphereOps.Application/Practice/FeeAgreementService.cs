@@ -175,7 +175,7 @@ public static partial class FeeAgreementService
       new(actor.FirmId, agreement.PracticeClientId, RequiredRoles: ["FinanceManager", "FinanceReviewer"], InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
 
-    var milestone = await db.FeeMilestones.FromSqlInterpolated($"SELECT * FROM fee_milestones WHERE firm_id = {actor.FirmId} AND agreement_id = {agreementId} AND kind = {kind} FOR UPDATE")
+    var milestone = await db.FeeMilestones.FromSql($"SELECT * FROM fee_milestones WHERE firm_id = {actor.FirmId} AND agreement_id = {agreementId} AND kind = {kind} FOR UPDATE")
       .SingleAsync(ct);
     await db.FeeMilestones.Attach(milestone).ReloadAsync(ct);
     if (milestone.InvoiceId.HasValue)
@@ -271,7 +271,7 @@ public static partial class FeeAgreementService
     auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new(actor.FirmId, agreement.PracticeClientId, RequiredRoles: ["FinanceManager", "FinanceReviewer"], InternalOnly: true), ct);
     if (!auth.Succeeded) return CommandResult<AdvancePaymentOutcome>.Fail(auth.ErrorCode!, auth.Message!);
-    var milestone = await db.FeeMilestones.FromSqlInterpolated($"SELECT * FROM fee_milestones WHERE firm_id = {actor.FirmId} AND agreement_id = {agreementId} AND kind = {kind} FOR UPDATE")
+    var milestone = await db.FeeMilestones.FromSql($"SELECT * FROM fee_milestones WHERE firm_id = {actor.FirmId} AND agreement_id = {agreementId} AND kind = {kind} FOR UPDATE")
       .SingleAsync(ct);
     await db.FeeMilestones.Attach(milestone).ReloadAsync(ct);
     if (milestone.InvoiceId is null)
@@ -544,5 +544,5 @@ public static partial class FeeAgreementService
   }
 
   private static Task<FirmSafetyState?> LockFirmAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
-    db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
 }

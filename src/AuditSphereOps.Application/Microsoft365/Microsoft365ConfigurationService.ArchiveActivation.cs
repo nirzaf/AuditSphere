@@ -41,10 +41,10 @@ public static partial class Microsoft365ConfigurationService
     // and re-read after every potentially contended resource lock.
     auth = await LockSelectedResourceAdministratorAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    var draft = await db.Microsoft365SetupDrafts.FromSqlInterpolated($"""
+    var draft = await db.Microsoft365SetupDrafts.FromSql($"""
       SELECT * FROM m365_setup_drafts WHERE firm_id={actor.FirmId} AND id={request.SetupDraftId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
-    var connection = await db.Microsoft365ConnectionRevisions.FromSqlInterpolated($"""
+    var connection = await db.Microsoft365ConnectionRevisions.FromSql($"""
       SELECT * FROM m365_connection_revisions WHERE firm_id={actor.FirmId} AND id={request.ConnectionRevisionId} FOR UPDATE
       """).AsNoTracking().SingleOrDefaultAsync(ct);
     auth = await FirmAdministratorAsync(db, actor, ct);
@@ -124,9 +124,9 @@ public static partial class Microsoft365ConfigurationService
   private static async Task<CommandResult> LockSelectedResourceAdministratorAsync(
     IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
   {
-    if (await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
+    if (await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR UPDATE")
           .AsNoTracking().SingleOrDefaultAsync(ct) is null ||
-        await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR UPDATE")
+        await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={actor.UserId} FOR UPDATE")
           .AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return TenantAdministration.Denied();
     return await FirmAdministratorAsync(db, actor, ct);

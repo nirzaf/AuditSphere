@@ -154,7 +154,7 @@ public static partial class PracticeTimeService
   {
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<WorkflowTaskBinding>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
-    var engagement = await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} FOR UPDATE")
+    var engagement = await db.Engagements.FromSql($"SELECT * FROM engagements WHERE id = {engagementId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (engagement is null) return CommandResult<WorkflowTaskBinding>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var client = await LockClientAsync(db, actor.FirmId, engagement.PracticeClientId, ct);

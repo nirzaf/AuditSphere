@@ -50,14 +50,14 @@ public static partial class FinancialStatementService
     if (lockedSafety is null)
       return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GateBlocked,
         "Client safety state is unavailable.");
-    var package = await db.FinancialPackages.FromSqlInterpolated(
+    var package = await db.FinancialPackages.FromSql(
       $"SELECT * FROM financial_packages WHERE id = {packageId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (package is null || package.ClientId != packageClientId.Value)
       return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (package.ComparativePackageId is Guid comparativePackageId)
     {
-      var lockedComparative = await db.FinancialPackages.FromSqlInterpolated(
+      var lockedComparative = await db.FinancialPackages.FromSql(
         $"SELECT * FROM financial_packages WHERE id = {comparativePackageId} AND firm_id = {actor.FirmId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       if (lockedComparative is null)
@@ -204,7 +204,7 @@ public static partial class FinancialStatementService
       return CommandResult<FinancialStatementPresentationPin>.Fail(ErrorCodes.GateBlocked,
         "Client safety state is unavailable.");
 
-    var package = await db.FinancialPackages.FromSqlInterpolated(
+    var package = await db.FinancialPackages.FromSql(
       $"SELECT * FROM financial_packages WHERE id = {packageId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (package is null || package.ClientId != packageClientId.Value)

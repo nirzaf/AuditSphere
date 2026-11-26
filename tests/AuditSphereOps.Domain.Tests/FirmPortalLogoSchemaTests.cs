@@ -136,10 +136,10 @@ public sealed class FirmPortalLogoSchemaTests
     Assert.Equal(png, retained.LogoPngBytes);
     Assert.Equal(hash, retained.LogoSha256Hex);
 
-    var immutableUpdate = await Assert.ThrowsAsync<PostgresException>(() => retainedDb.Database.ExecuteSqlInterpolatedAsync(
+    var immutableUpdate = await Assert.ThrowsAsync<PostgresException>(() => retainedDb.Database.ExecuteSqlAsync(
       $"UPDATE firm_commercial_profiles SET legal_name = 'rewritten' WHERE id = {retainedId}"));
     Assert.Contains("append-only", immutableUpdate.MessageText, StringComparison.OrdinalIgnoreCase);
-    var immutableDelete = await Assert.ThrowsAsync<PostgresException>(() => retainedDb.Database.ExecuteSqlInterpolatedAsync(
+    var immutableDelete = await Assert.ThrowsAsync<PostgresException>(() => retainedDb.Database.ExecuteSqlAsync(
       $"DELETE FROM firm_commercial_profiles WHERE id = {retainedId}"));
     Assert.Contains("append-only", immutableDelete.MessageText, StringComparison.OrdinalIgnoreCase);
 

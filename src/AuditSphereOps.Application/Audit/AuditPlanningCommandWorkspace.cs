@@ -46,11 +46,11 @@ public static class AuditPlanningCommandWorkspace
   {
     var e = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == a.FirmId && x.Id == engagementId, ct);
     if (e is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var firm = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var firm = await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
     var client = publishing
-      ? await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={e.PracticeClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct)
-      : await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={e.PracticeClientId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-    var user = await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+      ? await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={e.PracticeClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct)
+      : await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={e.PracticeClientId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var user = await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (firm is null || client is null || user is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     return CommandResult.Ok();
   }
@@ -59,8 +59,8 @@ public static class AuditPlanningCommandWorkspace
     // Cross-client reuse still shares one actor/request barrier; no dependency on user-row mutation or a result match.
     var digest = Hashing.Sha256Hex(JsonSerializer.Serialize(new { Namespace = "audit-planning-request-v1", a.FirmId, a.UserId, requestId }));
     var key = unchecked((long)Convert.ToUInt64(digest[..16], 16));
-    if (publish) await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", ct);
-    else await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
+    if (publish) await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({key})", ct);
+    else await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock_shared({key})", ct);
   }
   private static AuditPlanningCommandFields? Canonical(AuditPlanningCommandFields? f)
   {
@@ -312,22 +312,22 @@ public static class AuditPlanningCommandWorkspace
       var scope = await AuditPlanningService.LockedEngagementAsync(db, a, engagementId, ct);
       if (scope.Denied is not null) return Fail<AuditPlanningCommandReceiptView>(scope.Denied, scope.Message ?? "Access denied.");
       var t = Targets(f);
-      if (t.Risk is { } rid) await db.AuditRisks.FromSqlInterpolated($"SELECT * FROM audit_risks WHERE firm_id={a.FirmId} AND engagement_id={engagementId} AND id={rid} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
-      if (t.Procedure is { } pid) await db.AuditProcedures.FromSqlInterpolated($"SELECT * FROM audit_procedures WHERE firm_id={a.FirmId} AND engagement_id={engagementId} AND id={pid} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+      if (t.Risk is { } rid) await db.AuditRisks.FromSql($"SELECT * FROM audit_risks WHERE firm_id={a.FirmId} AND engagement_id={engagementId} AND id={rid} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+      if (t.Procedure is { } pid) await db.AuditProcedures.FromSql($"SELECT * FROM audit_procedures WHERE firm_id={a.FirmId} AND engagement_id={engagementId} AND id={pid} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
       var selectedMappingId = f.Calculate?.MappingId;
       var source = await MaterialityEngineService.GetSourceAsync(db, a, engagementId, ct, selectedMappingId);
       if (source.Succeeded)
       {
         var mappingId = source.Value!.MappingVersionId; var datasetId = source.Value.DatasetId;
-        await db.MappingVersions.FromSqlInterpolated($"SELECT * FROM mapping_versions WHERE firm_id={a.FirmId} AND id={mappingId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-        await db.TrialBalanceDatasets.FromSqlInterpolated($"SELECT * FROM trial_balance_datasets WHERE firm_id={a.FirmId} AND id={datasetId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+        await db.MappingVersions.FromSql($"SELECT * FROM mapping_versions WHERE firm_id={a.FirmId} AND id={mappingId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+        await db.TrialBalanceDatasets.FromSql($"SELECT * FROM trial_balance_datasets WHERE firm_id={a.FirmId} AND id={datasetId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
       }
       if (t.Assessment is { } assessmentId)
-        await db.MaterialityAssessments.FromSqlInterpolated($"SELECT * FROM materiality_assessments WHERE firm_id={a.FirmId} AND engagement_id={engagementId} AND id={assessmentId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+        await db.MaterialityAssessments.FromSql($"SELECT * FROM materiality_assessments WHERE firm_id={a.FirmId} AND engagement_id={engagementId} AND id={assessmentId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
       if (f.AssignRiskOwner is { } assignOwner)
       {
-        await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={assignOwner.OwnerUserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-        await db.EngagementStaffAssignments.FromSqlInterpolated($"SELECT * FROM engagement_staff_assignments WHERE firm_id={a.FirmId} AND engagement_id={engagementId} AND user_id={assignOwner.OwnerUserId} AND revoked_at IS NULL FOR SHARE").AsNoTracking().ToListAsync(ct);
+        await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={assignOwner.OwnerUserId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+        await db.EngagementStaffAssignments.FromSql($"SELECT * FROM engagement_staff_assignments WHERE firm_id={a.FirmId} AND engagement_id={engagementId} AND user_id={assignOwner.OwnerUserId} AND revoked_at IS NULL FOR SHARE").AsNoTracking().ToListAsync(ct);
       }
       var preview = await PreviewAsync(db, a, engagementId, request with { Fields = f }, ct);
       if (!preview.Succeeded) return Fail<AuditPlanningCommandReceiptView>(preview.ErrorCode!, preview.Message!);

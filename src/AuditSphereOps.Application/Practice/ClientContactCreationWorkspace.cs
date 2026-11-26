@@ -90,8 +90,8 @@ public static class ClientContactCreationWorkspace
       return Fail<ContactCreationReceipt>(ErrorCodes.ScopeDenied,"This client contact workspace is unavailable.");
     auth = await Authorize(db,a,id,ct);
     if (!auth.Succeeded) return Fail<ContactCreationReceipt>(ErrorCodes.ScopeDenied,"This client contact workspace is unavailable.");
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
-    var guard = await db.ClientSafetyStates.FromSqlInterpolated(
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    var guard = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (guard is null) return Fail<ContactCreationReceipt>(ErrorCodes.ScopeDenied,"This client contact workspace is unavailable.");
     var prior = await db.ClientContactCreations.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId&&x.ActorId==a.UserId&&x.RequestId==r.RequestId,ct);

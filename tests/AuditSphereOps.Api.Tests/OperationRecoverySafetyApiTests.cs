@@ -197,7 +197,7 @@ public sealed class OperationRecoverySafetyApiTests
     using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
     var csrf = await SignIn(client);
     await using var tx = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR UPDATE").SingleAsync();
+    await blocker.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR UPDATE").SingleAsync();
     var route = action == "lift-quarantine" ? "/api/ui/operations/lift-quarantine" : $"/api/ui/operations/{operation.Id}/{action}";
     var pending = Post(client, csrf, route, new { disposition = "Synthetic cancellation" });
     await signal.Reached.Task.WaitAsync(TimeSpan.FromSeconds(15));

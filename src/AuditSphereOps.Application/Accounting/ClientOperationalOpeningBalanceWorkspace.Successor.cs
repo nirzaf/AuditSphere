@@ -164,7 +164,7 @@ public static partial class ClientOperationalOpeningBalanceWorkspace
     await SuccessorScopeLocksAsync(db, actor, request.ClientId, request.EngagementId, request.RequestId, ct);
     var locked = await LockSuccessorPeriodsAsync(db, actor.FirmId, request.ClientId, discover.PeriodId, ct);
     if (!locked.Succeeded) return locked;
-    var opening = await db.ClientOperationalOpeningBalances.FromSqlInterpolated($"SELECT * FROM client_operational_opening_balances WHERE firm_id={actor.FirmId} AND client_id={request.ClientId} AND id={request.OpeningId} FOR UPDATE").SingleAsync(ct);
+    var opening = await db.ClientOperationalOpeningBalances.FromSql($"SELECT * FROM client_operational_opening_balances WHERE firm_id={actor.FirmId} AND client_id={request.ClientId} AND id={request.OpeningId} FOR UPDATE").SingleAsync(ct);
     var proof = await db.ClientOperationalOpeningSuccessorProofs.AsNoTracking().SingleOrDefaultAsync(x => x.OpeningId == opening.Id, ct);
     if (proof is null || proof.EngagementId != request.EngagementId || opening.CreatedByUserId == actor.UserId)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "An independent reviewer of the exact scoped successor is required.");
@@ -222,17 +222,17 @@ public static partial class ClientOperationalOpeningBalanceWorkspace
     Guid clientId, Guid engagementId, Guid requestId, CancellationToken ct)
   {
     var key = long.Parse(SuccessorHash(new { actor.FirmId, actor.UserId, actor.SessionEpoch, requestId })[..16], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", ct);
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-    await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
-    await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND practice_client_id={clientId} AND id={engagementId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({key})", ct);
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={clientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.Engagements.FromSql($"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND practice_client_id={clientId} AND id={engagementId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
   }
 
   internal static async Task<CommandResult> LockSuccessorPeriodsAsync(IClientAccountingDbContext db,
     Guid firmId, Guid clientId, Guid targetPeriodId, CancellationToken ct, Guid? requestedPriorPeriodId = null)
   {
     if (db.Database.CurrentTransaction is null) return CommandResult.Fail(ErrorCodes.GateBlocked, "Owned transaction is required for successor publication.");
-    if (await db.PracticeClients.FromSqlInterpolated($"SELECT * FROM practice_clients WHERE firm_id={firmId} AND id={clientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null)
+    if (await db.PracticeClients.FromSql($"SELECT * FROM practice_clients WHERE firm_id={firmId} AND id={clientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null)
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var chain = new List<ClientReportingPeriod>(); var ids = new HashSet<Guid>(); var next = (Guid?)targetPeriodId;
     var proofHashes = new Dictionary<Guid, string?>();
@@ -277,8 +277,8 @@ public static partial class ClientOperationalOpeningBalanceWorkspace
     foreach (var expected in chain)
     {
       var current = expected.Id == targetPeriodId
-        ? await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id={firmId} AND client_id={clientId} AND id={expected.Id} FOR UPDATE").AsNoTracking().SingleAsync(ct)
-        : await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id={firmId} AND client_id={clientId} AND id={expected.Id} FOR SHARE").AsNoTracking().SingleAsync(ct);
+        ? await db.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE firm_id={firmId} AND client_id={clientId} AND id={expected.Id} FOR UPDATE").AsNoTracking().SingleAsync(ct)
+        : await db.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE firm_id={firmId} AND client_id={clientId} AND id={expected.Id} FOR SHARE").AsNoTracking().SingleAsync(ct);
       if (current.Revision != expected.Revision || current.PriorPeriodId != expected.PriorPeriodId || current.StartDate != expected.StartDate || current.EndDate != expected.EndDate)
         return CommandResult.Fail(ErrorCodes.GenerationStale, "Period ancestry changed while fencing publication.");
       var currentProofHash = await (from opening in db.ClientOperationalOpeningBalances.AsNoTracking()

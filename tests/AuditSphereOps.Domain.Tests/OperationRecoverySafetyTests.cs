@@ -209,7 +209,7 @@ public sealed class OperationRecoverySafetyTests
     }
     await using var blocker = new AuditSphereDbContext(pg.Options);
     await using var tx = await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR UPDATE").SingleAsync();
+    await blocker.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {f.FirmId} FOR UPDATE").SingleAsync();
     var signal = new ObserveFirmLock();
     await using var writer = new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(signal).Options);
     async Task<bool> Attempt() => command switch

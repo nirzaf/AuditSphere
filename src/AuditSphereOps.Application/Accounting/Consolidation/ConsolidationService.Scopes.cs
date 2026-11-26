@@ -30,12 +30,12 @@ public static partial class ConsolidationService
     // Grant changes serialize on the firm row; membership changes and scope-version
     // allocation serialize on the group row. Hold both through scope publication.
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
-    var firmGuard = await db.FirmSafetyStates.FromSqlInterpolated(
+    var firmGuard = await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR SHARE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (firmGuard is null)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
-    var group = await db.ClientGroups.FromSqlInterpolated(
+    var group = await db.ClientGroups.FromSql(
       $"SELECT * FROM client_groups WHERE id = {request.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (group is null)
@@ -175,10 +175,10 @@ public static partial class ConsolidationService
       return auth;
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     // Ownership additions and perimeter changes take the same group then scope locks.
-    var group = await db.ClientGroups.FromSqlInterpolated(
+    var group = await db.ClientGroups.FromSql(
       $"SELECT * FROM client_groups WHERE id = {scope.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
-    scope = await db.ConsolidationScopeVersions.FromSqlInterpolated(
+    scope = await db.ConsolidationScopeVersions.FromSql(
       $"SELECT * FROM consolidation_scope_versions WHERE id = {scopeVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (scope is null || group is null || scope.GroupId != group.Id)

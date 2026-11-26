@@ -123,11 +123,11 @@ public sealed class EndOfServiceAccrualTests
     Assert.False((await EndOfServiceWorkspaceQuery.GetAsync(db, w.Reviewer)).Value!.CanPrepareAccrual);
 
     // A confirmed treatment is final and its content can never be rewritten, even by direct SQL.
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE firm_end_of_service_treatments SET measurement_treatment = 'A different treatment entirely, rewritten' WHERE id = {recorded.Value}"));
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE firm_end_of_service_treatments SET status = 'RECORDED', confirmed_by_user_id = NULL, confirmed_at = NULL, confirmation_note = NULL WHERE id = {recorded.Value}"));
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"DELETE FROM firm_end_of_service_treatments WHERE id = {recorded.Value}"));
   }
 
@@ -185,9 +185,9 @@ public sealed class EndOfServiceAccrualTests
     Assert.Equal((LedgerStates.JournalPosted, 12500m), (workspace.Accruals.Single().JournalStatus, workspace.Accruals.Single().Amount));
 
     // The entered basis is append-only; a correction is a reversing journal, which brings the provision back down.
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE firm_end_of_service_accruals SET amount = 1 WHERE id = {stored.Id}"));
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"DELETE FROM firm_end_of_service_accruals WHERE id = {stored.Id}"));
     Assert.True((await LedgerService.ReverseFirmPostingAsync(db, w.Reviewer,
       new ReverseFirmPostingRequest(posted.Value, w.PeriodId, "Accrual entered for the wrong headcount"))).Succeeded);
@@ -219,7 +219,7 @@ public sealed class EndOfServiceAccrualTests
     Assert.Empty(await db.FirmPostings.AsNoTracking().Where(x => x.JournalId == draft.Value).ToListAsync());
 
     // Second lock: a posting row inserted behind the Application gate is rejected by the database itself.
-    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
       INSERT INTO firm_postings (id, firm_id, period_id, journal_id, currency, posted_by_user_id, posted_at)
       VALUES ({Guid.NewGuid()}, {w.FirmId}, {w.PeriodId}, {draft.Value}, 'QAR', {w.Manager.UserId}, now())
       """));

@@ -78,7 +78,7 @@ public static partial class AuditPlanningService
     if (!auth.Succeeded) return CommandResult<Finding>.Fail(auth.ErrorCode!, auth.Message!);
     var writable = await FileFreezeService.RequireWritableAsync(db, actor, snapshot.EngagementId, "amend an audit finding", ct);
     if (!writable.Succeeded) return CommandResult<Finding>.Fail(writable.ErrorCode!, writable.Message!);
-    var target = await db.Findings.FromSqlInterpolated($"SELECT * FROM findings WHERE firm_id={actor.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    var target = await db.Findings.FromSql($"SELECT * FROM findings WHERE firm_id={actor.FirmId} AND id={id} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     if (target is null || target.ClientId != snapshot.ClientId || target.EngagementId != snapshot.EngagementId)
       return CommandResult<Finding>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (target.Revision == long.MaxValue) return CommandResult<Finding>.Fail(ErrorCodes.ProtectedState, "The finding revision limit has been reached.");
@@ -88,6 +88,6 @@ public static partial class AuditPlanningService
   {
     var user = actor.UserId.ToString(); var epoch = actor.SessionEpoch.ToString(CultureInfo.InvariantCulture); var eventId = Guid.CreateVersion7().ToString();
     // Transaction-local context is consumed by the database transition trigger; it never accepts a browser actor.
-    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('audit.finding_actor_id',{user},true), set_config('audit.finding_actor_epoch',{epoch},true), set_config('audit.finding_action',{action},true), set_config('audit.finding_event_id',{eventId},true)", ct);
+    await db.Database.ExecuteSqlAsync($"SELECT set_config('audit.finding_actor_id',{user},true), set_config('audit.finding_actor_epoch',{epoch},true), set_config('audit.finding_action',{action},true), set_config('audit.finding_event_id',{eventId},true)", ct);
   }
 }

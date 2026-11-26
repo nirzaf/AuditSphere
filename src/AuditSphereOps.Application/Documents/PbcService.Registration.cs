@@ -138,7 +138,7 @@ public static partial class PbcService
   {
     if (db.Database.CurrentTransaction is null)
       throw new InvalidOperationException("A registration backfill requires the caller's transaction.");
-    var locked = await db.PbcUploadIntents.FromSqlInterpolated($"""
+    var locked = await db.PbcUploadIntents.FromSql($"""
       SELECT * FROM pbc_upload_intents WHERE firm_id = {actor.FirmId} AND id = {facts.Item.UploadIntentId} FOR UPDATE
       """).AsNoTracking().ToListAsync(ct);
     if (locked.Count != 1 || !await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct))

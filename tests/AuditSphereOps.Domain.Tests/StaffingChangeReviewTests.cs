@@ -33,8 +33,8 @@ public sealed class StaffingChangeReviewTests
     var receipt = await db.StaffingChanges.AsNoTracking().SingleAsync();
     Assert.Single(await db.EngagementStaffAssignments.ToListAsync());
     Assert.True((await StaffingChangeWorkspace.LookupAsync(db, actor, f.EngagementId, r.RequestId, r.RequestHash)).Value!.Found);
-    Assert.Equal("P0001", (await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"UPDATE staffing_changes SET preview_json='{{}}' WHERE id={receipt.Id}"))).SqlState);
-    Assert.Equal("P0001", (await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM staffing_changes WHERE id={receipt.Id}"))).SqlState);
+    Assert.Equal("P0001", (await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"UPDATE staffing_changes SET preview_json='{{}}' WHERE id={receipt.Id}"))).SqlState);
+    Assert.Equal("P0001", (await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"DELETE FROM staffing_changes WHERE id={receipt.Id}"))).SqlState);
     var revoke = new StaffingChangeRequest(Guid.NewGuid(), new("REVOKE", f.Reviewer.Id, StaffingLevels.StaffAssociate, receipt.AssignmentId));
     var rp = (await StaffingChangeWorkspace.PreviewAsync(db, actor, f.EngagementId, revoke)).Value!;
     Assert.True(rp.RemovesLocalGrant);

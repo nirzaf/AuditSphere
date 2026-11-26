@@ -125,7 +125,7 @@ public static class RoleAssignmentService
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     // Same firm guard as revocation and group creation: serializes last-administrator checks.
-    var firmGuard = await db.FirmSafetyStates.FromSqlInterpolated(
+    var firmGuard = await db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if (firmGuard is null)
       return CommandResult<AssignmentPublication>.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");

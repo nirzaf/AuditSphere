@@ -273,7 +273,7 @@ public sealed partial class PlanningResourcesAndMaterialityTests
     await using var pg=await PgTestSchema.CreateAsync();var w=await SeedAsync(pg);ResourcePlanningCommandRequest r;
     await using(var db=new AuditSphereDbContext(pg.Options))r=await PlanningReview(db,w,PlanningFields(w,"CERTIFICATION"));
     await using var blocker=new AuditSphereDbContext(pg.Options);await using var tx=await blocker.Database.BeginTransactionAsync();
-    await blocker.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={w.FirmId} FOR UPDATE").SingleAsync();
+    await blocker.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={w.FirmId} FOR UPDATE").SingleAsync();
     var observe=new PlanningLockObserver();await using var writer=new AuditSphereDbContext(new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(observe).Options);
     using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(45));var attempt=ResourcePlanningCommandWorkspace.ExecuteAsync(writer,w.Actor("partner","Partner"),r,timeout.Token);
     await observe.Reached.Task.WaitAsync(timeout.Token);

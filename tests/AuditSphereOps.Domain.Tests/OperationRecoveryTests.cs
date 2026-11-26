@@ -88,7 +88,7 @@ public sealed class OperationRecoveryTests
 
     await using (var mid = new AuditSphereDbContext(pg.Options))
     {
-      await mid.Database.ExecuteSqlInterpolatedAsync(
+      await mid.Database.ExecuteSqlAsync(
         $"UPDATE durable_operations SET next_attempt_at = statement_timestamp() WHERE id = {operationId}");
     }
 
@@ -152,7 +152,7 @@ public sealed class OperationRecoveryTests
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       // Test-only forcing: the dead-letter state normally arrives after durable retry exhaustion.
-      await db.Database.ExecuteSqlInterpolatedAsync(
+      await db.Database.ExecuteSqlAsync(
         $"UPDATE durable_operations SET status = 'DEAD_LETTER' WHERE id = {operationId}");
     }
 
@@ -181,9 +181,9 @@ public sealed class OperationRecoveryTests
 
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      await db.Database.ExecuteSqlInterpolatedAsync(
+      await db.Database.ExecuteSqlAsync(
         $"UPDATE firm_safety_states SET operating_mode = 'RECOVERY_QUARANTINE' WHERE id = {harness.Fixture.FirmId}");
-      await db.Database.ExecuteSqlInterpolatedAsync(
+      await db.Database.ExecuteSqlAsync(
         $"UPDATE durable_operations SET status = 'PROVIDER_BLOCKED' WHERE id = {operationId}");
     }
 

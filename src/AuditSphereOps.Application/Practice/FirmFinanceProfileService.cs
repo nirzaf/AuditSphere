@@ -103,7 +103,7 @@ public static class FirmFinanceProfileService
     auth = await AuthorizeCheckerAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<FirmFinanceProfileApproval>.Fail(auth.ErrorCode!, auth.Message!);
 
-    var profile = await db.FirmFinanceProfiles.FromSqlInterpolated(
+    var profile = await db.FirmFinanceProfiles.FromSql(
       $"SELECT * FROM firm_finance_profiles WHERE firm_id={actor.FirmId} AND id={request.ProfileId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (profile is null)
@@ -182,6 +182,6 @@ public static class FirmFinanceProfileService
       InternalOnly: true, RequireFirmWide: true), ct);
 
   private static async Task<FirmSafetyState?> LockFirmAsync(IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={firmId} FOR UPDATE")
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
 }

@@ -58,7 +58,7 @@ public static partial class ClientSalesInvoiceWorkflow
       return CommandResult<ClientSalesInvoicePreview>.Fail(ErrorCodes.GateBlocked,"Current accepted native bookkeeping service and unchanged invoice profile are required.");
     if(!DateOnly.TryParseExact(saved.AccountingDate,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var date))
       return CommandResult<ClientSalesInvoicePreview>.Fail(ErrorCodes.ProtectedState,"The retained accounting date is invalid.");
-    var period=await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={draft.PeriodId} FOR UPDATE").SingleOrDefaultAsync(ct);
+    var period=await db.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={clientId} AND id={draft.PeriodId} FOR UPDATE").SingleOrDefaultAsync(ct);
     if(period is null || period.Status==AccountingWorkflowStates.Closed || date<period.StartDate || date>period.EndDate || period.Currency!=draft.Currency)
       return CommandResult<ClientSalesInvoicePreview>.Fail(ErrorCodes.GateBlocked,"An open matching client period is required.");
     var charts=await db.ClientChartVersions.AsNoTracking().Where(x=>x.FirmId==actor.FirmId&&x.ClientId==clientId&&x.Status==AccountingWorkflowStates.Approved&&x.EffectiveFrom<=date&&(x.EffectiveTo==null||x.EffectiveTo>=date)).Take(2).ToListAsync(ct);

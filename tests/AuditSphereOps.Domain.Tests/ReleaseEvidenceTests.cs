@@ -83,10 +83,10 @@ public sealed class ReleaseEvidenceTests
       Assert.Equal("VERIFIED", lineage.VerificationOutcome);
 
       // Immutability: triggers prevent UPDATE or DELETE
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         UPDATE signature_lineages SET signed_artifact_hash = {preSignDigest} WHERE id = {lineage.Id}
         """));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         DELETE FROM signature_lineages WHERE id = {lineage.Id}
         """));
     }
@@ -199,10 +199,10 @@ public sealed class ReleaseEvidenceTests
 
       // Immutability trigger test
       var att = await db.ProtectionAttestations.SingleAsync(x => x.ArtifactHash == digest);
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         UPDATE protection_attestations SET observed_state = 'EXPIRED' WHERE id = {att.Id}
         """));
-      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync($"""
         DELETE FROM protection_attestations WHERE id = {att.Id}
         """));
     }

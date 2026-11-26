@@ -68,9 +68,9 @@ public static class ClientPortalReviewCommands
     if (review is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Review unavailable.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, review.ClientId, review.EngagementId, ["ClientUser"]), ct);
     if (!auth.Succeeded) return auth;
-    _ = await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-    _ = await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE id = {review.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
-    _ = await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE id = {review.EngagementId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    _ = await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    _ = await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE id = {review.ClientId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    _ = await db.Engagements.FromSql($"SELECT * FROM engagements WHERE id = {review.EngagementId} AND firm_id = {actor.FirmId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
     return await ClientPortalService.RequireUploadWindowAsync(db, actor, review.EngagementId, ct);
   }
 }

@@ -64,7 +64,7 @@ public static partial class AuditFieldworkService
       auth = await AuthorizeEngagementAsync(db, actor, request.EngagementId, PlanningRoles, ct);
       if (!auth.Succeeded || auth.ClientId != clientId)
         return CommandResult<SamplingRunView>.Fail(auth.ErrorCode ?? ErrorCodes.ScopeDenied, auth.Message ?? "Access denied.");
-      var procedure = await db.AuditProcedures.FromSqlInterpolated($"SELECT * FROM audit_procedures WHERE firm_id={actor.FirmId} AND id={request.ProcedureId} FOR UPDATE")
+      var procedure = await db.AuditProcedures.FromSql($"SELECT * FROM audit_procedures WHERE firm_id={actor.FirmId} AND id={request.ProcedureId} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       if (procedure is null || procedure.EngagementId != request.EngagementId || procedure.ClientId != auth.ClientId)
         return Denied<SamplingRunView>();

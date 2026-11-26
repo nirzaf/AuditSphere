@@ -78,7 +78,7 @@ public sealed class FinancialPackageGateTests
     {
       var legacyId = Guid.CreateVersion7();
       var legacyHash = Hashing.Sha256Hex("legacy-gate-package");
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO financial_packages (id, firm_id, client_id, engagement_id, adjusted_dataset_id, mapping_version_id,
           adjustment_plan_id, period_id, book_id, basis, framework, period_start, period_end, taxonomy_version,
           template_version, calculation_engine_version, calculation_hash, currency, revision, generation, status, created_at)
@@ -88,7 +88,7 @@ public sealed class FinancialPackageGateTests
           'VALIDATED', created_at
         FROM financial_packages WHERE id = {packageId}
         """);
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO financial_package_validations (id, firm_id, financial_package_id, code, passed, detail, created_at)
         SELECT {Guid.CreateVersion7()}, firm_id, {legacyId}, 'ACCOUNTING_EQUATION', false,
           'Legacy validation failure.', created_at
@@ -231,7 +231,7 @@ public sealed class FinancialPackageGateTests
     {
       var id = Guid.NewGuid();
       var eligible = i >= 101;
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO financial_packages (id, firm_id, client_id, engagement_id, adjusted_dataset_id, mapping_version_id,
           adjustment_plan_id, period_id, book_id, basis, framework, period_start, period_end, taxonomy_version,
           template_version, calculation_engine_version, calculation_hash, currency, revision, generation, status, created_at)
@@ -243,7 +243,7 @@ public sealed class FinancialPackageGateTests
         """);
       if (!eligible) continue;
       expected.Add(id);
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO financial_package_validations (id, firm_id, financial_package_id, code, passed, detail, created_at)
         SELECT gen_random_uuid(), firm_id, {id}, code, passed, detail, created_at
         FROM financial_package_validations WHERE financial_package_id = {packageId}

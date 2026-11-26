@@ -197,7 +197,7 @@ public sealed class SteV22OwnerDecisionTests
     var firmId = scope.FirmId; var engagementId = scope.EngagementId; var userId = scope.Staff.Id;
     var first = Guid.NewGuid(); var second = Guid.NewGuid();
     foreach (var (id, monday, minutes) in new[] { (first, new DateOnly(2026, 10, 5), 1200), (second, new DateOnly(2026, 10, 12), 600) })
-      await db.Database.ExecuteSqlInterpolatedAsync($"""
+      await db.Database.ExecuteSqlAsync($"""
         INSERT INTO staff_allocations (id, firm_id, client_id, engagement_id, user_id, week_start, planned_minutes, updated_at, updated_by_user_id)
         VALUES ({id}, {firmId}, {scope.ClientId}, {engagementId}, {userId}, {monday}, {minutes}, statement_timestamp(), {userId})
         """);
@@ -210,7 +210,7 @@ public sealed class SteV22OwnerDecisionTests
       stored.Select(x => (x.Id, x.WeekStart, x.PlannedMinutes)));
     Assert.All(stored, x => Assert.Equal(x.WeekStart, ResourceGridCalculator.WeekStart(x.WeekStart)));
     // After the change the database refuses a week that does not start on Sunday.
-    var refused = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+    var refused = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlAsync($"""
       INSERT INTO staff_allocations (id, firm_id, client_id, engagement_id, user_id, week_start, planned_minutes, updated_at, updated_by_user_id)
       VALUES ({Guid.NewGuid()}, {firmId}, {scope.ClientId}, {engagementId}, {userId}, {new DateOnly(2026, 10, 19)}, 60, statement_timestamp(), {userId})
       """));

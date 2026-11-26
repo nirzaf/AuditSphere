@@ -73,11 +73,11 @@ public static partial class NativeTrialBalanceSourceWorkspace
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     var requestLock = long.Parse(Hash(new { actor.FirmId, actor.UserId, actor.SessionEpoch, request.RequestId })[..16],
       NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-    await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({requestLock})", ct);
+    await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({requestLock})", ct);
     // Same order as source acceptance. Only immutable posted journals are read after the period fence.
-    await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
-    await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={request.ClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
-    await db.Engagements.FromSqlInterpolated($"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={request.EngagementId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={actor.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={actor.FirmId} AND id={request.ClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.Engagements.FromSql($"SELECT * FROM engagements WHERE firm_id={actor.FirmId} AND id={request.EngagementId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     var existing = await db.NativeTrialBalanceSources.AsNoTracking().SingleOrDefaultAsync(x =>
       x.FirmId == actor.FirmId && x.ActorId == actor.UserId && x.ActorEpoch == actor.SessionEpoch && x.RequestId == request.RequestId, ct);
     if (existing is not null)
@@ -97,7 +97,7 @@ public static partial class NativeTrialBalanceSourceWorkspace
       var successorFence = await ClientOperationalOpeningBalanceWorkspace.LockSuccessorPeriodsAsync(db, actor.FirmId, request.ClientId, request.PeriodId, ct);
       if (!successorFence.Succeeded) return Fail<NativeTrialBalanceSourceView>(successorFence.ErrorCode!, successorFence.Message!);
     }
-    await db.ClientReportingPeriods.FromSqlInterpolated($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={request.ClientId} AND id={request.PeriodId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
+    await db.ClientReportingPeriods.FromSql($"SELECT * FROM client_reporting_periods WHERE firm_id={actor.FirmId} AND client_id={request.ClientId} AND id={request.PeriodId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct);
     var capture = await CaptureAsync(db, actor, request, ct);
     if (!capture.Succeeded) return Fail<NativeTrialBalanceSourceView>(capture.ErrorCode!, capture.Message!);
     var c = capture.Value!;

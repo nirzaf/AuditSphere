@@ -739,13 +739,13 @@ public static class BillingService
 
   private static Task<FirmSafetyState?> LockFirmAsync(
     IAuditSphereDbContext db, Guid firmId, CancellationToken ct) =>
-    db.FirmSafetyStates.FromSqlInterpolated(
+    db.FirmSafetyStates.FromSql(
       $"SELECT * FROM firm_safety_states WHERE id = {firmId} FOR UPDATE").SingleOrDefaultAsync(ct);
 
   private static async Task<CommandResult> LockClientAsync(
     IAuditSphereDbContext db, Guid firmId, Guid clientId, CancellationToken ct)
   {
-    var guard = await db.ClientSafetyStates.FromSqlInterpolated(
+    var guard = await db.ClientSafetyStates.FromSql(
       $"SELECT * FROM client_safety_states WHERE id = {clientId} AND firm_id = {firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     return guard is null
@@ -755,19 +755,19 @@ public static class BillingService
 
   private static Task<BillingAccount?> LoadBillingAccountForUpdateAsync(
     IAuditSphereDbContext db, Guid firmId, Guid accountId, CancellationToken ct) =>
-    db.BillingAccounts.FromSqlInterpolated(
+    db.BillingAccounts.FromSql(
       $"SELECT * FROM billing_accounts WHERE id = {accountId} AND firm_id = {firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
 
   private static Task<Invoice?> LoadInvoiceForUpdateAsync(
     IAuditSphereDbContext db, Guid firmId, Guid invoiceId, CancellationToken ct) =>
-    db.Invoices.FromSqlInterpolated(
+    db.Invoices.FromSql(
       $"SELECT * FROM invoices WHERE id = {invoiceId} AND firm_id = {firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
 
   private static Task<Receipt?> LoadReceiptForUpdateAsync(
     IAuditSphereDbContext db, Guid firmId, Guid receiptId, CancellationToken ct) =>
-    db.Receipts.FromSqlInterpolated(
+    db.Receipts.FromSql(
       $"SELECT * FROM receipts WHERE id = {receiptId} AND firm_id = {firmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
 

@@ -45,10 +45,10 @@ public static partial class ConsolidationService
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (!await LockGroupAuthorityFenceAsync(db, actor.FirmId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
-    var lockedGroup = await db.ClientGroups.FromSqlInterpolated(
+    var lockedGroup = await db.ClientGroups.FromSql(
       $"SELECT * FROM client_groups WHERE id = {scope.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
-    scope = await db.ConsolidationScopeVersions.FromSqlInterpolated(
+    scope = await db.ConsolidationScopeVersions.FromSql(
       $"SELECT * FROM consolidation_scope_versions WHERE id = {request.ScopeVersionId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (scope is null || lockedGroup is null || scope.GroupId != lockedGroup.Id)
@@ -143,13 +143,13 @@ public static partial class ConsolidationService
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (!await LockGroupAuthorityFenceAsync(db, actor.FirmId, ct))
       return CommandResult.Fail(ErrorCodes.ScopeDenied, "The firm safety state is unavailable.");
-    var lockedGroup = await db.ClientGroups.FromSqlInterpolated(
+    var lockedGroup = await db.ClientGroups.FromSql(
       $"SELECT * FROM client_groups WHERE id = {matchScope.GroupId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
-    matchScope = await db.ConsolidationScopeVersions.FromSqlInterpolated(
+    matchScope = await db.ConsolidationScopeVersions.FromSql(
       $"SELECT * FROM consolidation_scope_versions WHERE id = {matchScope.Id} AND firm_id = {actor.FirmId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
-    var lockedMatch = await db.IntercompanyMatches.FromSqlInterpolated(
+    var lockedMatch = await db.IntercompanyMatches.FromSql(
       $"SELECT * FROM intercompany_matches WHERE id = {matchId} AND firm_id = {actor.FirmId} FOR UPDATE")
       .SingleOrDefaultAsync(ct);
     if (lockedGroup is null || matchScope is null || lockedMatch is null || matchScope.GroupId != lockedGroup.Id ||

@@ -211,10 +211,10 @@ public static partial class Microsoft365ConfigurationService
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     auth = await LockSelectedResourceAdministratorAsync(db, actor, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    var draft = await db.Microsoft365SetupDrafts.FromSqlInterpolated($"""
+    var draft = await db.Microsoft365SetupDrafts.FromSql($"""
       SELECT * FROM m365_setup_drafts WHERE id = {request.SetupDraftId} AND firm_id = {actor.FirmId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
-    var connection = await db.Microsoft365ConnectionRevisions.FromSqlInterpolated($"""
+    var connection = await db.Microsoft365ConnectionRevisions.FromSql($"""
       SELECT * FROM m365_connection_revisions WHERE id = {request.ConnectionRevisionId} AND firm_id = {actor.FirmId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     var template = await db.FolderTemplateVersions.SingleOrDefaultAsync(x =>
@@ -319,7 +319,7 @@ public static partial class Microsoft365ConfigurationService
     var auth = await FirmAdministratorAsync(db, actor, ct);
     if (!auth.Succeeded) return auth;
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var template = await db.FolderTemplateVersions.FromSqlInterpolated($"""
+    var template = await db.FolderTemplateVersions.FromSql($"""
       SELECT * FROM m365_folder_template_versions WHERE id = {templateId} AND firm_id = {actor.FirmId} FOR UPDATE
       """).SingleOrDefaultAsync(ct);
     if (template is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "The template is unavailable.");
@@ -357,7 +357,7 @@ public static partial class Microsoft365ConfigurationService
       return CommandResult<FolderTemplateResult>.Fail(auth.ErrorCode!, auth.Message!);
 
     await using var tx = await db.Database.BeginTransactionAsync(ct);
-    var current = await db.FolderTemplateVersions.FromSqlInterpolated($"""
+    var current = await db.FolderTemplateVersions.FromSql($"""
       SELECT * FROM m365_folder_template_versions
       WHERE firm_id = {actor.FirmId} AND purpose = {validation.Value.Purpose}
       ORDER BY version DESC

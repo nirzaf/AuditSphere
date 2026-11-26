@@ -94,7 +94,7 @@ public static class ManagedGroupService
     if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length < 5) return CommandResult.Fail("m365.group.invalid", "A reason is required.");
     await using var tx = await db.Database.BeginTransactionAsync(ct);
     if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied();
-    var group = await db.ManagedDirectoryGroups.FromSqlInterpolated(
+    var group = await db.ManagedDirectoryGroups.FromSql(
       $"SELECT * FROM m365_managed_directory_groups WHERE firm_id={actor.FirmId} AND id={managedGroupId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (group is null || !await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied();
@@ -170,10 +170,10 @@ public static class ManagedGroupService
     // identity through admission too; all Microsoft I/O remains outside this transaction.
     async Task<bool> CurrentMembershipTargetAsync()
     {
-      var currentGroup = await db.ManagedDirectoryGroups.FromSqlInterpolated(
+      var currentGroup = await db.ManagedDirectoryGroups.FromSql(
         $"SELECT * FROM m365_managed_directory_groups WHERE firm_id={actor.FirmId} AND id={group.Id} FOR UPDATE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
-      var currentUser = await db.Users.FromSqlInterpolated(
+      var currentUser = await db.Users.FromSql(
         $"SELECT * FROM users WHERE firm_id={actor.FirmId} AND id={user.Id} FOR SHARE")
         .AsNoTracking().SingleOrDefaultAsync(ct);
       if (currentGroup is null || currentGroup.RetiredAt is not null || currentUser is null ||

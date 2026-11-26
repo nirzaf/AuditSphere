@@ -28,8 +28,8 @@ public sealed class ClientConversionReviewTests
   Assert.True((await ClientConversionWorkspace.LookupAsync(db,actor,id,r.RequestId,r.RequestHash)).Value!.Found);
   Assert.False((await ClientConversionWorkspace.LookupAsync(db,PbcSeed.Actor(f.Staff,"RelationshipManager"),id,r.RequestId,r.RequestHash)).Value!.Found);
   Assert.False((await ClientConversionWorkspace.ExecuteAsync(db,actor,id,r with {Fields=r.Fields with {LegalName="Changed intent"}})).Succeeded);
-  Assert.Equal("P0001",(await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE client_conversions SET preview_json='{{}}' WHERE id={receipt.Id}"))).SqlState);
-  Assert.Equal("P0001",(await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM client_conversions WHERE id={receipt.Id}"))).SqlState);
+  Assert.Equal("P0001",(await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"UPDATE client_conversions SET preview_json='{{}}' WHERE id={receipt.Id}"))).SqlState);
+  Assert.Equal("P0001",(await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlAsync($"DELETE FROM client_conversions WHERE id={receipt.Id}"))).SqlState);
   Assert.Single(await db.AcceptanceDecisions.Where(x=>x.PracticeClientId==receipt.ClientId &&
     x.OpportunityId==opportunityId && x.Decision=="Accepted").ToListAsync());
   Assert.Empty(await db.AcceptanceDecisions.Where(x=>x.PracticeClientId==receipt.ClientId && x.Decision=="Pending").ToListAsync());

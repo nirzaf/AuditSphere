@@ -352,10 +352,10 @@ public sealed class AuditFieldworkWorkflowTests
     Assert.Equal(200m, validBatch.Value!.TotalBookedAmount);
     var batchCaseIds = validBatch.Value.Cases.Select(x => x.ConfirmationCaseId).ToArray();
     Assert.Equal(2, await db.AuditConfirmationBookedSources.CountAsync(x => batchCaseIds.Contains(x.ConfirmationCaseId)));
-    var changedProof = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    var changedProof = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE audit_confirmation_booked_sources SET snapshot_json='{{}}' WHERE confirmation_case_id={typedId}"));
     Assert.Equal("55000", changedProof.SqlState);
-    var reboundCase = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    var reboundCase = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"UPDATE audit_confirmation_cases SET booked_amount=90 WHERE id={typedId}"));
     Assert.Equal("55000", reboundCase.SqlState);
     Assert.Equal(retainedSource.SnapshotJson, (await db.AuditConfirmationBookedSources.AsNoTracking()
@@ -389,7 +389,7 @@ public sealed class AuditFieldworkWorkflowTests
       var forgedRefused = await Assert.ThrowsAsync<PostgresException>(() => forgedTx.CommitAsync());
       Assert.Equal("23514", forgedRefused.SqlState);
     }
-    var proofDelete = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+    var proofDelete = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlAsync(
       $"DELETE FROM audit_confirmation_booked_sources WHERE confirmation_case_id={typedId}"));
     Assert.Equal("55000", proofDelete.SqlState);
     var proofTruncate = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync(

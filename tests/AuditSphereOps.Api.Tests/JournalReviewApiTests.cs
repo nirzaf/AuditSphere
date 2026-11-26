@@ -70,12 +70,12 @@ public sealed class JournalReviewApiTests
     var child=await verify.AdjustmentJournals.SingleAsync(x=>x.ReversalOfJournalId==id);
     Assert.Equal("Draft",child.Status);Assert.Equal(r.Reason,child.Reason);Assert.Equal(r.EvidenceReference,child.EvidenceReference);
     Assert.Equal(1,await verify.AdjustmentJournalActions.CountAsync());
-    await Assert.ThrowsAsync<PostgresException>(()=>verify.Database.ExecuteSqlInterpolatedAsync($"UPDATE adjustment_lines SET journal_id={child.Id} WHERE journal_id={id}"));
-    await Assert.ThrowsAsync<PostgresException>(()=>verify.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM adjustment_lines WHERE journal_id={id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>verify.Database.ExecuteSqlAsync($"UPDATE adjustment_lines SET journal_id={child.Id} WHERE journal_id={id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>verify.Database.ExecuteSqlAsync($"DELETE FROM adjustment_lines WHERE journal_id={id}"));
     var evidence=await verify.AdjustmentJournalActions.SingleAsync();
-    var error=await Assert.ThrowsAsync<PostgresException>(()=>verify.Database.ExecuteSqlInterpolatedAsync($"UPDATE adjustment_journal_actions SET reason='altered' WHERE id={evidence.Id}"));
+    var error=await Assert.ThrowsAsync<PostgresException>(()=>verify.Database.ExecuteSqlAsync($"UPDATE adjustment_journal_actions SET reason='altered' WHERE id={evidence.Id}"));
     Assert.Contains("append-only",error.MessageText);
-    await Assert.ThrowsAsync<PostgresException>(()=>verify.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM adjustment_journal_actions WHERE id={evidence.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>verify.Database.ExecuteSqlAsync($"DELETE FROM adjustment_journal_actions WHERE id={evidence.Id}"));
     Assert.Equal(HttpStatusCode.Conflict,(await c.GetAsync(Url(id)+"/receipts/"+r.RequestId+"?requestHash="+new string('f',64))).StatusCode);
   }
 

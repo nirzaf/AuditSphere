@@ -69,10 +69,10 @@ public static class BudgetPreparationWorkspace
     var fields=Canonical(r?.Fields);
     if(r is null||!r.Reviewed||r.RequestId==Guid.Empty||fields is null||!HashValid(r.RequestHash)||!HashValid(r.ReviewBasis)||r.RequestHash!=RequestHash(a,id,r.RequestId,fields))return CommandResult<BudgetPreparationReceipt>.Fail("request.invalid","Preview and confirm the exact budget preparation.");
     await using var tx=await db.Database.BeginTransactionAsync(ct);
-    if(await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null)return Unavailable<BudgetPreparationReceipt>();
+    if(await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null)return Unavailable<BudgetPreparationReceipt>();
     var e=await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId&&x.Id==id,ct);if(e is null)return Unavailable<BudgetPreparationReceipt>();
-    if(await db.ClientSafetyStates.FromSqlInterpolated($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={e.PracticeClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null)return Unavailable<BudgetPreparationReceipt>();
-    await db.Users.FromSqlInterpolated($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
+    if(await db.ClientSafetyStates.FromSql($"SELECT * FROM client_safety_states WHERE firm_id={a.FirmId} AND id={e.PracticeClientId} FOR UPDATE").AsNoTracking().SingleOrDefaultAsync(ct) is null)return Unavailable<BudgetPreparationReceipt>();
+    await db.Users.FromSql($"SELECT * FROM users WHERE firm_id={a.FirmId} AND id={a.UserId} FOR SHARE").AsNoTracking().SingleAsync(ct);
     if(!await Authorized(db,a,id,ct))return Unavailable<BudgetPreparationReceipt>();
     var prior=await db.BudgetPreparations.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId&&x.ActorId==a.UserId&&x.RequestId==r.RequestId,ct);
     if(prior is not null){
@@ -94,7 +94,7 @@ public static class BudgetPreparationWorkspace
   {
     if(!await Authorized(db,a,id,ct)||requestId==Guid.Empty||!HashValid(hash))return Unavailable<BudgetPreparationLookup>();
     await using var tx=await db.Database.BeginTransactionAsync(ct);
-    if(await db.FirmSafetyStates.FromSqlInterpolated($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct) is null)return Unavailable<BudgetPreparationLookup>();
+    if(await db.FirmSafetyStates.FromSql($"SELECT * FROM firm_safety_states WHERE id={a.FirmId} FOR SHARE").AsNoTracking().SingleOrDefaultAsync(ct) is null)return Unavailable<BudgetPreparationLookup>();
     var row=await db.BudgetPreparations.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==a.FirmId&&x.ActorId==a.UserId&&x.RequestId==requestId,ct);
     if(row is not null&&(row.EngagementId!=id||row.RequestHash!=hash))return CommandResult<BudgetPreparationLookup>.Fail(ErrorCodes.IdempotencyConflict,"This reference belongs to another budget intent.");
     if(!await Authorized(db,a,id,ct))return Unavailable<BudgetPreparationLookup>();

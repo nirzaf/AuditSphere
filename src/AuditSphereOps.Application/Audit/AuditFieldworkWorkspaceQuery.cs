@@ -252,7 +252,7 @@ public static class AuditFieldworkWorkspaceQuery
     var currentDecisions = await AuditProgramService.CurrentApplicabilityDecisionsAsync(db, firmId, clientId, engagementId, rows, ct);
     var currentList = currentDecisions.Values.ToArray();
     var proposals = await AuditProgramService.ProposalDecisionsAsync(db, firmId, clientId, engagementId, currentList, ct);
-    var history = await db.AuditProcedureApplicabilityDecisions.FromSqlInterpolated($"""
+    var history = await db.AuditProcedureApplicabilityDecisions.FromSql($"""
       SELECT ranked.*
       FROM (
         SELECT d.*, ROW_NUMBER() OVER (PARTITION BY d.audit_procedure_id ORDER BY d.revision DESC) AS history_rank

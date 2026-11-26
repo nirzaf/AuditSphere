@@ -66,16 +66,16 @@ public static partial class FinancialStatementService
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     // The share lock fences what the decision depends on. Source acceptance holds the client safety row for update, so an acceptance
     // cannot land between this check and the commit.
-    await db.ClientSafetyStates.FromSqlInterpolated(
+    await db.ClientSafetyStates.FromSql(
         $"SELECT * FROM client_safety_states WHERE firm_id = {actor.FirmId} AND id = {package.ClientId} FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
-    var locked = await db.FinancialPackages.FromSqlInterpolated(
+    var locked = await db.FinancialPackages.FromSql(
         $"SELECT * FROM financial_packages WHERE firm_id = {actor.FirmId} AND id = {packageId} FOR UPDATE")
       .AsNoTracking().SingleOrDefaultAsync(ct);
     if (locked is null || locked.ClientId != package.ClientId)
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     // The reviewer's grant rows are held too, so a revocation waits for this decision to finish.
-    await db.RoleGrants.FromSqlInterpolated(
+    await db.RoleGrants.FromSql(
         $"SELECT * FROM role_grants WHERE firm_id = {actor.FirmId} AND user_id = {actor.UserId} AND revoked_at IS NULL FOR SHARE")
       .AsNoTracking().ToListAsync(ct);
     // Authority is checked again only after the locks are held, so a grant revoked while this command waited is refused.
