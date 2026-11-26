@@ -72,6 +72,7 @@ const summary = obj({
   id: guid,
   trialBalanceDatasetId: guid,
   openingTrialBalanceDatasetId: nullable(guid),
+  calculationVersion: nat,
   status,
   incompleteExtract: bool,
   absoluteResidual: dec,
@@ -87,6 +88,7 @@ const workspace = obj({
 const operation = obj({
   id: guid,
   status: str(100),
+  calculationVersion: nat,
   originatorId: nullable(guid),
   evidenceReference: str(2000),
   openingTrialBalanceDatasetId: nullable(guid),
@@ -113,6 +115,7 @@ const bridge = obj({
   trialBalanceDatasetId: guid,
   importBatchId: guid,
   openingTrialBalanceDatasetId: nullable(guid),
+  calculationVersion: nat,
   trialBalanceHash: sha256,
   generalLedgerHash: sha256,
   openingTrialBalanceHash: str(64),
@@ -145,7 +148,7 @@ const residual = obj({
   closing: dec,
   movement: dec,
   opening: nullable(dec),
-  movementClosingDifference: dec,
+  movementClosingDifference: nullable(dec),
   openingMovementDifference: nullable(dec),
 });
 const residualPage = obj({ items: arr(residual, 50), totalCount: nat, page: nat, pageSize: nat });
@@ -217,6 +220,8 @@ export function decodeCompletenessWorkspace(raw: unknown) {
     throw new Error('Native opening must be inherited, not selected from imported datasets');
   if (new Set(w.bridges.map((x) => x.id)).size !== w.bridges.length)
     throw new Error('Unsupported bridge history');
+  if (w.bridges.some((x) => x.calculationVersion !== 1 && x.calculationVersion !== 2))
+    throw new Error('Unsupported completeness calculation version');
   return w;
 }
 export function decodeCompletenessPlan(raw: unknown) {
@@ -230,10 +235,12 @@ export function decodeCompletenessPlan(raw: unknown) {
       (!p.context.canPrepare ||
         p.blocker !== null ||
         p.existingBridgeId !== null ||
-        p.operations.length > 0)) ||
+        p.operations.some((x) => x.calculationVersion === 2))) ||
     (!p.canPrepare && !p.blocker)
   )
     throw new Error('Unsupported completeness plan');
+  if (p.operations.some((x) => x.calculationVersion !== 1 && x.calculationVersion !== 2))
+    throw new Error('Unsupported completeness operation version');
   return p;
 }
 export function decodeCompletenessReview(raw: unknown) {
@@ -244,6 +251,7 @@ export function decodeCompletenessReview(raw: unknown) {
     s = r.context.source;
   if (
     b.clientId !== s.clientId ||
+    (b.calculationVersion !== 1 && b.calculationVersion !== 2) ||
     b.engagementId !== s.engagementId ||
     b.periodId !== s.periodId ||
     b.bookId !== s.bookId ||
@@ -261,6 +269,7 @@ export function decodeCompletenessReview(raw: unknown) {
         !['RECONCILED', 'UNRECONCILED'].includes(b.status))) ||
     (r.canApprove &&
       (!r.canReject ||
+        b.calculationVersion !== 2 ||
         r.approvalBlocker !== null ||
         b.status !== 'RECONCILED' ||
         b.incompleteExtract ||
@@ -272,8 +281,10 @@ export function decodeCompletenessReview(raw: unknown) {
         !/^-?0(?:\.0+)?$/.test(b.openingMovementResidual))) ||
     (!r.canApprove && !r.approvalBlocker) ||
     (!r.canReject && !r.reviewBlocker) ||
-    r.residuals.items.some(
-      (x) => (x.opening === null) !== (x.openingMovementDifference === null),
+    r.residuals.items.some((x) =>
+      (x.opening === null) !== (x.openingMovementDifference === null) ||
+      (b.calculationVersion === 1 && x.movementClosingDifference === null) ||
+      (b.calculationVersion === 2 && (x.opening === null) !== (x.movementClosingDifference === null)),
     ) ||
     new Set(r.residuals.items.map((x) => x.accountCode)).size !== r.residuals.items.length
   )

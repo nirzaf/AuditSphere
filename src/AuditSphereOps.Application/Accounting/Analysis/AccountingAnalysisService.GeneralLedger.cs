@@ -50,12 +50,14 @@ public static partial class AccountingAnalysisService
 
   public static async Task<CommandResult<Guid>> CreateGeneralLedgerCompletenessBridgeAsync(
     IClientAccountingDbContext db, ActorContext actor, GeneralLedgerCompletenessRequest request,
-    CancellationToken ct = default)
+    CancellationToken ct = default, int calculationVersion = GeneralLedgerCompletenessBridge.CurrentCalculationVersion)
   {
     if (request.ClientId == Guid.Empty || request.EngagementId == Guid.Empty || request.PeriodId == Guid.Empty ||
         request.TrialBalanceDatasetId == Guid.Empty || request.ImportBatchId == Guid.Empty ||
         string.IsNullOrWhiteSpace(request.EvidenceReference) || request.EvidenceReference.Trim().Length > 2000)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "A completeness bridge needs one scoped period, TB, GL batch and evidence reference.");
+    if (calculationVersion is not (GeneralLedgerCompletenessBridge.LegacyCalculationVersion or GeneralLedgerCompletenessBridge.CurrentCalculationVersion))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "The completeness calculation version is unsupported.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
     if (!auth.Succeeded)
@@ -127,8 +129,8 @@ public static partial class AccountingAnalysisService
     }
     if (await db.GeneralLedgerCompletenessBridges.AnyAsync(x =>
       x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.EngagementId == request.EngagementId &&
-      x.TrialBalanceDatasetId == dataset.Id && x.ImportBatchId == batch.Id, ct))
-      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportDuplicate, "This TB and GL source pair already has a completeness bridge.");
+      x.TrialBalanceDatasetId == dataset.Id && x.ImportBatchId == batch.Id && x.CalculationVersion == calculationVersion, ct))
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportDuplicate, "This TB and GL source pair already has a bridge for this calculation version.");
 
     var tbTotals = await db.TrialBalanceRows.AsNoTracking().Where(x => x.DatasetId == dataset.Id)
       .GroupBy(x => x.AccountCode).Select(x => new { AccountCode = x.Key, Total = x.Sum(row => row.Amount) }).ToListAsync(ct);
@@ -155,28 +157,51 @@ public static partial class AccountingAnalysisService
       opening = derivedOpening.Amounts.ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
     var gl = glTotals.ToDictionary(x => x.AccountCode, x => MoneyPolicy.Normalize(x.Total), StringComparer.Ordinal);
     var accounts = tb.Keys.Concat(gl.Keys).Concat(opening.Keys).Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
-    var residuals = accounts.Select(code => new
+    var residuals = accounts.Select(code =>
     {
-      Code = code,
-      TrialBalance = tb.GetValueOrDefault(code),
-      GeneralLedger = gl.GetValueOrDefault(code) + (nativeOpening.Value is null ? 0m : opening.GetValueOrDefault(code))
-    }).Select(x => new { x.Code, x.TrialBalance, x.GeneralLedger, Difference = MoneyPolicy.Normalize(x.GeneralLedger - x.TrialBalance) }).ToArray();
-    var mismatched = residuals.Count(x => x.Difference != 0m);
-    var absoluteResidual = MoneyPolicy.Normalize(residuals.Sum(x => Math.Abs(x.Difference)));
-    var residualDigest = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(string.Join('\n', residuals.Select(x =>
-      $"{x.Code.Length}:{x.Code}:{x.TrialBalance.ToString("0.000000", CultureInfo.InvariantCulture)}:{x.GeneralLedger.ToString("0.000000", CultureInfo.InvariantCulture)}:{x.Difference.ToString("0.000000", CultureInfo.InvariantCulture)}"))));
-    var rollforward = accounts.Select(code => new
+      var trialBalance = tb.GetValueOrDefault(code);
+      var movement = gl.GetValueOrDefault(code);
+      var openingKnown = opening.TryGetValue(code, out var openingAmount);
+      var legacyGeneralLedger = movement + (nativeOpening.Value is null ? 0m : opening.GetValueOrDefault(code));
+      decimal? difference = calculationVersion == GeneralLedgerCompletenessBridge.LegacyCalculationVersion
+        ? MoneyPolicy.Normalize(legacyGeneralLedger - trialBalance)
+        : openingKnown ? MoneyPolicy.Normalize(openingAmount + movement - trialBalance) : null;
+      return new
+      {
+        Code = code, TrialBalance = trialBalance, Movement = movement,
+        Opening = openingKnown ? (decimal?)openingAmount : null,
+        GeneralLedger = calculationVersion == GeneralLedgerCompletenessBridge.LegacyCalculationVersion
+          ? legacyGeneralLedger : openingKnown ? openingAmount + movement : movement,
+        Difference = difference
+      };
+    }).ToArray();
+    var mismatched = residuals.Count(x => x.Difference is { } difference && difference != 0m);
+    var matched = residuals.Count(x => x.Difference == 0m);
+    var absoluteResidual = MoneyPolicy.Normalize(residuals.Where(x => x.Difference.HasValue).Sum(x => Math.Abs(x.Difference!.Value)));
+    var residualIdentity = calculationVersion == GeneralLedgerCompletenessBridge.LegacyCalculationVersion
+      ? string.Join('\n', residuals.Select(x =>
+        $"{x.Code.Length}:{x.Code}:{x.TrialBalance.ToString("0.000000", CultureInfo.InvariantCulture)}:{x.GeneralLedger.ToString("0.000000", CultureInfo.InvariantCulture)}:{x.Difference!.Value.ToString("0.000000", CultureInfo.InvariantCulture)}"))
+      : "calculationVersion=2\n" + string.Join('\n', residuals.Select(x =>
+        $"{x.Code.Length}:{x.Code}:{(x.Opening?.ToString("0.000000", CultureInfo.InvariantCulture) ?? "UNKNOWN")}:{x.Movement.ToString("0.000000", CultureInfo.InvariantCulture)}:{x.TrialBalance.ToString("0.000000", CultureInfo.InvariantCulture)}:{(x.Difference?.ToString("0.000000", CultureInfo.InvariantCulture) ?? "UNKNOWN")}"));
+    var residualDigest = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(residualIdentity));
+    var rollforward = accounts.Select(code =>
     {
-      Code = code,
-      Opening = opening.GetValueOrDefault(code),
-      Movement = gl.GetValueOrDefault(code),
-      Closing = tb.GetValueOrDefault(code)
-    }).Select(x => new { x.Code, x.Opening, x.Movement, x.Closing,
-      Difference = MoneyPolicy.Normalize(x.Closing - x.Opening - x.Movement) }).ToArray();
-    var openingMovementMismatched = rollforward.Count(x => x.Difference != 0m);
-    var openingMovementResidual = MoneyPolicy.Normalize(rollforward.Sum(x => Math.Abs(x.Difference)));
-    var openingMovementDigest = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(string.Join('\n', rollforward.Select(x =>
-      $"{x.Code.Length}:{x.Code}:{x.Opening.ToString("0.000000", CultureInfo.InvariantCulture)}:{x.Movement.ToString("0.000000", CultureInfo.InvariantCulture)}:{x.Closing.ToString("0.000000", CultureInfo.InvariantCulture)}:{x.Difference.ToString("0.000000", CultureInfo.InvariantCulture)}"))));
+      var openingKnown = opening.TryGetValue(code, out var openingAmount);
+      var movement = gl.GetValueOrDefault(code);
+      var closing = tb.GetValueOrDefault(code);
+      decimal? difference = calculationVersion == GeneralLedgerCompletenessBridge.LegacyCalculationVersion
+        ? MoneyPolicy.Normalize(closing - opening.GetValueOrDefault(code) - movement)
+        : openingKnown ? MoneyPolicy.Normalize(closing - openingAmount - movement) : null;
+      return new { Code = code, Opening = openingKnown ? (decimal?)openingAmount : null, Movement = movement, Closing = closing, Difference = difference };
+    }).ToArray();
+    var openingMovementMismatched = rollforward.Count(x => x.Difference is { } difference && difference != 0m);
+    var openingMovementResidual = MoneyPolicy.Normalize(rollforward.Where(x => x.Difference.HasValue).Sum(x => Math.Abs(x.Difference!.Value)));
+    var rollforwardIdentity = calculationVersion == GeneralLedgerCompletenessBridge.LegacyCalculationVersion
+      ? string.Join('\n', rollforward.Select(x =>
+        $"{x.Code.Length}:{x.Code}:{opening.GetValueOrDefault(x.Code).ToString("0.000000", CultureInfo.InvariantCulture)}:{x.Movement.ToString("0.000000", CultureInfo.InvariantCulture)}:{x.Closing.ToString("0.000000", CultureInfo.InvariantCulture)}:{x.Difference!.Value.ToString("0.000000", CultureInfo.InvariantCulture)}"))
+      : "calculationVersion=2\n" + string.Join('\n', rollforward.Select(x =>
+        $"{x.Code.Length}:{x.Code}:{(x.Opening?.ToString("0.000000", CultureInfo.InvariantCulture) ?? "UNKNOWN")}:{x.Movement.ToString("0.000000", CultureInfo.InvariantCulture)}:{x.Closing.ToString("0.000000", CultureInfo.InvariantCulture)}:{(x.Difference?.ToString("0.000000", CultureInfo.InvariantCulture) ?? "UNKNOWN")}"));
+    var openingMovementDigest = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(rollforwardIdentity));
     var transactionIds = await transactionQuery.Select(x => x.Id).ToListAsync(ct);
     var journalLines = await db.GeneralLedgerLines.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.ClientId == request.ClientId && x.EngagementId == request.EngagementId && x.ImportBatchId == batch.Id)
@@ -198,18 +223,20 @@ public static partial class AccountingAnalysisService
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, EngagementId = request.EngagementId,
       PeriodId = request.PeriodId, BookId = request.BookId, TrialBalanceDatasetId = dataset.Id, ImportBatchId = batch.Id,
       OpeningTrialBalanceDatasetId = openingDataset?.Id,
+      CalculationVersion = calculationVersion,
       TrialBalanceHash = GeneralLedgerCompletenessWorkspace.SourceDigest(dataset).ToLowerInvariant(),
       GeneralLedgerHash = batch.NormalizedDatasetDigest.ToLowerInvariant(), AccountResidualDigest = residualDigest,
       OpeningTrialBalanceHash = nativeOpening.Value?.Source.ManifestHash ?? (openingDataset is null ? string.Empty :
         (openingDataset.NormalizedDatasetDigest.Length == 64 ? openingDataset.NormalizedDatasetDigest : openingDataset.Sha256Hex).ToLowerInvariant()),
       OpeningMovementResidualDigest = openingMovementDigest,
       TrialBalanceAccountCount = tb.Count, GeneralLedgerAccountCount = gl.Count,
-      MatchedAccountCount = residuals.Length - mismatched, MismatchedAccountCount = mismatched,
+      MatchedAccountCount = matched, MismatchedAccountCount = mismatched,
       OpeningMovementMismatchedAccountCount = openingMovementMismatched, JournalExceptionCount = journalExceptionCount,
       OpeningAmount = MoneyPolicy.Normalize(opening.Values.Sum()), MovementAmount = MoneyPolicy.Normalize(gl.Values.Sum()),
       ClosingAmount = MoneyPolicy.Normalize(tb.Values.Sum()), OpeningMovementResidual = openingMovementResidual,
       AbsoluteResidual = absoluteResidual, CoverageStart = coverageStart, CoverageEnd = coverageEnd,
-      Status = mismatched == 0 ? "RECONCILED" : "UNRECONCILED", EvidenceReference = request.EvidenceReference.Trim(),
+      Status = mismatched == 0 && (calculationVersion == GeneralLedgerCompletenessBridge.LegacyCalculationVersion || residuals.All(x => x.Difference.HasValue))
+        ? "RECONCILED" : "UNRECONCILED", EvidenceReference = request.EvidenceReference.Trim(),
       IncompleteExtract = incompleteExtract, CompletenessDisclosure = string.Join(';', disclosure),
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
@@ -274,16 +301,25 @@ public static partial class AccountingAnalysisService
       clientId = request.ClientId.ToString("D"), engagementId = request.EngagementId.ToString("D"),
       periodId = request.PeriodId.ToString("D"), bookId = request.BookId?.ToString("D"),
       trialBalanceDatasetId = request.TrialBalanceDatasetId.ToString("D"), importBatchId = request.ImportBatchId.ToString("D"),
-      evidenceReference = request.EvidenceReference.Trim(), openingTrialBalanceDatasetId = request.OpeningTrialBalanceDatasetId?.ToString("D")
+      evidenceReference = request.EvidenceReference.Trim(), openingTrialBalanceDatasetId = request.OpeningTrialBalanceDatasetId?.ToString("D"),
+      calculationVersion = GeneralLedgerCompletenessBridge.CurrentCalculationVersion
     });
     var evidenceDigest = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(request.EvidenceReference.Trim()));
+    var operationIdentity = JsonSerializer.Serialize(new
+    {
+      calculationVersion = GeneralLedgerCompletenessBridge.CurrentCalculationVersion,
+      trialBalanceDatasetId = request.TrialBalanceDatasetId.ToString("D"),
+      importBatchId = request.ImportBatchId.ToString("D"), datasetRevision = dataset.Revision,
+      evidenceDigest, openingTrialBalanceDatasetId = request.OpeningTrialBalanceDatasetId?.ToString("D")
+    });
+    var idempotencyKey = $"gl-completeness:v2:{Hashing.Sha256Hex(Encoding.UTF8.GetBytes(operationIdentity))}";
     CommandResult<Guid> enqueued;
     try
     {
       enqueued = await operationStore.EnqueueAsync(db, new OperationRequest(
         actor.FirmId, request.ClientId, request.EngagementId, GeneralLedgerCompletenessHandler.Kind,
         request.TrialBalanceDatasetId, dataset.Revision,
-        $"gl-completeness:{request.TrialBalanceDatasetId:D}:{request.ImportBatchId:D}:{dataset.Revision}:{evidenceDigest}:{request.OpeningTrialBalanceDatasetId?.ToString("D") ?? string.Empty}",
+        idempotencyKey,
         payload, actor.UserId), handler, ct);
     }
     catch (OperationBlockedException)
@@ -316,6 +352,8 @@ public static partial class AccountingAnalysisService
     var mutable = await GeneralLedgerCompletenessWorkspace.MutablePeriodAsync(db, actor, bridge.ClientId, bridge.EngagementId, bridge.PeriodId, bridge.BookId, ct);
     if (!mutable.Succeeded) return mutable;
     bridge = await db.GeneralLedgerCompletenessBridges.FromSqlInterpolated($"SELECT * FROM general_ledger_completeness_bridges WHERE firm_id = {actor.FirmId} AND id = {bridgeId} FOR UPDATE").AsNoTracking().SingleAsync(ct);
+    if (approve && bridge.CalculationVersion == GeneralLedgerCompletenessBridge.LegacyCalculationVersion)
+      return CommandResult.Fail(ErrorCodes.GateBlocked, "Historical calculation version 1 evidence cannot receive a new approval. Prepare a version 2 proof for the same source pair.");
     if (reviewRevision is not null)
     {
       if (!reviewed || !SourceAcceptanceWorkspace.ValidHash(reviewRevision)) return CommandResult.Fail(ErrorCodes.StaleRevision, "Review the current completeness proof.");

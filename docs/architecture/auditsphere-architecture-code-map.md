@@ -165,7 +165,7 @@ clients. This setup does not itself provide native journal posting.
 
 - Application: `Application/Accounting/TrialBalance{Calculator,ImportService,CsvImporter,XlsxImporter,DatasetQuery,ValidationHandler}.cs`, `Application/Accounting/ClientAccounting/ClientAccountingService.GeneralLedger.cs`, `GeneralLedgerCompletenessHandler.cs`, `GeneralLedgerQuery.cs`, `Application/Accounting/Analysis/AccountingAnalysisService.GeneralLedger.cs`, `Application/Accounting/Analysis/GeneralLedgerCompletenessWorkspace*.cs`
 
-- Persistence: `AuditSphereDbContext.Accounting.cs`
+- Persistence: `AuditSphereDbContext.Accounting.cs`, `AuditSphereDbContext.ClientAccounting.cs`
 
 - Current API/Angular: `src/AuditSphereOps.Api/Ui/UiEndpoints.GeneralLedger.cs`; `src/AuditSphereOps.Ui/src/app/features/accounting/gl-completeness.ts` and `src/AuditSphereOps.Ui/src/app/features/engagements/general-ledger.ts`.
 - Historical Blazor screen (pinned pre-removal source only): `AccountingRecords.razor`.
@@ -181,6 +181,8 @@ clients. This setup does not itself provide native journal posting.
 Critical invariants: imports are idempotent and sealed only when complete; GL completeness is
 
 account-exact; source acceptance binds sealed sources and bumps generation.
+
+Completeness bridge calculations are versioned. Historical v1 bridges retain their original facts and digests and remain readable with their legacy source-specific residual basis; they cannot receive new approvals. New v2 proofs calculate accepted opening + GL movement − closing TB, preserve unknown opening as unknown, and retain the separate opening/movement cross-check. A v1 bridge does not block a v2 successor for the same sealed source pair.
 
 ## Journals, adjustments and re-measurement workpapers
 

@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AuditSphereOps.Application.Accounting;
 
 public sealed record CompletenessAccountResidual(string AccountCode, decimal Closing, decimal Movement,
-  decimal? Opening, decimal MovementClosingDifference, decimal? OpeningMovementDifference);
+  decimal? Opening, decimal? MovementClosingDifference, decimal? OpeningMovementDifference);
 public sealed record CompletenessResidualPage(IReadOnlyList<CompletenessAccountResidual> Items, int TotalCount, int Page, int PageSize);
 public sealed record CompletenessReview(CompletenessSourceContext Context, GeneralLedgerCompletenessBridge Bridge,
   CompletenessResidualPage Residuals, string Revision, bool CanApprove, bool CanReject, string? ApprovalBlocker, string? ReviewBlocker);
@@ -83,9 +83,17 @@ public static partial class GeneralLedgerCompletenessWorkspace
       if (!native.Succeeded || native.Value is null) return CommandResult<CompletenessReview>.Fail(ErrorCodes.GateBlocked, "The inherited native opening is unavailable.");
       ob = native.Value.Amounts.Where(x => codes.Contains(x.Key)).ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
     }
-    var rows = codes.Select(code => new CompletenessAccountResidual(code, tb.GetValueOrDefault(code), gl.GetValueOrDefault(code),
-      ob.TryGetValue(code, out var value) ? value : null, MoneyPolicy.Normalize(gl.GetValueOrDefault(code) + (c.NativeOpening is null ? 0m : ob.GetValueOrDefault(code)) - tb.GetValueOrDefault(code)),
-      ob.TryGetValue(code, out var amount) ? MoneyPolicy.Normalize(tb.GetValueOrDefault(code) - amount - gl.GetValueOrDefault(code)) : null)).ToArray();
+    var rows = codes.Select(code =>
+    {
+      var openingKnown = ob.TryGetValue(code, out var openingAmount);
+      decimal? movementClosingDifference = bridge.CalculationVersion == GeneralLedgerCompletenessBridge.LegacyCalculationVersion
+        ? MoneyPolicy.Normalize(gl.GetValueOrDefault(code) + (c.NativeOpening is null ? 0m : ob.GetValueOrDefault(code)) - tb.GetValueOrDefault(code))
+        : openingKnown ? MoneyPolicy.Normalize(openingAmount + gl.GetValueOrDefault(code) - tb.GetValueOrDefault(code)) : null;
+      decimal? openingMovementDifference = openingKnown
+        ? MoneyPolicy.Normalize(tb.GetValueOrDefault(code) - openingAmount - gl.GetValueOrDefault(code)) : null;
+      return new CompletenessAccountResidual(code, tb.GetValueOrDefault(code), gl.GetValueOrDefault(code),
+        openingKnown ? openingAmount : null, movementClosingDifference, openingMovementDifference);
+    }).ToArray();
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, s.ClientId, s.EngagementId,
       ReviewerRoles, InternalOnly: true, RequireProfessionalWork: true), ct);
     var reviewBlocker = c.Blocker ?? (!auth.Succeeded ? "Current independent reviewer authority is required." :
@@ -94,7 +102,9 @@ public static partial class GeneralLedgerCompletenessWorkspace
     var replaced = c.SelectedTrialBalance is { } tbSelected && tbSelected.TrialBalanceDatasetId != bridge.TrialBalanceDatasetId ||
       s.Selected is { } glSelected && glSelected.ImportBatchId != bridge.ImportBatchId;
     var missingOpening = await MissingOpeningCoverageAsync(db, bridge, ct);
-    var approvalBlocker = reviewBlocker ?? (replaced ? "The current selected source pair differs from this historical bridge. Prepare the current pair." :
+    var approvalBlocker = reviewBlocker ?? (bridge.CalculationVersion == GeneralLedgerCompletenessBridge.LegacyCalculationVersion
+      ? "Historical calculation version 1 evidence remains readable but cannot receive a new approval. Prepare a version 2 proof for the same source pair."
+      : replaced ? "The current selected source pair differs from this historical bridge. Prepare the current pair." :
       bridge.Status != "RECONCILED" || bridge.AbsoluteResidual != 0m || bridge.MismatchedAccountCount != 0 ? "Account-exact residuals are not reconciled." :
       bridge.IncompleteExtract || missingOpening ? "Opening evidence or extract completeness is missing. Unknown opening is never zero." :
       bridge.OpeningMovementResidual != 0m || bridge.OpeningMovementMismatchedAccountCount != 0 || bridge.JournalExceptionCount != 0 ? "Opening/movement residuals or malformed journals block approval." : null);

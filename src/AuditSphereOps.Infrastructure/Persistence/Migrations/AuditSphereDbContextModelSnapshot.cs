@@ -9766,6 +9766,12 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("book_id");
 
+                    b.Property<int>("CalculationVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(2)
+                        .HasColumnName("calculation_version");
+
                     b.Property<Guid>("ClientId")
                         .HasColumnType("uuid")
                         .HasColumnName("client_id");
@@ -9922,13 +9928,13 @@ namespace AuditSphereOps.Infrastructure.Persistence.Migrations
                     b.HasIndex("FirmId", "ClientId", "EngagementId", "OpeningTrialBalanceDatasetId")
                         .HasDatabaseName("IX_general_ledger_completeness_bridges_firm_id_client_id_enga~1");
 
-                    b.HasIndex("FirmId", "ClientId", "EngagementId", "TrialBalanceDatasetId", "ImportBatchId")
+                    b.HasIndex("FirmId", "ClientId", "EngagementId", "TrialBalanceDatasetId", "ImportBatchId", "CalculationVersion")
                         .IsUnique()
                         .HasDatabaseName("ux_gl_completeness_bridge_input");
 
                     b.ToTable("general_ledger_completeness_bridges", null, t =>
                         {
-                            t.HasCheckConstraint("ck_gl_completeness_bridge_values", "trial_balance_hash ~ '^[0-9a-f]{64}$' AND general_ledger_hash ~ '^[0-9a-f]{64}$' AND account_residual_digest ~ '^[0-9a-f]{64}$' AND trial_balance_account_count > 0 AND general_ledger_account_count > 0 AND matched_account_count >= 0 AND mismatched_account_count >= 0 AND absolute_residual >= 0 AND coverage_start <= coverage_end AND length(trim(evidence_reference)) > 0 AND status IN ('RECONCILED','UNRECONCILED','APPROVED','REJECTED') AND ((status IN ('APPROVED','REJECTED') AND reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL) OR status IN ('RECONCILED','UNRECONCILED'))");
+                            t.HasCheckConstraint("ck_gl_completeness_bridge_values", "trial_balance_hash ~ '^[0-9a-f]{64}$' AND general_ledger_hash ~ '^[0-9a-f]{64}$' AND account_residual_digest ~ '^[0-9a-f]{64}$' AND calculation_version IN (1,2) AND trial_balance_account_count > 0 AND general_ledger_account_count > 0 AND matched_account_count >= 0 AND mismatched_account_count >= 0 AND absolute_residual >= 0 AND coverage_start <= coverage_end AND length(trim(evidence_reference)) > 0 AND status IN ('RECONCILED','UNRECONCILED','APPROVED','REJECTED') AND ((status IN ('APPROVED','REJECTED') AND reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL) OR status IN ('RECONCILED','UNRECONCILED'))");
                         });
                 });
 

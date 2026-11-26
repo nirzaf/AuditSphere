@@ -122250,7 +122250,10 @@
           },
           "movementClosingDifference": {
             "pattern": "^-?[0-9]{1,29}(?:\\.[0-9]{1,28})?$",
-            "type": "string",
+            "type": [
+              "null",
+              "string"
+            ],
             "description": "Exact invariant decimal strings are canonical on output. Request bodies also accept JSON numbers for compatibility; amount-specific range and scale are enforced by the owning command."
           },
           "openingMovementDifference": {
@@ -122268,6 +122271,7 @@
           "id",
           "trialBalanceDatasetId",
           "openingTrialBalanceDatasetId",
+          "calculationVersion",
           "status",
           "incompleteExtract",
           "absoluteResidual",
@@ -122290,6 +122294,14 @@
             ],
             "format": "uuid"
           },
+          "calculationVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
           "status": {
             "type": "string"
           },
@@ -122311,6 +122323,7 @@
         "required": [
           "id",
           "status",
+          "calculationVersion",
           "originatorId",
           "evidenceReference",
           "openingTrialBalanceDatasetId",
@@ -122325,6 +122338,14 @@
           },
           "status": {
             "type": "string"
+          },
+          "calculationVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           },
           "originatorId": {
             "type": [
@@ -137303,6 +137324,14 @@
             ],
             "format": "uuid"
           },
+          "calculationVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
           "trialBalanceHash": {
             "type": "string"
           },
@@ -148065,6 +148094,7 @@
       "PeriodCompletenessEvidence": {
         "required": [
           "id",
+          "calculationVersion",
           "engagementId",
           "bookId",
           "trialBalanceDatasetId",
@@ -148102,6 +148132,14 @@
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "calculationVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           },
           "engagementId": {
             "type": "string",

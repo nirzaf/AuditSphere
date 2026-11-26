@@ -34,7 +34,7 @@ public sealed record PeriodGeneralLedgerEvidence(Guid Id, Guid EngagementId, Gui
   int ExpectedLineCount, int AcceptedChunkCount, int AcceptedTransactionCount, int AcceptedLineCount,
   string Status, string ReceiptReference, Guid? LatestAcceptanceReceiptId, Guid CreatedByUserId,
   DateTimeOffset CreatedAt);
-public sealed record PeriodCompletenessEvidence(Guid Id, Guid EngagementId, Guid? BookId,
+public sealed record PeriodCompletenessEvidence(Guid Id, int CalculationVersion, Guid EngagementId, Guid? BookId,
   Guid TrialBalanceDatasetId, Guid ImportBatchId, Guid? OpeningTrialBalanceDatasetId, string TrialBalanceHash,
   string GeneralLedgerHash, string OpeningTrialBalanceHash, string AccountResidualDigest,
   string OpeningMovementResidualDigest, int TrialBalanceAccountCount, int GeneralLedgerAccountCount,
@@ -151,7 +151,7 @@ public static class AccountingPeriodEvidenceQuery
   public static Task<CommandResult<AccountingPeriodEvidencePage<PeriodCompletenessEvidence>>> CompletenessAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid periodId, int page = 1, CancellationToken ct = default) =>
     PageForAsync(db, actor, periodId, "completeness", page, s => Completeness(db, s),
-      q => q.OrderBy(x => x.Id), x => new PeriodCompletenessEvidence(x.Id, x.EngagementId, x.BookId,
+      q => q.OrderBy(x => x.Id), x => new PeriodCompletenessEvidence(x.Id, x.CalculationVersion, x.EngagementId, x.BookId,
         x.TrialBalanceDatasetId, x.ImportBatchId, x.OpeningTrialBalanceDatasetId, x.TrialBalanceHash,
         x.GeneralLedgerHash, x.OpeningTrialBalanceHash, x.AccountResidualDigest, x.OpeningMovementResidualDigest,
         x.TrialBalanceAccountCount, x.GeneralLedgerAccountCount, x.MatchedAccountCount, x.MismatchedAccountCount,

@@ -114,6 +114,22 @@ describe('exact accounting period record and handoffs', () => {
     };
   }
 
+  function completenessEvidence(version: number, n: number) {
+    return {
+      id: id(n), calculationVersion: version, engagementId: id(30), bookId: null,
+      trialBalanceDatasetId: id(200), importBatchId: id(201), openingTrialBalanceDatasetId: id(202),
+      trialBalanceHash: 'a'.repeat(64), generalLedgerHash: 'b'.repeat(64), openingTrialBalanceHash: 'c'.repeat(64),
+      accountResidualDigest: 'd'.repeat(64), openingMovementResidualDigest: 'e'.repeat(64),
+      trialBalanceAccountCount: 1, generalLedgerAccountCount: 1, matchedAccountCount: 1,
+      mismatchedAccountCount: 0, openingMovementMismatchedAccountCount: 0, journalExceptionCount: 0,
+      openingAmount: '0.000000', movementAmount: '0.000000', closingAmount: '0.000000',
+      openingMovementResidual: '0.000000', absoluteResidual: '0.000000',
+      coverageStart: '2026-01-01', coverageEnd: '2026-12-31', status: 'RECONCILED',
+      incompleteExtract: false, completenessDisclosure: '', evidenceReference: 'Synthetic retained proof',
+      createdByUserId: id(90), reviewedByUserId: null, createdAt: '2026-11-26T10:00:00Z', reviewedAt: null,
+    };
+  }
+
   function evidencePage(periodId: string, clientId: string, kind: PeriodEvidenceKind, page: number, totalCount: number, rowCount: number) {
     const offset = (page - 1) * 25;
     const items = kind === 'books'
@@ -126,7 +142,8 @@ describe('exact accounting period record and handoffs', () => {
             revision: '9223372036854775807',
           };
         })
-      : kind === 'trial-balances' && rowCount > 0 ? [trialBalanceEvidence()] : [];
+      : kind === 'trial-balances' && rowCount > 0 ? [trialBalanceEvidence()]
+      : kind === 'completeness' ? Array.from({ length: rowCount }, (_, index) => completenessEvidence(index === 0 ? 1 : 2, 4000 + index)) : [];
     return { periodId, clientId, kind, page, pageSize: 25, totalCount, items };
   }
 
@@ -144,6 +161,23 @@ describe('exact accounting period record and handoffs', () => {
     const categoryLabel = root.querySelector('label[for="period-evidence-category"]');
     expect(categoryLabel?.textContent?.trim()).toBe('Evidence category');
     http.expectNone((r) => r.method !== 'GET');
+  });
+
+  it('labels historical completeness proofs separately from the current opening-plus-movement basis', () => {
+    const fixture = open();
+    read(record());
+    const root = fixture.nativeElement as HTMLElement;
+    const selector = root.querySelector('#period-evidence-category') as HTMLSelectElement;
+    selector.value = 'completeness';
+    selector.dispatchEvent(new Event('change'));
+    TestBed.tick();
+    http.expectOne('/api/ui/accounting/periods/' + id(1) + '/evidence/completeness?page=1')
+      .flush(evidencePage(id(1), id(10), 'completeness', 1, 2, 2));
+    TestBed.tick();
+
+    expect(root.textContent).toContain('Historical v1: retained calculation facts and digests remain unchanged; no v2 recomputation is shown.');
+    expect(root.textContent).toContain('Version 2: accepted opening plus GL movement minus closing TB.');
+    http.expectNone(request => request.method !== 'GET');
   });
 
   it('shows explicit not-assessed coverage and pages the confirmed category wrapper with accessible controls', () => {

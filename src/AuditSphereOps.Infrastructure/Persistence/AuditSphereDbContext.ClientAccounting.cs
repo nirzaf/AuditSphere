@@ -346,6 +346,7 @@ public sealed partial class AuditSphereDbContext
     var completeness = b.Entity<GeneralLedgerCompletenessBridge>();
     completeness.HasAlternateKey(x => new { x.FirmId, x.ClientId, x.EngagementId, x.Id })
       .HasName("ak_gl_completeness_bridges_scope_id");
+    completeness.Property(x => x.CalculationVersion).HasDefaultValue(GeneralLedgerCompletenessBridge.CurrentCalculationVersion);
     completeness.Property(x => x.TrialBalanceHash).HasMaxLength(64);
     completeness.Property(x => x.GeneralLedgerHash).HasMaxLength(64);
     completeness.Property(x => x.OpeningTrialBalanceHash).HasMaxLength(64);
@@ -354,10 +355,11 @@ public sealed partial class AuditSphereDbContext
     completeness.Property(x => x.Status).HasMaxLength(30);
     completeness.Property(x => x.EvidenceReference).HasMaxLength(2000);
     completeness.Property(x => x.CompletenessDisclosure).HasMaxLength(2000);
-    completeness.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.TrialBalanceDatasetId, x.ImportBatchId })
+    completeness.HasIndex(x => new { x.FirmId, x.ClientId, x.EngagementId, x.TrialBalanceDatasetId, x.ImportBatchId, x.CalculationVersion })
       .IsUnique().HasDatabaseName("ux_gl_completeness_bridge_input");
     completeness.ToTable("general_ledger_completeness_bridges", t => t.HasCheckConstraint("ck_gl_completeness_bridge_values",
       "trial_balance_hash ~ '^[0-9a-f]{64}$' AND general_ledger_hash ~ '^[0-9a-f]{64}$' AND account_residual_digest ~ '^[0-9a-f]{64}$'" +
+      " AND calculation_version IN (1,2)" +
       " AND trial_balance_account_count > 0 AND general_ledger_account_count > 0 AND matched_account_count >= 0" +
       " AND mismatched_account_count >= 0 AND absolute_residual >= 0 AND coverage_start <= coverage_end" +
       " AND length(trim(evidence_reference)) > 0 AND status IN ('RECONCILED','UNRECONCILED','APPROVED','REJECTED')" +

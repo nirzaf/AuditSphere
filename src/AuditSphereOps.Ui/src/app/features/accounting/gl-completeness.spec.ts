@@ -91,6 +91,7 @@ const review = {
     trialBalanceDatasetId: tb,
     importBatchId: id,
     openingTrialBalanceDatasetId: opening,
+    calculationVersion: 2,
     trialBalanceHash: h,
     generalLedgerHash: h,
     openingTrialBalanceHash: h,
@@ -445,6 +446,7 @@ describe('Native GL completeness', () => {
         {
           id: other,
           status: 'QUEUED',
+          calculationVersion: 2,
           originatorId: id,
           evidenceReference: 'Reviewed source evidence',
           openingTrialBalanceDatasetId: opening,
@@ -521,6 +523,42 @@ describe('Native GL completeness', () => {
     http.expectNone((r) => r.method === 'POST');
     f.destroy();
   });
+  it('labels retained version 1 arithmetic as historical and leaves version 2 basis explicit', async () => {
+    const legacyReview = {
+      ...review,
+      bridge: {
+        ...review.bridge,
+        calculationVersion: 1,
+        status: 'UNRECONCILED',
+        mismatchedAccountCount: 1,
+        matchedAccountCount: 0,
+        absoluteResidual: '200',
+      },
+      residuals: {
+        ...review.residuals,
+        items: [{
+          ...review.residuals.items[0],
+          closing: '150',
+          movement: '50',
+          opening: '100',
+          movementClosingDifference: '-100',
+          openingMovementDifference: '0',
+        }],
+      },
+      canApprove: false,
+      approvalBlocker: 'Historical calculation version 1 evidence cannot be newly approved.',
+    };
+    expect(decodeCompletenessReview(legacyReview).bridge.calculationVersion).toBe(1);
+    const { f, c, http } = await open();
+    const loading = c.loadReview(bridge);
+    http.expectOne(detail).flush(legacyReview);
+    await loading;
+    f.detectChanges();
+    expect(f.nativeElement.textContent).toContain('Historical v1 external basis: GL movement − closing TB.');
+    expect(f.nativeElement.textContent).not.toContain('Version 2: accepted opening');
+    expect(c.review()?.canApprove).toBe(false);
+    f.destroy();
+  });
   it('visibly clears assent when a native check and decision edit share one render turn', async () => {
     const { f, c, http } = await open();
     const load = c.loadReview(bridge);
@@ -559,7 +597,7 @@ describe('Native GL completeness', () => {
       approvalBlocker: 'Missing opening coverage.',
       residuals: {
         ...review.residuals,
-        items: [{ ...review.residuals.items[0], opening: null, openingMovementDifference: null }],
+        items: [{ ...review.residuals.items[0], opening: null, movementClosingDifference: null, openingMovementDifference: null }],
       },
     });
     await loading;

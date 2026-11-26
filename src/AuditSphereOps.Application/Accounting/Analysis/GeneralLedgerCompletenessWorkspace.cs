@@ -21,10 +21,10 @@ public sealed record CompletenessTbSource(Guid Id, Guid PeriodId, string PeriodC
   long Revision, string SourceHash, DateTimeOffset ImportedAt);
 public sealed record CompletenessSourcePage(IReadOnlyList<CompletenessTbSource> Items, int TotalCount, int Page, int PageSize);
 public sealed record CompletenessBridgeSummary(Guid Id, Guid TrialBalanceDatasetId, Guid? OpeningTrialBalanceDatasetId,
-  string Status, bool IncompleteExtract, decimal AbsoluteResidual, DateTimeOffset CreatedAt);
+  int CalculationVersion, string Status, bool IncompleteExtract, decimal AbsoluteResidual, DateTimeOffset CreatedAt);
 public sealed record CompletenessWorkspace(CompletenessSourceContext Context, CompletenessSourcePage ClosingSources,
   CompletenessSourcePage OpeningSources, IReadOnlyList<CompletenessBridgeSummary> Bridges, bool MoreBridges);
-public sealed record CompletenessOperationObservation(Guid Id, string Status, Guid? OriginatorId,
+public sealed record CompletenessOperationObservation(Guid Id, string Status, int CalculationVersion, Guid? OriginatorId,
   string EvidenceReference, Guid? OpeningTrialBalanceDatasetId, string? ResultIdentity, DateTimeOffset CreatedAt);
 public sealed record CompletenessPlan(CompletenessSourceContext Context, CompletenessTbSource Closing,
   CompletenessTbSource? Opening, Guid? ExistingBridgeId, IReadOnlyList<CompletenessOperationObservation> Operations,
@@ -113,7 +113,9 @@ public static partial class GeneralLedgerCompletenessWorkspace
       return CommandResult<CompletenessWorkspace>.Fail(ErrorCodes.GateBlocked, "An immutable source digest is unavailable.");
     var s = context.Value!.Source;
     var bridges = await db.GeneralLedgerCompletenessBridges.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == s.ClientId && x.EngagementId == s.EngagementId && x.ImportBatchId == batchId)
-      .OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Take(21).Select(x => new CompletenessBridgeSummary(x.Id, x.TrialBalanceDatasetId, x.OpeningTrialBalanceDatasetId, x.Status, x.IncompleteExtract, x.AbsoluteResidual, x.CreatedAt)).ToListAsync(ct);
+      .OrderByDescending(x => x.CreatedAt).ThenBy(x => x.CalculationVersion).ThenBy(x => x.Id).Take(21)
+      .Select(x => new CompletenessBridgeSummary(x.Id, x.TrialBalanceDatasetId, x.OpeningTrialBalanceDatasetId,
+        x.CalculationVersion, x.Status, x.IncompleteExtract, x.AbsoluteResidual, x.CreatedAt)).ToListAsync(ct);
     var final = await ContextAsync(db, actor, batchId, ct);
     if (!final.Succeeded) return CommandResult<CompletenessWorkspace>.Fail(final.ErrorCode!, final.Message!);
     if (context.Value.Revision != final.Value!.Revision) return CommandResult<CompletenessWorkspace>.Fail(ErrorCodes.StaleRevision, "The source context changed. Refresh completeness.");
@@ -143,7 +145,10 @@ public static partial class GeneralLedgerCompletenessWorkspace
     if (!SourceAcceptanceWorkspace.ValidHash(closingDto.SourceHash) || openingDto is not null && !SourceAcceptanceWorkspace.ValidHash(openingDto.SourceHash))
       return CommandResult<CompletenessPlan>.Fail(ErrorCodes.GateBlocked, "An immutable source digest is unavailable.");
     var s = context.Value!.Source;
-    var bridge = await db.GeneralLedgerCompletenessBridges.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == s.ClientId && x.EngagementId == s.EngagementId && x.ImportBatchId == batchId && x.TrialBalanceDatasetId == trialBalanceId).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
+    var bridge = await db.GeneralLedgerCompletenessBridges.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == s.ClientId &&
+      x.EngagementId == s.EngagementId && x.ImportBatchId == batchId && x.TrialBalanceDatasetId == trialBalanceId &&
+      x.CalculationVersion == GeneralLedgerCompletenessBridge.CurrentCalculationVersion)
+      .Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
     // A bounded observation, never raw operation payload/credentials. An old or missing observation is not a retry instruction.
     // v1 payloads are normalized by the handler to compact JSON before immutable storage.
     // Filter this exact GL pair before applying the observation limit; other GL batches cannot hide a prior request.
@@ -157,8 +162,13 @@ public static partial class GeneralLedgerCompletenessWorkspace
       {
       using var payload = JsonDocument.Parse(op.PayloadJson);
       if (payload.RootElement.GetProperty("importBatchId").GetGuid() != batchId) continue;
+      var calculationVersion = payload.RootElement.TryGetProperty("calculationVersion", out var version)
+        ? version.GetInt32() : GeneralLedgerCompletenessBridge.LegacyCalculationVersion;
+      if (calculationVersion is not (GeneralLedgerCompletenessBridge.LegacyCalculationVersion or GeneralLedgerCompletenessBridge.CurrentCalculationVersion))
+        return CommandResult<CompletenessPlan>.Fail(ErrorCodes.GateBlocked, "The prior operation calculation version is unavailable. Review it through Operations.");
       var p = payload.RootElement.GetProperty("openingTrialBalanceDatasetId");
-      operations.Add(new(op.Id, op.Status.ToString(), op.OriginatorId, payload.RootElement.GetProperty("evidenceReference").GetString()!, p.ValueKind == JsonValueKind.Null ? null : p.GetGuid(), op.ResultIdentity, op.CreatedAt));
+      operations.Add(new(op.Id, op.Status.ToString(), calculationVersion, op.OriginatorId,
+        payload.RootElement.GetProperty("evidenceReference").GetString()!, p.ValueKind == JsonValueKind.Null ? null : p.GetGuid(), op.ResultIdentity, op.CreatedAt));
       if (operations.Count == 20) break;
       }
       catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or FormatException)
@@ -169,8 +179,9 @@ public static partial class GeneralLedgerCompletenessWorkspace
     var final = await ContextAsync(db, actor, batchId, ct);
     if (!final.Succeeded) return CommandResult<CompletenessPlan>.Fail(final.ErrorCode!, final.Message!);
     if (context.Value.Revision != final.Value!.Revision) return CommandResult<CompletenessPlan>.Fail(ErrorCodes.StaleRevision, "The source context changed. Refresh completeness.");
-    var blocker = context.Value.Blocker ?? (bridge is not null ? "This source pair already has a retained completeness bridge." :
-      operations.Count > 0 ? "A prior operation for this pair must be reviewed through Operations. Do not enqueue a duplicate." : null);
+    var blocker = context.Value.Blocker ?? (bridge is not null ? "This source pair already has a retained version 2 completeness bridge." :
+      operations.Any(x => x.CalculationVersion == GeneralLedgerCompletenessBridge.CurrentCalculationVersion)
+        ? "A prior version 2 operation for this pair must be reviewed through Operations. Do not enqueue a duplicate." : null);
     var revision = Digest(new { context.Value.Revision, closing, opening, bridge, operations, blocker });
     return CommandResult<CompletenessPlan>.Ok(new(final.Value, closingDto, openingDto, bridge, operations, revision, blocker is null, blocker));
   }

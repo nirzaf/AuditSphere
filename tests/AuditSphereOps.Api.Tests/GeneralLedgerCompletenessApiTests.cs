@@ -3,6 +3,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Domain.Tests;
@@ -10,11 +13,44 @@ using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Npgsql;
 
 namespace AuditSphereOps.Api.Tests;
 
 public sealed class GeneralLedgerCompletenessApiTests
 {
+  [Fact]
+  public void LegacyQueuedCompletenessOperation_RetainsItsOriginalRequestDigest()
+  {
+    var firm = Guid.NewGuid(); var client = Guid.NewGuid(); var engagement = Guid.NewGuid();
+    var period = Guid.NewGuid(); var dataset = Guid.NewGuid(); var batch = Guid.NewGuid(); var user = Guid.NewGuid();
+    var handler = new GeneralLedgerCompletenessHandler();
+    var legacyPayload = JsonSerializer.Serialize(new
+    {
+      clientId = client.ToString("D"), engagementId = engagement.ToString("D"), periodId = period.ToString("D"),
+      bookId = (string?)null, trialBalanceDatasetId = dataset.ToString("D"), importBatchId = batch.ToString("D"),
+      evidenceReference = "retained legacy intent", openingTrialBalanceDatasetId = (string?)null
+    });
+    var request = new OperationRequest(firm, client, engagement, handler.Definition.Kind, dataset, 1,
+      "legacy-completeness-key", legacyPayload, user);
+    var originalCanonicalPayload = JsonSerializer.Serialize(new
+    {
+      clientId = client.ToString("D"), engagementId = engagement.ToString("D"), periodId = period.ToString("D"),
+      bookId = (string?)null, trialBalanceDatasetId = dataset.ToString("D"), importBatchId = batch.ToString("D"),
+      evidenceReference = "retained legacy intent", openingTrialBalanceDatasetId = (string?)null
+    });
+    var requestBytes = OperationEncoding.Encode(request, handler.Definition, originalCanonicalPayload);
+    var operation = new DurableOperation
+    {
+      OperationKind = handler.Definition.Kind, FirmId = firm, ClientId = client, EngagementId = engagement,
+      TargetId = dataset, ExpectedRevision = 1, IdempotencyKey = request.IdempotencyKey, OriginatorId = user,
+      PayloadJson = legacyPayload, RequestBytes = requestBytes, RequestDigest = Hashing.Sha256Hex(requestBytes)
+    };
+
+    Assert.DoesNotContain("calculationVersion", handler.NormalizePayload(request));
+    Assert.True(OperationEncoding.Matches(operation, handler));
+  }
+
   [Fact]
   public async Task ReviewedConcurrentPreparation_DurableWorker_ExactResidualPages_IndependentImmutableReview()
   {
@@ -45,15 +81,154 @@ public sealed class GeneralLedgerCompletenessApiTests
   public async Task MissingOpeningCoverageIsUnknown_NotZero_AndBlocksApprovalButAllowsRejection()
   {
     await using var pg=await OwnedPostgresDatabase.CreateAsync("API-GL-COMPLETE-OPENING");var f=await PbcSeed.SeedAsync(pg);GeneralLedgerCompletenessSeed.Pair pair;
-    await using(var db=new AuditSphereDbContext(pg.Options))pair=await GeneralLedgerCompletenessSeed.SeedAsync(db,f,true,4);
-    using var sf=Factory(pg,f.Staff);using var staff=sf.CreateClient(new(){AllowAutoRedirect=false});var sc=await SignIn(staff);var p=await Read(staff,Plan(pair));Assert.Equal(HttpStatusCode.OK,(await Prepare(staff,sc,pair,p.GetProperty("revision").GetString()!)).StatusCode);Assert.True(await GeneralLedgerCompletenessSeed.RunWorkerAsync(pg.Options,f.FirmId));
+    var sources = new[]
+    {
+      new GeneralLedgerCompletenessSeed.AccountSource("1000", 100m, 50m, 150m),
+      new GeneralLedgerCompletenessSeed.AccountSource("2000", -100m, -50m, -150m),
+      new GeneralLedgerCompletenessSeed.AccountSource("3000", null, 25m, null),
+      new GeneralLedgerCompletenessSeed.AccountSource("4000", 10m, null, null),
+      new GeneralLedgerCompletenessSeed.AccountSource("5000", null, -25m, null),
+      new GeneralLedgerCompletenessSeed.AccountSource("6000", -10m, null, null),
+    };
+    await using(var db=new AuditSphereDbContext(pg.Options))pair=await GeneralLedgerCompletenessSeed.SeedAsync(db,f,sourceRows:sources);
+    using var sf=Factory(pg,f.Staff);using var staff=sf.CreateClient(new(){AllowAutoRedirect=false});var sc=await SignIn(staff);var p=await Read(staff,Plan(pair));var prepared=await Prepare(staff,sc,pair,p.GetProperty("revision").GetString()!);Assert.True(prepared.StatusCode==HttpStatusCode.OK,await prepared.Content.ReadAsStringAsync());Assert.True(await GeneralLedgerCompletenessSeed.RunWorkerAsync(pg.Options,f.FirmId));
     var bridge=(await Read(staff,Path(pair.BatchId))).GetProperty("bridges")[0].GetProperty("id").GetGuid();using var rf=Factory(pg,f.Reviewer);using var reviewer=rf.CreateClient(new(){AllowAutoRedirect=false});var rc=await SignIn(reviewer);var r=await Read(reviewer,ReviewPath(bridge));
     Assert.True(r.GetProperty("bridge").GetProperty("incompleteExtract").GetBoolean());Assert.Contains("OPENING_ACCOUNT_COVERAGE_MISSING",r.GetProperty("bridge").GetProperty("completenessDisclosure").GetString());Assert.False(r.GetProperty("canApprove").GetBoolean());Assert.True(r.GetProperty("canReject").GetBoolean());
-    var unknown=r.GetProperty("residuals").GetProperty("items")[2];Assert.Equal(JsonValueKind.Null,unknown.GetProperty("opening").ValueKind);Assert.Equal(JsonValueKind.Null,unknown.GetProperty("openingMovementDifference").ValueKind);
+    var items=r.GetProperty("residuals").GetProperty("items");Assert.Equal(6,r.GetProperty("residuals").GetProperty("totalCount").GetInt32());
+    var glOnly=items[2];Assert.Equal("3000",glOnly.GetProperty("accountCode").GetString());Assert.Equal(JsonValueKind.Null,glOnly.GetProperty("opening").ValueKind);Assert.Equal(JsonValueKind.Null,glOnly.GetProperty("movementClosingDifference").ValueKind);Assert.Equal(JsonValueKind.Null,glOnly.GetProperty("openingMovementDifference").ValueKind);
+    var openingOnly=items[3];Assert.Equal("4000",openingOnly.GetProperty("accountCode").GetString());Assert.Equal("10.000000",openingOnly.GetProperty("opening").GetString());Assert.Equal("10.000000",openingOnly.GetProperty("movementClosingDifference").GetString());Assert.Equal("-10.000000",openingOnly.GetProperty("openingMovementDifference").GetString());
     Assert.Equal(HttpStatusCode.Conflict,(await Decide(reviewer,rc,bridge,r.GetProperty("revision").GetString()!,true)).StatusCode);
     Assert.Equal(HttpStatusCode.OK,(await Decide(reviewer,rc,bridge,r.GetProperty("revision").GetString()!,false)).StatusCode);
     Assert.Equal("REJECTED",(await Read(reviewer,ReviewPath(bridge))).GetProperty("bridge").GetProperty("status").GetString());
   }
+
+  [Fact]
+  public async Task OpeningPlusMovementVersion2_ApprovesSignedCoverageAndPreservesLegacyV1History()
+  {
+    await using var pg=await OwnedPostgresDatabase.CreateAsync("API-GL-COMPLETE-VERSIONS");var f=await PbcSeed.SeedAsync(pg);GeneralLedgerCompletenessSeed.Pair pair;Guid legacyId;
+    var sources = new[]
+    {
+      new GeneralLedgerCompletenessSeed.AccountSource("1000", 100m, 50m, 150m),
+      new GeneralLedgerCompletenessSeed.AccountSource("2000", -100m, -50m, -150m),
+    };
+    await using(var db=new AuditSphereDbContext(pg.Options))pair=await GeneralLedgerCompletenessSeed.SeedAsync(db,f,sourceRows:sources);
+    var legacyDigest=Hashing.Sha256Hex("retained version 1 proof");
+    await using(var db=new AuditSphereDbContext(pg.Options))
+    {
+      var closingHash=pair.ClosingId.ToString("N")+pair.ClosingId.ToString("N");
+      var openingHash=pair.OpeningId.ToString("N")+pair.OpeningId.ToString("N");
+      var batchHash=pair.BatchId.ToString("N")+pair.BatchId.ToString("N");
+      var legacy=new GeneralLedgerCompletenessBridge
+      {
+        Id=Guid.NewGuid(),FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,PeriodId=pair.PeriodId,BookId=pair.BookId,
+        TrialBalanceDatasetId=pair.ClosingId,ImportBatchId=pair.BatchId,OpeningTrialBalanceDatasetId=pair.OpeningId,
+        CalculationVersion=GeneralLedgerCompletenessBridge.LegacyCalculationVersion,TrialBalanceHash=closingHash,
+        GeneralLedgerHash=batchHash,OpeningTrialBalanceHash=openingHash,AccountResidualDigest=legacyDigest,
+        OpeningMovementResidualDigest=legacyDigest,TrialBalanceAccountCount=2,GeneralLedgerAccountCount=2,MatchedAccountCount=0,
+        MismatchedAccountCount=2,OpeningMovementMismatchedAccountCount=0,JournalExceptionCount=0,
+        OpeningAmount=0m,MovementAmount=0m,ClosingAmount=0m,OpeningMovementResidual=0m,AbsoluteResidual=200m,
+        CoverageStart=new DateOnly(2026,6,30),CoverageEnd=new DateOnly(2026,6,30),Status="UNRECONCILED",
+        IncompleteExtract=false,CompletenessDisclosure="",EvidenceReference="Retained historical calculation v1",
+        CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow
+      };
+      db.GeneralLedgerCompletenessBridges.Add(legacy);await db.SaveChangesAsync();legacyId=legacy.Id;
+    }
+    using var sf=Factory(pg,f.Staff);using var staff=sf.CreateClient(new(){AllowAutoRedirect=false});var sc=await SignIn(staff);
+    var plan=await Read(staff,Plan(pair));Assert.True(plan.GetProperty("canPrepare").GetBoolean());Assert.Equal(JsonValueKind.Null,plan.GetProperty("existingBridgeId").ValueKind);
+    using var rf=Factory(pg,f.Reviewer);using var reviewer=rf.CreateClient(new(){AllowAutoRedirect=false});var rc=await SignIn(reviewer);
+    var legacyReview=await Read(reviewer,ReviewPath(legacyId));var legacyBridge=legacyReview.GetProperty("bridge");
+    Assert.Equal(1,legacyBridge.GetProperty("calculationVersion").GetInt32());Assert.Equal("200.000000",legacyBridge.GetProperty("absoluteResidual").GetString());
+    Assert.Equal(2,legacyBridge.GetProperty("mismatchedAccountCount").GetInt32());Assert.False(legacyReview.GetProperty("canApprove").GetBoolean());
+    Assert.Contains("Historical calculation version 1",legacyReview.GetProperty("approvalBlocker").GetString());
+    var legacyRows=legacyReview.GetProperty("residuals").GetProperty("items");Assert.Equal("-100.000000",legacyRows[0].GetProperty("movementClosingDifference").GetString());
+    var legacyApproval=await Decide(reviewer,rc,legacyId,legacyReview.GetProperty("revision").GetString()!,true);
+    Assert.Equal(HttpStatusCode.BadRequest,legacyApproval.StatusCode);
+    using var legacyError=await JsonDocument.ParseAsync(await legacyApproval.Content.ReadAsStreamAsync());
+    Assert.Equal(ErrorCodes.GateBlocked,legacyError.RootElement.GetProperty("code").GetString());
+
+    Assert.Equal(HttpStatusCode.OK,(await Prepare(staff,sc,pair,plan.GetProperty("revision").GetString()!)).StatusCode);
+    Assert.True(await GeneralLedgerCompletenessSeed.RunWorkerAsync(pg.Options,f.FirmId));
+    var workspace=await Read(staff,Path(pair.BatchId));var summaries=workspace.GetProperty("bridges");Assert.Equal(2,summaries.GetArrayLength());
+    var currentId=summaries.EnumerateArray().Single(x=>x.GetProperty("calculationVersion").GetInt32()==2).GetProperty("id").GetGuid();
+    var currentReview=await Read(reviewer,ReviewPath(currentId));var currentBridge=currentReview.GetProperty("bridge");
+    Assert.Equal(2,currentBridge.GetProperty("calculationVersion").GetInt32());Assert.Equal("RECONCILED",currentBridge.GetProperty("status").GetString());
+    Assert.Equal("0.000000",currentBridge.GetProperty("absoluteResidual").GetString());Assert.Equal(0,currentBridge.GetProperty("mismatchedAccountCount").GetInt32());
+    Assert.True(currentReview.GetProperty("canApprove").GetBoolean());
+    var currentRows=currentReview.GetProperty("residuals").GetProperty("items");
+    Assert.Equal("0.000000",currentRows[0].GetProperty("movementClosingDifference").GetString());
+    Assert.Equal("0.000000",currentRows[0].GetProperty("openingMovementDifference").GetString());
+    Assert.Equal(HttpStatusCode.OK,(await Decide(reviewer,rc,currentId,currentReview.GetProperty("revision").GetString()!,true)).StatusCode);
+    await using var verify=new AuditSphereDbContext(pg.Options);var retained=await verify.GeneralLedgerCompletenessBridges.OrderBy(x=>x.CalculationVersion).ToListAsync();
+    Assert.Equal(new[]{1,2},retained.Select(x=>x.CalculationVersion));Assert.Equal("UNRECONCILED",retained[0].Status);
+    Assert.Equal(legacyDigest,retained[0].AccountResidualDigest);Assert.Equal(legacyDigest,retained[0].OpeningMovementResidualDigest);
+    Assert.Equal(200m,retained[0].AbsoluteResidual);Assert.NotEqual(retained[0].AccountResidualDigest,retained[1].AccountResidualDigest);
+  }
+  [Fact]
+  public async Task CalculationVersionMigration_PreservesOldRowsAsVersion1AndDefaultsNewRowsToVersion2()
+  {
+    const string previousMigration="20261126145049_FirmExpenseJournalCancellation";
+    await using var pg=await PgTestSchema.CreateAsync(previousMigration);var f=await PbcSeed.SeedAsync(pg);GeneralLedgerCompletenessSeed.Pair pair;
+    await using(var db=new AuditSphereDbContext(pg.Options))pair=await GeneralLedgerCompletenessSeed.SeedAsync(db,f);
+    var legacyId=Guid.NewGuid();var digest=Hashing.Sha256Hex("pre-versioned completeness proof");
+    var closingHash=pair.ClosingId.ToString("N")+pair.ClosingId.ToString("N");
+    var openingHash=pair.OpeningId.ToString("N")+pair.OpeningId.ToString("N");
+    var batchHash=pair.BatchId.ToString("N")+pair.BatchId.ToString("N");
+    await using(var db=new AuditSphereDbContext(pg.Options))
+    {
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO general_ledger_completeness_bridges
+          (id,firm_id,client_id,engagement_id,period_id,book_id,trial_balance_dataset_id,import_batch_id,
+           trial_balance_hash,general_ledger_hash,account_residual_digest,trial_balance_account_count,
+           general_ledger_account_count,matched_account_count,mismatched_account_count,absolute_residual,
+           coverage_start,coverage_end,status,evidence_reference,created_by_user_id,reviewed_by_user_id,
+           created_at,reviewed_at,opening_trial_balance_dataset_id,opening_trial_balance_hash,
+           opening_movement_residual_digest,opening_movement_mismatched_account_count,journal_exception_count,
+           opening_amount,movement_amount,closing_amount,opening_movement_residual,incomplete_extract,completeness_disclosure)
+        VALUES ({legacyId},{f.FirmId},{f.ClientId},{f.EngagementId},{pair.PeriodId},{pair.BookId},
+          {pair.ClosingId},{pair.BatchId},{closingHash},{batchHash},{digest},2,2,2,0,0,
+          DATE '2026-06-30',DATE '2026-06-30','RECONCILED','Pre-versioned retained proof',
+          {f.Staff.Id},NULL,{DateTimeOffset.UtcNow},NULL,{pair.OpeningId},{openingHash},{digest},0,0,
+          0,0,0,0,false,'')
+        """);
+      await db.Database.MigrateAsync();
+    }
+    var futureId=Guid.NewGuid();
+    await using(var db=new AuditSphereDbContext(pg.Options))
+    {
+      await db.Database.ExecuteSqlInterpolatedAsync($"""
+        INSERT INTO general_ledger_completeness_bridges
+          (id,firm_id,client_id,engagement_id,period_id,book_id,trial_balance_dataset_id,import_batch_id,
+           trial_balance_hash,general_ledger_hash,account_residual_digest,trial_balance_account_count,
+           general_ledger_account_count,matched_account_count,mismatched_account_count,absolute_residual,
+           coverage_start,coverage_end,status,evidence_reference,created_by_user_id,reviewed_by_user_id,
+           created_at,reviewed_at,opening_trial_balance_dataset_id,opening_trial_balance_hash,
+           opening_movement_residual_digest,opening_movement_mismatched_account_count,journal_exception_count,
+           opening_amount,movement_amount,closing_amount,opening_movement_residual,incomplete_extract,completeness_disclosure)
+        SELECT {futureId},firm_id,client_id,engagement_id,period_id,book_id,trial_balance_dataset_id,import_batch_id,
+          trial_balance_hash,general_ledger_hash,account_residual_digest,trial_balance_account_count,
+          general_ledger_account_count,matched_account_count,mismatched_account_count,absolute_residual,
+          coverage_start,coverage_end,status,evidence_reference,created_by_user_id,reviewed_by_user_id,
+          created_at,reviewed_at,opening_trial_balance_dataset_id,opening_trial_balance_hash,
+          opening_movement_residual_digest,opening_movement_mismatched_account_count,journal_exception_count,
+          opening_amount,movement_amount,closing_amount,opening_movement_residual,incomplete_extract,completeness_disclosure
+        FROM general_ledger_completeness_bridges WHERE id={legacyId}
+        """);
+      var rows=await db.GeneralLedgerCompletenessBridges.OrderBy(x=>x.CalculationVersion).ToListAsync();
+      Assert.Equal(new[]{1,2},rows.Select(x=>x.CalculationVersion));Assert.Equal(legacyId,rows[0].Id);Assert.Equal(futureId,rows[1].Id);
+      Assert.Equal(digest,rows[0].AccountResidualDigest);Assert.Equal(0m,rows[0].AbsoluteResidual);Assert.Equal(0m,rows[1].AbsoluteResidual);
+    }
+    await using(var db=new AuditSphereDbContext(pg.Options))
+    {
+      var rollback=await Assert.ThrowsAsync<InvalidOperationException>(()=>db.Database.MigrateAsync(previousMigration));
+      var databaseError=Assert.IsType<PostgresException>(rollback.InnerException);
+      Assert.Contains("Version 2 completeness proofs prevent rollback",databaseError.Message);
+    }
+    await using(var db=new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(new[]{1,2},await db.GeneralLedgerCompletenessBridges.OrderBy(x=>x.CalculationVersion).Select(x=>x.CalculationVersion).ToArrayAsync());
+    }
+  }
+
   [Fact]
   public async Task ScopeBounds_StaleGeneration_ClosedBookAndEpochRefuseReadsAndPreparation()
   {

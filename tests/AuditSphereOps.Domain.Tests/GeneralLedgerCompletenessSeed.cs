@@ -12,9 +12,15 @@ namespace AuditSphereOps.Domain.Tests;
 internal static class GeneralLedgerCompletenessSeed
 {
   internal sealed record Pair(Guid BatchId, Guid ClosingId, Guid OpeningId, Guid PeriodId, Guid BookId);
-  internal static async Task<Pair> SeedAsync(AuditSphereDbContext db, PbcSeed.Fixture f, bool missingOpeningAccount=false, int accounts=2)
+  internal sealed record AccountSource(string AccountCode, decimal? Opening, decimal? Movement, decimal? Closing);
+
+  internal static async Task<Pair> SeedAsync(AuditSphereDbContext db, PbcSeed.Fixture f, bool missingOpeningAccount=false,
+    int accounts=2, IReadOnlyList<AccountSource>? sourceRows=null)
   {
     var prior=Guid.NewGuid();var period=Guid.NewGuid();var oldBook=Guid.NewGuid();var book=Guid.NewGuid();var closing=Guid.NewGuid();var opening=Guid.NewGuid();var batch=Guid.NewGuid();var journal=Guid.NewGuid();
+    var rows = sourceRows ?? Enumerable.Range(0, accounts).Select(i => new AccountSource($"{1000+i:D4}",
+      missingOpeningAccount && i >= accounts-2 ? null : 0m, i%2==0?100.123456m:-100.123456m,
+      i%2==0?100.123456m:-100.123456m)).ToArray();
     db.ClientReportingPeriods.AddRange(
       new(){Id=prior,FirmId=f.FirmId,ClientId=f.ClientId,PeriodCode=prior.ToString("N"),StartDate=new(2025,1,1),EndDate=new(2025,12,31),Currency="QAR",Basis="IFRS",Status="ACTIVE",CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow},
       new(){Id=period,FirmId=f.FirmId,ClientId=f.ClientId,PeriodCode=period.ToString("N"),StartDate=new(2026,1,1),EndDate=new(2026,12,31),Currency="QAR",Basis="IFRS",Status="ACTIVE",PriorPeriodId=prior,CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow});
@@ -22,16 +28,17 @@ internal static class GeneralLedgerCompletenessSeed
     foreach(var pair in new[]{(opening,prior,oldBook),(closing,period,book)}){
       var hash=pair.Item1.ToString("N")+pair.Item1.ToString("N");
       db.TrialBalanceDatasets.Add(new(){Id=pair.Item1,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,PeriodId=pair.Item2,BookId=pair.Item3,Basis="IFRS",Currency="QAR",LegalEntityKey="SYNTHETIC-COMPLETENESS",SourceKind="Raw",RawFileSha256Hex=hash,NormalizedDatasetDigest=hash,Sha256Hex=hash,Balanced=true,ValidationStatus="Pending",ImportState="LOADING",ImportedByUserId=f.Staff.Id,ImportedAt=DateTimeOffset.UtcNow});
-      for(var i=0;i<accounts;i++){
-        if(pair.Item1==opening && missingOpeningAccount && i>=accounts-2)continue;
-        var amount=pair.Item1==opening?0m:(i%2==0?100.123456m:-100.123456m);
-        db.TrialBalanceRows.Add(new(){Id=Guid.NewGuid(),DatasetId=pair.Item1,AccountCode=$"{1000+i:D4}",AccountName=$"Synthetic account {i}",Amount=amount,Currency="QAR",Entity="SYNTHETIC-COMPLETENESS"});
+      foreach(var row in rows){
+        var amount=pair.Item1==opening?row.Opening:row.Closing;
+        if(amount is null)continue;
+        db.TrialBalanceRows.Add(new(){Id=Guid.NewGuid(),DatasetId=pair.Item1,AccountCode=row.AccountCode,AccountName=$"Synthetic account {row.AccountCode}",Amount=amount.Value,Currency="QAR",Entity="SYNTHETIC-COMPLETENESS"});
       }
     }
     var batchHash=batch.ToString("N")+batch.ToString("N");
-    db.SourceImportBatches.Add(new(){Id=batch,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,PeriodId=period,BookId=book,SourceKind="GL",ProfileVersion="synthetic-completeness-v1",ParserVersion="synthetic-parser-v1",RawFileSha256Hex=batchHash,NormalizedDatasetDigest=batchHash,LegalEntityKey="SYNTHETIC-COMPLETENESS",Currency="QAR",RowCount=accounts,Status="LOADING",ReceiptReference="Synthetic completeness source",CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow});
+    db.SourceImportBatches.Add(new(){Id=batch,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,PeriodId=period,BookId=book,SourceKind="GL",ProfileVersion="synthetic-completeness-v1",ParserVersion="synthetic-parser-v1",RawFileSha256Hex=batchHash,NormalizedDatasetDigest=batchHash,LegalEntityKey="SYNTHETIC-COMPLETENESS",Currency="QAR",RowCount=rows.Count(x=>x.Movement.HasValue),Status="LOADING",ReceiptReference="Synthetic completeness source",CreatedByUserId=f.Staff.Id,CreatedAt=DateTimeOffset.UtcNow});
     db.GeneralLedgerTransactions.Add(new(){Id=journal,FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,ImportBatchId=batch,StableJournalId="SYN-J-1",DocumentNumber="SYN-DOC",PostingDate=new(2026,6,30),Currency="QAR",CreatedAt=DateTimeOffset.UtcNow});
-    for(var i=0;i<accounts;i++){var amount=i%2==0?100.123456m:-100.123456m;db.GeneralLedgerLines.Add(new(){Id=Guid.NewGuid(),FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,ImportBatchId=batch,TransactionId=journal,StableLineId=$"SYN-L-{i}",AccountCode=$"{1000+i:D4}",Debit=amount>0?amount:0,Credit=amount<0?-amount:0,FunctionalAmount=amount,OriginalCurrency="QAR",OriginalAmount=amount,CreatedAt=DateTimeOffset.UtcNow});}
+    var lineIndex=0;
+    foreach(var row in rows.Where(x=>x.Movement.HasValue)){var amount=row.Movement!.Value;db.GeneralLedgerLines.Add(new(){Id=Guid.NewGuid(),FirmId=f.FirmId,ClientId=f.ClientId,EngagementId=f.EngagementId,ImportBatchId=batch,TransactionId=journal,StableLineId=$"SYN-L-{lineIndex++}",AccountCode=row.AccountCode,Debit=amount>0?amount:0,Credit=amount<0?-amount:0,FunctionalAmount=amount,OriginalCurrency="QAR",OriginalAmount=amount,CreatedAt=DateTimeOffset.UtcNow});}
     db.RoleGrants.Add(PbcSeed.Grant(f.FirmId,f.Staff,"AccountingPreparer",f.ClientId,f.EngagementId));
     db.RoleGrants.Add(PbcSeed.Grant(f.FirmId,f.Staff,"AccountingReviewer",f.ClientId,f.EngagementId));
     db.RoleGrants.Add(PbcSeed.Grant(f.FirmId,f.Reviewer,"AccountingReviewer",f.ClientId,f.EngagementId));

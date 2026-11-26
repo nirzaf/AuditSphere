@@ -119,6 +119,7 @@ export type PeriodGeneralLedgerEvidence = ReturnType<typeof decodePeriodGeneralL
 
 export const decodePeriodCompletenessEvidence = obj({
   id: guid,
+  calculationVersion: nat,
   engagementId: guid,
   bookId: nullable(guid),
   trialBalanceDatasetId: guid,
@@ -392,6 +393,10 @@ function displayRows(page: PeriodEvidencePage | null): EvidenceDisplayRow[] {
         : []));
     case 'completeness':
       return page.items.map(x => row(x.id, `Completeness assessment · ${x.coverageStart} to ${x.coverageEnd}`, [
+        fact('Calculation version', x.calculationVersion),
+        fact('Calculation basis', x.calculationVersion === 1
+          ? 'Historical v1: retained calculation facts and digests remain unchanged; no v2 recomputation is shown.'
+          : 'Version 2: accepted opening plus GL movement minus closing TB.'),
         fact('Engagement ID', x.engagementId), fact('Book ID', x.bookId),
         fact('Trial balance dataset ID', x.trialBalanceDatasetId), fact('Import batch ID', x.importBatchId),
         fact('Opening trial balance dataset ID', x.openingTrialBalanceDatasetId),

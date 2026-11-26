@@ -182,13 +182,13 @@
       }
       @for (o of p.operations; track o.id) {
         <p class="identity">
-          Operation {{ o.id }} · {{ o.status }} · {{ o.createdAt }} · {{ o.evidenceReference }} ·
+          Operation {{ o.id }} · calc v{{ o.calculationVersion }} · {{ o.status }} · {{ o.createdAt }} · {{ o.evidenceReference }} ·
           result {{ o.resultIdentity ?? 'Not observed' }}
         </p>
       }
       @if (p.existingBridgeId) {
         <button matButton [disabled]="busy() || loading()" (click)="loadReview(p.existingBridgeId)">
-          Read retained bridge
+          Read retained version 2 bridge
         </button>
       }
       @if (!p.opening && !p.context.nativeOpening) {
@@ -224,7 +224,8 @@
     }
     @for (b of w.bridges; track b.id) {
       <p class="identity">
-        {{ b.id }} · {{ b.status }} · residual {{ b.absoluteResidual }} ·
+        {{ b.id }} · {{ b.calculationVersion === 1 ? 'Historical calculation v1' : 'Calculation v2' }} ·
+        {{ b.status }} · residual {{ b.absoluteResidual }} ·
         {{ b.incompleteExtract ? 'Incomplete extract' : 'Extract checks passed' }}
       </p>
       <button matButton [disabled]="busy() || loading()" (click)="loadReview(b.id)">
@@ -238,6 +239,20 @@
       <dl>
         <dt>Bridge / status</dt>
         <dd>{{ r.bridge.id }} · {{ r.bridge.status }}</dd>
+        <dt>Calculation basis</dt>
+        <dd>
+          @if (r.bridge.calculationVersion === 1) {
+            @if (r.context.source.originKind === 'NATIVE_LEDGER') {
+              Historical v1 native basis: inherited opening + GL movement − closing TB. Stored counts,
+              hashes and review facts remain unchanged; this evidence cannot receive a new approval.
+            } @else {
+              Historical v1 external basis: GL movement − closing TB. Stored counts, hashes and review
+              facts remain unchanged; this evidence cannot receive a new approval.
+            }
+          } @else {
+            Version 2: accepted opening + GL movement − closing TB; missing opening remains unknown.
+          }
+        </dd>
         <dt>Closing TB / digest</dt>
         <dd>{{ r.bridge.trialBalanceDatasetId }} · {{ r.bridge.trialBalanceHash }}</dd>
         @if (r.context.nativeOpening; as opening) {
@@ -307,7 +322,15 @@
               <th>Opening</th>
               <th>GL movement</th>
               <th>Closing TB</th>
-              <th>GL − closing</th>
+              <th>
+                {{
+                  r.bridge.calculationVersion === 1
+                    ? r.context.source.originKind === 'NATIVE_LEDGER'
+                      ? 'Legacy opening + GL movement − closing TB (v1)'
+                      : 'Legacy GL movement − closing TB (v1)'
+                    : 'Opening + GL movement − closing TB (v2)'
+                }}
+              </th>
               <th>Closing − opening − movement</th>
             </tr>
           </thead>
