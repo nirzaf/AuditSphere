@@ -168,6 +168,23 @@ public sealed class TrialBalanceCsvParserTests
       "DEMO|100101|Bank|125.500000|125.500000|0.000000|QAR|CA_CASH\n" +
       "DEMO|400100|Revenue|-125.500000|0.000000|125.500000|QAR|PL_REVENUE\n"), parsed.LegacyNormalizedDatasetDigest);
     Assert.NotEqual(parsed.LegacyNormalizedDatasetDigest, parsed.NormalizedDatasetDigest);
+
+    const string maximum = "9999999999999.999999";
+    var boundaryCsv = "AccountCode,AccountName,Debit,Credit,Currency,Entity,MappingCode\n" +
+      $"100101,Cash,{maximum},0,QAR,DEMO,CA_CASH\n" +
+      $"400100,Revenue,0,{maximum},QAR,DEMO,PL_REVENUE\n";
+    var boundary = TrialBalanceCsvImporter.Parse(boundaryCsv, TrialBalanceImportProfile.DebitCreditV1);
+    Assert.Equal(ClientNativeAmountRules.MaximumStoredAmount, boundary.Rows[0].SourceDebit);
+    Assert.Equal(-ClientNativeAmountRules.MaximumStoredAmount, boundary.Rows[1].Amount);
+
+    var excessiveBalancedSides = "AccountCode,AccountName,Debit,Credit,Currency,Entity,MappingCode\n" +
+      "100101,Cash,10000000000000,10000000000000,QAR,DEMO,CA_CASH\n";
+    var excessive = Assert.Throws<InvalidOperationException>(() =>
+      TrialBalanceCsvImporter.Parse(excessiveBalancedSides, TrialBalanceImportProfile.DebitCreditV1));
+    Assert.StartsWith("Row 1:", excessive.Message);
+    Assert.Throws<InvalidOperationException>(() => TrialBalanceCsvImporter.Parse(
+      "AccountCode,AccountName,Debit,Credit,Currency,Entity,MappingCode\n100101,Cash,-1,0,QAR,DEMO,CA_CASH\n",
+      TrialBalanceImportProfile.DebitCreditV1));
   }
 
   [Theory]
@@ -197,6 +214,18 @@ public sealed class TrialBalanceCsvParserTests
       $"{header}\n=100101,Name,100,QAR,DEMO,MAP\n110100,Name,-100,QAR,DEMO,MAP"));
     Assert.Throws<InvalidOperationException>(() => TrialBalanceCsvImporter.Parse(
       $"{header}\n100101,Name,NaN,QAR,DEMO,MAP\n110100,Name,-100,QAR,DEMO,MAP"));
+
+    const string maximum = "9999999999999.999999";
+    var atLimits = TrialBalanceCsvImporter.Parse(
+      $"{header}\n{Row("100101", maximum)}\n{Row("110100", $"-{maximum}")}");
+    Assert.Equal(ClientNativeAmountRules.MaximumStoredAmount, atLimits.Rows[0].Amount);
+    Assert.Equal(-ClientNativeAmountRules.MaximumStoredAmount, atLimits.Rows[1].Amount);
+    foreach (var excessive in new[] { "10000000000000", "-10000000000000" })
+    {
+      var exception = Assert.Throws<InvalidOperationException>(() =>
+        TrialBalanceCsvImporter.Parse($"{header}\n{Row("100101", excessive)}"));
+      Assert.StartsWith("Row 1:", exception.Message);
+    }
   }
 }
 

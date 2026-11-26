@@ -31,6 +31,26 @@ public sealed class TrialBalanceUploadApiTests
     var mapping = await TrialBalanceIntakeWorkspaceQuery.CreateDraftAsync(db, PbcSeed.Actor(f.Staff, "Staff"), ids[0], "tax-v1", [], default); Assert.False(mapping.Succeeded); // Pending source is not accepted for mapping.
   }
   [Fact]
+  public async Task OutOfRangeAmountsAreRefusedBeforeAnyPeriodIsImported()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-TB-RANGE"); var f = await Seed(pg);
+    using var factory = Factory(pg, f.Staff); using var c = factory.CreateClient(new() { AllowAutoRedirect = false }); var csrf = await SignIn(c); var root = Root(f);
+    var oversized = Csv.Replace("-100.123456", "-10000000000000", StringComparison.Ordinal)
+      .Replace("-200.123456", "-10000000000000", StringComparison.Ordinal)
+      .Replace("100.123456", "10000000000000", StringComparison.Ordinal)
+      .Replace("200.123456", "10000000000000", StringComparison.Ordinal);
+    var preview = await Preview(c, csrf, root, oversized);
+    Assert.False(preview.GetProperty("canImport").GetBoolean());
+    Assert.All(preview.GetProperty("periods").EnumerateArray(), p =>
+      Assert.Contains("Row 1:", p.GetProperty("error").GetString()));
+    Assert.Equal(HttpStatusCode.BadRequest,
+      (await Upload(c, csrf, root + "/import", oversized, preview)).StatusCode);
+    await using var proof = new AuditSphereDbContext(pg.Options);
+    Assert.Equal(2, await proof.ClientReportingPeriods.CountAsync());
+    Assert.Empty(await proof.TrialBalanceDatasets.ToListAsync());
+    Assert.Empty(await proof.TrialBalanceRows.ToListAsync());
+  }
+  [Fact]
   public async Task WrongFile_ChangedPeriod_Currency_ClosedPeriod_AndUnknownPeriodFailClosed()
   {
     await using var pg = await OwnedPostgresDatabase.CreateAsync("API-TB-STALE"); var f = await Seed(pg); using var factory = Factory(pg, f.Staff); using var c = factory.CreateClient(new() { AllowAutoRedirect = false }); var csrf = await SignIn(c); var root = Root(f);

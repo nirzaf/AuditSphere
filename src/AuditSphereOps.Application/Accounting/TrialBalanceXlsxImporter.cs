@@ -80,8 +80,8 @@ public static class TrialBalanceXlsxImporter
       decimal? sourceCredit = null;
       if (profile.IsDebitCredit)
       {
-        var debit = TrialBalanceCsvImporter.ParseAmount(debitText, rowNumber + 1);
-        var credit = TrialBalanceCsvImporter.ParseAmount(creditText, rowNumber + 1);
+        var debit = TrialBalanceCsvImporter.ParseSourceSideAmount(debitText, rowNumber + 1);
+        var credit = TrialBalanceCsvImporter.ParseSourceSideAmount(creditText, rowNumber + 1);
         sourceDebit = debit;
         sourceCredit = credit;
         amount = MoneyPolicy.Normalize(debit - credit);

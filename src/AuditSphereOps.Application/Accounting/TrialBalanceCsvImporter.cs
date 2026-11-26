@@ -112,8 +112,8 @@ public static class TrialBalanceCsvImporter
       decimal? sourceCredit = null;
       if (profile.IsDebitCredit)
       {
-        var debit = ParseAmount(debitText, n);
-        var credit = ParseAmount(creditText, n);
+        var debit = ParseSourceSideAmount(debitText, n);
+        var credit = ParseSourceSideAmount(creditText, n);
         sourceDebit = debit;
         sourceCredit = credit;
         amount = MoneyPolicy.Normalize(debit - credit);
@@ -215,7 +215,17 @@ public static class TrialBalanceCsvImporter
       throw new InvalidOperationException($"Row {row}: amount '{text}' is not a valid invariant-culture decimal.");
     if (((decimal.GetBits(amount)[3] >> 16) & 0xff) > MoneyPolicy.MaxScale)
       throw new InvalidOperationException($"Row {row}: amount exceeds 6 decimal places; no silent rounding.");
+    if (amount < -ClientNativeAmountRules.MaximumStoredAmount || amount > ClientNativeAmountRules.MaximumStoredAmount)
+      throw new InvalidOperationException($"Row {row}: amount exceeds the supported storage range.");
     return MoneyPolicy.Normalize(amount);
+  }
+
+  internal static decimal ParseSourceSideAmount(string text, int row)
+  {
+    var amount = ParseAmount(text, row);
+    if (amount < 0m)
+      throw new InvalidOperationException($"Row {row}: debit and credit source amounts must be nonnegative.");
+    return amount;
   }
 
   // Scan the bounded source once and retain only the current logical record.

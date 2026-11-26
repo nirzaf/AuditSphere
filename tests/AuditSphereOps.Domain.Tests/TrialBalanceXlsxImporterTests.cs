@@ -19,6 +19,14 @@ public sealed class TrialBalanceXlsxImporterTests
     Assert.Equal("QAR", parsed.Currency);
     Assert.Equal(Hashing.Sha256Hex(bytes), parsed.RawFileSha256Hex);
     Assert.Equal(parsed.NormalizedDatasetDigest, parsed.SourceHash);
+
+    const string maximum = "9999999999999.999999";
+    Assert.Equal(ClientNativeAmountRules.MaximumStoredAmount,
+      TrialBalanceXlsxImporter.Parse(Workbook("Cash", maximum)).Rows[0].Amount);
+    Assert.Equal(-ClientNativeAmountRules.MaximumStoredAmount,
+      TrialBalanceXlsxImporter.Parse(Workbook("Cash", $"-{maximum}")).Rows[0].Amount);
+    Assert.Throws<InvalidOperationException>(() => TrialBalanceXlsxImporter.Parse(Workbook("Cash", "10000000000000")));
+    Assert.Throws<InvalidOperationException>(() => TrialBalanceXlsxImporter.Parse(Workbook("Cash", "-10000000000000")));
   }
 
   [Fact]
