@@ -887,6 +887,76 @@ public sealed class CommercialWorkflowTests
   }
 
   [Fact]
+  public async Task QuotationRateLookupCounts_RepeatedAndDistinctDirectAndAliasTuples()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var (_, _, proposalId) = await DraftProposalAsync(pg, w);
+    var supervisorRateId = Guid.NewGuid();
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.RateCardVersions.Add(new RateCardVersion
+      {
+        Id = supervisorRateId, FirmId = w.FirmId, Version = 1, Role = "Audit Supervisor", Activity = "Audit",
+        Currency = "QAR", RatePerHour = 500m, Status = PracticeTimeStates.RateApproved,
+        CreatedByUserId = w.Partner.UserId, ApprovedByUserId = w.Manager.UserId,
+        CreatedAt = DateTimeOffset.UtcNow, ApprovedAt = DateTimeOffset.UtcNow
+      });
+      await seed.SaveChangesAsync();
+    }
+
+    var counter = new QuotationRateReadCounter();
+    var options = new DbContextOptionsBuilder<AuditSphereDbContext>()
+      .UseNpgsql(pg.ConnectionString).AddInterceptors(counter).Options;
+
+    async Task<(bool Succeeded, string? ErrorCode, Guid? VersionId, int RateReads)> PriceAndCountAsync(
+      params QuotationHoursLine[] lines)
+    {
+      counter.Reset();
+      await using var db = new AuditSphereDbContext(options);
+      var result = await QuotationService.SaveAsync(db, w.Prep, Quote(proposalId, lines: lines));
+      return (result.Succeeded, result.ErrorCode, result.Succeeded ? result.Value : null, counter.Count);
+    }
+
+    var repeatedDirect = await PriceAndCountAsync(
+      new("Partner", "Audit", 1m), new("Partner", "Audit", 2m));
+    var distinctDirect = await PriceAndCountAsync(
+      new("Partner", "Audit", 1m), new("Manager", "Audit", 2m));
+    var repeatedAlias = await PriceAndCountAsync(
+      new("Senior", "Audit", 1m), new("Senior", "Audit", 2m));
+    var distinctAlias = await PriceAndCountAsync(
+      new("Senior", "Audit", 1m, supervisorRateId), new("Supervisor", "Audit", 2m, supervisorRateId));
+
+    // Duplicate line identities still refuse; distinct aliases retain the same canonical approved card.
+    Assert.False(repeatedDirect.Succeeded);
+    Assert.Equal("quotation.invalid", repeatedDirect.ErrorCode);
+    Assert.Equal(1, repeatedDirect.RateReads);
+    Assert.True(distinctDirect.Succeeded);
+    Assert.Equal(2, distinctDirect.RateReads);
+    Assert.False(repeatedAlias.Succeeded);
+    Assert.Equal("quotation.invalid", repeatedAlias.ErrorCode);
+    Assert.Equal(2, repeatedAlias.RateReads);
+    Assert.True(distinctAlias.Succeeded);
+    Assert.Equal(3, distinctAlias.RateReads);
+
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+    {
+      var version = await verify.QuotationVersions.AsNoTracking().SingleAsync(x => x.Id == distinctAlias.VersionId);
+      var lines = JsonSerializer.Deserialize<QuotationLineResult[]>(
+        version.LinesJson, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+      Assert.Equal(2, lines.Length);
+      Assert.All(lines, line => Assert.Equal(supervisorRateId, line.RateCardVersionId));
+      Assert.Equal(new[] { 1m, 2m }, lines.Select(line => line.Hours).Order().ToArray());
+    }
+
+    var staleAlias = await PriceAndCountAsync(
+      new("Senior", "Audit", 1m, supervisorRateId), new("Supervisor", "Audit", 2m, Guid.NewGuid()));
+    Assert.False(staleAlias.Succeeded);
+    Assert.Equal(ErrorCodes.StaleRevision, staleAlias.ErrorCode);
+    Assert.Equal(3, staleAlias.RateReads);
+  }
+
+  [Fact]
   public async Task Quotation_IsCalculatedFromApprovedRates_Versioned_AndApprovedByTheConfiguredMatrix()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -3794,6 +3864,22 @@ public sealed class CommercialWorkflowTests
         Fired = true;
         Reached.TrySetResult();
       }
+      return ValueTask.FromResult(result);
+    }
+  }
+
+  private sealed class QuotationRateReadCounter : DbCommandInterceptor
+  {
+    private int count;
+    public int Count => Volatile.Read(ref count);
+    public void Reset() => Interlocked.Exchange(ref count, 0);
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+      DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+      CancellationToken cancellationToken = default)
+    {
+      if (command.CommandText.Contains("rate_card_versions", StringComparison.OrdinalIgnoreCase))
+        Interlocked.Increment(ref count);
       return ValueTask.FromResult(result);
     }
   }

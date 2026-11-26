@@ -69,16 +69,36 @@ public static class QuotationService
     // Fail closed: every line must resolve to the latest APPROVED rate card for its role, activity and currency.
     var currency = proposal.Currency.ToUpperInvariant();
     var priced = new List<QuotationLineInput>();
+    // Keep these caches local to one SaveAsync: rates can change between commands, but identical approved lookups
+    // within this transaction cannot select a different latest version.
+    var resolvedRates = new Dictionary<(string Role, string Activity, string Currency), RateCardVersion?>();
+    var canonicalRates = new Dictionary<(string Role, string Activity, string Currency), RateCardVersion?>();
     foreach (var line in request.Lines)
     {
       var role = (line.Role ?? string.Empty).Trim();
       var activity = (line.Activity ?? string.Empty).Trim();
-      var card = await db.RateCardVersions.AsNoTracking()
-        .Where(x => x.FirmId == actor.FirmId && x.Status == PracticeTimeStates.RateApproved && x.Currency == currency &&
-          x.Role.ToUpper() == role.ToUpper() && x.Activity.ToUpper() == activity.ToUpper())
-        .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
-      // The same STE aliases that price time and budgets price a quotation line, so Senior and Audit Supervisor never diverge.
-      card ??= await PracticeTimeService.ApprovedCardOrAliasAsync(db, actor.FirmId, role, activity, currency, ct, stored: true);
+      var inputKey = (role, activity, currency);
+      if (!resolvedRates.TryGetValue(inputKey, out var card))
+      {
+        card = await db.RateCardVersions.AsNoTracking()
+          .Where(x => x.FirmId == actor.FirmId && x.Status == PracticeTimeStates.RateApproved && x.Currency == currency &&
+            x.Role.ToUpper() == role.ToUpper() && x.Activity.ToUpper() == activity.ToUpper())
+          .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+        // The same STE aliases that price time and budgets price a quotation line, so Senior and Audit Supervisor never diverge.
+        // The direct query already checked the input role; cache only the canonical fallback shared by its aliases.
+        if (card is null && SteChargeOutRateBaseline.CanonicalRole(role) is { } canonical
+          && !string.Equals(canonical, role, StringComparison.Ordinal))
+        {
+          var canonicalKey = (canonical, activity, currency);
+          if (!canonicalRates.TryGetValue(canonicalKey, out card))
+          {
+            card = await PracticeTimeService.ApprovedCardOrAliasAsync(
+              db, actor.FirmId, canonical, activity, currency, ct, stored: true);
+            canonicalRates[canonicalKey] = card;
+          }
+        }
+        resolvedRates[inputKey] = card;
+      }
       if (line.ExpectedRateCardId.HasValue && line.ExpectedRateCardId != card?.Id)
         return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "An approved rate changed; refresh the quotation.");
       priced.Add(new(role, activity, line.Hours, card?.RatePerHour ?? 0m, card?.Id ?? Guid.Empty));
