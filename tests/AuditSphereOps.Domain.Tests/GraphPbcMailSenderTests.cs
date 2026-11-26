@@ -74,6 +74,35 @@ public sealed class GraphPbcMailSenderTests
   }
 
   [Theory]
+  [InlineData("firm")]
+  [InlineData("sender")]
+  public async Task WorkerFirmOrSenderBindingMismatch_MakesNoTokenOrGraphRequest(string mismatch)
+  {
+    var context = await CreateContextAsync();
+    try
+    {
+      var options = mismatch == "firm"
+        ? context.Options with { FirmId = Guid.NewGuid() }
+        : context.Options with { SenderObjectId = Guid.NewGuid().ToString("D") };
+      var gate = new QueueMailAuthorizationGate([Receipt(context)]);
+      var handler = new GraphMailCaptureHandler(CreateToken(context.TenantId, context.ClientId, ["Mail.Send"]), context.SenderId);
+      using var http = new HttpClient(handler);
+      var sender = new GraphPbcMailSender(http, options, gate, TimeProvider.System);
+
+      var denied = await Assert.ThrowsAsync<OperationBlockedException>(() => sender.PreflightAsync(context.FirmId, CancellationToken.None));
+
+      Assert.Equal(mismatch == "firm" ? "mail-authorization-worker-binding-mismatch" : "mail-authorization-evidence-unavailable", denied.Code);
+      Assert.Equal(mismatch == "firm" ? 0 : 1, gate.Calls);
+      Assert.Equal(0, handler.TokenCalls);
+      Assert.Equal(0, handler.GraphCalls);
+    }
+    finally
+    {
+      Directory.Delete(context.Directory, recursive: true);
+    }
+  }
+
+  [Theory]
   [InlineData("")]
   [InlineData("fedcba9876543210fedcba9876543210fedcba98")]
   public async Task MissingOrChangedBuildSource_BlocksBeforeTokenOrGraphRequest(string observedRepositoryCommit)

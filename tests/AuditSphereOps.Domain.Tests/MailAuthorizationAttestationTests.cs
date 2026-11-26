@@ -19,6 +19,7 @@ using AuditSphereOps.Infrastructure.Providers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.Configuration;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -443,13 +444,34 @@ public sealed class MailAuthorizationAttestationTests
     Assert.Equal(7L, expiresAt.UtcTicks % 10);
     var snapshot = CreateSnapshot(MailAuthorizationModel.LegacyApplicationAccessPolicy, Guid.Parse(fixture.TenantId));
     using var signer = CreateSyntheticSigner(now);
-    var attestation = CreateAttestation(snapshot, now.AddMinutes(-1), expiresAt, fixture.ConnectionId, consent.Id);
+    var observedRepositoryCommit = MailAuthorizationDeploymentConfiguration.ReadBuildRepositoryCommit(
+      typeof(AuditSphereOps.Worker.Worker).Assembly, typeof(MailAuthorizationRuntimeOptions).Assembly,
+      typeof(MailAuthorizationAttestationFileSource).Assembly);
+    var attestation = CreateAttestation(snapshot, now.AddMinutes(-1), expiresAt, fixture.ConnectionId, consent.Id,
+      observedRepositoryCommit);
     var payload = MailAuthorizationAttestationCanonicalizer.SerializeCanonical(attestation);
     var cms = SignDetached(payload, signer);
-    var runtime = new MailAuthorizationRuntimeOptions(fixture.FirmId, snapshot.TenantId, snapshot.PermissionModel,
-      snapshot.RuntimeClientId, snapshot.EnterpriseServicePrincipalObjectId, snapshot.SenderMailboxObjectIds,
-      snapshot.ControlMailboxObjectId, attestation.PlanSha256, attestation.Source, attestation.Source.RepositoryCommit,
-      Options(signer, TimeSpan.FromHours(24)).PinnedSignerCertificateSha256, TimeSpan.FromHours(24));
+    var runtimeConfiguration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+    {
+      ["MailAuthorization:Model"] = "LEGACY",
+      ["MailAuthorization:TenantId"] = snapshot.TenantId.ToString("D"),
+      ["MailAuthorization:RuntimeClientId"] = snapshot.RuntimeClientId.ToString("D"),
+      ["MailAuthorization:EnterpriseServicePrincipalObjectId"] = snapshot.EnterpriseServicePrincipalObjectId.ToString("D"),
+      ["MailAuthorization:SenderMailboxObjectIds:0"] = snapshot.SenderMailboxObjectIds[0].ToString("D"),
+      ["MailAuthorization:SenderMailboxObjectIds:1"] = snapshot.SenderMailboxObjectIds[1].ToString("D"),
+      ["MailAuthorization:ControlMailboxObjectId"] = snapshot.ControlMailboxObjectId.ToString("D"),
+      ["MailAuthorization:PlanSha256"] = attestation.PlanSha256,
+      ["MailAuthorization:PinnedSignerCertificateSha256"] = Options(signer, TimeSpan.FromHours(24)).PinnedSignerCertificateSha256,
+      ["MailAuthorization:MaximumEvidenceAgeHours"] = "24",
+      ["MailAuthorization:Source:RepositoryCommit"] = attestation.Source.RepositoryCommit,
+      ["MailAuthorization:Source:ConfigureMailAccessSha256"] = attestation.Source.ConfigureMailAccessSha256,
+      ["MailAuthorization:Source:MailAccessModuleSha256"] = attestation.Source.MailAccessModuleSha256,
+      ["MailAuthorization:Source:ModulesLockSha256"] = attestation.Source.ModulesLockSha256,
+      ["MailAuthorization:Source:CommonModuleSha256"] = attestation.Source.CommonModuleSha256,
+      ["MailAuthorization:Source:EntraModuleSha256"] = attestation.Source.EntraModuleSha256,
+      ["MailAuthorization:Source:PlanSchemaSha256"] = attestation.Source.PlanSchemaSha256,
+    }).Build();
+    var runtime = MailAuthorizationDeploymentConfiguration.Read(runtimeConfiguration, fixture.FirmId, observedRepositoryCommit);
     var options = fixture.Options with { OutboundMailEnabled = true, VerificationMaxAge = TimeSpan.FromHours(24), MailAuthorization = runtime, MailEvidenceEnrollmentEnabled = true };
     var factory = new TenantAdministrationDbFactory(fixture.Pg.Options);
     db.TenantCapabilityVerifications.Add(new TenantCapabilityVerification
@@ -496,6 +518,34 @@ public sealed class MailAuthorizationAttestationTests
     var workerReceipt = await new MailAuthorizationRuntimeGate(factory, source, runtime, TimeProvider.System)
       .RequireCurrentAsync(fixture.FirmId, snapshot.TenantId, snapshot.RuntimeClientId, snapshot.SenderMailboxObjectIds[0], CancellationToken.None);
     Assert.Equal(status.AuthorizationEvidence.AttestationSha256, workerReceipt.AttestationDigest);
+
+    // This composes the enrolled source, current-binding gate and Graph sender used by Worker.Program.
+    // The signer and HTTP transport are synthetic; this proves protocol wiring only, never live authorization or delivery.
+    var certificateDirectory = Path.Combine(Path.GetTempPath(), "auditsphere-enrolled-mail-composition-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(certificateDirectory);
+    try
+    {
+      var certificatePath = Path.Combine(certificateDirectory, "certificate.pem");
+      var privateKeyPath = Path.Combine(certificateDirectory, "private-key.pem");
+      await File.WriteAllTextAsync(certificatePath, signer.ExportCertificatePem());
+      using (var privateKey = signer.GetRSAPrivateKey()!)
+        await File.WriteAllTextAsync(privateKeyPath, privateKey.ExportPkcs8PrivateKeyPem());
+      var graphOptions = new GraphMailOptions(snapshot.TenantId.ToString("D"), snapshot.RuntimeClientId.ToString("D"),
+        snapshot.SenderMailboxObjectIds[0].ToString("D"), certificatePath, privateKeyPath, fixture.FirmId);
+      var transport = new MailAuthorizationRequestCountingHandler(snapshot.TenantId, snapshot.RuntimeClientId);
+      using var http = new HttpClient(transport);
+      var sender = new GraphPbcMailSender(http, graphOptions,
+        new MailAuthorizationRuntimeGate(factory, source, runtime, TimeProvider.System), TimeProvider.System);
+      await sender.SendAsync(new PbcMailPlan("recipient@example.test", "Synthetic composition check", "No external mail is sent.",
+        Guid.NewGuid(), FirmId: fixture.FirmId), CancellationToken.None);
+      Assert.Equal(1, transport.TokenCalls);
+      Assert.Equal(1, transport.GraphCalls);
+    }
+    finally
+    {
+      Directory.Delete(certificateDirectory, recursive: true);
+    }
+
     await Assert.ThrowsAsync<IOException>(() => new EnrolledMailAuthorizationAttestationSource(factory,
       runtime with { FirmId = Guid.NewGuid() }).ReadAsync(CancellationToken.None));
     var changed = (await TenantCapabilityService.StatusesAsync(db, fixture.FirmId,
@@ -710,13 +760,14 @@ public sealed class MailAuthorizationAttestationTests
   }
 
   private static MailAuthorizationAttestation CreateAttestation(MailAuthorizationProviderSnapshot snapshot,
-    DateTimeOffset observed, DateTimeOffset expires, Guid? connectionRevisionId = null, Guid? consentAttemptId = null) =>
+    DateTimeOffset observed, DateTimeOffset expires, Guid? connectionRevisionId = null, Guid? consentAttemptId = null,
+    string repositoryCommit = "0123456789abcdef0123456789abcdef01234567") =>
     MailAuthorizationAttestationCanonicalizer.Create(
       connectionRevisionId ?? Guid.Parse("10000000-0000-4000-8000-000000000001"),
       consentAttemptId ?? Guid.Parse("10000000-0000-4000-8000-000000000002"),
       new string('a', 64),
       new MailAuthorizationSourceIdentity(
-        "0123456789abcdef0123456789abcdef01234567", new string('b', 64), new string('c', 64), new string('d', 64),
+        repositoryCommit, new string('b', 64), new string('c', 64), new string('d', 64),
         new string('e', 64), new string('f', 64), new string('1', 64)),
       observed, expires, snapshot);
 
