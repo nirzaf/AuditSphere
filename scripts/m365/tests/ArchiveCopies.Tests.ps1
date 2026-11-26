@@ -124,7 +124,8 @@ function New-Readback($OperationPlan = (New-PinnedOperationPlan)) {
   $receipts = @($files | ForEach-Object -Begin { $i = 50 } -Process {
     $i++
     [ordered]@{ receiptId = ('00000000-0000-4000-8000-{0:D12}' -f $i); attemptToken = 3 } + $_
-  } | Sort-Object -Property sourceKeySha256 -Descending)
+  })
+  [Array]::Reverse($receipts)
   $resultPermissions = [ordered]@{
     expectedPermissionsJson = $permissionJson; expectedPermissionsSha256 = $script:permissionDigest
     observedPermissionsJson = $permissionJson; observedPermissionsSha256 = $script:permissionDigest
@@ -202,8 +203,12 @@ Assert-That 'matching-application-evidence-stays-incomplete' ($positive.Status -
   $positive.Result.checks[0].state -eq 'PASS' -and $positive.Result.checks[1].state -eq 'INCOMPLETE_EVIDENCE' -and
   @($positive.Result.blockedPrerequisites).Count -eq 4 -and $positive.Result.mutationsAttempted -eq 0 -and
   $positive.Result.mutationsConfirmed -eq 0) "status=$($positive.Status); errorCode=$($positive.Result.errorCode); checkStates=$(@($positive.Result.checks | ForEach-Object state) -join ','); blockers=$(@($positive.Result.blockedPrerequisites) -join ',')"
-Assert-That 'distinct-file-timestamps-match-reordered-receipts' (@($positiveEvidence.result.files.readBackAt | Select-Object -Unique).Count -eq 3 -and
-  $positiveEvidence.fileReceipts[0].sourceKeySha256 -cne $positiveEvidence.result.files[0].sourceKeySha256)
+$positiveReadTimes = @($positiveEvidence.result.files | ForEach-Object { $_.readBackAt } | Select-Object -Unique)
+$receiptFirstSource = [string] $positiveEvidence.fileReceipts[0].sourceKeySha256
+$fileFirstSource = [string] $positiveEvidence.result.files[0].sourceKeySha256
+Assert-That 'three-distinct-file-timestamps' ($positiveReadTimes.Count -eq 3) "times=$($positiveReadTimes -join ',')"
+Assert-That 'receipts-reordered-independently-of-files' ($receiptFirstSource -cne $fileFirstSource) `
+  "receiptFirst=$receiptFirstSource; fileFirst=$fileFirstSource"
 Assert-That 'transport-is-three-exact-get-requests' ($positive.Handler.SendCount -eq 3 -and
   @($positive.Handler.Methods | Where-Object { $_ -cne 'GET' }).Count -eq 0 -and
   $positive.Handler.Uris[1] -ceq "$($script:plan.publicBaseUri.TrimEnd('/'))/api/ui/records/archive-copies/$operationIdText/evidence") "count=$($positive.Handler.SendCount); methods=$($positive.Handler.Methods -join ',')"
