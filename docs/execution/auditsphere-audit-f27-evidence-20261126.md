@@ -59,4 +59,4 @@ AUDITSPHERE_TEST_CONNECTION='Host=127.0.0.1;Port=5433;Database=auditsphere_tests
 
 It found no `public.client_accounting_profiles` table in that database. No deployment or production data was queried. Because this test database cannot establish the retained rows on a migration target, obtain the specifically authorized target identity and perform the required read-only row inventory before applying the migration. Incompatible rows must remain untouched until an owner-directed remediation decision; the new constraint will refuse the migration if they exist.
 
-`git diff --check` passed. `python3 scripts/docs/validate-markdown-documentation.py` passed (194 Markdown files, 3,076 relative links, 286 repository paths, zero deleted references). Exact-SHA CI is `NOT_RUN`. No production migration or release was performed.
+`git diff --check` passed. `python3 scripts/docs/validate-markdown-documentation.py` passed (194 Markdown files, 3,076 relative links, 286 repository paths, zero deleted references). Fast CI run `45880703868` is `IN_PROGRESS` on exact SHA `efeed02cbf656027817ff31c4152ca5877e858f2`. No production migration or release was performed.

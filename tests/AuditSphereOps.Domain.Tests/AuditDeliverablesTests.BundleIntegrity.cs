@@ -12,6 +12,16 @@ namespace AuditSphereOps.Domain.Tests;
 
 public sealed partial class AuditDeliverablesTests
 {
+  [Fact]
+  public void BundlePartsWithinLimit_UsesCheckedInclusive64BitArithmetic()
+  {
+    const long limit = 100L * 1024 * 1024;
+    Assert.True(AuditDeliverableService.BundlePartsWithinLimit([limit - 1, 1], limit, out var exactTotal));
+    Assert.Equal(limit, exactTotal);
+    Assert.False(AuditDeliverableService.BundlePartsWithinLimit([limit, 1], limit, out _));
+    Assert.False(AuditDeliverableService.BundlePartsWithinLimit([long.MaxValue, 1], limit, out _));
+  }
+
   [Theory]
   [InlineData("report")]
   [InlineData("management")]

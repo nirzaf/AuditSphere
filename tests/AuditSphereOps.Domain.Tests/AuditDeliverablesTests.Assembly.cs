@@ -443,6 +443,23 @@ public sealed partial class AuditDeliverablesTests
         new ReportCertificateSigningTests.FixedSource(null, required: true));
       Assert.Equal(ErrorCodes.GateBlocked, imageOnly.ErrorCode);
       Assert.Contains("signature image only", imageOnly.Message);
+      var sourceDeliverablesBefore = await db.AuditDeliverables.AsNoTracking()
+        .Where(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId).OrderBy(x => x.Id)
+        .Select(x => new { x.Id, x.ContentSha256 }).ToArrayAsync();
+      var statementArtifactsBefore = await db.FinancialPackageArtifacts.AsNoTracking()
+        .Where(x => x.FinancialPackageId == packageId).OrderBy(x => x.Id)
+        .Select(x => new { x.Id, x.ArtifactSha256Hex }).ToArrayAsync();
+      var finalPartsOverLimit = await AuditDeliverableService.AssembleBundleWithByteLimitForTestsAsync(
+        db, partner, w.EngagementId, true, finalByteLimit: 1);
+      Assert.Equal(ErrorCodes.GateBlocked, finalPartsOverLimit.ErrorCode);
+      Assert.Contains("100 MB assembly limit", finalPartsOverLimit.Message);
+      Assert.Empty(await db.CommercialDeliverableBundles.ToListAsync());
+      Assert.Equal(sourceDeliverablesBefore, await db.AuditDeliverables.AsNoTracking()
+        .Where(x => x.FirmId == w.FirmId && x.EngagementId == w.EngagementId).OrderBy(x => x.Id)
+        .Select(x => new { x.Id, x.ContentSha256 }).ToArrayAsync());
+      Assert.Equal(statementArtifactsBefore, await db.FinancialPackageArtifacts.AsNoTracking()
+        .Where(x => x.FinancialPackageId == packageId).OrderBy(x => x.Id)
+        .Select(x => new { x.Id, x.ArtifactSha256Hex }).ToArrayAsync());
       var assembled = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true);
       Assert.True(assembled.Succeeded, assembled.Message);
       var again = await AuditDeliverableService.AssembleBundleAsync(db, partner, w.EngagementId, true);

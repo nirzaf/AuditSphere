@@ -639,6 +639,7 @@ For the complete documentation index, authority hierarchy, current requirements,
 - Retired Web (historical): the Blazor completion, portal and quotation panels and their host endpoints are preserved at the pre-removal commit only. Current delivery is the API plus Angular workspaces; worker policy defaults remain in `Worker/appsettings.json`.
 - Tests: `AuditDeliverablesTests.Assembly.cs`, `CompletionBundleFixture.cs`, `CommercialWorkflowTests` and `CompletionDeliverablesJourneyTests`.
 - Bundle assembly rechecks the current signature policy before returning an existing bundle. Certificate-signed reports require the matching certification credential; missing/mismatched credentials refuse both new assembly and replay. Stored bundle downloads remain separate authorized reads. No signing requirement is enabled by this guard. The retired Web completion panel is historical; the API/Angular path carries the configured signing policy and credential source. Correspondence count guards are followed by limit-plus-one reads and result checks, so concurrent appends cannot cause an unbounded materialization. Integrity checks cover the stored representation template as well as the report, management letter, signed scan and statement PDF.
+- Bundle assembly keeps its source-size precheck and also checked-sums every rendered part plus `manifest.json`, then checks the completed ZIP length against the 100 MiB ceiling before persistence. Over-limit refusal creates no bundle.
 
 ## Protected open-session presentation
 

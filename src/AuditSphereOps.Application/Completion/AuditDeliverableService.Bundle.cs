@@ -22,10 +22,23 @@ public sealed record BundleAssemblyState(IReadOnlyList<string> Blockers, IReadOn
 public static partial class AuditDeliverableService
 {
   internal const int MaxClientPortalBundles = 100;
+  private const long MaximumBundleBytes = 100L * 1024 * 1024;
 
   /// <summary>All byte assembly is local. The financial release/checkpoint and posted invoice must already exist.</summary>
-  public static async Task<CommandResult<Guid>> AssembleBundleAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId,
+  public static Task<CommandResult<Guid>> AssembleBundleAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId,
     bool financialStatementsReviewed, CancellationToken ct = default, IReportSigningCredentialSource? signing = null)
+    => AssembleBundleCoreAsync(db, actor, engagementId, financialStatementsReviewed, MaximumBundleBytes, ct, signing);
+
+  internal static Task<CommandResult<Guid>> AssembleBundleWithByteLimitForTestsAsync(IAuditSphereDbContext db, ActorContext actor,
+    Guid engagementId, bool financialStatementsReviewed, long finalByteLimit, CancellationToken ct = default,
+    IReportSigningCredentialSource? signing = null)
+  {
+    if (finalByteLimit is < 0 or > MaximumBundleBytes) throw new ArgumentOutOfRangeException(nameof(finalByteLimit));
+    return AssembleBundleCoreAsync(db, actor, engagementId, financialStatementsReviewed, finalByteLimit, ct, signing);
+  }
+
+  private static async Task<CommandResult<Guid>> AssembleBundleCoreAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId,
+    bool financialStatementsReviewed, long finalByteLimit, CancellationToken ct, IReportSigningCredentialSource? signing)
   {
     var auth = await AuthorizePartnerAsync(db, actor, engagementId, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -69,7 +82,7 @@ public static partial class AuditDeliverableService
       Profile = firm?.Id, CertifiedBy = actor.UserId });
     var prior = await db.CommercialDeliverableBundles.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.SourceDigest == sourceDigest, ct);
     if ((long)report.Content.Length + management.Content.Length + scan.Content.Length + statements.ArtifactBytes.Length +
-        statementWord.ArtifactBytes.Length + statementExcel.ArtifactBytes.Length + Encoding.UTF8.GetByteCount(correspondenceJson) > 100 * 1024 * 1024)
+        statementWord.ArtifactBytes.Length + statementExcel.ArtifactBytes.Length + Encoding.UTF8.GetByteCount(correspondenceJson) > MaximumBundleBytes)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The bundle exceeds the 100 MB assembly limit; request an approved delivery arrangement.");
     if (!ValidPdf(report.Content) || !ValidPdf(statements.ArtifactBytes))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The report or financial statements are not readable PDF artifacts.");
@@ -160,6 +173,8 @@ public static partial class AuditDeliverableService
     });
     var digest = Hashing.Sha256Hex(manifest);
     files["manifest.json"] = Encoding.UTF8.GetBytes(manifest);
+    if (!BundlePartsWithinLimit(files.Values.Select(x => x.LongLength), finalByteLimit, out _))
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The bundle exceeds the 100 MB assembly limit; request an approved delivery arrangement.");
     using var output = new MemoryStream();
     using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
       foreach (var (name, bytes) in files)
@@ -168,6 +183,8 @@ public static partial class AuditDeliverableService
         entry.LastWriteTime = new DateTimeOffset(2000, 1, 1, 0, 0, 0, TimeSpan.Zero);
         using var stream = entry.Open(); stream.Write(bytes);
       }
+    if (output.Length > finalByteLimit)
+      return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "The bundle exceeds the 100 MB assembly limit; request an approved delivery arrangement.");
     var content = output.ToArray();
     var bundle = new CommercialDeliverableBundle
     {
@@ -181,6 +198,26 @@ public static partial class AuditDeliverableService
     await db.SaveChangesAsync(ct);
     await tx.CommitAsync(ct);
     return CommandResult<Guid>.Ok(bundle.Id);
+  }
+
+  internal static bool BundlePartsWithinLimit(IEnumerable<long> partLengths, long maximumBytes, out long totalBytes)
+  {
+    ArgumentNullException.ThrowIfNull(partLengths);
+    totalBytes = 0;
+    try
+    {
+      foreach (var partLength in partLengths)
+      {
+        if (partLength < 0) return false;
+        totalBytes = checked(totalBytes + partLength);
+      }
+    }
+    catch (OverflowException)
+    {
+      totalBytes = long.MaxValue;
+      return false;
+    }
+    return totalBytes <= maximumBytes;
   }
 
   private sealed record BundleInputs(List<string> Blockers, AuditDeliverable? Report, AuditDeliverable? Management,
