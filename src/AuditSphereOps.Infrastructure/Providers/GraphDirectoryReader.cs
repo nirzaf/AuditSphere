@@ -10,6 +10,8 @@ namespace AuditSphereOps.Infrastructure.Providers;
 public sealed class GraphDirectoryReader(HttpClient http, IDirectoryTokenSource tokens,
   DirectoryCertificateOptions options) : IMicrosoftDirectoryReader
 {
+  private const int MaximumResponseBytes = 262144;
+
   public async Task<DirectoryCandidatePage> BrowseActiveAsync(string tenantId, string? domain,
     string? pageToken, CancellationToken ct)
   {
@@ -37,13 +39,12 @@ public sealed class GraphDirectoryReader(HttpClient http, IDirectoryTokenSource 
     using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
     if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
       throw new SafeRetryException(response.Headers.RetryAfter?.Delta);
-    if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength is > 262144)
+    if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength is > MaximumResponseBytes)
       throw new OperationBlockedException("directory-reader-graph-rejected",
         authorization: response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden);
     try
     {
-      using var document = await JsonDocument.ParseAsync(
-        await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+      using var document = await ReadBoundedJsonAsync(response.Content, ct);
       var root = document.RootElement;
       if (!root.TryGetProperty("value", out var value) || value.ValueKind != JsonValueKind.Array)
         throw new OperationBlockedException("directory-reader-graph-invalid");
@@ -103,13 +104,12 @@ public sealed class GraphDirectoryReader(HttpClient http, IDirectoryTokenSource 
     using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
     if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
       throw new SafeRetryException(response.Headers.RetryAfter?.Delta);
-    if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength is > 262144)
+    if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength is > MaximumResponseBytes)
       throw new OperationBlockedException("directory-reader-graph-rejected",
         authorization: response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden);
     try
     {
-      using var document = await JsonDocument.ParseAsync(
-        await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+      using var document = await ReadBoundedJsonAsync(response.Content, ct);
       var root = document.RootElement;
       if (!root.TryGetProperty("value", out var value) || value.ValueKind != JsonValueKind.Array)
         throw new OperationBlockedException("directory-reader-graph-invalid");
@@ -154,13 +154,12 @@ public sealed class GraphDirectoryReader(HttpClient http, IDirectoryTokenSource 
     using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
     if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
       throw new SafeRetryException(response.Headers.RetryAfter?.Delta);
-    if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength is > 262144)
+    if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength is > MaximumResponseBytes)
       throw new OperationBlockedException("directory-reader-graph-rejected",
         authorization: response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden);
     try
     {
-      using var document = await JsonDocument.ParseAsync(
-        await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+      using var document = await ReadBoundedJsonAsync(response.Content, ct);
       var candidate = Candidate(document.RootElement, tenant);
       if (candidate.ObjectId != identity.ToString("D"))
         throw new OperationBlockedException("directory-reader-identity-mismatch", authorization: true);
@@ -182,6 +181,22 @@ public sealed class GraphDirectoryReader(HttpClient http, IDirectoryTokenSource 
     return new(tenant.ToString("D"), objectId.ToString("D"),
       Text(item, "displayName"), Text(item, "userPrincipalName"),
       enabled.GetBoolean(), Text(item, "userType"));
+  }
+
+  private static async Task<JsonDocument> ReadBoundedJsonAsync(HttpContent content, CancellationToken ct)
+  {
+    await using var stream = await content.ReadAsStreamAsync(ct);
+    var bytes = new byte[MaximumResponseBytes + 1];
+    var length = 0;
+    while (length < bytes.Length)
+    {
+      var read = await stream.ReadAsync(bytes.AsMemory(length, bytes.Length - length), ct);
+      if (read == 0) break;
+      length += read;
+    }
+    if (length > MaximumResponseBytes)
+      throw new OperationBlockedException("directory-reader-graph-rejected");
+    return JsonDocument.Parse(bytes.AsMemory(0, length));
   }
 
   private static string Text(JsonElement item, string name) =>

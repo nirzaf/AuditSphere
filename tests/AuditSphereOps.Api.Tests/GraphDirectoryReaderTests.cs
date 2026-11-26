@@ -142,6 +142,101 @@ public sealed class GraphDirectoryReaderTests
     Assert.False(candidate.AccountEnabled);
   }
 
+  [Theory]
+  [InlineData("browse")]
+  [InlineData("search")]
+  [InlineData("id")]
+  public async Task GraphResponsesEnforceByteBoundForHeaderlessAndMisleadingLengths(string method)
+  {
+    var objectId = Guid.NewGuid();
+    var exactStream = new TrackingReadStream(Payload(method, 262144, objectId));
+    var exactReader = Reader(exactStream);
+    await InvokeAsync(exactReader, method, objectId, default);
+    Assert.Equal(262144, exactStream.BytesRead);
+    Assert.True(exactStream.IsDisposed);
+
+    foreach (var declaredLength in new long?[] { null, 1 })
+    {
+      var oversizedStream = new TrackingReadStream(Payload(method, 262145, objectId));
+      var oversizedReader = Reader(oversizedStream, declaredLength);
+      var returned = false;
+      var exception = await Assert.ThrowsAsync<OperationBlockedException>(async () =>
+      {
+        await InvokeAsync(oversizedReader, method, objectId, default);
+        returned = true;
+      });
+      Assert.Equal("directory-reader-graph-rejected", exception.Message);
+      Assert.False(returned);
+      Assert.Equal(262145, oversizedStream.BytesRead);
+      Assert.True(oversizedStream.IsDisposed);
+    }
+  }
+
+  [Theory]
+  [InlineData("browse")]
+  [InlineData("search")]
+  [InlineData("id")]
+  public async Task GraphResponseReadPropagatesCancellation(string method)
+  {
+    using var cts = new CancellationTokenSource();
+    var objectId = Guid.NewGuid();
+    var stream = new TrackingReadStream(Payload(method, 1024, objectId), cts);
+    var reader = Reader(stream);
+    var returned = false;
+    await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+    {
+      await InvokeAsync(reader, method, objectId, cts.Token);
+      returned = true;
+    });
+    Assert.False(returned);
+    Assert.True(cts.IsCancellationRequested);
+    Assert.True(stream.IsDisposed);
+  }
+
+  private static GraphDirectoryReader Reader(TrackingReadStream stream, long? declaredLength = null)
+  {
+    var handler = new StubHandler(_ =>
+    {
+      var content = new StreamContent(stream);
+      content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+      if (declaredLength is not null) content.Headers.ContentLength = declaredLength;
+      Assert.Equal(declaredLength, content.Headers.ContentLength);
+      return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
+    });
+    return new GraphDirectoryReader(new HttpClient(handler), new StubTokenSource(
+      new("opaque", Tenant, new HashSet<string> { "User.Read.All" })), Options);
+  }
+
+  private static byte[] Payload(string method, int length, Guid objectId)
+  {
+    var prefix = method == "id"
+      ? "{\"id\":\"" + objectId.ToString("D") + "\",\"displayName\":\"Ada\",\"userPrincipalName\":\"ada@example.test\",\"accountEnabled\":true,\"userType\":\"Member\",\"padding\":\""
+      : "{\"value\":[],\"padding\":\"";
+    const string suffix = "\"}";
+    var paddingLength = length - Encoding.UTF8.GetByteCount(prefix) - Encoding.UTF8.GetByteCount(suffix);
+    if (paddingLength < 0) throw new ArgumentOutOfRangeException(nameof(length));
+    return Encoding.UTF8.GetBytes(prefix + new string('x', paddingLength) + suffix);
+  }
+
+  private static async Task InvokeAsync(GraphDirectoryReader reader, string method, Guid objectId,
+    CancellationToken ct)
+  {
+    switch (method)
+    {
+      case "browse":
+        await reader.BrowseActiveAsync(Tenant, "example.test", null, ct);
+        return;
+      case "search":
+        await reader.SearchAsync(Tenant, "Ada", null, ct, "example.test");
+        return;
+      case "id":
+        await reader.GetByIdAsync(Tenant, objectId.ToString("D"), ct);
+        return;
+      default:
+        throw new ArgumentOutOfRangeException(nameof(method));
+    }
+  }
+
   private static HttpResponseMessage Json(string value) => new(HttpStatusCode.OK)
   {
     Content = new StringContent(value, Encoding.UTF8, "application/json")
@@ -156,5 +251,47 @@ public sealed class GraphDirectoryReaderTests
   {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
       Task.FromResult(send(request));
+  }
+
+  private sealed class TrackingReadStream(byte[] content, CancellationTokenSource? cancelOnRead = null) : Stream
+  {
+    private int position;
+    public int BytesRead { get; private set; }
+    public bool IsDisposed { get; private set; }
+    public override bool CanRead => true;
+    public override bool CanSeek => false;
+    public override bool CanWrite => false;
+    public override long Length => throw new NotSupportedException();
+    public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+    public override void Flush() { }
+    public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+    public override int Read(Span<byte> buffer)
+    {
+      var count = Math.Min(buffer.Length, content.Length - position);
+      content.AsSpan(position, count).CopyTo(buffer);
+      position += count;
+      BytesRead += count;
+      return count;
+    }
+    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+      if (cancelOnRead is not null)
+      {
+        cancelOnRead.Cancel();
+        cancellationToken.ThrowIfCancellationRequested();
+      }
+      cancellationToken.ThrowIfCancellationRequested();
+      return ValueTask.FromResult(Read(buffer.Span));
+    }
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+      ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+    protected override void Dispose(bool disposing)
+    {
+      IsDisposed = true;
+      base.Dispose(disposing);
+    }
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+    public override void SetLength(long value) => throw new NotSupportedException();
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
   }
 }
