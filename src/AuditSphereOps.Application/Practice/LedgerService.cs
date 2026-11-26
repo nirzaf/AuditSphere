@@ -138,6 +138,9 @@ public static partial class LedgerService
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var lockedPeriod = await LoadPeriodForUpdateAsync(db, actor.FirmId, request.PeriodId, ct);
     if (lockedPeriod is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    // Re-evaluate current grants and session after the firm and period locks, before replay or mutation.
+    auth = await AuthorizeFirmAsync(db, actor, ManagerRoles, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (lockedPeriod.Status != LedgerStates.PeriodOpen)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A closed period cannot receive a journal draft.");
     var sourceKind = request.SourceKind.Trim().ToUpperInvariant();
@@ -329,6 +332,9 @@ public static partial class LedgerService
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
     var lockedPeriod = await LoadPeriodForUpdateAsync(db, actor.FirmId, period.Id, ct);
+    // Re-evaluate current grants and session after the firm and period locks, before replay or mutation.
+    auth = await AuthorizeFirmAsync(db, actor, ReviewerRoles, ct);
+    if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
     if (lockedPeriod is null || lockedPeriod.Status != LedgerStates.PeriodOpen)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A reversal requires an open period.");
     var sourceKey = original.Id.ToString("D");

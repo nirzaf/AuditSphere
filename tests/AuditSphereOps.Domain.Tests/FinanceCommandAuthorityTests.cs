@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Text.Json;
 using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Completion;
 using AuditSphereOps.Application.Practice;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Practice;
@@ -17,7 +18,8 @@ public sealed class FinanceCommandAuthorityTests
 {
   public static IEnumerable<object[]> Commands =>
     from command in new[] { "invoice-submit", "invoice-approve", "invoice-post", "invoice-send",
-      "journal-submit", "journal-approve", "journal-post", "period-close", "period-reopen",
+      "journal-draft", "journal-submit", "journal-approve", "journal-post", "journal-reverse",
+      "firm-seal", "period-close", "period-reopen",
       "rate-revise", "rate-approve" }
     from revoke in new[] { false, true }
     select new object[] { command, revoke };
@@ -29,8 +31,9 @@ public sealed class FinanceCommandAuthorityTests
     await using var f = await TenantAdministrationFixture.CreateAsync();
     using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(60));
     var ct = deadline.Token;
-    var role = command is "invoice-approve" or "journal-approve" or "period-close"
-      ? "FinanceReviewer" : command.StartsWith("rate-", StringComparison.Ordinal) ? "Manager" : "FinanceManager";
+    var role = command is "invoice-approve" or "journal-approve" or "journal-reverse" or "period-close"
+      ? "FinanceReviewer" : command == "firm-seal" ? "Partner"
+      : command.StartsWith("rate-", StringComparison.Ordinal) ? "Manager" : "FinanceManager";
     var candidate = TenantAdministrationFixture.User(f.FirmId, f.TenantId, "finance@example.test", "Finance actor");
     var other = TenantAdministrationFixture.User(f.FirmId, f.TenantId, "other@example.test", "Other finance actor");
     var maker = TenantAdministrationFixture.User(f.FirmId, f.TenantId, "maker@example.test", "Finance maker");
@@ -97,7 +100,7 @@ public sealed class FinanceCommandAuthorityTests
     else
     {
       Assert.True(result.Succeeded, result.Message);
-      await AssertOutcomeAsync(proof, command, target, ct);
+      await AssertOutcomeAsync(proof, command, target, actor, ct);
       if (command != "rate-revise")
       {
         var after = await BusinessSnapshotAsync(proof, ct);
@@ -110,6 +113,7 @@ public sealed class FinanceCommandAuthorityTests
   private static async Task<Guid> PrepareAsync(AuditSphereDbContext db, ActorContext maker, ActorContext checker,
     Guid clientId, string command, CancellationToken ct)
   {
+    if (command == "firm-seal") return Guid.Empty;
     if (command.StartsWith("invoice-", StringComparison.Ordinal))
     {
       var account = await BillingService.CreateBillingAccountAsync(db, maker, new(clientId, "QAR"), ct);
@@ -138,18 +142,50 @@ public sealed class FinanceCommandAuthorityTests
     var equity = await LedgerService.CreateFirmAccountAsync(db, maker, new("EQUITY", "Equity", LedgerStates.AccountEquity, LedgerStates.Credit), ct);
     Assert.True(cash.Succeeded, cash.Message);
     Assert.True(equity.Succeeded, equity.Message);
+    if (command == "journal-draft") return period.Value;
     var journal = await LedgerService.CreateFirmJournalDraftAsync(db, maker,
       new(period.Value, "FENCE-JOURNAL", "MANUAL", "FENCE-SOURCE", 1, "OPENING_BALANCE", "QAR",
         [new(cash.Value, "Cash", 125.12m, 0), new(equity.Value, "Equity", 0, 125.12m)],
         "support.txt", "text/plain", "Synthetic authority fixture"u8.ToArray()), ct);
     Assert.True(journal.Succeeded, journal.Message);
     if (command != "journal-submit") Assert.True((await LedgerService.SubmitFirmJournalAsync(db, maker, journal.Value, ct)).Succeeded);
-    if (command == "journal-post") Assert.True((await LedgerService.ApproveFirmJournalAsync(db, checker, journal.Value, ct)).Succeeded);
+    if (command is "journal-post" or "journal-reverse")
+      Assert.True((await LedgerService.ApproveFirmJournalAsync(db, checker, journal.Value, ct)).Succeeded);
+    if (command == "journal-reverse")
+    {
+      Assert.True((await LedgerService.PostFirmJournalAsync(db, maker, journal.Value, ct)).Succeeded);
+      return period.Value;
+    }
     return journal.Value;
   }
 
   private static async Task<CommandResult> ExecuteAsync(AuditSphereDbContext db, ActorContext actor, string command, Guid target, CancellationToken ct)
   {
+    if (command == "firm-seal")
+    {
+      var seal = await AuditDeliverableService.RegisterFirmSealAsync(db, actor, CompletionTestFixtures.Png(100, 100), ct);
+      return new(seal.Succeeded, seal.ErrorCode, seal.Message);
+    }
+    if (command == "journal-draft")
+    {
+      var cashId = await db.FirmAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Code == "CASH")
+        .Select(x => x.Id).SingleAsync(ct);
+      var equityId = await db.FirmAccounts.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.Code == "EQUITY")
+        .Select(x => x.Id).SingleAsync(ct);
+      var draft = await LedgerService.CreateFirmJournalDraftAsync(db, actor,
+        new(target, "FENCE-JOURNAL-DRAFT", "MANUAL", "FENCE-SOURCE-DRAFT", 1, "OPENING_BALANCE", "QAR",
+          [new(cashId, "Cash", 125.12m, 0), new(equityId, "Equity", 0, 125.12m)],
+          "support.txt", "text/plain", "Synthetic authority fixture"u8.ToArray()), ct);
+      return new(draft.Succeeded, draft.ErrorCode, draft.Message);
+    }
+    if (command == "journal-reverse")
+    {
+      var postingId = await db.FirmPostings.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ReversalOfPostingId == null)
+        .Select(x => x.Id).SingleAsync(ct);
+      var reversal = await LedgerService.ReverseFirmPostingAsync(db, actor,
+        new(postingId, target, "Fence reversal"), ct);
+      return new(reversal.Succeeded, reversal.ErrorCode, reversal.Message);
+    }
     if (command == "journal-post")
     {
       var result = await LedgerService.PostFirmJournalAsync(db, actor, target, ct);
@@ -175,8 +211,29 @@ public sealed class FinanceCommandAuthorityTests
     };
   }
 
-  private static async Task AssertOutcomeAsync(AuditSphereDbContext db, string command, Guid target, CancellationToken ct)
+  private static async Task AssertOutcomeAsync(AuditSphereDbContext db, string command, Guid target,
+    ActorContext actor, CancellationToken ct)
   {
+    if (command == "firm-seal")
+    {
+      var seal = await db.FirmSealSpecimens.AsNoTracking().SingleAsync(ct);
+      Assert.Equal(actor.UserId, seal.RegisteredByUserId);
+      return;
+    }
+    if (command == "journal-draft")
+    {
+      var draft = await db.FirmJournals.AsNoTracking().SingleAsync(x => x.SourceKey == "FENCE-SOURCE-DRAFT", ct);
+      Assert.Equal(actor.UserId, draft.CreatedByUserId);
+      Assert.Equal(LedgerStates.JournalDraft, draft.Status);
+      return;
+    }
+    if (command == "journal-reverse")
+    {
+      var reversal = await db.FirmPostings.AsNoTracking()
+        .SingleAsync(x => x.FirmId == actor.FirmId && x.ReversalOfPostingId != null, ct);
+      Assert.Equal(actor.UserId, reversal.PostedByUserId);
+      return;
+    }
     var expected = command switch
     {
       "invoice-submit" => BillingStates.InvoiceReviewRequired, "invoice-approve" => BillingStates.InvoiceApproved,
@@ -211,12 +268,14 @@ public sealed class FinanceCommandAuthorityTests
   {
     Invoices = await db.Invoices.AsNoTracking().OrderBy(x => x.Id).ToListAsync(ct),
     Journals = await db.FirmJournals.AsNoTracking().OrderBy(x => x.Id).ToListAsync(ct),
+    JournalLines = await db.FirmJournalLines.AsNoTracking().OrderBy(x => x.Id).ToListAsync(ct),
     Periods = await db.FirmPeriods.AsNoTracking().OrderBy(x => x.Id).ToListAsync(ct),
     Rates = await db.RateCardVersions.AsNoTracking().OrderBy(x => x.Id).ToListAsync(ct),
     Postings = await db.FirmPostings.AsNoTracking().OrderBy(x => x.Id).ToListAsync(ct),
     Lines = await db.FirmPostingLines.AsNoTracking().OrderBy(x => x.Id).ToListAsync(ct),
     Sources = await db.LedgerSourceLinks.AsNoTracking().OrderBy(x => x.Id).ToListAsync(ct),
     Receipts = await db.LedgerPostingReceipts.AsNoTracking().OrderBy(x => x.Id).ToListAsync(ct),
+    Seals = await db.FirmSealSpecimens.AsNoTracking().OrderBy(x => x.Version).ToListAsync(ct),
     BillingReceipts = await db.BillingCommandReceipts.AsNoTracking().OrderBy(x => x.Id).ToListAsync(ct),
     Decisions = await db.PeriodCloseDecisions.AsNoTracking().OrderBy(x => x.Id).ToListAsync(ct)
   });
