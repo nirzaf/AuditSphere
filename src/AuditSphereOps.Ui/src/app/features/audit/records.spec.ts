@@ -14,12 +14,14 @@ import {
   decodeReviewPoint,
   decodeRelease,
   decodeArchive,
+  decodeArchiveCommercialBundlePage,
   ArchiveRecord,
 } from './records';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
 const id3 = '33333333-3333-4333-8333-333333333333';
+const id4 = '44444444-4444-4444-8444-444444444444';
 const hash64 = 'e'.repeat(64);
 
 describe('Audit Records Contracts', () => {
@@ -177,15 +179,21 @@ describe('Archive intent recovery', () => {
   const key = archiveIntentKey(scope);
   afterEach(() => { vi.restoreAllMocks(); sessionStorage.removeItem(key); TestBed.resetTestingModule(); });
 
-  async function setup(review = false) {
+  async function setup(review = false, reviewNullBundle = true) {
     const data = signal<ReturnType<typeof decodeArchive> | null>(null);
     const resource = { data, loading: signal(false), error: signal(''), reload: vi.fn() };
+    const bundleData = signal<ReturnType<typeof decodeArchiveCommercialBundlePage> | null>(null);
+    const bundleResource = { data: bundleData, loading: signal(false), error: signal(''), reload: vi.fn() };
     let decode!: typeof decodeArchive;
+    let nextResourceIsBundle = false;
     const session = { current: signal({ userId: id1, firmId: id3, generation: '1', staff: true }), invalidation: signal(0), refresh: vi.fn() };
     const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
     TestBed.configureTestingModule({ imports: [ArchiveRecord], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
       { provide: ActivatedRoute, useValue: { paramMap: params } }, { provide: SessionService, useValue: session },
-      { provide: Api, useValue: { resource: (_url: unknown, decoder: typeof decodeArchive) => { decode = decoder; return resource; } } }] });
+      { provide: Api, useValue: { resource: (_url: unknown, decoder: typeof decodeArchive) => {
+        if (nextResourceIsBundle) { nextResourceIsBundle = false; return bundleResource; }
+        nextResourceIsBundle = true; decode = decoder; return resource;
+      } } }] });
     let fixture = TestBed.createComponent(ArchiveRecord);
     const raw = { id: id1, engagementId: id2, status: review ? 'MANIFEST_BUILT' : 'ISSUED', createdAt: '2026-11-01T10:00:00Z',
       profileId: 'ISQM1-PROFILE', profileVersion: 1, manifestVersion: review ? 1 : null, manifestId: review ? id2 : null,
@@ -194,7 +202,15 @@ describe('Archive intent recovery', () => {
       activeHoldCount: 0, observedProtection: null, desiredLabel: null, observedLabel: null, actionState: null, externalReference: null, secondarySharePointCopy: null };
     const read = async (changes: Record<string, unknown> = {}) => { Object.assign(raw, changes); data.set(decode(raw, 'archive')); await fixture.whenStable(); };
     await read();
-    return { get component() { return fixture.componentInstance; }, get fixture() { return fixture; }, read, resource, session, params,
+    bundleData.set({ archiveId: id1, engagementId: id2, page: 0, hasMore: false, bundles: [
+      { id: id3, contentSha256: hash64, manifestSha256: 'a'.repeat(64), assembledAt: '2026-11-26T10:00:00Z' },
+      { id: id4, contentSha256: 'b'.repeat(64), manifestSha256: 'c'.repeat(64), assembledAt: '2026-11-25T10:00:00Z' },
+    ] });
+    if (reviewNullBundle) {
+      fixture.componentInstance.selectBundle('');
+      fixture.componentInstance.reviewBundleSelection();
+    }
+    return { get component() { return fixture.componentInstance; }, get fixture() { return fixture; }, read, resource, bundleResource, session, params,
       http: TestBed.inject(HttpTestingController), recreate: async () => { fixture.destroy(); fixture = TestBed.createComponent(ArchiveRecord); await read(); } };
   }
   const receipt = (action: string, completenessStatus = 'COMPLETE') => ({ value: {
@@ -221,6 +237,42 @@ describe('Archive intent recovery', () => {
     request.flush(receipt(action, action === 'build' ? 'INCOMPLETE' : 'COMPLETE')); await retry;
     expect(sessionStorage.getItem(key)).toBeNull(); expect(h.resource.reload).toHaveBeenCalled();
     expect(h.component.archive()).toBeNull(); h.http.verify();
+  });
+
+  it('requires a deliberate bundle decision and clears review when the selection changes', async () => {
+    const h = await setup(false, false);
+    h.component.reviewBundleSelection();
+    expect(h.component.bundleSelectionReviewed()).toBe(false);
+    expect(h.component.bundleSelectionError()).toContain('Select a bundle');
+    h.component.selectBundle(id3);
+    h.component.reviewBundleSelection();
+    expect(h.component.bundleSelectionReviewed()).toBe(true);
+    h.component.selectBundle(id4);
+    expect(h.component.bundleSelectionReviewed()).toBe(false);
+    h.component.reviewBundleSelection();
+    expect(h.component.bundleSelectionReviewed()).toBe(true);
+    h.component.selectBundle('');
+    expect(h.component.selectedBundleId()).toBeNull();
+    expect(h.component.bundleSelectionReviewed()).toBe(false);
+  });
+
+  it('retains the selected bundle ID and request key across response loss and sends the original selection on recovery', async () => {
+    const h = await setup();
+    h.component.selectBundle(id3);
+    h.component.reviewBundleSelection();
+    const firstAttempt = h.component.buildManifest(h.component.archive()!);
+    const first = h.http.expectOne(`/api/ui/records/archives/${id1}/build`), body = first.request.body;
+    expect(body).toEqual({ commercialBundleId: id3, requestKey: expect.any(String) });
+    expect(JSON.parse(sessionStorage.getItem(key)!).commercialBundleId).toBe(id3);
+    first.error(new ProgressEvent('error')); await firstAttempt;
+    await h.recreate();
+    expect(h.component.pendingIntent()?.intent.commercialBundleId).toBe(id3);
+    const retry = h.component.recoverManifest(h.component.archive()!);
+    const request = h.http.expectOne(`/api/ui/records/archives/${id1}/build`);
+    expect(request.request.body).toEqual(body);
+    request.flush(receipt('build', 'INCOMPLETE')); await retry;
+    expect(sessionStorage.getItem(key)).toBeNull();
+    h.http.verify();
   });
 
   it('preserves a newer raw reference when an older valid response arrives', async () => {
@@ -293,8 +345,13 @@ describe('Archive export visibility', () => {
   ])('shows export only for the server-authorized $label', async ({ canExport, linkVisible }) => {
     const archiveData = signal<ReturnType<typeof decodeArchive> | null>(null);
     const resource = { data: archiveData, loading: signal(false), error: signal(''), reload: vi.fn() };
+    const bundleResource = { data: signal<ReturnType<typeof decodeArchiveCommercialBundlePage> | null>(null), loading: signal(false), error: signal(''), reload: vi.fn() };
     let decode!: (raw: unknown, path: string) => ReturnType<typeof decodeArchive>;
-    const api = { resource: vi.fn((_url: unknown, decoder: typeof decode) => { decode = decoder; return resource; }) };
+    let nextResourceIsBundle = false;
+    const api = { resource: vi.fn((_url: unknown, decoder: typeof decode) => {
+      if (nextResourceIsBundle) { nextResourceIsBundle = false; return bundleResource; }
+      nextResourceIsBundle = true; decode = decoder; return resource;
+    }) };
     const session = {
       current: signal({ userId: id1, firmId: id3, generation: '1', staff: true }),
       invalidation: signal(0), refresh: vi.fn(),

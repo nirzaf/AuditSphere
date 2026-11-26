@@ -26,6 +26,10 @@ public sealed record EnsureArchiveResult(Guid ArchiveId, bool Created);
 public sealed record ArchiveManifestResult(
   Guid ArchiveId, Guid ManifestId, long ManifestVersion, string Status, string Digest, int EntryCount, string CompletenessStatus);
 
+public sealed record ArchiveCommercialBundleChoice(Guid Id, string ContentSha256, string ManifestSha256, DateTimeOffset AssembledAt);
+public sealed record ArchiveCommercialBundlePage(Guid ArchiveId, Guid EngagementId, int Page, bool HasMore,
+  IReadOnlyList<ArchiveCommercialBundleChoice> Bundles);
+
 public sealed record ArchiveManifestReviewRequest(
   Guid ManifestId, long ManifestVersion, string? ManifestDigest, string? RequestKey);
 
@@ -51,6 +55,37 @@ public sealed record ReleaseLegalHoldRequest(Guid ArchiveId, string HoldReferenc
 public static class RecordsArchiveService
 {
   private static readonly string[] CustodianRoles = ["Administrator", "Partner", "RecordsCustodian"];
+  public const int CommercialBundlePageSize = 25;
+  public const int MaximumCommercialBundlePage = 100;
+
+  /// <summary>Returns only bounded, hash-bound bundle metadata for the exact authorized archive engagement.</summary>
+  public static async Task<CommandResult<ArchiveCommercialBundlePage>> GetCommercialBundlePageAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid archiveId, int page, CancellationToken ct = default)
+  {
+    if (archiveId == Guid.Empty || page is < 0 or > MaximumCommercialBundlePage)
+      return CommandResult<ArchiveCommercialBundlePage>.Fail("records-manifest.request.invalid",
+        "The archive bundle page request is invalid.");
+
+    var authorized = await AuthorizeArchiveAsync(db, actor, archiveId, ct);
+    if (!authorized.Succeeded)
+      return CommandResult<ArchiveCommercialBundlePage>.Fail(authorized.ErrorCode!, authorized.Message!);
+    var archive = authorized.Value!;
+    var rows = await db.CommercialDeliverableBundles.AsNoTracking().Where(x => x.FirmId == archive.FirmId &&
+        x.ClientId == archive.ClientId && x.EngagementId == archive.EngagementId)
+      .OrderByDescending(x => x.AssembledAt).ThenByDescending(x => x.Id)
+      .Skip(page * CommercialBundlePageSize).Take(CommercialBundlePageSize + 1)
+      .Select(x => new ArchiveCommercialBundleChoice(x.Id, x.ContentSha256, x.ManifestSha256, x.AssembledAt))
+      .ToListAsync(ct);
+    var hasMore = rows.Count > CommercialBundlePageSize;
+    var bundles = rows.Take(CommercialBundlePageSize).ToArray();
+
+    var current = await AuthorizeArchiveAsync(db, actor, archiveId, ct);
+    if (!current.Succeeded)
+      return CommandResult<ArchiveCommercialBundlePage>.Fail(current.ErrorCode!, current.Message!);
+    if (current.Value!.ClientId != archive.ClientId || current.Value.EngagementId != archive.EngagementId)
+      return CommandResult<ArchiveCommercialBundlePage>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    return CommandResult<ArchiveCommercialBundlePage>.Ok(new(archive.Id, archive.EngagementId, page, hasMore, bundles));
+  }
 
   public static async Task<CommandResult<RecordsProfileResult>> CreateProfileAsync(
     IAuditSphereDbContext db, ActorContext actor, CreateRecordsProfileRequest request,

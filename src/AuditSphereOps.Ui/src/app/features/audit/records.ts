@@ -32,6 +32,8 @@ export const decodeRelease = obj({ id: guid, status: text, targetKind: text, tar
 export const decodeArchiveManifestResult = obj({ archiveId: guid, manifestId: guid, manifestVersion: int, status: text,
   digest: sha256, entryCount: nat, completenessStatus: text });
 const decodeArchiveManifestResponse = obj({ value: decodeArchiveManifestResult });
+export const decodeArchiveCommercialBundlePage = obj({ archiveId: guid, engagementId: guid, page: nat, hasMore: bool,
+  bundles: arr(obj({ id: guid, contentSha256: sha256, manifestSha256: sha256, assembledAt: instant }), 25) });
 export const decodeArchive = obj({ id: guid, engagementId: guid, status: text, createdAt: instant, profileId: text, profileVersion: int, manifestVersion: nullable(int),
   manifestStatus: nullable(text), manifestDigest: nullable(text), completenessStatus: nullable(text), completenessException: nullable(text), canExport: bool,
   entries: arr(obj({ ordinal: int, entryKind: text, relativeName: text, contentHash: text, byteCount: int }), 100), totalEntryCount: nat, nextOrdinal: nullable(int), activeHoldCount: nat,
@@ -296,7 +298,7 @@ export class ReleaseCandidate {
 
 @Component({
   selector: 'audit-archive',
-  imports: [RouterLink, MatButtonModule, ...SHARED],
+  imports: [FormsModule, RouterLink, MatButtonModule, ...SHARED],
   template: `
     <nav aria-label="Breadcrumb"><a routerLink="/app">Portfolio</a> / <span>Archive</span></nav>
     <audit-page-header title="Records archive" eyebrow="Records evidence" description="Immutable manifest entries, hashes, holds and protection observations for the authorized archive." />
@@ -311,13 +313,45 @@ export class ReleaseCandidate {
           <dt>Manifest hash</dt><dd><code>{{ a.manifestDigest ?? 'Not built' }}</code></dd><dt>Active holds</dt><dd>{{ a.activeHoldCount }}</dd></dl>
         @if (a.completenessStatus === 'INCOMPLETE') { <p role="alert">Manifest incomplete: {{ a.completenessException }}</p> }
         @if (a.manifestVersion === null || a.completenessStatus === 'INCOMPLETE') {
-          <button matButton="filled" type="button" [disabled]="actionBusy() || recoveryBlocked()" (click)="buildManifest(a)">Build archive manifest</button>
+          <div class="panel" aria-labelledby="commercial-bundle-heading">
+            <h3 id="commercial-bundle-heading">Commercial bundle for this archive</h3>
+            <p>Select the exact authorized bundle, or explicitly choose no commercial bundle. Review the displayed hashes before building.</p>
+            @if (bundlePage.loading()) { <p role="status">Loading bundles…</p> }
+            @if (bundlePage.error()) { <p role="alert">{{ bundlePage.error() }}</p><button matButton="outlined" type="button" (click)="bundlePage.reload()">Retry bundle list</button> }
+            @if (bundlePage.data(); as page) {
+              @if (page.bundles.length === 0 && !selectedBundleId()) { <p>No commercial bundles are available for this engagement. Choose “No commercial bundle” to continue.</p> }
+              <label>Authorized commercial bundle
+                <select name="commercialBundleId" [ngModel]="selectedBundleId() === undefined ? '__review__' : selectedBundleId() ?? ''" (ngModelChange)="selectBundle($event)" [disabled]="actionBusy() || recoveryBlocked() || bundlePage.loading()">
+                  <option value="__review__" disabled>Choose a bundle decision</option>
+                  <option value="">No commercial bundle</option>
+                  @for (bundle of page.bundles; track bundle.id) {
+                    <option [value]="bundle.id">{{ bundle.assembledAt }} · {{ bundle.contentSha256.slice(0, 12) }}</option>
+                  }
+                </select>
+              </label>
+              @if (selectedBundleChoice(); as selected) {
+                <dl class="facts"><dt>Selected bundle ID</dt><dd><code>{{ selected.id }}</code></dd>
+                  <dt>Content SHA-256</dt><dd><code>{{ selected.contentSha256 }}</code></dd>
+                  <dt>Manifest SHA-256</dt><dd><code>{{ selected.manifestSha256 }}</code></dd></dl>
+              } @else if (selectedBundleId() === null) { <p>Selected bundle: none.</p> }
+              <p class="actions">
+                <button matButton="outlined" type="button" (click)="previousBundlePage()" [disabled]="page.page === 0 || actionBusy() || recoveryBlocked() || selectedBundleId() !== undefined && selectedBundleId() !== null">Previous bundles</button>
+                <span>Page {{ page.page + 1 }}</span>
+                <button matButton="outlined" type="button" (click)="nextBundlePage()" [disabled]="!page.hasMore || actionBusy() || recoveryBlocked() || selectedBundleId() !== undefined && selectedBundleId() !== null">Next bundles</button>
+                <button matButton="outlined" type="button" (click)="reviewBundleSelection()" [disabled]="actionBusy() || recoveryBlocked() || selectedBundleId() === undefined">Review this selection</button>
+              </p>
+              <p role="status">{{ bundleSelectionReviewed() ? 'Selection reviewed. Changing it clears review.' : 'Selection needs review before the build.' }}</p>
+              @if (bundleSelectionError()) { <p role="alert">{{ bundleSelectionError() }}</p> }
+            }
+          </div>
+          <button matButton="filled" type="button" [disabled]="actionBusy() || recoveryBlocked() || !bundleSelectionReviewed()" (click)="buildManifest(a)">Build archive manifest</button>
         }
         @if (a.canReview) {
           <button matButton="filled" type="button" [disabled]="actionBusy() || recoveryBlocked()" (click)="reviewManifest(a)">Review exact manifest</button>
         }
         @if (pendingIntent(); as pending) {
           <p role="status">An original {{ pending.intent.action }} request is unconfirmed. Recover it before starting another action.</p>
+          @if (pending.intent.action === 'build') { <p>Original commercial bundle ID: {{ pending.intent.commercialBundleId ?? 'none' }} · request key {{ pending.intent.requestKey }}</p> }
           @if (pending.intent.action === 'review') { <p>Original manifest {{ pending.intent.manifestId }} · version {{ pending.intent.manifestVersion }} · {{ pending.intent.manifestDigest }}</p> }
           <button matButton="outlined" type="button" [disabled]="actionBusy() || recoveryUnavailable()" (click)="recoverManifest(a)">Retry original {{ pending.intent.action }}</button>
         }
@@ -373,6 +407,23 @@ export class ArchiveRecord {
   readonly archive = computed(() => !this.destroyed && this.active() && this.session.current()?.staff && this.baseActor() === this.session.current() &&
     this.baseEpoch() === this.session.invalidation() && !this.blocked() && !this.rec.loading() && !this.rec.error() && this.rec.data()?.id === this.id() ? this.rec.data() : null);
   readonly readError = computed(() => this.blocked() ? 'The archive is not available in the current scope.' : this.rec.error());
+  readonly bundlePageNumber = signal(0);
+  readonly selectedBundleId = signal<string | null | undefined>(undefined);
+  readonly selectedBundleChoice = signal<ReturnType<typeof decodeArchiveCommercialBundlePage>['bundles'][number] | null>(null);
+  readonly bundleSelectionReviewed = signal(false);
+  readonly bundleSelectionError = signal('');
+  readonly bundlePage = this.api.resource(() => {
+    const archive = this.archive();
+    return archive ? `/api/ui/records/archives/${archive.id}/commercial-bundles?page=${this.bundlePageNumber()}` : null;
+  }, (raw, path) => {
+    const page = decodeArchiveCommercialBundlePage(raw, path);
+    const archive = this.archive();
+    if (!archive || page.archiveId !== archive.id || page.engagementId !== archive.engagementId || page.page !== this.bundlePageNumber() ||
+        page.page > 100 || page.bundles.length > 25 || page.hasMore && page.bundles.length !== 25 ||
+        new Set(page.bundles.map(bundle => bundle.id)).size !== page.bundles.length)
+      throw new Error('The commercial bundle list does not match this archive. Refresh the archive.');
+    return page;
+  }, 'Commercial bundles are unavailable in the current archive scope.');
   readonly additionalEntries = signal<ReturnType<typeof decodeArchive>['entries']>([]);
   readonly nextOrdinal = signal<number | null>(null);
   readonly loadingEntries = signal(false);
@@ -410,6 +461,8 @@ export class ArchiveRecord {
         if (identity !== this.visibleOwner) {
           this.visibleOwner = identity; this.actionOwner.set(null); this.actionError.set('');
           this.pendingIntent.set(null); this.recoveryUnavailable.set(false);
+          this.bundlePageNumber.set(0); this.selectedBundleId.set(undefined); this.selectedBundleChoice.set(null);
+          this.bundleSelectionReviewed.set(false); this.bundleSelectionError.set('');
         }
         if (!archive || !actor?.staff) { this.pendingIntent.set(null); return; }
         try {
@@ -426,7 +479,40 @@ export class ArchiveRecord {
   refresh(): void { this.invalidate(); this.baseEpoch.set(-1); this.rec.reload(); }
   async buildManifest(archive: ReturnType<typeof decodeArchive>): Promise<void> {
     if (archive.manifestVersion !== null && archive.completenessStatus !== 'INCOMPLETE') return;
+    if (!this.bundleSelectionReviewed()) {
+      this.bundleSelectionError.set('Review the exact bundle selection before building the archive manifest.');
+      return;
+    }
     await this.archiveAction(archive, 'build');
+  }
+  selectBundle(id: string): void {
+    if (id === '__review__') return;
+    const page = this.bundlePage.data();
+    const selected = id === '' ? null : page?.bundles.find(bundle => bundle.id === id) ?? null;
+    if (id !== '' && !selected) {
+      this.bundleSelectionError.set('Choose a bundle from the authorized list.');
+      this.selectedBundleId.set(undefined); this.selectedBundleChoice.set(null); this.bundleSelectionReviewed.set(false);
+      return;
+    }
+    this.selectedBundleId.set(selected?.id ?? null); this.selectedBundleChoice.set(selected);
+    this.bundleSelectionReviewed.set(false); this.bundleSelectionError.set('');
+  }
+  previousBundlePage(): void {
+    if (this.bundlePageNumber() > 0 && this.selectedBundleId() !== undefined && this.selectedBundleId() !== null) return;
+    this.bundlePageNumber.update(page => Math.max(0, page - 1));
+  }
+  nextBundlePage(): void {
+    if (!this.bundlePage.data()?.hasMore || this.selectedBundleId() !== undefined && this.selectedBundleId() !== null) return;
+    this.bundlePageNumber.update(page => page + 1);
+  }
+  reviewBundleSelection(): void {
+    const id = this.selectedBundleId(), choice = this.selectedBundleChoice();
+    if (id === undefined || id !== null && (!choice || choice.id !== id)) {
+      this.bundleSelectionError.set('Select a bundle returned by the authorized list, or choose no commercial bundle.');
+      this.bundleSelectionReviewed.set(false);
+      return;
+    }
+    this.bundleSelectionReviewed.set(true); this.bundleSelectionError.set('');
   }
   async reviewManifest(archive: ReturnType<typeof decodeArchive>): Promise<void> {
     if (!archive.canReview || !archive.manifestId || archive.manifestVersion === null || !archive.manifestDigest) {
@@ -452,8 +538,15 @@ export class ArchiveRecord {
         reference = readArchiveIntent(scope);
         if (!reference || reference.raw !== recovering.raw || reference.key !== recovering.key) throw new Error('The original archive recovery reference changed');
       } else {
-        // This screen has no commercial-bundle selector. Preserve its explicit null intent.
-        const intent: ArchiveIntent = { version: 1, ...scope, action, requestKey: crypto.randomUUID(), commercialBundleId: null,
+        let commercialBundleId: string | null = null;
+        if (action === 'build') {
+          const selectedBundleId = this.selectedBundleId();
+          if (!this.bundleSelectionReviewed() || selectedBundleId === undefined ||
+              selectedBundleId !== null && this.selectedBundleChoice()?.id !== selectedBundleId)
+            throw new Error('Review the exact bundle selection before building the archive manifest.');
+          commercialBundleId = selectedBundleId;
+        }
+        const intent: ArchiveIntent = { version: 1, ...scope, action, requestKey: crypto.randomUUID(), commercialBundleId,
           manifestId: action === 'review' ? archive.manifestId : null, manifestVersion: action === 'review' ? archive.manifestVersion : null,
           manifestDigest: action === 'review' ? archive.manifestDigest : null };
         reference = saveArchiveIntent(intent);

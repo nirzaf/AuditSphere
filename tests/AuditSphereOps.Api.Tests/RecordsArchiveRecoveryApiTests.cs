@@ -144,6 +144,16 @@ public sealed class RecordsArchiveRecoveryApiTests
     using var recoveryFactory = Factory(pg, custodian);
     using var recovery = recoveryFactory.CreateClient(new() { AllowAutoRedirect = false });
     var recoveryCsrf = await SignInAsync(recovery);
+    using (var bundlePageResponse = await recovery.GetAsync(path + "/commercial-bundles?page=0"))
+    {
+      Assert.Equal(HttpStatusCode.OK, bundlePageResponse.StatusCode);
+      var bundlePage = (await bundlePageResponse.Content.ReadFromJsonAsync<ArchiveCommercialBundlePage>())!;
+      Assert.Equal((archiveId, scope.EngagementId, 0, false),
+        (bundlePage.ArchiveId, bundlePage.EngagementId, bundlePage.Page, bundlePage.HasMore));
+      Assert.Empty(bundlePage.Bundles);
+    }
+    using (var invalidBundlePage = await recovery.GetAsync(path + "/commercial-bundles?page=101"))
+      await AssertRefusedAsync(invalidBundlePage, HttpStatusCode.BadRequest, "request.invalid");
     using (var read = await recovery.GetAsync(path))
     {
       Assert.Equal(HttpStatusCode.OK, read.StatusCode);
@@ -160,6 +170,9 @@ public sealed class RecordsArchiveRecoveryApiTests
     using (var conflict = await PostAsync(recovery, recoveryCsrf, path + "/build",
       new { commercialBundleId = Guid.CreateVersion7(), requestKey }))
       await AssertRefusedAsync(conflict, HttpStatusCode.Conflict, ErrorCodes.IdempotencyConflict);
+    using (var staleSelection = await PostAsync(recovery, recoveryCsrf, path + "/build",
+      new { commercialBundleId = Guid.CreateVersion7(), requestKey = Guid.CreateVersion7().ToString("D") }))
+      await AssertRefusedAsync(staleSelection, HttpStatusCode.BadRequest, "archive-copy-commercial-bundle-unavailable");
     using (var review = await PostAsync(recovery, recoveryCsrf, path + "/review",
       new { manifestId = built.ManifestId, manifestVersion = built.ManifestVersion, manifestDigest = built.Digest,
         requestKey = Guid.CreateVersion7().ToString("D") }))
@@ -173,6 +186,8 @@ public sealed class RecordsArchiveRecoveryApiTests
     using var otherClientFactory = Factory(pg, otherClientPartner);
     using var denied = otherClientFactory.CreateClient(new() { AllowAutoRedirect = false });
     var deniedCsrf = await SignInAsync(denied);
+    using (var foreignBundlePage = await denied.GetAsync(path + "/commercial-bundles?page=0"))
+      await AssertRefusedAsync(foreignBundlePage, HttpStatusCode.Forbidden, ErrorCodes.ScopeDenied);
     using (var foreign = await PostAsync(denied, deniedCsrf, path + "/build", request))
       await AssertRefusedAsync(foreign, HttpStatusCode.Forbidden, ErrorCodes.ScopeDenied);
 

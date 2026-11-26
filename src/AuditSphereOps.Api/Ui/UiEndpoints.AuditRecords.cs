@@ -114,6 +114,13 @@ public static partial class UiEndpoints
       if (afterOrdinal is < 0) return Task.FromResult<IResult>(Invalid("The archive cursor is invalid."));
       return ReadAsync(http, (db, actor, ct) => AuditRecordQueries.ArchiveAsync(db, actor, id, afterOrdinal, ct));
     }).WithUiResponse<ArchiveRecordView>();
+    group.MapGet("/records/archives/{id:guid}/commercial-bundles", (Guid id, int? page, HttpContext http) =>
+    {
+      var selectedPage = page ?? 0;
+      if (selectedPage is < 0 or > RecordsArchiveService.MaximumCommercialBundlePage)
+        return Task.FromResult<IResult>(Invalid("The archive bundle page is invalid."));
+      return ReadAsync(http, (db, actor, ct) => RecordsArchiveService.GetCommercialBundlePageAsync(db, actor, id, selectedPage, ct));
+    }).WithUiResponse<ArchiveCommercialBundlePage>();
     group.MapPost("/records/archives/{id:guid}/build", (Guid id, ArchiveBuildInput? i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => RecordsArchiveService.BuildManifestWithRequestAsync(db, actor, id,
         i?.CommercialBundleId, i?.RequestKey, ct)))

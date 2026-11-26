@@ -3,7 +3,7 @@ import { guidPattern } from '../../core/contracts';
 export type ArchiveIntent = {
   version: 1; firmId: string; actorUserId: string; engagementId: string; archiveId: string;
   action: 'build' | 'review'; requestKey: string;
-  commercialBundleId: null; manifestId: string | null; manifestVersion: number | null; manifestDigest: string | null;
+  commercialBundleId: string | null; manifestId: string | null; manifestVersion: number | null; manifestDigest: string | null;
 };
 export type ArchiveReference = { key: string; raw: string; intent: ArchiveIntent };
 type Scope = Pick<ArchiveIntent, 'firmId' | 'actorUserId' | 'engagementId' | 'archiveId'>;
@@ -17,9 +17,10 @@ export function readArchiveIntent(scope: Scope): ArchiveReference | null {
   const p = JSON.parse(raw) as ArchiveIntent;
   if (!p || Array.isArray(p) || Object.keys(p).length !== 11 || p.version !== 1 || !['firmId', 'actorUserId', 'engagementId', 'archiveId'].every(k =>
     typeof p[k as keyof Scope] === 'string' && guidPattern.test(p[k as keyof Scope]) && p[k as keyof Scope] === scope[k as keyof Scope]) ||
-    typeof p.requestKey !== 'string' || !guidPattern.test(p.requestKey) || p.commercialBundleId !== null ||
+    typeof p.requestKey !== 'string' || !guidPattern.test(p.requestKey) ||
+    !(p.commercialBundleId === null || typeof p.commercialBundleId === 'string' && guidPattern.test(p.commercialBundleId)) ||
     !(p.action === 'build' && p.manifestId === null && p.manifestVersion === null && p.manifestDigest === null ||
-      p.action === 'review' && typeof p.manifestId === 'string' && guidPattern.test(p.manifestId) &&
+      p.action === 'review' && p.commercialBundleId === null && typeof p.manifestId === 'string' && guidPattern.test(p.manifestId) &&
       Number.isSafeInteger(p.manifestVersion) && p.manifestVersion! > 0 && typeof p.manifestDigest === 'string' && /^[a-f0-9]{64}$/i.test(p.manifestDigest))) {
     throw new Error('Invalid archive recovery reference');
   }
