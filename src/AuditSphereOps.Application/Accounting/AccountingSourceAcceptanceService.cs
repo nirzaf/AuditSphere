@@ -218,6 +218,19 @@ public static class AccountingSourceAcceptanceService
   /// </summary>
   public static async Task<CommandResult<SelectedSourceDto?>> GetSelectedGeneralLedgerForPeriodAsync(
     IClientAccountingDbContext db, ActorContext actor, Guid clientId, Guid engagementId, Guid periodId, CancellationToken ct = default)
+    => await GetSelectedGeneralLedgerForPeriodAsyncCore(db, actor, clientId, engagementId, periodId, null, false, ct);
+
+  /// <summary>
+  /// The selected accepted general ledger for one exact period/book context. A null book means the null-book context, not a wildcard.
+  /// </summary>
+  public static async Task<CommandResult<SelectedSourceDto?>> GetSelectedGeneralLedgerForPeriodAsync(
+    IClientAccountingDbContext db, ActorContext actor, Guid clientId, Guid engagementId, Guid periodId, Guid? bookId,
+    CancellationToken ct = default)
+    => await GetSelectedGeneralLedgerForPeriodAsyncCore(db, actor, clientId, engagementId, periodId, bookId, true, ct);
+
+  private static async Task<CommandResult<SelectedSourceDto?>> GetSelectedGeneralLedgerForPeriodAsyncCore(
+    IClientAccountingDbContext db, ActorContext actor, Guid clientId, Guid engagementId, Guid periodId, Guid? bookId,
+    bool filterByBook, CancellationToken ct)
   {
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, clientId, engagementId, InternalOnly: true), ct);
@@ -227,7 +240,9 @@ public static class AccountingSourceAcceptanceService
         join b in db.SourceImportBatches.AsNoTracking() on d.ImportBatchId equals b.Id
         where d.FirmId == actor.FirmId && d.ClientId == clientId && d.EngagementId == engagementId &&
           d.SourceKind == AccountingSourceKinds.GeneralLedger && d.Decision == "ACCEPTED" &&
-          b.FirmId == actor.FirmId && b.PeriodId == periodId
+          b.FirmId == actor.FirmId && b.ClientId == clientId && b.EngagementId == engagementId &&
+          b.SourceKind == AccountingSourceKinds.GeneralLedger && b.Status == "SEALED" && b.PeriodId == periodId &&
+          (!filterByBook || b.BookId == bookId)
         orderby d.CreatedAt descending, d.Id descending
         select d).FirstOrDefaultAsync(ct);
     if (decision is null)

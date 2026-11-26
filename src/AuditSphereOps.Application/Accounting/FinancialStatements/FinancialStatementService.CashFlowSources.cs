@@ -184,7 +184,7 @@ public static partial class FinancialStatementService
 
     // The ledger is selected for this package's period, so another period's acceptance can neither stand in for it nor block it (CP-10).
     var selected = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(typed, actor, package.ClientId,
-      package.EngagementId, periodId.Value, ct);
+      package.EngagementId, periodId.Value, package.BookId, ct);
     if (!selected.Succeeded)
       return CommandResult<ResolvedCashFlowSources>.Fail(selected.ErrorCode!, selected.Message!);
     if (selected.Value is { IsCurrent: false })
@@ -197,7 +197,7 @@ public static partial class FinancialStatementService
     var batch = await typed.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == package.FirmId &&
       x.ClientId == package.ClientId && x.EngagementId == package.EngagementId && x.Id == batchId && x.PeriodId == periodId &&
       x.SourceKind == AccountingSourceKinds.GeneralLedger && x.Status == "SEALED", ct);
-    if (period is null || batch is null || batch.Currency != package.Currency ||
+    if (period is null || batch is null || batch.BookId != package.BookId || batch.Currency != package.Currency ||
         !string.Equals(batch.NormalizedDatasetDigest, selected.Value.SourceIdentityHash, StringComparison.OrdinalIgnoreCase))
       return CommandResult<ResolvedCashFlowSources>.Fail(ErrorCodes.GateBlocked,
         "The accepted general ledger must match this package's period, currency and sealed source identity.");

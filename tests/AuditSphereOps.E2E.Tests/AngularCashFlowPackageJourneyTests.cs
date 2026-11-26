@@ -70,6 +70,7 @@ public sealed class AngularCashFlowPackageJourneyTests
     var inputsStatus = 0;
     var inputsBody = string.Empty;
     var scheduleSourcesBody = string.Empty;
+    var scheduleSourcesUrl = string.Empty;
     var scheduleSourceReadCount = 0;
     var secondScheduleSourceRead = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
     await preparerPage.RouteAsync("**/financial-package-inputs", async route =>
@@ -81,6 +82,7 @@ public sealed class AngularCashFlowPackageJourneyTests
     });
     await preparerPage.RouteAsync("**/source-lines**", async route =>
     {
+      scheduleSourcesUrl = route.Request.Url;
       var response = await route.FetchAsync();
       var body = await response.TextAsync();
       scheduleSourcesBody = body;
@@ -122,6 +124,7 @@ public sealed class AngularCashFlowPackageJourneyTests
     await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Add movement", Exact = true }).ClickAsync();
     await preparerPage.GetByRole(AriaRole.Button, new() { Name = "Choose source lines", Exact = true }).ClickAsync();
     await Assertions.Expect(preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "4000" })).ToContainTextAsync("175000");
+    Assert.Contains($"mappingVersionId={seed.MappingId:D}", scheduleSourcesUrl, StringComparison.OrdinalIgnoreCase);
     Assert.Contains(assetScheduleId.ToString("D"), scheduleSourcesBody, StringComparison.OrdinalIgnoreCase);
     var acceptedLine = preparerPage.GetByRole(AriaRole.Row).Filter(new() { HasText = "4000" });
     await Assertions.Expect(acceptedLine).ToContainTextAsync("175000");

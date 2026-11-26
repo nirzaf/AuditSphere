@@ -8,6 +8,7 @@ using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using WorkerHost = AuditSphereOps.Worker.Worker;
 
@@ -235,16 +236,32 @@ public sealed class CashFlowContractTests
     var fixture = await SeedAsync(pg);
     var preparer = Actor(fixture.Preparer, "AccountingPreparer");
     var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
-    // The ledger is accepted before the mapping and plan are fixed: accepting a source later changes the input generation.
+    var otherBookId = Guid.NewGuid();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.ClientReportingBooks.Add(new ClientReportingBook
+      {
+        Id = otherBookId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, PeriodId = fixture.PeriodId,
+        Code = "ALTERNATE", Basis = "STATUTORY", InclusionRule = "ALL_ENTITIES", Currency = "QAR",
+        Status = AccountingWorkflowStates.Active, CreatedByUserId = fixture.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+    // Accept multiple books for one period, including the exact null-book context, before fixing the package's mapping and plan.
     var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
+    var otherBookSource = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg.Options, fixture.FirmId, fixture.ClientId,
+      fixture.EngagementId, fixture.PeriodId, otherBookId, fixture.Preparer.Id, reviewer, "contract-other-book");
+    var nullBookSource = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg.Options, fixture.FirmId, fixture.ClientId,
+      fixture.EngagementId, fixture.PeriodId, null, fixture.Preparer.Id, reviewer, "contract-null-book");
     var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
 
-    BuildFinancialPackageRequest Request(string template, params CashFlowLineInput[] lines) => new(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", template)
+    BuildFinancialPackageRequest Request(string template, IReadOnlyList<CashFlowLineInput> lines, NoteLineInput? note = null) => new(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", template)
     {
       SupplementaryInformation = new FinancialSupplementaryInformation(0m, 100m, lines,
         [new DisclosureInput("CASH_POLICY", "Cash is presented at face value."),
          new DisclosureInput("COMMITMENTS", string.Empty, NotApplicable: true, Rationale: "None identified.")],
         [new EquityLineInput("RETAINED_EARNINGS", "Retained earnings", 0m, 100m, 0m, 0m, 0m, 100m, "equity-cash-1")],
+        NoteLines: note is null ? null : [note],
         CashAccountCodes: ["1000"], OpeningCashEvidenceReferences: ["opening-bank-statement-1"], ClosingCashEvidenceReferences: ["closing-bank-statement-1"],
         FxCashAssessment: new FxCashAssessmentInput(FxCashAssessmentStates.AssessedZero, "functional-currency-cash-population",
           "All selected cash accounts are denominated in the functional currency."))
@@ -256,9 +273,32 @@ public sealed class CashFlowContractTests
         SourceAllocations: allocations.Length == 0 ? null : allocations);
 
     // Fully allocated: the receipt and the noncash depreciation each total their own amounts from accepted lines.
-    var complete = Request("source-linked-v1",
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var selectedA = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, preparer,
+        fixture.ClientId, fixture.EngagementId, fixture.PeriodId, fixture.BookId);
+      var selectedB = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, preparer,
+        fixture.ClientId, fixture.EngagementId, fixture.PeriodId, otherBookId);
+      var selectedNull = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, preparer,
+        fixture.ClientId, fixture.EngagementId, fixture.PeriodId, (Guid?)null);
+      var periodWide = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, preparer,
+        fixture.ClientId, fixture.EngagementId, fixture.PeriodId);
+      Assert.Equal(source.BatchId, selectedA.Value!.ImportBatchId);
+      Assert.Equal(otherBookSource.BatchId, selectedB.Value!.ImportBatchId);
+      Assert.Equal(nullBookSource.BatchId, selectedNull.Value!.ImportBatchId);
+      Assert.Equal(nullBookSource.BatchId, periodWide.Value!.ImportBatchId);
+
+      var discovered = await FinancialScheduleSourceQuery.GetAsync(db, preparer, fixture.EngagementId,
+        fixture.PeriodId, 1, mappingId);
+      Assert.True(discovered.Succeeded, discovered.Message);
+      Assert.Equal(fixture.BookId, discovered.Value!.BookId);
+      Assert.Equal(source.BatchId, discovered.Value.BatchId);
+    }
+
+    var complete = Request("source-linked-v1", [
       Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, -100m)),
-      Movement("OPERATING", "Depreciation adjustment", 25m, true, "NON_CASH_ADJUSTMENT", new CashFlowSourceAllocationInput(source.Depreciation, 25m)));
+      Movement("OPERATING", "Depreciation adjustment", 25m, true, "NON_CASH_ADJUSTMENT", new CashFlowSourceAllocationInput(source.Depreciation, 25m))],
+      new NoteLineInput("REVENUE", "REVENUE", -100m, "accepted revenue source", [new NoteSourceAllocationInput(source.Receivable, -100m)]));
     Guid completePackageId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
@@ -274,13 +314,15 @@ public sealed class CashFlowContractTests
       Assert.Equal(2, allocations.Count);
       Assert.All(allocations, x => Assert.Matches("^[a-f0-9]{64}$", x.SourceLineHash));
       Assert.Equal(source.BatchId, allocations[0].SourceImportBatchId);
+      var noteLine = await db.FinancialPackageNoteLines.AsNoTracking().SingleAsync(x => x.FinancialPackageId == completePackageId);
+      Assert.Contains(source.BatchId.ToString("D"), noteLine.SourceLineageJson, StringComparison.OrdinalIgnoreCase);
     }
 
     // Partial: the receipt has only 60 of its 100 resolved. The build still records a draft, but the lineage check fails and nothing is validated.
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var partial = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-partial-v1",
-        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, -60m))));
+      var partial = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-partial-v1", [
+        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, -60m))]));
       Assert.True(partial.Succeeded, partial.Message);
       Assert.NotEqual(AccountingPackageStates.PackageValidated, partial.Value!.Status);
       Assert.False((await db.FinancialPackageValidations.AsNoTracking().SingleAsync(x => x.FinancialPackageId == partial.Value.PackageId &&
@@ -292,23 +334,34 @@ public sealed class CashFlowContractTests
     var storedBefore = await CountAllocationsAsync(pg);
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
-      var over = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-over-v1",
+      var otherBookLine = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-other-book-v1", [
+        Movement("OPERATING", "Cash receipts from other book", 100m, false, "CASH_RECEIPTS",
+          new CashFlowSourceAllocationInput(otherBookSource.Receivable, -100m))]));
+      Assert.Equal(ErrorCodes.GateBlocked, otherBookLine.ErrorCode);
+
+      var otherBookNote = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-other-book-note-v1", [
+        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS",
+          new CashFlowSourceAllocationInput(source.Receivable, -100m))],
+        new NoteLineInput("REVENUE", "REVENUE", -100m, "wrong book", [new NoteSourceAllocationInput(otherBookSource.Receivable, -100m)])));
+      Assert.Equal(ErrorCodes.GateBlocked, otherBookNote.ErrorCode);
+
+      var over = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-over-v1", [
         Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, -100m)),
         Movement("OPERATING", "Second depreciation adjustment", 25m, true, "NON_CASH_ADJUSTMENT", new CashFlowSourceAllocationInput(source.Depreciation, 25m)),
-        Movement("OPERATING", "Depreciation adjustment", 25m, true, "NON_CASH_ADJUSTMENT", new CashFlowSourceAllocationInput(source.Depreciation, 25m))));
+        Movement("OPERATING", "Depreciation adjustment", 25m, true, "NON_CASH_ADJUSTMENT", new CashFlowSourceAllocationInput(source.Depreciation, 25m))]));
       Assert.Equal(ErrorCodes.Accounting.PackageInvalid, over.ErrorCode);
 
-      var repeated = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-repeat-v1",
+      var repeated = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-repeat-v1", [
         Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS",
-          new CashFlowSourceAllocationInput(source.Receivable, -50m), new CashFlowSourceAllocationInput(source.Receivable, -50m))));
+          new CashFlowSourceAllocationInput(source.Receivable, -50m), new CashFlowSourceAllocationInput(source.Receivable, -50m))]));
       Assert.Equal(ErrorCodes.Accounting.PackageSupplementaryInvalid, repeated.ErrorCode);
 
-      var reversed = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-sign-v1",
-        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, 100m))));
+      var reversed = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-sign-v1", [
+        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, 100m))]));
       Assert.Equal(ErrorCodes.Accounting.PackageSupplementaryInvalid, reversed.ErrorCode);
 
-      var foreign = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-foreign-v1",
-        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(Guid.NewGuid(), -100m))));
+      var foreign = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer, Request("source-foreign-v1", [
+        Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(Guid.NewGuid(), -100m))]));
       Assert.Equal(ErrorCodes.GateBlocked, foreign.ErrorCode);
     }
     Assert.Equal(storedBefore, await CountAllocationsAsync(pg));
@@ -323,6 +376,19 @@ public sealed class CashFlowContractTests
     var preparer = Actor(fixture.Preparer, "AccountingPreparer");
     var reviewer = Actor(fixture.Reviewer, "AccountingReviewer");
     var source = await SeedAcceptedGeneralLedgerAsync(pg, fixture, reviewer);
+    var otherBookId = Guid.NewGuid();
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      db.ClientReportingBooks.Add(new ClientReportingBook
+      {
+        Id = otherBookId, FirmId = fixture.FirmId, ClientId = fixture.ClientId, PeriodId = fixture.PeriodId,
+        Code = "ALTERNATE", Basis = "STATUTORY", InclusionRule = "ALL_ENTITIES", Currency = "QAR",
+        Status = AccountingWorkflowStates.Active, CreatedByUserId = fixture.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+    }
+    var otherBookSource = await CashFlowSourceSeed.SeedAcceptedGeneralLedgerAsync(pg.Options, fixture.FirmId, fixture.ClientId,
+      fixture.EngagementId, fixture.PeriodId, otherBookId, fixture.Preparer.Id, reviewer, "review-other-book");
     var (mappingId, planId) = await CreateApprovedMappingAndPlanAsync(pg, fixture, preparer, reviewer);
 
     BuildFinancialPackageRequest Request(string template, params CashFlowLineInput[] lines) => new(planId, mappingId, "IFRS", "2026-01-01", "2026-12-31", template)
@@ -365,6 +431,59 @@ public sealed class CashFlowContractTests
       Assert.Equal((2, 2, 2), (state.Movements, state.ResolvedMovements, state.SourceLinks));
       Assert.Equal(source.BatchId, state.CurrentSourceImportBatchId);
       Assert.Equal("APPROVED", Assert.Single(state.Reviews).Decision);
+    }
+
+    // Build a separate pre-seal package through the real command. The interceptor suppresses only the final seal insert;
+    // the database guards remain enabled when we add its retained historical row and then seal the fixture.
+    var legacyPackageOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(new SuppressCashFlowMembershipSeal()).Options;
+    Guid legacyPackageId;
+    await using (var db = new AuditSphereDbContext(legacyPackageOptions))
+    {
+      var legacyBuilt = await FinancialStatementService.BuildFinancialPackageAsync(db, preparer,
+        Request("review-legacy-wrong-book-v1",
+          Movement("OPERATING", "Cash receipts from customers", 100m, false, "CASH_RECEIPTS", new CashFlowSourceAllocationInput(source.Receivable, -100m)),
+          Movement("OPERATING", "Depreciation adjustment", 25m, true, "NON_CASH_ADJUSTMENT", new CashFlowSourceAllocationInput(source.Depreciation, 25m))));
+      Assert.True(legacyBuilt.Succeeded, legacyBuilt.Message);
+      legacyPackageId = legacyBuilt.Value!.PackageId;
+    }
+
+    // Model a retained pre-fix link that points at another book in the same period. The link is left in place;
+    // current review and approval must refuse it instead of retargeting historical evidence.
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var retainedLink = await db.FinancialPackageCashFlowAllocations.AsNoTracking().SingleAsync(x =>
+        x.FinancialPackageId == legacyPackageId && x.GeneralLedgerLineId == source.Receivable);
+      var otherTransactionId = await db.GeneralLedgerLines.AsNoTracking().Where(x => x.FirmId == fixture.FirmId &&
+        x.ClientId == fixture.ClientId && x.EngagementId == fixture.EngagementId && x.ImportBatchId == otherBookSource.BatchId &&
+        x.Id == otherBookSource.Receivable).Select(x => x.TransactionId).SingleAsync();
+      db.FinancialPackageCashFlowAllocations.Add(new FinancialPackageCashFlowAllocation
+      {
+        Id = Guid.NewGuid(), FirmId = retainedLink.FirmId, ClientId = retainedLink.ClientId,
+        EngagementId = retainedLink.EngagementId, FinancialPackageId = retainedLink.FinancialPackageId,
+        CashFlowLineId = retainedLink.CashFlowLineId, GeneralLedgerLineId = otherBookSource.Receivable,
+        GeneralLedgerTransactionId = otherTransactionId, SourceImportBatchId = otherBookSource.BatchId,
+        // This append-only fixture represents a retained pre-fix wrong-book link. Its book scope is the behavior under test;
+        // the database immutability trigger remains enabled and the original link is not rewritten.
+        SourceLineHash = retainedLink.SourceLineHash, SignedAmount = retainedLink.SignedAmount,
+        Currency = retainedLink.Currency, CreatedByUserId = retainedLink.CreatedByUserId,
+        CreatedAt = retainedLink.CreatedAt
+      });
+      await db.SaveChangesAsync();
+      db.FinancialPackageCashFlowMembershipSeals.Add(new FinancialPackageCashFlowMembershipSeal
+      {
+        FirmId = retainedLink.FirmId, ClientId = retainedLink.ClientId, EngagementId = retainedLink.EngagementId,
+        FinancialPackageId = retainedLink.FinancialPackageId, SealedAt = DateTimeOffset.UtcNow
+      });
+      await db.SaveChangesAsync();
+      var historical = await FinancialStatementService.GetCashFlowSourceReviewAsync(db, reviewer, legacyPackageId);
+      Assert.True(historical.Succeeded, historical.Message);
+      Assert.False(historical.Value!.Approved);
+      Assert.Equal(source.BatchId, historical.Value.CurrentSourceImportBatchId);
+      Assert.Equal(0, historical.Value.ResolvedMovements);
+      Assert.Equal(ErrorCodes.GateBlocked,
+        (await CashFlowSourceReviewCall.RecordAsync(db, reviewer, legacyPackageId, "APPROVED", null)).ErrorCode);
+      Assert.Empty(await db.FinancialPackageCashFlowSourceReviews.Where(x => x.FinancialPackageId == legacyPackageId).ToListAsync());
     }
 
     // A reviewer who also built the package cannot review it either.
@@ -1593,5 +1712,17 @@ public sealed class CashFlowContractTests
       });
     await db.SaveChangesAsync();
     return new Fixture(firmId, clientId, engagementId, datasetId, periodId, bookId, preparer, reviewer);
+  }
+
+  private sealed class SuppressCashFlowMembershipSeal : SaveChangesInterceptor
+  {
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
+      InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+      foreach (var entry in eventData.Context!.ChangeTracker.Entries<FinancialPackageCashFlowMembershipSeal>()
+        .Where(x => x.State == EntityState.Added))
+        entry.State = EntityState.Detached;
+      return ValueTask.FromResult(result);
+    }
   }
 }

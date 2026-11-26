@@ -36,7 +36,7 @@ public static partial class FinancialStatementService
           $"Accepted source contributions for note '{x.note.NoteCode.Trim()}' must total its entered note amount exactly.");
 
     var selected = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor,
-      package.ClientId, package.EngagementId, periodId.Value, ct);
+      package.ClientId, package.EngagementId, periodId.Value, package.BookId, ct);
     if (!selected.Succeeded)
       return CommandResult<IReadOnlyDictionary<int, IReadOnlyList<ResolvedNoteSource>>>.Fail(selected.ErrorCode!, selected.Message!);
     if (selected.Value?.ImportBatchId is not Guid batchId)
@@ -93,7 +93,7 @@ public static partial class FinancialStatementService
       resolved.Add(x.index, links);
     }
     var current = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor,
-      package.ClientId, package.EngagementId, periodId.Value, ct);
+      package.ClientId, package.EngagementId, periodId.Value, package.BookId, ct);
     if (!current.Succeeded || current.Value != selected.Value)
       return CommandResult<IReadOnlyDictionary<int, IReadOnlyList<ResolvedNoteSource>>>.Fail(ErrorCodes.StaleRevision,
         "The accepted general ledger changed while note source lines were being resolved. Refresh and retry the package build.");

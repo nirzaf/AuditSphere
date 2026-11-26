@@ -22,7 +22,12 @@ public static class FinancialScheduleSourceQuery
 {
   public const int PageSize = 25;
   public static async Task<CommandResult<FinancialScheduleSources>> GetAsync(IClientAccountingDbContext db,
-    ActorContext actor, Guid engagementId, Guid periodId, int page = 1, CancellationToken ct = default)
+    ActorContext actor, Guid engagementId, Guid periodId, int page = 1, CancellationToken ct = default) =>
+    await GetAsync(db, actor, engagementId, periodId, page, null, ct);
+
+  /// <summary>Package preparation may supply its mapping identity; that identity selects the exact base-dataset book, including null.</summary>
+  public static async Task<CommandResult<FinancialScheduleSources>> GetAsync(IClientAccountingDbContext db,
+    ActorContext actor, Guid engagementId, Guid periodId, int page, Guid? mappingVersionId, CancellationToken ct = default)
   {
     if (page is < 1 or > 1000 || periodId == Guid.Empty)
       return CommandResult<FinancialScheduleSources>.Fail(ErrorCodes.Accounting.PackageInvalid, "Choose a reporting period and a source page between 1 and 1000.");
@@ -34,11 +39,32 @@ public static class FinancialScheduleSourceQuery
     var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.ClientId == engagement.PracticeClientId && x.Id == periodId, ct);
     if (period is null) return Denied();
+    Guid? contextBookId = null;
+    if (mappingVersionId is { } requestedMappingId)
+    {
+      if (requestedMappingId == Guid.Empty)
+        return CommandResult<FinancialScheduleSources>.Fail(ErrorCodes.Accounting.PackageInvalid,
+          "Choose an approved mapping context before inspecting package source lines.");
+      var mapping = await db.MappingVersions.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId && x.Id == requestedMappingId, ct);
+      if (mapping is null) return Denied();
+      if (mapping.Status != AccountingPackageStates.MappingApproved)
+        return Blocked("An approved mapping is required to resolve the package reporting context.");
+      var baseDataset = await db.TrialBalanceDatasets.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
+        x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId && x.Id == mapping.DatasetId, ct);
+      if (baseDataset is null || baseDataset.PeriodId != periodId || baseDataset.Currency != period.Currency ||
+          !string.Equals(baseDataset.Basis?.Trim(), period.Basis, StringComparison.OrdinalIgnoreCase))
+        return Blocked("The mapping base dataset does not match this reporting period, currency and basis.");
+      contextBookId = baseDataset.BookId;
+    }
     var safety = await db.ClientSafetyStates.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.Id == engagement.PracticeClientId, ct);
     if (safety is null) return Blocked("The current client accounting generation is unavailable.");
-    var selected = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor, engagement.PracticeClientId,
-      engagementId, periodId, ct);
+    var selected = mappingVersionId is null
+      ? await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor, engagement.PracticeClientId,
+        engagementId, periodId, ct)
+      : await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor, engagement.PracticeClientId,
+        engagementId, periodId, contextBookId, ct);
     if (!selected.Succeeded) return CommandResult<FinancialScheduleSources>.Fail(selected.ErrorCode!, selected.Message!);
     if (selected.Value is { IsCurrent: false }) return Blocked(selected.Value.CurrentnessBlocker!);
     if (selected.Value?.ImportBatchId is not Guid batchId)
@@ -46,7 +72,8 @@ public static class FinancialScheduleSourceQuery
     var batch = await db.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId &&
       x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId && x.Id == batchId &&
       x.PeriodId == periodId && x.SourceKind == AccountingSourceKinds.GeneralLedger && x.Status == "SEALED", ct);
-    if (batch is null || batch.Currency != period.Currency || !SourceAcceptanceWorkspace.ValidHash(batch.NormalizedDatasetDigest) ||
+    if (batch is null || mappingVersionId is not null && batch.BookId != contextBookId || batch.Currency != period.Currency ||
+        !SourceAcceptanceWorkspace.ValidHash(batch.NormalizedDatasetDigest) ||
         batch.NormalizedDatasetDigest != selected.Value.SourceIdentityHash)
       return Blocked("The selected accepted GL must match this period, currency and sealed source identity.");
     var rows = await (from line in db.GeneralLedgerLines.AsNoTracking()
@@ -69,7 +96,11 @@ public static class FinancialScheduleSourceQuery
         SpecialistSource(latestAsset, period, safety.InputGeneration, "IMPAIRMENT", latestAsset.ImpairmentAmount)
       }.Where(x => x is not null).Select(x => x!).ToArray()
       : [];
-    var current = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor, engagement.PracticeClientId, engagementId, periodId, ct);
+    var current = mappingVersionId is null
+      ? await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor, engagement.PracticeClientId,
+        engagementId, periodId, ct)
+      : await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor, engagement.PracticeClientId,
+        engagementId, periodId, contextBookId, ct);
     if (!current.Succeeded) return CommandResult<FinancialScheduleSources>.Fail(current.ErrorCode!, current.Message!);
     if (current.Value != selected.Value)
       return CommandResult<FinancialScheduleSources>.Fail(ErrorCodes.StaleRevision, "The accepted source changed during source inspection. Refresh before preparing a schedule.");

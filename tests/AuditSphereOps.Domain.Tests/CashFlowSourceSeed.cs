@@ -30,11 +30,11 @@ internal static class CashFlowSourceSeed
     Guid BorrowingRepayment = default, Guid SupplierPayable = default, Guid ReceiptReversal = default);
 
   internal static async Task<Source> SeedAcceptedGeneralLedgerAsync(PgTestSchema pg, Guid firmId, Guid clientId, Guid engagementId,
-    Guid periodId, Guid bookId, Guid preparerId, ActorContext reviewer, string tag) =>
+    Guid periodId, Guid? bookId, Guid preparerId, ActorContext reviewer, string tag) =>
     await SeedAcceptedGeneralLedgerAsync(pg.Options, firmId, clientId, engagementId, periodId, bookId, preparerId, reviewer, tag);
 
   internal static async Task<Source> SeedAcceptedGeneralLedgerAsync(DbContextOptions<AuditSphereDbContext> options,
-    Guid firmId, Guid clientId, Guid engagementId, Guid periodId, Guid bookId, Guid preparerId, ActorContext reviewer,
+    Guid firmId, Guid clientId, Guid engagementId, Guid periodId, Guid? bookId, Guid preparerId, ActorContext reviewer,
     string tag, decimal amount = 100m, DateOnly? postingDate = null, OptionalCashEvents optional = OptionalCashEvents.None)
   {
     var batch = Guid.NewGuid();

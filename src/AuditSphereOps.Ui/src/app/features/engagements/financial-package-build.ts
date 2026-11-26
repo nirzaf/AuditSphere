@@ -410,7 +410,7 @@ export function queueButtonLabel(openBlockers: readonly string[]): string {
       <form class="panel" aria-label="Financial package build" (submit)="$event.preventDefault(); submit()">
         <h2>Basis</h2>
         <label>Approved mapping
-          <select name="mapping" aria-label="Approved mapping" [(ngModel)]="form.mappingVersionId" (ngModelChange)="form.adjustmentPlanId = ''">
+          <select name="mapping" aria-label="Approved mapping" [(ngModel)]="form.mappingVersionId" (ngModelChange)="chooseMapping()">
             <option value="">Choose a mapping</option>
             @for (m of data.mappings; track m.id) { <option [value]="m.id">Version {{ m.version }} · {{ m.id }}</option> }
           </select>
@@ -696,6 +696,8 @@ export class FinancialPackageBuild {
   readonly sourcePage = signal(1);
   /** The period the source picker reads. A signal, so changing the period reloads the lines. */
   readonly chosenPeriod = signal('');
+  /** Package source discovery is bound to this selected mapping's server-resolved base dataset. */
+  readonly chosenMapping = signal('');
   readonly isTerminalBuildState = isTerminalBuildStatus;
   readonly labelFor = queueButtonLabel;
 
@@ -769,8 +771,9 @@ export class FinancialPackageBuild {
   }
   readonly sources = this.api.resource(() => {
     const periodId = this.chosenPeriod();
-    return this.id() && periodId && (this.pickerFor() !== null || this.notePickerFor() !== null)
-      ? `/api/ui/engagements/${this.id()}/specialist-preparation/source-lines?periodId=${periodId}&page=${this.sourcePage()}`
+    const mappingVersionId = this.chosenMapping();
+    return this.id() && periodId && mappingVersionId && (this.pickerFor() !== null || this.notePickerFor() !== null)
+      ? `/api/ui/engagements/${this.id()}/specialist-preparation/source-lines?periodId=${periodId}&page=${this.sourcePage()}&mappingVersionId=${mappingVersionId}`
       : null;
   }, decodeScheduleSources, 'The accepted general-ledger lines are unavailable in your current scope.');
 
@@ -848,6 +851,23 @@ export class FinancialPackageBuild {
     this.form.periodEnd = period?.endDate ?? '';
     this.clearComparative(data);
     this.chosenPeriod.set(this.form.periodId);
+    this.clearSourceSelections();
+  }
+
+  chooseMapping(): void {
+    this.form.adjustmentPlanId = '';
+    this.chosenMapping.set(this.form.mappingVersionId);
+    this.clearSourceSelections();
+  }
+
+  private clearSourceSelections(): void {
+    for (const movement of this.form.movements) {
+      movement.allocations = [];
+      movement.scheduleAllocations = [];
+    }
+    for (const note of this.form.noteLines) note.allocations = [];
+    this.pickerFor.set(null);
+    this.notePickerFor.set(null);
     this.sourcePage.set(1);
   }
 

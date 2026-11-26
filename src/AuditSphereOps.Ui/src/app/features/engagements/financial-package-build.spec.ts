@@ -507,6 +507,7 @@ describe('financial package build status polling', () => {
   const operationId = '88888888-8888-4888-8888-888888888888';
   const otherOperationId = '99999999-9999-4999-8999-999999999999';
   const otherEngagementId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const otherMappingId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   let params: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
   let http: HttpTestingController;
 
@@ -598,6 +599,38 @@ describe('financial package build status polling', () => {
     expect(pending.cancelled).toBe(true);
     expect(component.queued()).toBeNull();
     http.expectNone((request) => request.url.includes('/financial-package-builds/'));
+    fixture.destroy();
+  });
+
+  it('binds package source discovery to the selected mapping and clears old source choices on mapping or period changes', () => {
+    const { fixture, component } = open();
+    component.form.mappingVersionId = mapping;
+    component.chooseMapping();
+    component.form.movements = [{ ...emptyMovement(), allocations: [{ generalLedgerLineId: line, signedAmount: '-1' }],
+      scheduleAllocations: [{ specialistScheduleId: line, componentCode: 'DEPRECIATION', signedAmount: '1' }] }];
+    component.form.noteLines = [{ ...emptyNoteLine(), allocations: [{ generalLedgerLineId: line, signedAmount: '-1' }] }];
+
+    component.form.mappingVersionId = otherMappingId;
+    component.chooseMapping();
+    expect(component.form.adjustmentPlanId).toBe('');
+    expect(component.form.movements[0].allocations).toEqual([]);
+    expect(component.form.movements[0].scheduleAllocations).toEqual([]);
+    expect(component.form.noteLines[0].allocations).toEqual([]);
+
+    const periodId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    component.form.periodId = periodId;
+    component.form.movements[0].allocations = [{ generalLedgerLineId: line, signedAmount: '-1' }];
+    component.choosePeriod({ periods: [{ id: periodId, periodCode: 'FY', startDate: '2026-01-01', endDate: '2026-12-31',
+      currency: 'QAR', basis: 'STATUTORY' }], comparatives: [] } as any);
+    expect(component.form.movements[0].allocations).toEqual([]);
+
+    component.openMovementSources(0);
+    TestBed.tick();
+    const sources = http.expectOne(`/api/ui/engagements/${engagementId}/specialist-preparation/source-lines?periodId=${periodId}&page=1&mappingVersionId=${otherMappingId}`);
+    sources.flush({ periodId, bookId: null, batchId: operationId, acceptanceId: otherOperationId,
+      sourceHash: 'a'.repeat(64), inputGeneration: 1, currency: 'QAR', page: 1, hasMore: false, lines: [], specialistSources: [] });
+    TestBed.tick();
+    expect(component.sources.data()?.periodId).toBe(periodId);
     fixture.destroy();
   });
 });

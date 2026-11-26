@@ -217,6 +217,8 @@ blocked when the client generation changes; journal risk is deterministic, never
 - Persistence: `AuditSphereDbContext.FinancialStatements.cs`
 
 - Current API/Angular: `src/AuditSphereOps.Api/Ui/UiEndpoints.Packages.cs`, `UiEndpoints.Statements.cs`, `UiEndpoints.MappingDrafts.cs`; Angular mapping/review/package workspaces in `src/AuditSphereOps.Ui/src/app/features/accounting/mapping.ts`, `mapping-approval.ts`, `package.ts`, `presentation.ts`, and `src/AuditSphereOps.Ui/src/app/features/engagements/financial-package-build.ts`.
+
+- Package cash-flow and note lineage selects the accepted GL by exact nullable `FinancialPackage.BookId`; a link retained from another book remains unresolved and cannot be approved. The package source picker passes optional `mappingVersionId` to `UiEndpoints.PeriodMaintenance.cs`; `FinancialScheduleSourceQuery` resolves its approved mapping's base dataset and exact nullable book on the server. Callers without mapping context retain the period-wide source query.
 - Historical Blazor screens (pinned pre-removal source only): `Mapping.razor`, `FinancialPackage.razor`, `FinancialPackageReviews.razor`, `ClientFinancialPackage.razor`, `Release.razor`.
 
 - Tests: `ClientAccountingTests.FinancialPackages.cs`

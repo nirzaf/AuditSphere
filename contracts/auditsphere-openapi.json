@@ -73208,6 +73208,14 @@
               ],
               "format": "int32"
             }
+          },
+          {
+            "name": "mappingVersionId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {

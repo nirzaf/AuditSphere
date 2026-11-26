@@ -139,12 +139,25 @@ public static partial class FinancialStatementService
       if (!fxAssessmentMatches)
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
           "Record an evidenced FX cash-effect assessment that matches its effect rows before independent source review.");
+      if (current.CurrentBatchId is { } selectedBatchId &&
+          current.Allocations.Any(x => x.SourceImportBatchId != selectedBatchId))
+      {
+        var linkedBatchIds = current.Allocations.Select(x => x.SourceImportBatchId).Distinct().ToArray();
+        var containsWrongBook = await db.SourceImportBatches.AsNoTracking().AnyAsync(x => x.FirmId == locked.FirmId &&
+          x.ClientId == locked.ClientId && x.EngagementId == locked.EngagementId && linkedBatchIds.Contains(x.Id) &&
+          x.BookId != locked.BookId, ct);
+        if (containsWrongBook)
+          return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
+            "A retained cash-flow source link belongs to a different reporting book.");
+        return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
+          "The accepted general ledger changed after these links were resolved. Rebuild the package before review.");
+      }
       if (!current.AllResolved)
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Every cash-flow movement must be fully allocated before approval.");
       if (!await LineageValidatedAsync(db, locked.FirmId, locked.Id, ct))
         return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked,
           "Every cash event must be fully explained by its movements before approval. Rebuild the package.");
-      if (current.CurrentBatchId is not Guid currentBatch || current.Allocations.Any(x => x.SourceImportBatchId != currentBatch))
+      if (current.CurrentBatchId is not Guid currentBatch)
         return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision,
           "The accepted general ledger changed after these links were resolved. Rebuild the package before review.");
     }
@@ -243,7 +256,9 @@ public static partial class FinancialStatementService
     var accepted = await (from d in db.SourceAcceptanceDecisions.AsNoTracking()
         join b in db.SourceImportBatches.AsNoTracking() on d.ImportBatchId equals b.Id
         where d.FirmId == package.FirmId && d.ClientId == package.ClientId && d.EngagementId == package.EngagementId &&
-          d.SourceKind == AccountingSourceKinds.GeneralLedger && d.Decision == "ACCEPTED" && b.PeriodId == periodId
+          d.SourceKind == AccountingSourceKinds.GeneralLedger && d.Decision == "ACCEPTED" &&
+          b.FirmId == package.FirmId && b.ClientId == package.ClientId && b.EngagementId == package.EngagementId &&
+          b.SourceKind == AccountingSourceKinds.GeneralLedger && b.Status == "SEALED" && b.PeriodId == periodId && b.BookId == package.BookId
         orderby d.CreatedAt descending, d.Id descending
         select d).FirstOrDefaultAsync(ct);
     if (accepted is null || allocations.Any(x => x.SourceImportBatchId != accepted.ImportBatchId) ||
@@ -251,7 +266,8 @@ public static partial class FinancialStatementService
           x.EngagementId == package.EngagementId && x.Id == accepted.ImportBatchId && x.SourceKind == AccountingSourceKinds.GeneralLedger &&
           x.Status == "SEALED" && x.NormalizedDatasetDigest == accepted.SourceIdentityHash, ct)) return false;
     var acceptedBatch = await db.SourceImportBatches.AsNoTracking().SingleAsync(x => x.Id == accepted.ImportBatchId && x.FirmId == package.FirmId, ct);
-    if (!(await NativeGeneralLedgerSourceWorkspace.CheckCurrentAsync(db, acceptedBatch, ct)).Succeeded ||
+    if (acceptedBatch.BookId != package.BookId ||
+        !(await NativeGeneralLedgerSourceWorkspace.CheckCurrentAsync(db, acceptedBatch, ct)).Succeeded ||
         !(await NativeGeneralLedgerSourceWorkspace.CheckPackagePairAsync(db, acceptedBatch, package.MappingVersionId, ct)).Succeeded) return false;
     var latest = await LatestCashFlowSourceReviewAsync(db, package.FirmId, package.Id, ct);
     return latest is { Decision: "APPROVED" } && latest.SourceImportBatchId == accepted.ImportBatchId &&
@@ -395,18 +411,20 @@ public static partial class FinancialStatementService
     if (package.PeriodId is not Guid periodId)
       return CommandResult<CashFlowLineage>.Fail(ErrorCodes.GateBlocked, "This package has no reporting period, so its source cannot be selected.");
     var selected = await AccountingSourceAcceptanceService.GetSelectedGeneralLedgerForPeriodAsync(db, actor, package.ClientId,
-      package.EngagementId, periodId, ct);
+      package.EngagementId, periodId, package.BookId, ct);
     if (!selected.Succeeded)
       return CommandResult<CashFlowLineage>.Fail(selected.ErrorCode!, selected.Message!);
     var sourceMatches = selected.Value is not { IsCurrent: false };
+    var allocationsMatchSelectedSource = true;
     if (selected.Value?.ImportBatchId is { } selectedBatchId)
     {
       var selectedBatch = await db.SourceImportBatches.AsNoTracking().SingleOrDefaultAsync(x => x.Id == selectedBatchId &&
         x.FirmId == package.FirmId && x.ClientId == package.ClientId && x.EngagementId == package.EngagementId, ct);
-      sourceMatches = sourceMatches && selectedBatch is not null &&
+      allocationsMatchSelectedSource = allocations.All(x => x.SourceImportBatchId == selectedBatchId);
+      sourceMatches = sourceMatches && selectedBatch is not null && selectedBatch.BookId == package.BookId &&
         (await NativeGeneralLedgerSourceWorkspace.CheckPackagePairAsync(db, selectedBatch, package.MappingVersionId, ct)).Succeeded;
     }
-    if (!sourceMatches) resolved = movements.Select(_ => false).ToArray();
+    if (!sourceMatches || !allocationsMatchSelectedSource) resolved = movements.Select(_ => false).ToArray();
     return CommandResult<CashFlowLineage>.Ok(new CashFlowLineage(movements, allocations, scheduleAllocations, resolved,
       sourceMatches ? selected.Value?.ImportBatchId : null));
   }
