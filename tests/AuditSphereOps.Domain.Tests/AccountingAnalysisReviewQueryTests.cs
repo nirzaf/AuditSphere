@@ -8,6 +8,22 @@ namespace AuditSphereOps.Domain.Tests;
 
 public sealed class AccountingAnalysisReviewQueryTests
 {
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task GenericSourceOnlyEvidenceNamesTheMissingIndependentControlBlocker()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var seed = await AccountingAnalysisReviewSeed.SeedAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+
+    var result = await AccountingAnalysisReviewQuery.GetAsync(db,
+      PbcSeed.Actor(seed.Fixture.Staff, "AccountingPreparer"), "ECL", seed.Evidence["ECL"]);
+
+    Assert.True(result.Succeeded, result.Message);
+    Assert.False(result.Value!.InputsCurrent);
+    Assert.Contains(ReconciliationWorkspaceQuery.MissingIndependentControlBlocker, result.Value.Blockers);
+  }
+
   [Theory]
   [InlineData(0)]
   [InlineData(1)]

@@ -82,7 +82,7 @@ public sealed class AngularEvidenceActionsJourneyTests
 
   [Fact]
   [Trait("CaseId","ANGULAR-EVIDENCE-ACTIONS")]
-  public async Task ExactNativeLinkAndIndependentDecisionRetainEvidenceAndClearAfterRevocation()
+  public async Task SourceOnlyAnalysisRetainsItsLinkButBlocksNewReviewAndClearsAfterRevocation()
   {
     await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-EVIDENCE-ACTIONS");
     var seed=await AccountingAnalysisReviewSeed.SeedAsync(host.Database,false,false);var f=seed.Fixture;var id=seed.Evidence["ECL"];
@@ -107,18 +107,17 @@ public sealed class AngularEvidenceActionsJourneyTests
     await reviewer.GotoAsync(reviewerOrigin+"/auth/sign-in?returnUrl="+route);
     await reviewer.GetByRole(AriaRole.Heading,new(){Name="Prepare reviewed action",Exact=true}).WaitForAsync();
     await reviewer.GetByRole(AriaRole.Combobox,new(){Name="Action",Exact=true}).SelectOptionAsync("REVIEW");
-    await reviewer.GetByRole(AriaRole.Combobox,new(){Name="Decision",Exact=true}).SelectOptionAsync("APPROVED");
-    await Prepare(reviewer,"Synthetic independent auditor conclusion","SYNTHETIC-REVIEW-CORROBORATION");
-    await reviewer.GetByRole(AriaRole.Button,new(){Name="Record reviewed action",Exact=true}).ClickAsync();
-    await reviewer.GetByRole(AriaRole.Heading,new(){Name="Retained action receipt",Exact=true}).WaitForAsync();
-    await Assertions.Expect(reviewer.Locator("body")).ToContainTextAsync("2 retained native actions");
-    await Assertions.Expect(reviewer.Locator("body")).ToContainTextAsync("A human review is already retained");
-    Assert.Equal(0,await reviewer.Locator("audit-evidence-actions form").CountAsync());
+    var decision=reviewer.GetByRole(AriaRole.Combobox,new(){Name="Decision",Exact=true});
+    Assert.Equal(0,await decision.Locator("option[value='APPROVED']").CountAsync());
+    await Assertions.Expect(reviewer.Locator("body")).ToContainTextAsync("A distinct independently evidenced control population is not retained; this source-only reconciliation cannot support current readiness.");
+    await Assertions.Expect(reviewer.GetByRole(AriaRole.Button,new(){Name="Preview exact action",Exact=true})).ToBeDisabledAsync();
+    await Assertions.Expect(reviewer.Locator("body")).ToContainTextAsync("1 retained native actions");
     await reviewer.SetViewportSizeAsync(390,844);Assert.True(await reviewer.EvaluateAsync<bool>("document.documentElement.scrollWidth <= window.innerWidth"));
     await using(var db=host.CreateDbContext())
     {
-      Assert.Equal(2,await db.AccountingEvidenceActions.CountAsync(x=>x.EvidenceId==id));
-      Assert.Equal("APPROVED",await db.EclAssessments.Where(x=>x.Id==id).Select(x=>x.Status).SingleAsync());
+      var retainedAction=await db.AccountingEvidenceActions.SingleAsync(x=>x.EvidenceId==id);
+      Assert.Equal("LINK",retainedAction.Action);Assert.Equal(f.Staff.Id,retainedAction.ActorId);
+      Assert.Equal("DRAFT",await db.EclAssessments.Where(x=>x.Id==id).Select(x=>x.Status).SingleAsync());
       var reconciliation=await db.EclAssessments.Where(a=>a.Id==id).Select(a=>a.ReconciliationId).SingleAsync();
       Assert.Equal(100.123456m,await db.AccountingReconciliations.Where(x=>x.Id==reconciliation).Select(x=>x.SourceTotal).SingleAsync());
       await db.Users.Where(x=>x.Id==f.Reviewer.Id).ExecuteUpdateAsync(x=>x.SetProperty(u=>u.SessionEpoch,u=>u.SessionEpoch+1));

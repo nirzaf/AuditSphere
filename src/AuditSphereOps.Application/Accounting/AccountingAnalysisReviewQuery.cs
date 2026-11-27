@@ -83,12 +83,15 @@ public static partial class AccountingAnalysisReviewQuery
       {
         var v = rec.Value;
         sourceSnapshot = v.ReviewBasis;
+        var independentControlBlocker = v.Blockers.FirstOrDefault(x =>
+          x == ReconciliationWorkspaceQuery.MissingIndependentControlBlocker);
         var current = v.SourceAvailable && !v.IsStale && v.LatestProof is { MatchesCurrentInputs: true, IsReconciled: true } &&
           v.Status is "RECONCILED" or "APPROVED" && Digest(r.SourceHash) is not null && Digest(r.SourceHash) == v.CurrentSourceHash && r.Generation == v.CurrentGeneration;
         source = new(v.SourceKind, v.SourceId, v.Id, Digest(r.SourceHash), v.CurrentSourceHash, current,
           "The retained valuation source is compared with the exact reconciliation, complete item proof and current accepted/sealed source.");
+        if (!source.CurrentChecksPass)
+          blockers.Add(independentControlBlocker ?? "The retained reconciliation, complete proof, source digest or generation no longer passes current checks. Prepare new source-bound evidence.");
       }
-      if (!source.CurrentChecksPass) blockers.Add("The retained reconciliation, complete proof, source digest or generation no longer passes current checks. Prepare new source-bound evidence.");
     }
     if (r.BatchId is { } batchId)
     {

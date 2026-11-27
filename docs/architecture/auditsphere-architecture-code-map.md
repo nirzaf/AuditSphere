@@ -212,7 +212,7 @@ Critical invariants: reconciliation approval stales when the source digest chang
 
 blocked when the client generation changes; journal risk is deterministic, never autonomous. Reconciliation writers lock the target period before the reconciliation, refresh tracked targets and reauthorize after waits. Approval validates exact proof while locked; matching proof append preserves an approved schedule and review. Closed targets refuse writes, and caller-owned transactions remain caller-owned.
 
-- Generic TB/GL reconciliation preparation fails closed until a distinct independently evidenced control population is represented. TB is not projected as its own GL control, and a same-batch GL total is not independent. Retained one-source approvals and proofs remain unchanged but are not reusable as current reconciliation evidence; period-close readiness and its command surface the same missing-control blocker. Native AR/AP and typed bank reconciliation remain separate supported paths; positive generic pairing awaits the approved AC-REC-07–10 contract.
+- Generic TB/GL reconciliation preparation fails closed until a distinct independently evidenced control population is represented. TB is not projected as its own GL control, and a same-batch GL total is not independent. Retained one-source approvals and proofs remain unchanged but are not reusable as current reconciliation evidence; period-close readiness, its command, and analysis-evidence currentness surface the same missing-control blocker. Native AR/AP and typed bank reconciliation remain separate supported paths; positive generic pairing awaits the approved AC-REC-07–10 contract.
 
 ## Financial statements, mapping and packages
 

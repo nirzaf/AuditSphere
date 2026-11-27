@@ -8,7 +8,7 @@ public sealed class AngularAccountingPreparationCreationJourneyTests
 {
   [Fact]
   [Trait("CaseId","ANGULAR-ACCOUNTING-PREPARATION-CREATION")]
-  public async Task ReconciliationAndSpecialistPreparationHaveReviewedReceiptsAndRecoverLostReply()
+  public async Task SourceOnlyReconciliationIsBlockedWhileSpecialistPreparationRetainsReviewedReceipt()
   {
     await using var host=await OwnedHost.StartAsync(startWorker:false,caseId:"ANGULAR-ACCOUNTING-PREPARATION-CREATION");
     var seed=await ReconciliationReviewSeed.SeedAsync(host.Database);var f=seed.Fixture;
@@ -19,27 +19,27 @@ public sealed class AngularAccountingPreparationCreationJourneyTests
     var origin=await host.StartApiForIdentityAsync(f.Staff,new Dictionary<string,string>{["AngularUi__Enabled"]="true",["Application__FirmId"]=f.FirmId.ToString("D")});
     using var pw=await Playwright.CreateAsync();await using var browser=await PlaywrightBrowser.LaunchAsync(pw);await using var context=await browser.NewContextAsync();
     var page=await context.NewPageAsync();var errors=new List<string>();page.PageError+=(_,e)=>errors.Add(e);page.Console+=(_,e)=>{if(e.Type=="error"&&!e.Text.Contains("net::ERR_FAILED",StringComparison.Ordinal))errors.Add(e.Text);};
+    var existingReconciliationCount=0;
+    await using(var existingDb=host.CreateDbContext())existingReconciliationCount=await existingDb.AccountingReconciliations.CountAsync();
+    var attemptedReconciliationWrites=0;
+    await page.RouteAsync("**/api/ui/engagements/*/reconciliation-preparation/**",async route=>
+    {
+      if(route.Request.Method=="POST")Interlocked.Increment(ref attemptedReconciliationWrites);
+      await route.ContinueAsync();
+    });
     var reconciliationUrl=$"/ui/app/engagements/{f.EngagementId}/reconciliation/new?sourceKind=TRIAL_BALANCE&sourceId={seed.SourceId}";
     await page.GotoAsync(origin+"/auth/sign-in?returnUrl="+Uri.EscapeDataString(reconciliationUrl));
     await page.GetByRole(AriaRole.Heading,new(){Name="Prepare reconciliation",Exact=true}).WaitForAsync();
-    await page.GetByLabel("Reconciliation area",new(){Exact=true}).FillAsync("CASH");
-    await page.GetByLabel("Account codes (one per line or comma separated, up to 100)",new(){Exact=true}).FillAsync("1000");
-    await page.GetByLabel("Reason",new(){Exact=true}).FillAsync("Prepare a synthetic source-bound reconciliation.");
-    await page.GetByLabel("Evidence reference",new(){Exact=true}).FillAsync("SYNTHETIC-RECON-EVIDENCE");
-    await page.GetByRole(AriaRole.Button,new(){Name="Preview exact totals",Exact=true}).ClickAsync();
-    await Assertions.Expect(page.Locator("body")).ToContainTextAsync("100.123456");
-    await page.GetByLabel("I reviewed this exact source, account selection, date, calculation and evidence reference.",new(){Exact=true}).CheckAsync();
-    var writes=0;await page.RouteAsync("**/api/ui/engagements/*/reconciliation-preparation",async route=>
+    await Assertions.Expect(page.Locator("body")).ToContainTextAsync("A distinct independently evidenced control population is missing; a selected TB or GL source cannot reconcile itself.");
+    Assert.Equal(0,await page.GetByLabel("Reconciliation area",new(){Exact=true}).CountAsync());
+    Assert.Equal(0,await page.GetByRole(AriaRole.Button,new(){Name="Preview exact totals",Exact=true}).CountAsync());
+    await page.WaitForTimeoutAsync(250);
+    Assert.Equal(0,Volatile.Read(ref attemptedReconciliationWrites));
+    await using(var blockedDb=host.CreateDbContext())
     {
-      if(route.Request.Method!="POST"||route.Request.Url.EndsWith("/preview",StringComparison.Ordinal)){await route.ContinueAsync();return;}
-      Interlocked.Increment(ref writes);var response=await route.FetchAsync();Assert.Equal(200,response.Status);await route.AbortAsync("failed");
-    });
-    await page.GetByRole(AriaRole.Button,new(){Name="Save reviewed reconciliation",Exact=true}).ClickAsync();
-    await page.GetByRole(AriaRole.Heading,new(){Name="Reconciliation outcome needs reconciliation",Exact=true}).WaitForAsync();
-    await page.ReloadAsync();await page.GetByRole(AriaRole.Heading,new(){Name="Reconciliation outcome needs reconciliation",Exact=true}).WaitForAsync();
-    await page.GetByRole(AriaRole.Button,new(){Name="Check retained receipt",Exact=true}).ClickAsync();
-    await Assertions.Expect(page.Locator("body")).ToContainTextAsync("The retained receipt confirms this exact reconciliation");
-    await Assertions.Expect(page.Locator("body")).ToContainTextAsync("revision 2");
+      Assert.Empty(await blockedDb.AccountingReconciliationPreparations.ToListAsync());
+      Assert.Equal(existingReconciliationCount,await blockedDb.AccountingReconciliations.CountAsync());
+    }
 
     var specialistUrl=$"/ui/app/engagements/{f.EngagementId}/specialists/new?periodId={sourcePeriod}&area=ASSETS";
     await page.GotoAsync(origin+specialistUrl);
@@ -63,10 +63,10 @@ public sealed class AngularAccountingPreparationCreationJourneyTests
     await page.SetViewportSizeAsync(390,844);Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"));
     await using(var db=host.CreateDbContext())
     {
-      var recon=await db.AccountingReconciliationPreparations.SingleAsync();Assert.Equal(f.Staff.Id,recon.ActorId);
+      Assert.Empty(await db.AccountingReconciliationPreparations.ToListAsync());
       var schedule=await db.SpecialistSchedulePreparations.SingleAsync();Assert.Equal(f.Staff.Id,schedule.ActorId);
       Assert.Equal(1,await db.SpecialistAccountingSchedules.Where(x=>x.Id==schedule.ScheduleId).Select(x=>x.Revision).SingleAsync());
     }
-    Assert.Equal(1,writes);Assert.Empty(errors);
+    Assert.Equal(0,Volatile.Read(ref attemptedReconciliationWrites));Assert.Empty(errors);
   }
 }

@@ -29,6 +29,8 @@ public sealed record ReconciliationReview(Guid Id, Guid ClientId, string ClientN
 public static class ReconciliationWorkspaceQuery
 {
   private static readonly string[] ReadRoles = ["Administrator", "Partner", "Manager", "AccountingPreparer", "AccountingReviewer"];
+  internal const string MissingIndependentControlBlocker =
+    "A distinct independently evidenced control population is not retained; this source-only reconciliation cannot support current readiness.";
   private const int PageSize = 25;
   private const int MaximumItems = 20000;
 
@@ -126,7 +128,7 @@ public static class ReconciliationWorkspaceQuery
     var blockers = new List<string>();
     var recordedHash = Digest(r.SourceHash);
     if (!independentControlAvailable)
-      blockers.Add("A distinct independently evidenced control population is not retained; this source-only reconciliation cannot support current readiness.");
+      blockers.Add(MissingIndependentControlBlocker);
     if (!sourceAvailable) blockers.Add("The exact accepted and sealed source is unavailable or no longer matches the reporting context.");
     if (recordedHash is null || currentHash != recordedHash) blockers.Add("The retained source digest differs from the current exact source. Prepare new source-bound evidence.");
     if (generation is null || generation != r.InputGeneration) blockers.Add("The client input generation changed or is unavailable. Retained approval cannot be reused.");
