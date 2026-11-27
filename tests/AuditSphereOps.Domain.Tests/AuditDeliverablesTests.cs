@@ -25,6 +25,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
+using Xunit.Abstractions;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -36,6 +37,10 @@ namespace AuditSphereOps.Domain.Tests;
 [Trait("Profile", "Database")]
 public sealed partial class AuditDeliverablesTests
 {
+  private readonly ITestOutputHelper _output;
+
+  public AuditDeliverablesTests(ITestOutputHelper output) => _output = output;
+
   private static AppUser NewUser(Guid firmId, string name, string kind = "Staff") => new()
   {
     Id = Guid.NewGuid(), FirmId = firmId, Subject = name + Guid.NewGuid().ToString("N"), TenantId = "tenant-del", Email = $"{name}-{Guid.NewGuid():N}@example.test",
@@ -66,6 +71,73 @@ public sealed partial class AuditDeliverablesTests
   }
 
   [Fact]
+  public async Task DeliverableList_ProjectsMetadataAndSharesCurrentnessCalculation()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var manager = w.A("manager", "Manager");
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      foreach (var kind in new[] { DeliverableKinds.AuditFindingsReport, DeliverableKinds.ManagementLetter,
+                 DeliverableKinds.RepresentationLetter })
+      {
+        var generated = await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, kind);
+        Assert.True(generated.Succeeded, $"{kind}: {generated.ErrorCode}: {generated.Message}");
+      }
+    }
+
+    List<AuditDeliverable> deliverables;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      deliverables = await db.AuditDeliverables.AsNoTracking().Where(x => x.EngagementId == w.EngagementId)
+        .OrderBy(x => x.Version).ToListAsync();
+    Assert.Equal(3, deliverables.Count);
+    var retainedContentBytes = deliverables.Sum(x => (long)x.Content.LongLength);
+
+    var listReads = new DeliverableReadMeasurement();
+    var listOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(listReads).Options;
+    IReadOnlyList<DeliverableView> listed;
+    await using (var db = new AuditSphereDbContext(listOptions))
+      listed = await AuditDeliverableService.ListAsync(db, manager, w.EngagementId);
+
+    var currentReads = new DeliverableReadMeasurement();
+    var currentOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(currentReads).Options;
+    bool current;
+    await using (var db = new AuditSphereDbContext(currentOptions))
+      current = await AuditDeliverableService.IsCurrentAsync(db, manager, deliverables[^1]);
+
+    Assert.Equal(3, listed.Count);
+    Assert.All(listed, row => Assert.True(row.Current, $"Generated {row.Kind} v{row.Version} should be current."));
+    Assert.True(current);
+    Assert.Equal(0, listReads.MaterializedContentBytes);
+    Assert.True(listReads.ReaderCommands < 319,
+      $"The 3-document list used {listReads.ReaderCommands} reader commands; the measured pre-change baseline was 319.");
+    Assert.Equal(0, currentReads.MaterializedContentBytes);
+    _output.WriteLine("PERF-DELIV-01: fixture={0} generated deliverables; retained content={1} bytes; " +
+      "ListAsync reader commands={2}, materialized content={3} bytes; IsCurrentAsync reader commands={4}, materialized content={5} bytes.",
+      deliverables.Count, retainedContentBytes, listReads.ReaderCommands, listReads.MaterializedContentBytes,
+      currentReads.ReaderCommands, currentReads.MaterializedContentBytes);
+  }
+
+  private sealed class DeliverableReadMeasurement : DbCommandInterceptor, IMaterializationInterceptor
+  {
+    public int ReaderCommands { get; private set; }
+    public long MaterializedContentBytes { get; private set; }
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+      CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+    {
+      ReaderCommands++;
+      return ValueTask.FromResult(result);
+    }
+
+    public object InitializedInstance(MaterializationInterceptionData materializationData, object entity)
+    {
+      if (entity is AuditDeliverable deliverable) MaterializedContentBytes += deliverable.Content.LongLength;
+      return entity;
+    }
+  }
+
+  [Fact]
   public async Task CompletionAndSrmRequireCurrentIndependentlyReviewedProcedureEvidence()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -89,6 +161,9 @@ public sealed partial class AuditDeliverablesTests
     Assert.True(stale.Succeeded, stale.Message);
     Assert.Contains($"procedure:{w.ProcedureCode}:stale-generation", stale.Value!.Blockers);
     Assert.False(await AuditDeliverableService.IsCurrentAsync(db, manager, firstSrm));
+    var listedStaleSrm = Assert.Single(await AuditDeliverableService.ListAsync(db, manager, w.EngagementId),
+      x => x.Id == firstSrm.Id);
+    Assert.False(listedStaleSrm.Current);
 
     var generated = await AuditDeliverableService.GenerateSummaryReviewMemorandumAsync(db, manager, w.EngagementId,
       "Regenerated memorandum records the current incomplete evidence after client inputs changed.");

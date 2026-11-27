@@ -54,6 +54,8 @@ The Hostinger image workflow records Buildx registry digests per image and assem
 
 ## Current presentation ownership
 
+- Deliverable metadata listing: `Application/Completion/AuditDeliverableService.ListAsync` projects only scope, kind/version, digest, signature and time metadata; it does not load retained document bytes. One authorized list request shares the engagement facts digest and evaluates currentness from its bounded metadata set. The dedicated authorized download path continues to load bytes.
+
 - Group deliverable recovery: Angular features/consolidation/scope-workspace.ts keeps an actor-scoped tab reference for build, issue and archive. After a fresh authorized scope read it retries only the original request and validates its receipt; release references and archive reasons are retained only as salted hashes.
 
 - Offboarding recovery: Angular features/clients/client-offboarding-readiness.ts retains a tab-scoped actor/client request reference and salted notes hash across view/session replacement. A fresh authorized readiness read and the original notes are required before exact replay or recovery; a typed pre-write rejection on first transmission, validated committed receipt, or server-proven terminal non-commit after archive revision advancement clears only the exact stored reference. Unknown outcomes, generic stale responses, invalid identities and replaced references remain fenced. Terminal non-commit clears the old reference and requires fresh readiness and assent before a new review.

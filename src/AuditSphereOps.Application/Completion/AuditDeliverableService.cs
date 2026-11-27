@@ -1108,19 +1108,62 @@ public static partial class AuditDeliverableService
 
   // ── Listing and plumbing ──────────────────────────────────────────────────────────────────────────
 
+  private sealed record DeliverableListRow(Guid Id, string Kind, int Version,
+    string InputDigest, Guid? SignedFromDeliverableId, string ContentSha256, DateTimeOffset CreatedAt);
+
   public static async Task<IReadOnlyList<DeliverableView>> ListAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct = default)
   {
     if (!(await AuthorizeAsync(db, actor, engagementId, ReaderRoles, ct)).Succeeded) return [];
-    var rows = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).OrderBy(x => x.Kind).ThenByDescending(x => x.Version).ThenByDescending(x => x.CreatedAt).ToListAsync(ct);
+    var rows = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
+      .OrderBy(x => x.Kind).ThenByDescending(x => x.Version).ThenByDescending(x => x.CreatedAt)
+      .Select(x => new DeliverableListRow(x.Id, x.Kind, x.Version,
+        x.InputDigest, x.SignedFromDeliverableId, x.ContentSha256, x.CreatedAt)).ToListAsync(ct);
     var signedIds = rows.Where(x => x.SignedFromDeliverableId is not null).Select(x => x.Id).ToList();
     var applications = await db.SignatureApplications.AsNoTracking().Where(x => x.FirmId == actor.FirmId && signedIds.Contains(x.SignedDeliverableId))
       .ToDictionaryAsync(x => x.SignedDeliverableId, ct);
+
+    // This request already holds every deliverable for the exact authorized engagement. Reuse that bounded
+    // metadata projection for source links and latest versions, and calculate the shared factual digest once.
+    var rowsById = rows.ToDictionary(x => x.Id);
+    var latestVersions = rows.Where(x => x.SignedFromDeliverableId is null)
+      .GroupBy(x => x.Kind, StringComparer.Ordinal).ToDictionary(x => x.Key, x => x.Max(row => row.Version), StringComparer.Ordinal);
+    var currentKinds = rows.Where(x => x.SignedFromDeliverableId is null && x.Kind != DeliverableKinds.HoldingLetter &&
+        latestVersions[x.Kind] == x.Version)
+      .Select(x => x.Kind).Distinct(StringComparer.Ordinal).ToArray();
+    var expectedDigests = new Dictionary<string, string>(StringComparer.Ordinal);
+    if (currentKinds.Length > 0)
+    {
+      var facts = FactsDigest(await FactsAsync(db, actor, engagementId, ct));
+      AuditOpinionDecision? opinion = null;
+      if (currentKinds.Contains(DeliverableKinds.IndependentAuditorsReport, StringComparer.Ordinal))
+        opinion = await CurrentOpinionForAuthorizedScopeAsync(db, actor, engagementId, ct);
+      foreach (var kind in currentKinds)
+        expectedDigests[kind] = kind == DeliverableKinds.IndependentAuditorsReport
+          ? Digest(new { facts, Opinion = opinion?.Id })
+          : facts;
+    }
+
+    var currentById = new Dictionary<Guid, bool>();
+    var checking = new HashSet<Guid>();
+    bool IsCurrent(DeliverableListRow row)
+    {
+      if (currentById.TryGetValue(row.Id, out var cached)) return cached;
+      if (!checking.Add(row.Id)) return false;
+      var current = row.SignedFromDeliverableId is { } sourceId
+        ? rowsById.TryGetValue(sourceId, out var source) && IsCurrent(source)
+        : latestVersions.TryGetValue(row.Kind, out var latest) && latest == row.Version &&
+          expectedDigests.TryGetValue(row.Kind, out var expected) && row.InputDigest == expected;
+      checking.Remove(row.Id);
+      currentById[row.Id] = current;
+      return current;
+    }
+
     var result = new List<DeliverableView>();
     foreach (var row in rows)
     {
       applications.TryGetValue(row.Id, out var application);
       result.Add(new(row.Id, row.Kind, DeliverableKinds.Title(row.Kind), row.Version, row.SignedFromDeliverableId is not null,
-        row.Kind == DeliverableKinds.HoldingLetter || await IsCurrentAsync(db, actor, row, ct), row.ContentSha256, row.CreatedAt,
+        row.Kind == DeliverableKinds.HoldingLetter || IsCurrent(row), row.ContentSha256, row.CreatedAt,
         application?.SignatureKind ?? ReportSignatureKinds.None, application?.CertificateSubject));
     }
     return result;
