@@ -4,6 +4,22 @@
 
 The required verified baseline is `62059aa2e622bcb6245a211380021f5cf315cd97` (2026-11-26). At continuation start, local `master`, fetched `origin/master`, and HEAD were `5eedb70e9419ad2051191419bad52c9d3991b112`. The focused performance slice is committed and pushed as `fe5685c7a5a5bb6f37c978f7a2ccf79744a34a9a`. Five unrelated dirty Angular specs are preserved. No worktree, branch, package pin, migration, provider effect, production change, merge, or release was created or performed.
 
+## Current source and CI follow-up
+
+The latest pushed `master` is `f00f923bf427a0cb215249d6bce6ec6b9d2f54c6`. Its test-only F12 correction records that ECL/inventory currentness is blocked when its retained reconciliation has no distinct independent control population; generation-bound specialist/analytical evidence remains current, and historical approval status is preserved. The focused API method passed 1/1 against isolated PostgreSQL 19. Earlier fixture-only corrections `e43f2675` and `29d83615` passed PostgreSQL cohorts 1/1 and 2/2; `d661ca9a` corrected older generic reconciliation API expectations and its focused methods passed 2/2.
+
+- Fast CI run [46062452230](https://github.com/nirzaf/AuditSphere/actions/runs/46062452230) and exact-source full run [46062526987](https://github.com/nirzaf/AuditSphere/actions/runs/46062526987) are **IN_PROGRESS** on `f00f923b`.
+- Full run [46049038397](https://github.com/nirzaf/AuditSphere/actions/runs/46049038397) on parent `104281c0` is terminal **FAILURE**: Domain 2,099/2,099, E2E 352/352, Angular and contracts/publication passed; API shard 034 failed the stale F12 currentness expectation, then reached the 3,224,440,832-byte RSS guard (exit -9). The test correction is now locally verified; full API/full-release pass remains pending.
+- Exact fast run [46048924139](https://github.com/nirzaf/AuditSphere/actions/runs/46048924139) passed on parent `104281c0`. Image run [46053306787](https://github.com/nirzaf/AuditSphere/actions/runs/46053306787) successfully published API, migration and worker images plus a manifest for that parent source; it did not deploy.
+- Full run [46046741583](https://github.com/nirzaf/AuditSphere/actions/runs/46046741583) on `d661ca9a` is terminal **FAILURE** from 17 five-second timeouts in `records.spec.ts`; the subsequent `104281c0` Angular full-suite run passed after the existing fixture initialization correction.
+
+PR #57 remains an unrelated draft with 307 dependency/tool/lockfile changes and is outside the pinned-version scope. No merge, release, deployment, migration, production data/permission change or provider effect occurred.
+
+- Full run `46003539218` on `a4fcd84f706ad15d2a0ceb5598564ecb8cef8594` is terminal **FAILURE**. Its API failure directly seeded an approved scope without approval evidence; two E2E failures used stale tenant capability fixtures. Both prerequisites are corrected and focused tests pass on `29d83615`.
+- Fast CI `46042795045` is **PASS** on exact SHA `d661ca9a`; Angular, .NET Release, docs, M365 offline and MCP jobs passed. Prior fast run `46015893287` attempt 2 passed on `29d83615`; attempt 1 timed out once in `unbilled-time.spec.ts` (2,162/2,163 tests), and the focused spec passed 6/6 locally.
+- Full run `46029690245` on `29d83615` is terminal **FAILURE**. Domain passed 2,099/2,099 and all four E2E shards passed 352/352; API reported 367 passed and 2 failed in shard 27 because an older test expected generic TB self-comparison receipts and a conflict where F12 correctly returns `gate.blocked`. That test-only contract correction is pushed as `d661ca9a`. The later full run `46046741583` on `d661ca9a` failed in Angular with 17 timeouts in `records.spec.ts`; full Angular passed on `104281c0`. Current-source full verification is tracked above.
+- PR #57 remains an unrelated open draft, `CONFLICTING`, with 307 files and NuGet/tool/lockfile changes. Those changes violate this remediation scope's pinned-version constraint; the PR was not modified or merged. No release, deployment, migration, production data change, permission change, or provider effect occurred.
+
 ## Implemented continuation slices
 
 ### M365-011 — IMPLEMENTED
@@ -84,7 +100,7 @@ Statuses apply to the named engineering slice; IMPLEMENTED does not mean product
 | F30 | ALREADY_FIXED | Signed TB and independent debit/credit magnitude bounds are present in the shared CSV/XLSX parser; focused boundary cohort passed 4/4 on `21ddeba9`. No source change was needed. [Evidence](auditsphere-audit-f30-evidence-20261127.md). |
 | F31 | IMPLEMENTED | Final rendered bundle bytes and ZIP are bounded before persistence. |
 | FW-BANK-01 | IMPLEMENTED | Typed bank producer/review handoff, scoped receipts, locks and transaction participation; browser journey remains for exact-SHA CI. |
-| ARC-05 | IMPLEMENTED; selected-bundle API journey and read-capability browser handoff VERIFIED locally | The exact custodian-scoped `CanBuild` projection gates catalogue requests while read-only archive metadata stays available. API recovery method 1/1, Angular records spec 22/22, built-asset Playwright 2/2, OpenAPI emitter/check pass. F21 still blocks first-archive eligibility. [Evidence](auditsphere-audit-arc05-evidence-20261127.md). |
+| ARC-05 | IMPLEMENTED; selected-bundle API journey and read-capability browser handoff VERIFIED locally | The exact custodian-scoped `CanBuild` projection gates catalogue requests while read-only archive metadata stays available. API recovery method 1/1, Angular `records.spec.ts` 22/22 and `archive-record.spec.ts` 40/40, built-asset Playwright 2/2, OpenAPI emitter/check pass. F21 still blocks first-archive eligibility. [Evidence](auditsphere-audit-arc05-evidence-20261127.md). |
 | PRA-127 | IMPLEMENTED | Native finance flows capture strict UTC receipt time; updated receipt/fee review locators passed the focused Playwright cohort 6/6 on local source `2476c7b5`; no backdating cutoff or allocation-date rewrite. [Evidence](auditsphere-audit-pra127-evidence-20261127.md). |
 | M365-014 | IMPLEMENTED | Graph directory response byte limits apply to actual bytes read. |
 | M365-011 | IMPLEMENTED | Supported same-tenant replacement regression and current-binding guard are at `5eedb70e`; this continuation’s 2/2 test result is current local evidence. |
