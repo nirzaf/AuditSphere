@@ -272,13 +272,121 @@ public sealed class AuditFieldworkWorkflowTests
         AuditBankReconciliationStatuses.Approved, "Ledger, statement and timing items reconcile at 19 September 2026."))).Succeeded);
     Assert.Equal(AuditBankReconciliationStatuses.Approved,
       await db.AuditBankReconciliations.Where(x => x.Id == bankReconciliation.Value.BankReconciliationId).Select(x => x.Status).SingleAsync());
+
+    var bankCountBeforeWorkspace = await db.AuditBankReconciliations.CountAsync();
+    var nullItems = await AuditFieldworkService.CreateBankReconciliationAsync(db, scope.Actor,
+      new CreateBankReconciliationRequest(scope.EngagementId, procedure.Id, ledgerSchedule.Value.ScheduleId,
+        statementSchedule.Value.ScheduleId, new DateOnly(2026, 9, 19), null!));
+    Assert.False(nullItems.Succeeded);
+    var nullItem = await AuditFieldworkService.CreateBankReconciliationAsync(db, scope.Actor,
+      new CreateBankReconciliationRequest(scope.EngagementId, procedure.Id, ledgerSchedule.Value.ScheduleId,
+        statementSchedule.Value.ScheduleId, new DateOnly(2026, 9, 19), [null!]));
+    Assert.False(nullItem.Succeeded);
+    Assert.Equal(bankCountBeforeWorkspace, await db.AuditBankReconciliations.CountAsync());
+
+    var createState = await BankReconciliationWorkspace.StateAsync(db, scope.Actor, scope.EngagementId);
+    Assert.True(createState.Succeeded, createState.Message);
+    var createId = Guid.CreateVersion7();
+    var createFields = new BankReconciliationCreateFields(procedure.Id, ledgerSchedule.Value.ScheduleId,
+      statementSchedule.Value.ScheduleId, new DateOnly(2026, 9, 19),
+      [
+        new("workspace-ledger", AuditBankReconciliationItemTypes.Ledger, 100m, "Ledger balance",
+          "receipt-bank-ledger-001", "workspace-ledger-evidence", ledgerSchedule.Value.ScheduleId),
+        new("workspace-statement", AuditBankReconciliationItemTypes.Statement, 90m, "Statement balance",
+          "receipt-bank-statement-001", "workspace-statement-evidence", statementSchedule.Value.ScheduleId),
+        new("workspace-timing", AuditBankReconciliationItemTypes.Timing, -10m, "Outstanding cheque",
+          "receipt-bank-statement-001#workspace-timing", "workspace-timing-evidence", statementSchedule.Value.ScheduleId)
+      ]);
+    var createIntent = new BankReconciliationCommandRequest(createId, createState.Value!.ExpectedGeneration,
+      createState.Value.ReviewBasis, Create: createFields);
+    var createPreview = await BankReconciliationWorkspace.PreviewCreateAsync(db, scope.Actor, scope.EngagementId, createIntent);
+    Assert.True(createPreview.Succeeded, createPreview.ErrorCode + ": " + createPreview.Message);
+    Assert.True(createPreview.Value!.CanProceed, string.Join("; ", createPreview.Value.Blockers));
+    var createExecute = createIntent with { ExpectedRequestHash = createPreview.Value.RequestHash, Reviewed = true };
+    var createdThroughWorkspace = await BankReconciliationWorkspace.ExecuteCreateAsync(db, scope.Actor, scope.EngagementId, createExecute);
+    Assert.True(createdThroughWorkspace.Succeeded, createdThroughWorkspace.ErrorCode + ": " + createdThroughWorkspace.Message);
+    Assert.Equal(AuditBankReconciliationStatuses.Reconciled, createdThroughWorkspace.Value!.Result.Status);
+    var exactCreateReplay = await BankReconciliationWorkspace.ExecuteCreateAsync(db, scope.Actor, scope.EngagementId, createExecute);
+    Assert.True(exactCreateReplay.Succeeded, exactCreateReplay.Message);
+    Assert.Equal(createdThroughWorkspace.Value.Id, exactCreateReplay.Value!.Id);
+    var changedCreate = createExecute with
+    {
+      Create = createFields with { Items = createFields.Items.Select(x => x with { EvidenceReference = x.EvidenceReference + "-changed" }).ToArray() }
+    };
+    var changedCreateReplay = await BankReconciliationWorkspace.ExecuteCreateAsync(db, scope.Actor, scope.EngagementId, changedCreate);
+    Assert.False(changedCreateReplay.Succeeded);
+    Assert.Equal(ErrorCodes.IdempotencyConflict, changedCreateReplay.ErrorCode);
+
+    var createdId = createdThroughWorkspace.Value.Result.Id;
+    var authorReviewState = await BankReconciliationWorkspace.StateAsync(db, scope.Actor, scope.EngagementId, createdId);
+    Assert.True(authorReviewState.Succeeded, authorReviewState.Message);
+    var selfReview = await BankReconciliationWorkspace.PreviewReviewAsync(db, scope.Actor, scope.EngagementId, createdId,
+      new BankReconciliationCommandRequest(Guid.CreateVersion7(), authorReviewState.Value!.ExpectedGeneration,
+        authorReviewState.Value.ReviewBasis, Review: new(createdId, AuditBankReconciliationStatuses.Approved,
+          "The preparer cannot independently approve this reconciliation.")));
+    Assert.False(selfReview.Succeeded);
+    Assert.Equal(ErrorCodes.ScopeDenied, selfReview.ErrorCode);
+
+    var reviewerState = await BankReconciliationWorkspace.StateAsync(db, reviewer, scope.EngagementId, createdId);
+    Assert.True(reviewerState.Succeeded, reviewerState.Message);
+    var reviewId = Guid.CreateVersion7();
+    var reviewIntent = new BankReconciliationCommandRequest(reviewId, reviewerState.Value!.ExpectedGeneration,
+      reviewerState.Value.ReviewBasis, Review: new(createdId, AuditBankReconciliationStatuses.Approved,
+        "Independently reviewed the exact approved ledger, statement and timing evidence."));
+    var reviewPreview = await BankReconciliationWorkspace.PreviewReviewAsync(db, reviewer, scope.EngagementId, createdId, reviewIntent);
+    Assert.True(reviewPreview.Succeeded, reviewPreview.ErrorCode + ": " + reviewPreview.Message);
+    Assert.True(reviewPreview.Value!.CanProceed, string.Join("; ", reviewPreview.Value.Blockers));
+    var reviewExecute = reviewIntent with { ExpectedRequestHash = reviewPreview.Value.RequestHash, Reviewed = true };
+    var reviewedThroughWorkspace = await BankReconciliationWorkspace.ExecuteReviewAsync(db, reviewer, scope.EngagementId, reviewExecute);
+    Assert.True(reviewedThroughWorkspace.Succeeded, reviewedThroughWorkspace.ErrorCode + ": " + reviewedThroughWorkspace.Message);
+    Assert.Equal(AuditBankReconciliationStatuses.Approved, reviewedThroughWorkspace.Value!.Result.Status);
+    var reviewLookup = await BankReconciliationWorkspace.LookupAsync(db, reviewer, scope.EngagementId, reviewId,
+      reviewPreview.Value.RequestHash, "REVIEW");
+    Assert.True(reviewLookup.Succeeded, reviewLookup.Message);
+    Assert.True(reviewLookup.Value!.Found);
+    Assert.Equal(reviewedThroughWorkspace.Value.Id, reviewLookup.Value.Receipt!.Id);
+    var receiptId = reviewedThroughWorkspace.Value.Id;
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE audit_bank_reconciliation_command_receipts SET action = 'CREATE' WHERE id = {receiptId}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"DELETE FROM audit_bank_reconciliation_command_receipts WHERE id = {receiptId}"));
+    await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync(
+      "TRUNCATE TABLE audit_bank_reconciliation_command_receipts"));
+
+    var rowsBeforeReceiptFailure = await db.AuditBankReconciliations.CountAsync();
+    var receiptFailure = new FailBankReconciliationReceiptWrite();
+    var failureOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(receiptFailure).Options;
+    var failedRequestId = Guid.CreateVersion7();
+    await using (var failedDb = new AuditSphereDbContext(failureOptions))
+    {
+      var failedState = await BankReconciliationWorkspace.StateAsync(failedDb, scope.Actor, scope.EngagementId);
+      Assert.True(failedState.Succeeded, failedState.Message);
+      var failedFields = createFields with { Items = createFields.Items.Select(x => x with {
+        StableItemId = x.StableItemId + "-receipt-failure", EvidenceReference = x.EvidenceReference + "-receipt-failure"
+      }).ToArray() };
+      var failedIntent = new BankReconciliationCommandRequest(failedRequestId, failedState.Value!.ExpectedGeneration,
+        failedState.Value.ReviewBasis, Create: failedFields);
+      var failedPreview = await BankReconciliationWorkspace.PreviewCreateAsync(failedDb, scope.Actor, scope.EngagementId, failedIntent);
+      Assert.True(failedPreview.Succeeded, failedPreview.Message);
+      var failedExecute = failedIntent with { ExpectedRequestHash = failedPreview.Value!.RequestHash, Reviewed = true };
+      await Assert.ThrowsAsync<DbUpdateException>(() =>
+        BankReconciliationWorkspace.ExecuteCreateAsync(failedDb, scope.Actor, scope.EngagementId, failedExecute));
+    }
+    Assert.True(receiptFailure.Invoked);
+    await using (var verifyRollback = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.Equal(rowsBeforeReceiptFailure, await verifyRollback.AuditBankReconciliations.CountAsync());
+      Assert.False(await verifyRollback.AuditBankReconciliationCommandReceipts.AnyAsync(x => x.RequestId == failedRequestId));
+    }
+
     // Read-only drill-down keeps exact stored source provenance separate from approval/currentness.
     var bankId = bankReconciliation.Value.BankReconciliationId;
     var bankBefore = await db.AuditBankReconciliations.AsNoTracking().SingleAsync(x => x.Id == bankId);
-    var bankList = await BankReconciliationInspectionQuery.ListAsync(db, reviewer, scope.EngagementId, limit: 1);
+    var bankList = await BankReconciliationInspectionQuery.ListAsync(db, reviewer, scope.EngagementId, limit: 10);
     Assert.True(bankList.Succeeded, bankList.Message);
-    Assert.Equal(bankId, Assert.Single(bankList.Value!.Rows).Id);
-    Assert.Equal(1, bankList.Value.Total);
+    Assert.Contains(bankId, bankList.Value!.Rows.Select(x => x.Id));
+    Assert.Contains(createdThroughWorkspace.Value.Result.Id, bankList.Value.Rows.Select(x => x.Id));
+    Assert.Equal(2, bankList.Value.Total);
     var inspection = await BankReconciliationInspectionQuery.DetailAsync(db, reviewer, scope.EngagementId, bankId, limit: 1);
     Assert.True(inspection.Succeeded, inspection.Message);
     Assert.Equal(3, inspection.Value!.Total);
@@ -520,6 +628,47 @@ public sealed class AuditFieldworkWorkflowTests
     Assert.Equal(2, await db.AuditScheduleRows.CountAsync(x => x.ScheduleId == schedule.Value.ScheduleId));
     Assert.Equal(3, await db.AuditDifferences.CountAsync());
 
+    var administrator = PbcSeed.User(scope.FirmId, "Staff");
+    var revocablePreparer = PbcSeed.User(scope.FirmId, "Staff");
+    db.Users.AddRange(administrator, revocablePreparer);
+    var revocableStaffGrant = PbcSeed.Grant(scope.FirmId, revocablePreparer, "Staff", scope.ClientId, scope.EngagementId);
+    db.RoleGrants.AddRange(PbcSeed.Grant(scope.FirmId, administrator, "Administrator"), revocableStaffGrant);
+    await db.SaveChangesAsync();
+    var revocableActor = PbcSeed.Actor(revocablePreparer, "Staff");
+    var revocationState = await BankReconciliationWorkspace.StateAsync(db, revocableActor, scope.EngagementId);
+    Assert.True(revocationState.Succeeded && revocationState.Value!.CanCreate, revocationState.Message);
+    var revocationRequestId = Guid.CreateVersion7();
+    var revocationFields = createFields with { Items = createFields.Items.Select(x => x with {
+      StableItemId = "revocation-" + x.StableItemId, EvidenceReference = x.EvidenceReference + "-revocation"
+    }).ToArray() };
+    var revocationIntent = new BankReconciliationCommandRequest(revocationRequestId,
+      revocationState.Value.ExpectedGeneration, revocationState.Value.ReviewBasis, Create: revocationFields);
+    var revocationPreview = await BankReconciliationWorkspace.PreviewCreateAsync(db, revocableActor, scope.EngagementId, revocationIntent);
+    Assert.True(revocationPreview.Succeeded && revocationPreview.Value!.CanProceed, revocationPreview.Message);
+    var reconciliationsBeforeRevocation = await db.AuditBankReconciliations.CountAsync();
+    var revocationInterceptor = new RevokeBeforeScheduleReview(async token =>
+    {
+      await using var revokeDb = new AuditSphereDbContext(pg.Options);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(revokeDb,
+        PbcSeed.Actor(administrator, "Administrator"), new(revocableStaffGrant.Id, Reason: "Synthetic bank command authority boundary"), token);
+      Assert.True(revoked.Succeeded, revoked.Message);
+    });
+    var revocationOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(revocationInterceptor).Options;
+    await using (var commandDb = new AuditSphereDbContext(revocationOptions))
+    {
+      var reviewedIntent = revocationIntent with { ExpectedRequestHash = revocationPreview.Value!.RequestHash, Reviewed = true };
+      var revokedCommand = await BankReconciliationWorkspace.ExecuteCreateAsync(commandDb, revocableActor, scope.EngagementId, reviewedIntent);
+      Assert.False(revokedCommand.Succeeded);
+      Assert.Equal(ErrorCodes.GenerationStale, revokedCommand.ErrorCode);
+    }
+    Assert.True(revocationInterceptor.Invoked);
+    await using (var verifyRevocation = new AuditSphereDbContext(pg.Options))
+    {
+      Assert.NotNull((await verifyRevocation.RoleGrants.AsNoTracking().SingleAsync(x => x.Id == revocableStaffGrant.Id)).RevokedAt);
+      Assert.Equal(reconciliationsBeforeRevocation, await verifyRevocation.AuditBankReconciliations.CountAsync());
+      Assert.False(await verifyRevocation.AuditBankReconciliationCommandReceipts.AnyAsync(x => x.RequestId == revocationRequestId));
+    }
+
     // A later client generation makes the still-approved Bank source schedules stale.
     // This is a generation-change fixture, not a runtime interleaving/race simulation.
     var currentBankGeneration = await db.ClientSafetyStates.AsNoTracking()
@@ -593,10 +742,6 @@ public sealed class AuditFieldworkWorkflowTests
 
     // Revoke official authority after the evidence snapshot commits. Final authorization must
     // observe new DB state rather than reuse the repeatable-read snapshot.
-    var administrator = PbcSeed.User(scope.FirmId, "Staff");
-    db.Users.Add(administrator);
-    db.RoleGrants.Add(PbcSeed.Grant(scope.FirmId, administrator, "Administrator"));
-    await db.SaveChangesAsync();
     var partnerGrant = await db.RoleGrants.Where(x => x.UserId == scope.Actor.UserId && x.RevokedAt == null)
       .Select(x => x.Id).SingleAsync();
     var revokeAfterSnapshot = new RevokeAfterBankSnapshot(async ct =>
@@ -632,6 +777,47 @@ public sealed class AuditFieldworkWorkflowTests
       if (invoked) return;
       invoked = true;
       await revoke(cancellationToken);
+    }
+  }
+
+  private sealed class FailBankReconciliationReceiptWrite : DbCommandInterceptor
+  {
+    public bool Invoked { get; private set; }
+
+    private void Fail(DbCommand command)
+    {
+      if (!command.CommandText.Contains("INSERT INTO", StringComparison.OrdinalIgnoreCase) ||
+          !command.CommandText.Contains("audit_bank_reconciliation_command_receipts", StringComparison.OrdinalIgnoreCase)) return;
+      Invoked = true;
+      throw new InvalidOperationException("Synthetic bank command receipt write failure.");
+    }
+
+    public override InterceptionResult<DbDataReader> ReaderExecuting(DbCommand command, CommandEventData eventData,
+      InterceptionResult<DbDataReader> result)
+    {
+      Fail(command);
+      return result;
+    }
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+      CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+    {
+      Fail(command);
+      return ValueTask.FromResult(result);
+    }
+
+    public override InterceptionResult<int> NonQueryExecuting(DbCommand command, CommandEventData eventData,
+      InterceptionResult<int> result)
+    {
+      Fail(command);
+      return result;
+    }
+
+    public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand command,
+      CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+      Fail(command);
+      return ValueTask.FromResult(result);
     }
   }
 

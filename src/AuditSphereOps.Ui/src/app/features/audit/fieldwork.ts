@@ -5,7 +5,9 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
 import { Api, CommandState, routeGuid } from '../../core/api';
-import { decodeBankReconciliationDetail, decodeBankReconciliationPage, decodeFieldwork, decodeManagerReview, decodeProgramOptions, focusRisks, type Fieldwork } from './fieldwork-contracts';
+import { decodeBankReconciliationCommandLookup, decodeBankReconciliationCommandPreview, decodeBankReconciliationCommandReceipt,
+  decodeBankReconciliationCommandState, decodeBankReconciliationDetail, decodeBankReconciliationPage,
+  decodeFieldwork, decodeManagerReview, decodeProgramOptions, focusRisks, type Fieldwork } from './fieldwork-contracts';
 import { SessionService } from '../../core/session';
 import { PlanningCommandState } from './planning-command-state';
 import { PlanningCommandReview } from './planning-command-review';
@@ -16,6 +18,55 @@ import { ProcedureSubmittedEvidence } from './procedure-submitted-evidence';
 import { FieldworkSamplingState } from './fieldwork-sampling-state';
 import { FieldworkSourceIntakeState } from './fieldwork-source-intake-state';
 import type { FieldworkCommandAcquire, FieldworkCommandRecovery } from './fieldwork-command-context';
+
+type BankAction = 'CREATE' | 'REVIEW';
+type BankCommandBody = {
+  requestId: string; expectedGeneration: string; reviewBasis: string; expectedRequestHash: string | null; reviewed: boolean;
+  create?: { procedureId: string | null; ledgerScheduleId: string; statementScheduleId: string; asOfDate: string;
+    items: { stableItemId: string; itemType: string; signedAmount: string; description: string; sourceReference: string;
+      evidenceReference: string; sourceScheduleId: string | null; proposedJournalId: string | null }[] };
+  review?: { reconciliationId: string; decision: string; conclusion: string };
+};
+type BankItemDraft = NonNullable<BankCommandBody['create']>['items'][number];
+type PendingBankCommand = { engagementId: string; action: BankAction; body: BankCommandBody; requestHash: string };
+
+function bankCommandPending(raw: unknown): PendingBankCommand | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const p = raw as Record<string, unknown>, body = p['body'];
+  const guid = (x: unknown): x is string => typeof x === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(x);
+  const hash = (x: unknown): x is string => typeof x === 'string' && /^[a-f0-9]{64}$/.test(x);
+  if (!guid(p['engagementId']) || (p['action'] !== 'CREATE' && p['action'] !== 'REVIEW') || !hash(p['requestHash']) ||
+      !body || typeof body !== 'object' || Array.isArray(body)) return null;
+  const b = body as Record<string, unknown>;
+  if (!guid(b['requestId']) || !hash(b['reviewBasis']) || !hash(b['expectedRequestHash']) || b['expectedRequestHash'] !== p['requestHash'] || b['requestHash'] !== undefined ||
+      typeof b['expectedGeneration'] !== 'string' || !/^[1-9][0-9]{0,18}$/.test(b['expectedGeneration']) || b['reviewed'] !== true) return null;
+  if (p['action'] === 'CREATE') {
+    const c = b['create'];
+    if (!c || typeof c !== 'object' || Array.isArray(c) || b['review'] !== undefined) return null;
+    const x = c as Record<string, unknown>;
+    if (!guid(x['ledgerScheduleId']) || !guid(x['statementScheduleId']) || !(x['procedureId'] === null || guid(x['procedureId'])) ||
+        typeof x['asOfDate'] !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(x['asOfDate']) ||
+        !Array.isArray(x['items']) || x['items'].length < 1 || x['items'].length > 1000) return null;
+    for (const item of x['items']) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+      const i = item as Record<string, unknown>;
+      if (typeof i['stableItemId'] !== 'string' || !i['stableItemId'].trim() || i['stableItemId'].length > 200 ||
+          !['LEDGER', 'STATEMENT', 'TIMING', 'PROPOSED_CORRECTION'].includes(String(i['itemType'])) ||
+          typeof i['signedAmount'] !== 'string' || !/^-?\d{1,13}(\.\d{1,6})?$/.test(i['signedAmount']) ||
+          typeof i['description'] !== 'string' || !i['description'].trim() || i['description'].length > 1000 ||
+          typeof i['sourceReference'] !== 'string' || !i['sourceReference'].trim() || i['sourceReference'].length > 500 ||
+          typeof i['evidenceReference'] !== 'string' || !i['evidenceReference'].trim() || i['evidenceReference'].length > 2000 ||
+          !(i['sourceScheduleId'] === null || guid(i['sourceScheduleId'])) || !(i['proposedJournalId'] === null || guid(i['proposedJournalId']))) return null;
+    }
+  } else {
+    const r = b['review'];
+    if (!r || typeof r !== 'object' || Array.isArray(r) || b['create'] !== undefined) return null;
+    const x = r as Record<string, unknown>;
+    if (!guid(x['reconciliationId']) || !['APPROVED', 'CHANGES_REQUIRED'].includes(String(x['decision'])) ||
+        typeof x['conclusion'] !== 'string' || !x['conclusion'].trim() || x['conclusion'].length > 4000) return null;
+  }
+  return { engagementId: p['engagementId'], action: p['action'], body: b as unknown as BankCommandBody, requestHash: p['requestHash'] };
+}
 
 @Component({
   selector: 'audit-fieldwork',
@@ -49,8 +100,32 @@ export class AuditFieldwork {
   readonly bankOffset = signal(0);
   readonly bankSelection = signal<string | null>(null);
   readonly bankItemOffset = signal(0);
+  readonly bankCommandState = this.api.resource(() => this.bankInspectionOpen() && this.id() &&
+    (this.ws.data()?.canManageFieldwork || this.ws.data()?.canReviewSelections)
+      ? `/api/ui/engagements/${this.id()}/fieldwork/bank-reconciliations/command-state${this.bankSelection() ? `?reconciliationId=${this.bankSelection()}` : ''}`
+      : null, decodeBankReconciliationCommandState,
+    'Bank command eligibility and exact source basis are unavailable for this engagement.');
+  readonly bankLedgerScheduleId = signal('');
+  readonly bankStatementScheduleId = signal('');
+  readonly bankAsOfDate = signal('');
+  readonly bankItems = signal<BankItemDraft[]>([]);
+  readonly bankReviewDecision = signal('APPROVED');
+  readonly bankReviewConclusion = signal('');
+  readonly bankCommandPreview = signal<ReturnType<typeof decodeBankReconciliationCommandPreview> | null>(null);
+  readonly bankCommandReceipt = signal<ReturnType<typeof decodeBankReconciliationCommandReceipt> | null>(null);
+  readonly bankCommandPending = signal<PendingBankCommand | null>(null);
+  readonly bankCommandAbsent = signal(false);
+  readonly bankCommandReviewed = signal(false);
+  readonly bankCommandBusy = signal(false);
+  readonly bankCommandMessage = signal('');
+  readonly bankCommandFailed = signal(false);
+  readonly bankCommandStorageUnavailable = signal(false);
+  private bankCommandBody: BankCommandBody | null = null;
+  private bankCommandFingerprint = '';
+  private readonly bankCommandHeading = viewChild<ElementRef<HTMLElement>>('bankCommandHeading');
   private readonly bankInspectionHeading = viewChild<ElementRef<HTMLElement>>('bankInspectionHeading');
-  private bankFocusRequest: { current: () => boolean; interaction: number; origin: HTMLElement; version: number } | null = null;
+  private bankFocusRequest: { current: () => boolean; interaction: number; origin: HTMLElement; version: number;
+    target: 'command' | 'inspection' } | null = null;
   private bankFocusVersion = 0;
   readonly bankList = this.api.resource(() => this.bankInspectionOpen() && this.id() && this.ws.data()?.canReviewSelections && this.managerReview.data()
     ? `/api/ui/engagements/${this.id()}/fieldwork/bank-reconciliations?offset=${this.bankOffset()}&limit=25` : null,
@@ -143,9 +218,14 @@ export class AuditFieldwork {
           const doc = request.origin.ownerDocument;
           if (!request.current() || request.version !== this.bankFocusVersion || request.interaction !== this.focusInteraction ||
               !this.bankInspectionOpen() || (doc.activeElement !== request.origin && doc.activeElement !== doc.body)) return;
-          this.bankInspectionHeading()?.nativeElement.focus();
+          (request.target === 'command' ? this.bankCommandHeading() ?? this.bankInspectionHeading()
+            : this.bankInspectionHeading() ?? this.bankCommandHeading())?.nativeElement.focus();
         }, { injector: this.renderInjector });
       });
+    });
+    effect(() => {
+      const state = this.bankCommandState.data(); this.bankCommandState.loading(); this.bankCommandState.error();
+      untracked(() => { if (state && Array.isArray(state.sources)) this.chooseDefaultBankSources(state); });
     });
     // Aggregate conclusion presentation stays in the host; sampling history is owned by its state object.
     effect(() => {
@@ -173,35 +253,46 @@ export class AuditFieldwork {
     ++this.ownerGeneration; ++this.commandGeneration;
     this.procedure.ownerChanged(); this.sampling.ownerChanged(); this.sourceIntake.ownerChanged();
     this.bankInspectionOpen.set(false); this.bankSelection.set(null); this.bankOffset.set(0); this.bankItemOffset.set(0);
+    this.bankLedgerScheduleId.set(''); this.bankStatementScheduleId.set(''); this.bankAsOfDate.set(''); this.bankItems.set([]);
+    this.bankCommandPreview.set(null); this.bankCommandReceipt.set(null); this.bankCommandPending.set(null);
+    this.bankCommandAbsent.set(false); this.bankCommandReviewed.set(false); this.bankCommandMessage.set(''); this.bankCommandFailed.set(false);
+    this.bankCommandStorageUnavailable.set(false);
+    this.bankCommandBody = null; this.bankCommandFingerprint = '';
     this.bankFocusRequest = null; ++this.bankFocusVersion;
     this.cmd.busy.set(false); this.cmd.message.set(''); this.cmd.failed.set(false); this.cmd.code.set('');
     this.refreshPriorScopeNotice();
+    this.restoreBankPending();
   }
   private requestBankFocus(trigger: EventTarget | null): void {
     ++this.bankFocusVersion;
     this.bankFocusRequest = trigger instanceof HTMLElement && trigger.ownerDocument.activeElement === trigger
-      ? { origin: trigger, interaction: this.focusInteraction, current: this.captureOwner(), version: this.bankFocusVersion } : null;
+      ? { origin: trigger, interaction: this.focusInteraction, current: this.captureOwner(), version: this.bankFocusVersion,
+        target: trigger.getAttribute('aria-controls') === 'bank-reconciliation-command-workspace' ? 'command' : 'inspection' } : null;
   }
   openBankInspection(trigger: EventTarget | null): void {
-    if (!this.ws.data()?.canReviewSelections || !this.managerReview.data()) return;
-    if (this.bankInspectionOpen()) { this.bankInspectionHeading()?.nativeElement.focus(); return; }
+    const w = this.ws.data();
+    if (!w || (!w.canManageFieldwork && (!w.canReviewSelections || !this.managerReview.data()))) return;
+    if (this.bankInspectionOpen()) { (this.bankCommandHeading() ?? this.bankInspectionHeading())?.nativeElement.focus(); return; }
     this.requestBankFocus(trigger);
     this.bankInspectionOpen.set(true);
+    this.restoreBankPending();
   }
   closeBankInspection(trigger: EventTarget | null): void {
     const ownsFocus = trigger instanceof HTMLElement && trigger.ownerDocument.activeElement === trigger;
     // The count trigger remains mounted: return focus before removing the inspection panel.
-    if (ownsFocus) this.bankInspectionTrigger()?.nativeElement.focus();
+    if (ownsFocus) (this.bankInspectionTrigger() ?? this.bankCommandTrigger())?.nativeElement.focus();
     this.bankInspectionOpen.set(false); this.bankSelection.set(null); this.bankFocusRequest = null; ++this.bankFocusVersion;
+    this.bankCommandPreview.set(null); this.bankCommandReviewed.set(false); this.bankCommandBody = null; this.bankCommandFingerprint = '';
   }
   private readonly bankInspectionTrigger = viewChild<unknown, ElementRef<HTMLButtonElement>>('bankInspectionTrigger', { read: ElementRef });
+  private readonly bankCommandTrigger = viewChild<unknown, ElementRef<HTMLButtonElement>>('bankCommandTrigger', { read: ElementRef });
   bankPage(offset: number, trigger: EventTarget | null): void {
     if (this.bankList.loading() || !this.bankList.data() || offset < 0) return;
     this.requestBankFocus(trigger); this.bankSelection.set(null); this.bankItemOffset.set(0); this.bankOffset.set(offset);
   }
   inspectBank(id: string, trigger: EventTarget | null): void {
     if (!this.bankList.data()?.rows.some(row => row.id === id) || this.bankDetail.loading()) return;
-    this.requestBankFocus(trigger); this.bankItemOffset.set(0); this.bankSelection.set(id);
+    this.requestBankFocus(trigger); this.bankItemOffset.set(0); this.bankSelection.set(id); this.bankCommandInputChanged();
   }
   bankItemsPage(offset: number, trigger: EventTarget | null): void {
     if (this.bankDetail.loading() || !this.bankDetail.data() || offset < 0) return;
@@ -210,6 +301,241 @@ export class AuditFieldwork {
   refreshBankInspection(trigger: EventTarget | null): void {
     if (this.bankList.loading() || this.bankDetail.loading()) return;
     this.requestBankFocus(trigger); this.bankList.reload();
+  }
+  private chooseDefaultBankSources(state: ReturnType<typeof decodeBankReconciliationCommandState>): void {
+    if (this.bankSelection() || this.bankLedgerScheduleId() || this.bankStatementScheduleId()) return;
+    const ledger = state.sources.find(x => x.scheduleType === 'BANK_LEDGER' && x.asOfDate);
+    const statement = ledger && state.sources.find(x => x.scheduleType === 'BANK_STATEMENT' && x.asOfDate === ledger.asOfDate && x.currency === ledger.currency);
+    if (!ledger || !statement) return;
+    this.bankLedgerScheduleId.set(ledger.id); this.bankStatementScheduleId.set(statement.id); this.bankAsOfDate.set(ledger.asOfDate!);
+  }
+  setBankLedgerSchedule(id: string): void {
+    this.bankLedgerScheduleId.set(id); this.bankCommandInputChanged();
+    const ledger = this.bankCommandState.data()?.sources.find(x => x.id === id);
+    const statement = this.bankCommandState.data()?.sources.find(x => x.scheduleType === 'BANK_STATEMENT' &&
+      x.currency === ledger?.currency && x.asOfDate === ledger.asOfDate);
+    if (statement) { this.bankStatementScheduleId.set(statement.id); this.bankAsOfDate.set(statement.asOfDate ?? ''); }
+  }
+  setBankStatementSchedule(id: string): void {
+    this.bankStatementScheduleId.set(id); this.bankCommandInputChanged();
+    const statement = this.bankCommandState.data()?.sources.find(x => x.id === id);
+    if (statement?.asOfDate) this.bankAsOfDate.set(statement.asOfDate);
+  }
+  addBankItem(): void {
+    const items = this.bankItems();
+    this.bankItems.set([...items, { stableItemId: `bank-item-${crypto.randomUUID()}`, itemType: 'TIMING', signedAmount: '0.000000',
+      description: '', sourceReference: '', evidenceReference: '', sourceScheduleId: this.bankStatementScheduleId() || null, proposedJournalId: null }]);
+    this.bankCommandInputChanged();
+  }
+  bankSources(type: 'BANK_LEDGER' | 'BANK_STATEMENT') {
+    return this.bankCommandState.data()?.sources.filter(x => x.scheduleType === type) ?? [];
+  }
+  updateBankItem(item: BankItemDraft, patch: Partial<BankItemDraft>): void {
+    Object.assign(item, patch); this.bankItems.set([...this.bankItems()]); this.bankCommandInputChanged();
+  }
+  removeBankItem(item: BankItemDraft): void {
+    this.bankItems.set(this.bankItems().filter(x => x !== item)); this.bankCommandInputChanged();
+  }
+  bankItemTypeChanged(item: BankItemDraft, type: string): void {
+    item.itemType = type;
+    item.sourceScheduleId = type === 'LEDGER' ? this.bankLedgerScheduleId() || null :
+      type === 'PROPOSED_CORRECTION' ? null : this.bankStatementScheduleId() || null;
+    if (type !== 'PROPOSED_CORRECTION') item.proposedJournalId = null;
+    this.bankItems.set([...this.bankItems()]); this.bankCommandInputChanged();
+  }
+  bankCommandInputChanged(): void {
+    if (this.bankCommandBusy()) return;
+    this.bankCommandPreview.set(null); this.bankCommandReviewed.set(false); this.bankCommandReceipt.set(null);
+    this.bankCommandBody = null; this.bankCommandFingerprint = '';
+    if (!this.bankCommandPending()) { this.bankCommandMessage.set(''); this.bankCommandFailed.set(false); }
+  }
+  private bankInputFingerprint(action: BankAction): string {
+    return action === 'CREATE' ? JSON.stringify({ ledger: this.bankLedgerScheduleId(), statement: this.bankStatementScheduleId(),
+      asOfDate: this.bankAsOfDate(), items: this.bankItems() }) : JSON.stringify({ reconciliationId: this.bankSelection(),
+      decision: this.bankReviewDecision(), conclusion: this.bankReviewConclusion() });
+  }
+  private bankCommandPath(): string { return `/api/ui/engagements/${this.id()}/fieldwork/bank-reconciliations`; }
+  private bankCommandScope(pending: PendingBankCommand, basis: string) {
+    return { entity: `audit-bank-reconciliation/${pending.engagementId}/${pending.action}`, baseRevision: basis };
+  }
+  private restoreBankPending(): void {
+    const engagementId = this.id();
+    if (!engagementId || !this.riskLinkSession.current()?.staff) return;
+    const entity = `audit-bank-reconciliation/${engagementId}/CREATE`;
+    const create = this.tabDrafts.readPendingSubmission({ entity, baseRevision: '0'.repeat(64) }, bankCommandPending);
+    const reviewEntity = `audit-bank-reconciliation/${engagementId}/REVIEW`;
+    const review = this.tabDrafts.readPendingSubmission({ entity: reviewEntity, baseRevision: '0'.repeat(64) }, bankCommandPending);
+    if (create.state === 'unavailable' || review.state === 'unavailable') {
+      this.bankCommandStorageUnavailable.set(true); this.bankCommandFailed.set(true);
+      this.bankCommandMessage.set('Saved bank-command recovery storage is unavailable. Do not submit a replacement request.'); return;
+    }
+    this.bankCommandStorageUnavailable.set(false);
+    const pending = create.state === 'ready' ? create.draft.value : review.state === 'ready' ? review.draft.value : null;
+    if (!pending || pending.engagementId !== engagementId) return;
+    this.bankCommandPending.set(pending); this.bankCommandAbsent.set(false); this.bankCommandPreview.set(null);
+    this.bankCommandReviewed.set(false); this.bankCommandMessage.set('A bank command may have completed. Look up its retained receipt before any retry.');
+  }
+  private beginBankOperation(allowPending = false): (() => void) | null {
+    if (this.cmd.busy() || this.bankCommandBusy() || this.riskLink.busy() || this.riskLink.uncertain() ||
+        this.procedure.hasUnresolvedCommand() || this.sourceIntake.hasUnresolvedCommand() ||
+        this.sampling.samplingBusy() || this.sampling.sampleActionBusy() ||
+        this.bankCommandPending() && !allowPending) return null;
+    const owner = this.captureOwner(), operation = ++this.commandGeneration;
+    this.cmd.busy.set(true); this.bankCommandBusy.set(true);
+    return () => { this.bankCommandBusy.set(false); if (operation === this.commandGeneration && owner()) this.cmd.busy.set(false); };
+  }
+  async prepareBankCreate(): Promise<void> {
+    const state = this.bankCommandState.data();
+    if (!state?.canCreate || this.bankCommandPending() || this.bankCommandBusy()) return;
+    const items = this.bankItems().map(x => ({ ...x, signedAmount: x.signedAmount.trim() }));
+    const body: BankCommandBody = { requestId: crypto.randomUUID(), expectedGeneration: state.expectedGeneration,
+      reviewBasis: state.reviewBasis, expectedRequestHash: null, reviewed: false,
+      create: { procedureId: null, ledgerScheduleId: this.bankLedgerScheduleId(), statementScheduleId: this.bankStatementScheduleId(),
+        asOfDate: this.bankAsOfDate(), items } };
+    await this.previewBankCommand('CREATE', body);
+  }
+  async prepareBankReview(): Promise<void> {
+    const state = this.bankCommandState.data(), record = state?.record;
+    if (!state?.canReview || !record || this.bankCommandPending() || this.bankCommandBusy()) return;
+    const body: BankCommandBody = { requestId: crypto.randomUUID(), expectedGeneration: state.expectedGeneration,
+      reviewBasis: state.reviewBasis, expectedRequestHash: null, reviewed: false,
+      review: { reconciliationId: record.id, decision: this.bankReviewDecision(), conclusion: this.bankReviewConclusion() } };
+    await this.previewBankCommand('REVIEW', body);
+  }
+  private async previewBankCommand(action: BankAction, body: BankCommandBody): Promise<void> {
+    const release = this.beginBankOperation(); if (!release) return;
+    const owner = this.captureOwner();
+    this.bankCommandMessage.set(''); this.bankCommandFailed.set(false); this.bankCommandReceipt.set(null);
+    try {
+      const suffix = action === 'CREATE' ? '/create/preview' : `/${body.review!.reconciliationId}/review/preview`;
+      const result = await this.api.command(this.bankCommandPath() + suffix, body);
+      if (!owner()) return;
+      if (!result.ok) { this.bankCommandFailed.set(true); this.bankCommandMessage.set(result.message); return; }
+      const preview = decodeBankReconciliationCommandPreview(result.value, 'bank-reconciliation.preview');
+      const state = this.bankCommandState.data();
+      if (!state || preview.action !== action || preview.requestId !== body.requestId || preview.reviewBasis !== body.reviewBasis ||
+          preview.expectedGeneration !== body.expectedGeneration || state.reviewBasis !== body.reviewBasis || !preview.canProceed)
+        throw new Error('The bank command preview does not match the current source basis.');
+      this.bankCommandBody = body; this.bankCommandFingerprint = this.bankInputFingerprint(action);
+      this.bankCommandPreview.set(preview); this.bankCommandReviewed.set(false);
+      if (action === 'CREATE' && preview.calculated) this.bankCommandMessage.set(preview.summary);
+      else this.bankCommandMessage.set(preview.summary);
+    } catch {
+      if (owner()) { this.bankCommandFailed.set(true); this.bankCommandMessage.set('The exact bank-command preview could not be verified. Refresh sources and review again.'); }
+    } finally { release(); }
+  }
+  async executeBankCommand(): Promise<void> {
+    const preview = this.bankCommandPreview(), body = this.bankCommandBody, state = this.bankCommandState.data();
+    const pending = this.bankCommandPending();
+    if (!preview?.canProceed || !body || !state || !this.bankCommandReviewed() || state.reviewBasis !== preview.reviewBasis ||
+        state.expectedGeneration !== preview.expectedGeneration || this.bankInputFingerprint(preview.action as BankAction) !== this.bankCommandFingerprint ||
+        this.bankCommandStorageUnavailable() || pending && (!this.bankCommandAbsent() || pending.requestHash !== preview.requestHash || pending.body.requestId !== preview.requestId)) return;
+    const action = preview.action as BankAction;
+    const submitted: BankCommandBody = { ...body, expectedRequestHash: preview.requestHash, reviewed: true };
+    const recovery: PendingBankCommand = { engagementId: this.id()!, action, body: submitted, requestHash: preview.requestHash };
+    const scope = this.bankCommandScope(recovery, preview.reviewBasis);
+    if (!this.tabDrafts.save(scope, recovery, bankCommandPending, true)) {
+      this.bankCommandFailed.set(true); this.bankCommandMessage.set('The exact request could not be saved for recovery. No bank command was sent.'); return;
+    }
+    const release = this.beginBankOperation(!!pending); if (!release) return;
+    this.bankCommandPending.set(recovery); this.bankCommandAbsent.set(false); this.bankCommandPreview.set(null);
+    this.bankCommandReviewed.set(false); this.bankCommandMessage.set('');
+    const owner = this.captureOwner();
+    try {
+      const suffix = action === 'CREATE' ? '/create' : `/${submitted.review!.reconciliationId}/review`;
+      const result = await this.api.command(this.bankCommandPath() + suffix, submitted);
+      if (!owner()) return;
+      if (!result.ok) {
+        this.bankCommandFailed.set(true);
+        this.bankCommandMessage.set(result.unknown || result.code === 'idempotency.conflict'
+          ? 'The outcome is uncertain. Look up this exact receipt before retrying.'
+          : result.message);
+        if (!result.unknown && result.code !== 'idempotency.conflict') {
+          this.tabDrafts.clear(scope.entity); this.bankCommandPending.set(null);
+        }
+        return;
+      }
+      const receipt = decodeBankReconciliationCommandReceipt(result.value, 'bank-reconciliation.receipt');
+      if (!this.matchesBankReceipt(receipt, recovery, state.clientId)) throw new Error('The retained bank receipt does not match this request.');
+      this.bankCommandReceipt.set(receipt);
+      const cleared = this.tabDrafts.clear(scope.entity);
+      if (cleared) this.bankCommandPending.set(null);
+      this.bankCommandAbsent.set(false); this.bankCommandFailed.set(false);
+      this.bankCommandMessage.set(cleared ? receipt.preview.summary : 'Receipt verified. Recovery reference could not be cleared; retain it and look up the same receipt again.');
+      if (action === 'CREATE') this.bankSelection.set(receipt.bankReconciliationId);
+      this.bankCommandState.reload(); this.bankList.reload(); this.bankDetail.reload();
+    } catch {
+      if (owner()) { this.bankCommandFailed.set(true); this.bankCommandMessage.set('The bank-command response was lost or could not be verified. Look up this exact receipt; do not submit a new request.'); }
+    } finally { release(); }
+  }
+  private matchesBankReceipt(receipt: ReturnType<typeof decodeBankReconciliationCommandReceipt>, pending: PendingBankCommand, clientId?: string): boolean {
+    const actor = this.riskLinkSession.current();
+    return !!actor && receipt.actorId === actor.userId && receipt.actorEpoch === actor.generation &&
+      receipt.engagementId === pending.engagementId && (!clientId || receipt.clientId === clientId) &&
+      receipt.action === pending.action && receipt.requestId === pending.body.requestId &&
+      receipt.requestHash === pending.requestHash && receipt.reviewBasis === pending.body.reviewBasis &&
+      (pending.action !== 'REVIEW' || receipt.bankReconciliationId === pending.body.review?.reconciliationId);
+  }
+  async reconcileBankCommand(): Promise<void> {
+    const pending = this.bankCommandPending();
+    if (!pending || this.bankCommandBusy() || pending.engagementId !== this.id()) return;
+    const owner = this.captureOwner(); this.bankCommandBusy.set(true); this.bankCommandFailed.set(false);
+    try {
+      const target = pending.action === 'REVIEW' ? `?reconciliationId=${pending.body.review!.reconciliationId}` : '';
+      const state = await this.api.get(this.bankCommandPath() + '/command-state' + target, decodeBankReconciliationCommandState);
+      if (!owner() || state.engagementId !== pending.engagementId || !state.canCreate && pending.action === 'CREATE' || !state.canReview && pending.action === 'REVIEW')
+        throw new Error('The current bank-command scope is no longer authorized.');
+      const query = new URLSearchParams({ requestHash: pending.requestHash, action: pending.action });
+      const lookup = await this.api.get(this.bankCommandPath() + `/receipts/${pending.body.requestId}?${query}`, decodeBankReconciliationCommandLookup);
+      if (!owner()) return;
+      if (!lookup.found) {
+        this.bankCommandAbsent.set(true);
+        this.bankCommandMessage.set('No receipt was found at lookup time. A delayed request may still commit. The original intent is retained; retry only after reviewing it again.');
+        return;
+      }
+      if (!lookup.receipt || !this.matchesBankReceipt(lookup.receipt, pending, state.clientId)) throw new Error('The recovered receipt does not match this actor, scope or request.');
+      this.bankCommandReceipt.set(lookup.receipt);
+      const cleared = this.tabDrafts.clear(this.bankCommandScope(pending, pending.body.reviewBasis).entity);
+      if (cleared) this.bankCommandPending.set(null);
+      this.bankCommandAbsent.set(false);
+      this.bankCommandMessage.set(cleared ? lookup.receipt.preview.summary : 'Receipt verified. Recovery reference could not be cleared; look up this same receipt again.');
+      if (pending.action === 'CREATE') this.bankSelection.set(lookup.receipt.bankReconciliationId);
+      this.bankCommandState.reload(); this.bankList.reload(); this.bankDetail.reload();
+    } catch {
+      if (owner()) { this.bankCommandFailed.set(true); this.bankCommandMessage.set('Exact bank receipt lookup failed. Keep the original request identity and do not retry blindly.'); }
+    } finally { this.bankCommandBusy.set(false); }
+  }
+  async retryBankCommandAfterLookup(): Promise<void> {
+    const pending = this.bankCommandPending();
+    if (!pending || !this.bankCommandAbsent() || this.bankCommandBusy() || pending.engagementId !== this.id()) return;
+    const owner = this.captureOwner(); this.bankCommandBusy.set(true); this.bankCommandFailed.set(false);
+    try {
+      const target = pending.action === 'REVIEW' ? `?reconciliationId=${pending.body.review!.reconciliationId}` : '';
+      const state = await this.api.get(this.bankCommandPath() + '/command-state' + target, decodeBankReconciliationCommandState);
+      if (!owner() || state.reviewBasis !== pending.body.reviewBasis || state.expectedGeneration !== pending.body.expectedGeneration)
+        throw new Error('The source basis changed; exact retry is no longer available.');
+      if (pending.action === 'CREATE') {
+        this.bankLedgerScheduleId.set(pending.body.create!.ledgerScheduleId); this.bankStatementScheduleId.set(pending.body.create!.statementScheduleId);
+        this.bankAsOfDate.set(pending.body.create!.asOfDate); this.bankItems.set(pending.body.create!.items.map(x => ({ ...x })));
+      } else {
+        this.bankSelection.set(pending.body.review!.reconciliationId); this.bankReviewDecision.set(pending.body.review!.decision);
+        this.bankReviewConclusion.set(pending.body.review!.conclusion);
+      }
+      const previewRequest = { ...pending.body, expectedRequestHash: null, reviewed: false };
+      const suffix = pending.action === 'CREATE' ? '/create/preview' : `/${pending.body.review!.reconciliationId}/review/preview`;
+      const result = await this.api.command(this.bankCommandPath() + suffix, previewRequest);
+      if (!owner()) return;
+      if (!result.ok) throw new Error(result.message);
+      const preview = decodeBankReconciliationCommandPreview(result.value, 'bank-reconciliation.retry-preview');
+      if (preview.requestId !== pending.body.requestId || preview.action !== pending.action ||
+          preview.requestHash !== pending.requestHash || preview.reviewBasis !== pending.body.reviewBasis || !preview.canProceed)
+        throw new Error('The exact request no longer produces the saved preview.');
+      this.bankCommandBody = previewRequest; this.bankCommandFingerprint = this.bankInputFingerprint(pending.action);
+      this.bankCommandPreview.set(preview); this.bankCommandReviewed.set(false);
+      this.bankCommandMessage.set('The saved request matches the current basis. Review it and explicitly confirm the exact retry.');
+    } catch {
+      if (owner()) { this.bankCommandFailed.set(true); this.bankCommandMessage.set('The saved request no longer matches the current basis. Keep it for support; no retry was sent.'); }
+    } finally { this.bankCommandBusy.set(false); }
   }
   bankGenerationLabel(state: string): string {
     return state === 'CURRENT_GENERATION' ? 'Matches current input generation' : state === 'STALE_GENERATION'
@@ -264,11 +590,11 @@ export class AuditFieldwork {
   private commandBlocked(recovery?: FieldworkCommandRecovery): boolean {
     return this.cmd.uncertain() || this.riskLink.busy() || this.riskLink.uncertain() ||
       this.procedure.hasUnresolvedCommand(recovery) || this.sourceIntake.hasUnresolvedCommand(recovery) ||
-      this.sampling.samplingBusy() || this.sampling.sampleActionBusy();
+      this.sampling.samplingBusy() || this.sampling.sampleActionBusy() || this.bankCommandBusy() || !!this.bankCommandPending();
   }
   private otherFieldworkCommandBlocked(): boolean {
     return this.cmd.busy() || this.cmd.uncertain() || this.procedure.hasUnresolvedCommand() || this.sourceIntake.hasUnresolvedCommand() ||
-      this.sampling.samplingBusy() || this.sampling.sampleActionBusy();
+      this.sampling.samplingBusy() || this.sampling.sampleActionBusy() || this.bankCommandBusy() || !!this.bankCommandPending();
   }
   fieldworkCommandBlocked(recovery?: FieldworkCommandRecovery): boolean {
     return this.cmd.busy() || this.commandBlocked(recovery);

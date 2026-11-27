@@ -1,7 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Domain.Tests;
+using AuditSphereOps.Domain.Accounting;
+using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Infrastructure.Persistence;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -75,6 +78,211 @@ public sealed class ConfirmationApiTests
     }
 
     await using var db=new AuditSphereDbContext(pg.Options);Assert.Single(await db.AuditConfirmationCases.ToListAsync());Assert.Equal(2,await db.AuditConfirmationResponses.CountAsync());
+  }
+
+  [Fact]
+  public async Task BankReconciliationProducer_UsesReviewedSourcesAndRetainsExactIndependentCommandReceipts()
+  {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("API-BANK-RECONCILIATION-COMMANDS");
+    var f = await PbcSeed.SeedAsync(pg);
+    using var staffFactory = Factory(pg, f.Staff);
+    using var reviewerFactory = Factory(pg, f.Reviewer);
+    using var staff = staffFactory.CreateClient(new() { AllowAutoRedirect = false });
+    using var reviewer = reviewerFactory.CreateClient(new() { AllowAutoRedirect = false });
+    var staffCsrf = await SignIn(staff);
+    var reviewerCsrf = await SignIn(reviewer);
+    var author = PbcSeed.Actor(f.Staff, "Staff");
+    var independentReviewer = PbcSeed.Actor(f.Reviewer, "Reviewer");
+    var periodId = Guid.CreateVersion7();
+    var batchId = Guid.CreateVersion7();
+    var transactionId = Guid.CreateVersion7();
+    var glHash = new string('a', 64);
+    await using (var setup = new AuditSphereDbContext(pg.Options))
+    {
+      setup.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = periodId, FirmId = f.FirmId, ClientId = f.ClientId, PeriodCode = "BANK-API-FY26",
+        StartDate = new(2026, 1, 1), EndDate = new(2026, 12, 31), Basis = "IFRS", Currency = "QAR",
+        CreatedByUserId = f.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      setup.SourceImportBatches.Add(new SourceImportBatch
+      {
+        Id = batchId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        PeriodId = periodId, SourceKind = "GL", ProfileVersion = "gl-v1", ParserVersion = "parser-v1",
+        RawFileSha256Hex = glHash, NormalizedDatasetDigest = glHash, LegalEntityKey = "BANK-API-001", Currency = "QAR",
+        RowCount = 1, ExpectedChunkCount = 1, ExpectedTransactionCount = 1, ExpectedLineCount = 1,
+        AcceptedChunkCount = 1, AcceptedTransactionCount = 1, AcceptedLineCount = 1,
+        Status = "SEALED", ReceiptReference = "approved-api-bank-source", CreatedByUserId = f.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
+      setup.GeneralLedgerTransactions.Add(new GeneralLedgerTransaction
+      {
+        Id = transactionId, FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ImportBatchId = batchId, StableJournalId = "BANK-API-GL-001", DocumentNumber = "BANK-API-GL-001",
+        PostingDate = new(2026, 9, 19), SourceUser = "synthetic-client", SourceSystem = "LEDGER",
+        Currency = "QAR", CreatedAt = DateTimeOffset.UtcNow
+      });
+      setup.GeneralLedgerLines.Add(new GeneralLedgerLine
+      {
+        Id = Guid.CreateVersion7(), FirmId = f.FirmId, ClientId = f.ClientId, EngagementId = f.EngagementId,
+        ImportBatchId = batchId, TransactionId = transactionId, StableLineId = "BANK-API-GL-L1", AccountCode = "1100",
+        Debit = 100m, Credit = 0m, OriginalCurrency = "QAR", OriginalAmount = 100m, FunctionalAmount = 100m,
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      await setup.SaveChangesAsync();
+
+      var ledger = await AuditFieldworkService.CreateScheduleAsync(setup, author, new CreateScheduleRequest(
+        f.EngagementId, "BANK_LEDGER", "BANK-API-001", "receipt-api-bank-ledger", new DateTimeOffset(2026, 9, 19, 0, 0, 0, TimeSpan.Zero),
+        new(2026, 1, 1), new(2026, 9, 19), "QAR", "debits positive; credits negative", glHash, 100m,
+        [new("api-ledger-001", 1, "1100", "Operating account ledger", 100m, "QAR", null, new(2026, 9, 19), null, null, "{\"source\":\"sealed-gl\"}")], batchId));
+      var statement = await AuditFieldworkService.CreateScheduleAsync(setup, author, new CreateScheduleRequest(
+        f.EngagementId, "BANK_STATEMENT", "BANK-API-001", "receipt-api-bank-statement", new DateTimeOffset(2026, 9, 19, 0, 0, 0, TimeSpan.Zero),
+        new(2026, 1, 1), new(2026, 9, 19), "QAR", "debits positive; credits negative", new string('b', 64), 90m,
+        [new("api-statement-001", 1, "1100", "Operating account statement", 90m, "QAR", null, new(2026, 9, 19), null, null, "{\"source\":\"bank-statement\"}")]));
+      Assert.True(ledger.Succeeded, ledger.Message);
+      Assert.True(statement.Succeeded, statement.Message);
+      Assert.True((await AuditFieldworkService.ReviewScheduleAsync(setup, independentReviewer,
+        new ReviewScheduleRequest(ledger.Value!.ScheduleId, "Reviewed against the sealed GL source.", true))).Succeeded);
+      Assert.True((await AuditFieldworkService.ReviewScheduleAsync(setup, independentReviewer,
+        new ReviewScheduleRequest(statement.Value!.ScheduleId, "Reviewed against the retained bank statement source.", true))).Succeeded);
+    }
+
+    var path = $"/api/ui/engagements/{f.EngagementId}/fieldwork/bank-reconciliations";
+    var authorState = await Get(staff, path + "/command-state");
+    Assert.True(authorState.GetProperty("canCreate").GetBoolean());
+    Assert.Equal(2, authorState.GetProperty("sources").GetArrayLength());
+    var ledgerSource = authorState.GetProperty("sources").EnumerateArray().Single(x => x.GetProperty("scheduleType").GetString() == "BANK_LEDGER");
+    var statementSource = authorState.GetProperty("sources").EnumerateArray().Single(x => x.GetProperty("scheduleType").GetString() == "BANK_STATEMENT");
+    var requestId = Guid.CreateVersion7();
+    object CreateBody(string? requestHash, bool reviewed, bool includeTiming = true, string evidenceSuffix = "", Guid? commandId = null)
+    {
+      var items = new List<object>
+      {
+        new { stableItemId = "api-ledger-balance", itemType = "LEDGER", signedAmount = "100.000000", description = "Ledger balance", sourceReference = "receipt-api-bank-ledger", evidenceReference = "ledger-control" + evidenceSuffix, sourceScheduleId = ledgerSource.GetProperty("id").GetGuid(), proposedJournalId = (Guid?)null },
+        new { stableItemId = "api-statement-balance", itemType = "STATEMENT", signedAmount = "90.000000", description = "Statement balance", sourceReference = "receipt-api-bank-statement", evidenceReference = "statement-control" + evidenceSuffix, sourceScheduleId = statementSource.GetProperty("id").GetGuid(), proposedJournalId = (Guid?)null }
+      };
+      if (includeTiming)
+        items.Add(new { stableItemId = "api-timing", itemType = "TIMING", signedAmount = "-10.000000", description = "Outstanding cheque", sourceReference = "receipt-api-bank-statement#timing", evidenceReference = "timing-workpaper" + evidenceSuffix, sourceScheduleId = (Guid?)statementSource.GetProperty("id").GetGuid(), proposedJournalId = (Guid?)null });
+      return new
+      {
+        requestId = commandId ?? requestId,
+        expectedGeneration = authorState.GetProperty("expectedGeneration").GetString(),
+        reviewBasis = authorState.GetProperty("reviewBasis").GetString(),
+        create = new
+        {
+          procedureId = (Guid?)null,
+          ledgerScheduleId = ledgerSource.GetProperty("id").GetGuid(),
+          statementScheduleId = statementSource.GetProperty("id").GetGuid(),
+          asOfDate = "2026-09-19",
+          items
+        },
+        expectedRequestHash = requestHash,
+        reviewed
+      };
+    }
+
+    using (var malformed = await Post(staff, path + "/create/preview", staffCsrf, new
+    {
+      requestId = Guid.CreateVersion7(), expectedGeneration = authorState.GetProperty("expectedGeneration").GetString(),
+      reviewBasis = authorState.GetProperty("reviewBasis").GetString(),
+      create = new { procedureId = (Guid?)null, ledgerScheduleId = ledgerSource.GetProperty("id").GetGuid(), statementScheduleId = statementSource.GetProperty("id").GetGuid(), asOfDate = "2026-09-19", items = new object[] { null! } }
+    })) Assert.Equal(HttpStatusCode.BadRequest, malformed.StatusCode);
+
+    using var previewResponse = await Post(staff, path + "/create/preview", staffCsrf, CreateBody(null, false));
+    Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
+    var preview = (await Json(previewResponse)).GetProperty("value");
+    Assert.True(preview.GetProperty("canProceed").GetBoolean());
+    var requestHash = preview.GetProperty("requestHash").GetString()!;
+    using (var createdResponse = await Post(staff, path + "/create", staffCsrf, CreateBody(requestHash, true)))
+    {
+      Assert.Equal(HttpStatusCode.OK, createdResponse.StatusCode);
+      var created = (await Json(createdResponse)).GetProperty("value");
+      Assert.Equal("RECONCILED", created.GetProperty("result").GetProperty("status").GetString());
+      var reconciliationId = created.GetProperty("bankReconciliationId").GetGuid();
+
+      using (var replay = await Post(staff, path + "/create", staffCsrf, CreateBody(requestHash, true)))
+      {
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+        Assert.Equal(created.GetProperty("id").GetGuid(), (await Json(replay)).GetProperty("value").GetProperty("id").GetGuid());
+      }
+      using (var changed = await Post(staff, path + "/create", staffCsrf, CreateBody(requestHash, true, evidenceSuffix: "-changed")))
+        Assert.Equal(HttpStatusCode.Conflict, changed.StatusCode);
+
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        db.RoleGrants.Add(PbcSeed.Grant(f.FirmId, f.Staff, "Reviewer", f.ClientId, f.EngagementId));
+        await db.SaveChangesAsync();
+      }
+      using (var selfStateResponse = await staff.GetAsync(path + "/command-state?reconciliationId=" + reconciliationId))
+      {
+        Assert.Equal(HttpStatusCode.OK, selfStateResponse.StatusCode);
+        var selfState = await Json(selfStateResponse);
+        Assert.True(selfState.GetProperty("canReview").GetBoolean());
+        using var selfReview = await Post(staff, path + $"/{reconciliationId}/review/preview", staffCsrf, new
+        {
+          requestId = Guid.CreateVersion7(), expectedGeneration = selfState.GetProperty("expectedGeneration").GetString(),
+          reviewBasis = selfState.GetProperty("reviewBasis").GetString(),
+          review = new { reconciliationId, decision = "APPROVED", conclusion = "The preparer must not review their own reconciliation." }
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, selfReview.StatusCode);
+      }
+
+      var reviewerState = await Get(reviewer, path + "/command-state?reconciliationId=" + reconciliationId);
+      Assert.True(reviewerState.GetProperty("canReview").GetBoolean());
+      var reviewRequestId = Guid.CreateVersion7();
+      object ReviewBody(string? hash, bool reviewed) => new
+      {
+        requestId = reviewRequestId,
+        expectedGeneration = reviewerState.GetProperty("expectedGeneration").GetString(),
+        reviewBasis = reviewerState.GetProperty("reviewBasis").GetString(),
+        review = new { reconciliationId, decision = "APPROVED", conclusion = "Independently reviewed the selected ledger and statement evidence." },
+        expectedRequestHash = hash, reviewed
+      };
+      using var reviewPreviewResponse = await Post(reviewer, path + $"/{reconciliationId}/review/preview", reviewerCsrf, ReviewBody(null, false));
+      Assert.Equal(HttpStatusCode.OK, reviewPreviewResponse.StatusCode);
+      var reviewPreview = (await Json(reviewPreviewResponse)).GetProperty("value");
+      var reviewHash = reviewPreview.GetProperty("requestHash").GetString()!;
+      using var reviewResponse = await Post(reviewer, path + $"/{reconciliationId}/review", reviewerCsrf, ReviewBody(reviewHash, true));
+      Assert.Equal(HttpStatusCode.OK, reviewResponse.StatusCode);
+      var reviewed = (await Json(reviewResponse)).GetProperty("value");
+      Assert.Equal("APPROVED", reviewed.GetProperty("result").GetProperty("status").GetString());
+      var receiptLookup = await Get(reviewer, path + $"/receipts/{reviewRequestId}?requestHash={reviewHash}&action=REVIEW");
+      Assert.True(receiptLookup.GetProperty("found").GetBoolean());
+      Assert.Equal(reviewed.GetProperty("id").GetGuid(), receiptLookup.GetProperty("receipt").GetProperty("id").GetGuid());
+      await using var verify = new AuditSphereDbContext(pg.Options);
+      Assert.Equal(1, await verify.AuditBankReconciliations.CountAsync(x => x.Id == reconciliationId && x.Status == "APPROVED"));
+    }
+
+    var nonzeroRequestId = Guid.CreateVersion7();
+    using (var nonzeroPreviewResponse = await Post(staff, path + "/create/preview", staffCsrf,
+      CreateBody(null, false, includeTiming: false, commandId: nonzeroRequestId)))
+    {
+      Assert.Equal(HttpStatusCode.OK, nonzeroPreviewResponse.StatusCode);
+      var nonzeroPreview = (await Json(nonzeroPreviewResponse)).GetProperty("value");
+      Assert.True(nonzeroPreview.GetProperty("canProceed").GetBoolean());
+      var nonzeroHash = nonzeroPreview.GetProperty("requestHash").GetString()!;
+      using var nonzeroCreateResponse = await Post(staff, path + "/create", staffCsrf,
+        CreateBody(nonzeroHash, true, includeTiming: false, commandId: nonzeroRequestId));
+      Assert.Equal(HttpStatusCode.OK, nonzeroCreateResponse.StatusCode);
+      var nonzeroCreated = (await Json(nonzeroCreateResponse)).GetProperty("value");
+      var nonzeroId = nonzeroCreated.GetProperty("bankReconciliationId").GetGuid();
+      Assert.Equal("-10.000000", nonzeroCreated.GetProperty("result").GetProperty("residual").GetString());
+      var nonzeroReviewerState = await Get(reviewer, path + "/command-state?reconciliationId=" + nonzeroId);
+      var blockedReview = new
+      {
+        requestId = Guid.CreateVersion7(),
+        expectedGeneration = nonzeroReviewerState.GetProperty("expectedGeneration").GetString(),
+        reviewBasis = nonzeroReviewerState.GetProperty("reviewBasis").GetString(),
+        review = new { reconciliationId = nonzeroId, decision = "APPROVED", conclusion = "A nonzero residual must block approval." }
+      };
+      using var nonzeroReview = await Post(reviewer, path + $"/{nonzeroId}/review/preview", reviewerCsrf, blockedReview);
+      Assert.Equal(HttpStatusCode.BadRequest, nonzeroReview.StatusCode);
+    }
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+      Assert.Equal(3, await verify.AuditBankReconciliationCommandReceipts.CountAsync());
+
+    var missingEngagement = Guid.CreateVersion7();
+    using var foreignRead = await staff.GetAsync($"/api/ui/engagements/{missingEngagement}/fieldwork/bank-reconciliations/command-state");
+    Assert.Equal(HttpStatusCode.Forbidden, foreignRead.StatusCode);
   }
   [Fact]
   public async Task ExactScope_GuessedIds_BoundedWindows_AndRevokedSessions_FailClosed()

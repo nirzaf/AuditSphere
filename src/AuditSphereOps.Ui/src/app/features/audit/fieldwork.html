@@ -5,6 +5,12 @@
     <audit-page-header title="Controlled audit fieldwork" eyebrow="Engagement audit" [description]="ws.data()?.canManageFieldwork ? 'Fieldwork procedures, differences, and aggregate conclusion on this engagement.' : 'Review submitted procedure results and resolve review notes for this engagement.'" />
     <audit-state [loading]="ws.loading()" [error]="ws.error()" label="fieldwork coverage" />
     @if (ws.data(); as w) {
+      @if (w.canManageFieldwork) {
+        <button #bankCommandTrigger mat-button type="button" aria-controls="bank-reconciliation-command-workspace"
+          [attr.aria-expanded]="bankInspectionOpen()" (click)="openBankInspection($event.currentTarget)">
+          {{ bankCommandPending() ? 'Resume bank reconciliation recovery' : 'Prepare bank reconciliation' }}
+        </button>
+      }
       @if (w.program) { <p role="status">{{ w.procedures.length }} adopted procedures · {{ count(w, 'APPLICABLE') }} applicable · {{ reviewed(w) }} reviewed</p> }
       @if (w.canReviewSelections) {
         <section class="panel" aria-labelledby="manager-review-summary-heading">
@@ -108,6 +114,106 @@
               </section>
             }
             <a [routerLink]="['/app/engagements', id(), 'completion']">Open completion and Summary Review Memorandum</a>
+          }
+        </section>
+      }
+      @if (bankInspectionOpen() && (w.canManageFieldwork || w.canReviewSelections)) {
+        <section class="panel" id="bank-reconciliation-command-workspace" aria-labelledby="bank-command-heading">
+          <h2 #bankCommandHeading id="bank-command-heading" tabindex="-1">Bank reconciliation preparation and review</h2>
+          <p>Choose the current independently approved ledger and statement schedules. Source eligibility and command permissions come from the server. The saved preview binds the exact source generation and typed item list.</p>
+          <button mat-button type="button" (click)="closeBankInspection($event.currentTarget)">Close bank command workspace</button>
+          <audit-state [loading]="bankCommandState.loading()" [error]="bankCommandState.error()" label="bank command eligibility and sources" />
+          @if (bankCommandStorageUnavailable()) {
+            <p role="alert" class="error-text">Recovery storage is unavailable. No replacement request can be submitted until the original command identity is recovered.</p>
+          }
+          @if (bankCommandMessage()) { <p [attr.role]="bankCommandFailed() || bankCommandPending() ? 'alert' : 'status'" [class.error-text]="bankCommandFailed() || !!bankCommandPending()">{{ bankCommandMessage() }}</p> }
+          @if (bankCommandReceipt(); as receipt) {
+            <p role="status">{{ receipt.action }} receipt <code>{{ receipt.id }}</code> · reconciliation <code>{{ receipt.bankReconciliationId }}</code> · {{ receipt.result.status }} · residual <code>{{ receipt.result.residual }}</code> {{ receipt.result.currency }}</p>
+          }
+          @if (bankCommandState.data(); as state) {
+            <p role="status">Preparation {{ state.canCreate ? 'available' : 'unavailable' }} · independent review {{ state.canReview ? 'available' : 'unavailable' }} · current generation {{ state.expectedGeneration }}</p>
+            @if (state.blockers.length) { <ul>@for (blocker of state.blockers; track blocker) { <li>{{ blocker }}</li> }</ul> }
+            @if (state.canCreate) {
+              <section aria-labelledby="bank-create-heading">
+                <h3 id="bank-create-heading">Prepare a bank reconciliation</h3>
+                @if (!bankSources('BANK_LEDGER').length || !bankSources('BANK_STATEMENT').length) {
+                  <p role="status">A current approved BANK_LEDGER and BANK_STATEMENT pair is required before preparation.</p>
+                } @else {
+                  <div class="inline-form">
+                    <label>Approved ledger schedule
+                      <select name="bank-ledger-schedule" [ngModel]="bankLedgerScheduleId()" (ngModelChange)="setBankLedgerSchedule($event)" [disabled]="bankCommandBusy() || !!bankCommandPending()">
+                        <option value="">Select a BANK_LEDGER source</option>
+                        @for (source of bankSources('BANK_LEDGER'); track source.id) { <option [value]="source.id">{{ source.entityIdentifier }} · {{ source.asOfDate }} · {{ source.signedControlTotal }} {{ source.currency }}</option> }
+                      </select>
+                    </label>
+                    <label>Approved statement schedule
+                      <select name="bank-statement-schedule" [ngModel]="bankStatementScheduleId()" (ngModelChange)="setBankStatementSchedule($event)" [disabled]="bankCommandBusy() || !!bankCommandPending()">
+                        <option value="">Select a BANK_STATEMENT source</option>
+                        @for (source of bankSources('BANK_STATEMENT'); track source.id) { <option [value]="source.id">{{ source.entityIdentifier }} · {{ source.asOfDate }} · {{ source.signedControlTotal }} {{ source.currency }}</option> }
+                      </select>
+                    </label>
+                    <label>Reconciliation date
+                      <input name="bank-as-of-date" type="date" [ngModel]="bankAsOfDate()" (ngModelChange)="bankAsOfDate.set($event); bankCommandInputChanged()" [disabled]="bankCommandBusy() || !!bankCommandPending()" />
+                    </label>
+                  </div>
+                  <h4>Typed reconciling items</h4>
+                  @for (item of bankItems(); track item.stableItemId; let i = $index) {
+                    <fieldset class="inline-form">
+                      <legend>Item {{ i + 1 }}</legend>
+                      <label>Stable item identity <input [name]="'bank-item-id-' + i" [ngModel]="item.stableItemId" (ngModelChange)="updateBankItem(item, { stableItemId: $event })" maxlength="200" [disabled]="bankCommandBusy() || !!bankCommandPending()" /></label>
+                      <label>Item type
+                        <select [name]="'bank-item-type-' + i" [ngModel]="item.itemType" (ngModelChange)="bankItemTypeChanged(item, $event)" [disabled]="bankCommandBusy() || !!bankCommandPending()">
+                          <option value="LEDGER">Ledger</option><option value="STATEMENT">Statement</option><option value="TIMING">Timing difference</option><option value="PROPOSED_CORRECTION">Proposed correction</option>
+                        </select>
+                      </label>
+                      <label>Signed amount (up to 6 decimals) <input [name]="'bank-item-amount-' + i" [ngModel]="item.signedAmount" (ngModelChange)="updateBankItem(item, { signedAmount: $event })" inputmode="decimal" maxlength="24" [disabled]="bankCommandBusy() || !!bankCommandPending()" /></label>
+                      <label>Description <input [name]="'bank-item-description-' + i" [ngModel]="item.description" (ngModelChange)="updateBankItem(item, { description: $event })" maxlength="1000" [disabled]="bankCommandBusy() || !!bankCommandPending()" /></label>
+                      <label>Source reference <input [name]="'bank-item-source-' + i" [ngModel]="item.sourceReference" (ngModelChange)="updateBankItem(item, { sourceReference: $event })" maxlength="500" [disabled]="bankCommandBusy() || !!bankCommandPending()" /></label>
+                      <label>Evidence reference <input [name]="'bank-item-evidence-' + i" [ngModel]="item.evidenceReference" (ngModelChange)="updateBankItem(item, { evidenceReference: $event })" maxlength="2000" [disabled]="bankCommandBusy() || !!bankCommandPending()" /></label>
+                      @if (item.itemType !== 'PROPOSED_CORRECTION') {
+                        <label>Linked source schedule
+                          <select [name]="'bank-item-schedule-' + i" [ngModel]="item.sourceScheduleId ?? ''" (ngModelChange)="updateBankItem(item, { sourceScheduleId: $event || null })" [disabled]="bankCommandBusy() || !!bankCommandPending()">
+                            <option value="">No schedule link</option>@for (source of state.sources; track source.id) { <option [value]="source.id">{{ source.scheduleType }} · {{ source.entityIdentifier }} · {{ source.asOfDate }}</option> }
+                          </select>
+                        </label>
+                      } @else {
+                        <label>Same-engagement draft journal ID <input [name]="'bank-item-journal-' + i" [ngModel]="item.proposedJournalId ?? ''" (ngModelChange)="updateBankItem(item, { proposedJournalId: $event || null })" maxlength="36" [disabled]="bankCommandBusy() || !!bankCommandPending()" /></label>
+                      }
+                      <button mat-button type="button" (click)="removeBankItem(item)" [disabled]="bankCommandBusy() || !!bankCommandPending()">Remove item</button>
+                    </fieldset>
+                  }
+                  <button mat-button type="button" (click)="addBankItem()" [disabled]="bankCommandBusy() || !!bankCommandPending() || bankItems().length >= 1000">Add typed item</button>
+                  <button mat-button type="button" (click)="prepareBankCreate()" [disabled]="bankCommandBusy() || !!bankCommandPending() || !bankLedgerScheduleId() || !bankStatementScheduleId() || !bankAsOfDate() || !bankItems().length">Preview preparation</button>
+                }
+              </section>
+            }
+            @if (state.record && state.canReview) {
+              <section aria-labelledby="bank-review-heading">
+                <h3 id="bank-review-heading">Independent review of <code>{{ state.record.id }}</code></h3>
+                <p>{{ state.record.status }} · {{ state.record.asOfDate }} · residual <code>{{ state.record.residual }}</code> {{ state.record.currency }} · prepared by <code>{{ state.record.createdByUserId }}</code></p>
+                <div class="inline-form">
+                  <label>Decision <select name="bank-review-decision" [ngModel]="bankReviewDecision()" (ngModelChange)="bankReviewDecision.set($event); bankCommandInputChanged()" [disabled]="bankCommandBusy() || !!bankCommandPending()"><option value="APPROVED">Approve</option><option value="CHANGES_REQUIRED">Return for changes</option></select></label>
+                  <label>Review conclusion <textarea name="bank-review-conclusion" [ngModel]="bankReviewConclusion()" (ngModelChange)="bankReviewConclusion.set($event); bankCommandInputChanged()" maxlength="4000" [disabled]="bankCommandBusy() || !!bankCommandPending()"></textarea></label>
+                </div>
+                <button mat-button type="button" (click)="prepareBankReview()" [disabled]="bankCommandBusy() || !!bankCommandPending() || !bankReviewConclusion().trim()">Preview independent review</button>
+              </section>
+            }
+            @if (bankCommandPreview(); as preview) {
+              <section aria-labelledby="bank-command-preview-heading">
+                <h3 id="bank-command-preview-heading">Exact {{ preview.action.toLowerCase() }} preview</h3>
+                <p>{{ preview.summary }} · basis <code>{{ preview.reviewBasis }}</code> · request <code>{{ preview.requestId }}</code></p>
+                @if (preview.calculated; as totals) { <p>Ledger <code>{{ totals.ledgerBalance }}</code> · statement <code>{{ totals.statementBalance }}</code> · timing <code>{{ totals.timingItemTotal }}</code> · proposed corrections <code>{{ totals.proposedCorrectionTotal }}</code> · residual <code>{{ totals.residual }}</code> {{ totals.currency }}</p> }
+                <label><input type="checkbox" [ngModel]="bankCommandReviewed()" (ngModelChange)="bankCommandReviewed.set($event)" [disabled]="bankCommandBusy()" /> I reviewed this exact source basis, item set and outcome.</label>
+                <button mat-button type="button" (click)="executeBankCommand()" [disabled]="!bankCommandReviewed() || bankCommandBusy()">{{ preview.action === 'CREATE' ? 'Submit bank reconciliation' : 'Submit independent review' }}</button>
+              </section>
+            }
+          }
+          @if (bankCommandPending(); as pending) {
+            <section aria-label="Pending bank command recovery">
+              <p role="alert">Original {{ pending.action.toLowerCase() }} request <code>{{ pending.body.requestId }}</code> is retained for recovery. A missing receipt does not prove the command cannot still commit.</p>
+              <button mat-button type="button" (click)="reconcileBankCommand()" [disabled]="bankCommandBusy()">Look up exact receipt</button>
+              @if (bankCommandAbsent()) { <button mat-button type="button" (click)="retryBankCommandAfterLookup()" [disabled]="bankCommandBusy()">Review saved request for explicit retry</button> }
+            </section>
           }
         </section>
       }

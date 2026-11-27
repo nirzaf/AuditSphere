@@ -11,12 +11,16 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { AuditFieldwork } from './fieldwork';
 import { FieldworkProcedureState } from './fieldwork-procedure-state';
 import { FieldworkSourceIntakeState } from './fieldwork-source-intake-state';
-import { decodeBankReconciliationDetail, decodeBankReconciliationPage, decodeFieldwork, decodeProcedureCommandLookup, decodeProcedureCommandPreview, decodeProcedureCommandReceipt, decodeProcedureCommandState, decodeProcedureReview, decodeProgramOptions, decodeSampleSet, decodeTailorProcedureCommand, focusRisks, type TailorProcedureCommand } from './fieldwork-contracts';
+import { decodeBankReconciliationCommandLookup, decodeBankReconciliationCommandPreview, decodeBankReconciliationCommandReceipt,
+  decodeBankReconciliationCommandState, decodeBankReconciliationDetail, decodeBankReconciliationPage, decodeFieldwork,
+  decodeProcedureCommandLookup, decodeProcedureCommandPreview, decodeProcedureCommandReceipt, decodeProcedureCommandState,
+  decodeProcedureReview, decodeProgramOptions, decodeSampleSet, decodeTailorProcedureCommand, focusRisks, type TailorProcedureCommand } from './fieldwork-contracts';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
 const id2 = '22222222-2222-4222-8222-222222222222';
 const id3 = '33333333-3333-4333-8333-333333333333';
 const id4 = '44444444-4444-4444-8444-444444444444';
+const id5 = '55555555-5555-4555-8555-555555555555';
 const hash64 = 'd'.repeat(64);
 
 describe('Audit Fieldwork Contracts', () => {
@@ -913,7 +917,16 @@ describe('Fieldwork bank reconciliation inspection', () => {
       description: 'Outstanding cheque', sourceReference: 'retained-source', evidenceReference: 'retained-evidence',
       sourceScheduleId: null, proposedJournalId: null }] };
   const path = `/api/ui/engagements/${id1}/fieldwork/bank-reconciliations`;
-  afterEach(() => { TestBed.resetTestingModule(); });
+  const commandState = { engagementId: id1, clientId: id2, expectedGeneration: '2', reviewBasis: hash64,
+    canCreate: false, canReview: true, sources: [], record: null, blockers: [] };
+  afterEach(() => {
+    try {
+      const drafts = TestBed.inject(TabDrafts);
+      drafts.clear(`audit-bank-reconciliation/${id1}/CREATE`);
+      drafts.clear(`audit-bank-reconciliation/${id1}/REVIEW`);
+    } catch { /* The module may not have been configured by a decoder-only case. */ }
+    TestBed.resetTestingModule();
+  });
 
   it('retains exact amounts, missing proof and generation labels while refusing malformed or inconsistent pages', () => {
     expect(decodeBankReconciliationDetail(detail, '').items[0].signedAmount).toBe('-10.000000');
@@ -925,6 +938,86 @@ describe('Fieldwork bank reconciliation inspection', () => {
       { ...page, rows: [{ ...row, ledgerBalance: 100.123456 }] },
     ]) expect(() => decodeBankReconciliationPage(malformed, '')).toThrow();
     expect(() => decodeBankReconciliationDetail({ ...detail, ledgerSchedule: { ...source, id: id3 } }, '')).toThrow();
+  });
+
+  it('retains reviewed bank command intent after an unknown response and requires lookup plus renewed assent', async () => {
+    const { fixture, http, click } = open(true);
+    click('Prepare bank reconciliation');
+    const ledgerSource = { id: id3, scheduleType: 'BANK_LEDGER', entityIdentifier: 'BANK-001', asOfDate: '2026-09-19',
+      currency: 'QAR', signedControlTotal: '100.000000', sourceHash: hash64, status: 'APPROVED', inputGeneration: '2' };
+    const statementSource = { ...ledgerSource, id: id4, scheduleType: 'BANK_STATEMENT', signedControlTotal: '90.000000' };
+    const state = { engagementId: id1, clientId: id2, expectedGeneration: '2', reviewBasis: hash64,
+      canCreate: true, canReview: true, sources: [ledgerSource, statementSource], record: null, blockers: [] };
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork/bank-reconciliations/command-state`).flush(state);
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork/bank-reconciliations?offset=0&limit=25`)
+      .flush({ engagementId: id1, currentInputGeneration: '2', offset: 0, limit: 25, total: 0, rows: [] });
+    TestBed.tick(); fixture.detectChanges();
+
+    const page = fixture.componentInstance;
+    page.bankItems.set([
+      { stableItemId: 'ledger', itemType: 'LEDGER', signedAmount: '100.000000', description: 'Ledger balance',
+        sourceReference: 'ledger-receipt', evidenceReference: 'ledger-proof', sourceScheduleId: id3, proposedJournalId: null },
+      { stableItemId: 'statement', itemType: 'STATEMENT', signedAmount: '90.000000', description: 'Statement balance',
+        sourceReference: 'statement-receipt', evidenceReference: 'statement-proof', sourceScheduleId: id4, proposedJournalId: null },
+      { stableItemId: 'timing', itemType: 'TIMING', signedAmount: '-10.000000', description: 'Outstanding cheque',
+        sourceReference: 'statement-receipt#timing', evidenceReference: 'timing-proof', sourceScheduleId: id4, proposedJournalId: null },
+    ]);
+    const previewTask = page.prepareBankCreate();
+    const previewRequest = http.expectOne(`/api/ui/engagements/${id1}/fieldwork/bank-reconciliations/create/preview`);
+    const original = previewRequest.request.body as { requestId: string; expectedGeneration: string; reviewBasis: string;
+      create: { items: { stableItemId: string; signedAmount: string }[] } };
+    expect(original.expectedGeneration).toBe('2');
+    expect(original.reviewBasis).toBe(hash64);
+    expect(original.create.items.map(x => x.signedAmount)).toEqual(['100.000000', '90.000000', '-10.000000']);
+    previewRequest.flush({ value: { requestId: original.requestId, action: 'CREATE', requestHash: hash64,
+      reviewBasis: hash64, expectedGeneration: '2', canProceed: true, blockers: [], currentRecord: null,
+      calculated: { bankReconciliationId: '00000000-0000-0000-0000-000000000000', status: 'RECONCILED', currency: 'QAR',
+        ledgerBalance: '100.000000', statementBalance: '90.000000', timingItemTotal: '-10.000000',
+        proposedCorrectionTotal: '0.000000', residual: '0.000000' }, summary: 'Create the exact reviewed bank reconciliation.' } });
+    await previewTask;
+    TestBed.tick(); fixture.detectChanges();
+    expect(page.bankCommandReviewed()).toBe(false);
+    const assent = fixture.nativeElement.querySelector('#bank-reconciliation-command-workspace input[type="checkbox"]') as HTMLInputElement;
+    assent.click(); TestBed.tick(); fixture.detectChanges();
+    const submit = [...fixture.nativeElement.querySelectorAll('button')].find((button) =>
+      (button as HTMLButtonElement).textContent?.includes('Submit bank reconciliation')) as HTMLButtonElement;
+    expect(submit.disabled).toBe(false);
+    const executeTask = page.executeBankCommand();
+    TestBed.tick(); fixture.detectChanges();
+    const command = http.expectOne(`/api/ui/engagements/${id1}/fieldwork/bank-reconciliations/create`);
+    expect(command.request.body).toMatchObject({ requestId: original.requestId, expectedGeneration: '2',
+      reviewBasis: hash64, expectedRequestHash: hash64, reviewed: true });
+    command.flush({}, { status: 503, statusText: 'Service Unavailable' });
+    await executeTask; TestBed.tick(); fixture.detectChanges();
+    expect(page.bankCommandPending()?.body.requestId).toBe(original.requestId);
+    expect(fixture.nativeElement.textContent).toContain('A missing receipt does not prove the command cannot still commit');
+
+    const lookupTask = page.reconcileBankCommand();
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork/bank-reconciliations/command-state`).flush(state);
+    await fixture.whenStable(); TestBed.tick();
+    const lookup = http.expectOne(request => request.url.startsWith(`/api/ui/engagements/${id1}/fieldwork/bank-reconciliations/receipts/${original.requestId}`));
+    lookup.flush({ found: false, receipt: null });
+    await lookupTask;
+    expect(page.bankCommandPending()?.body.requestId).toBe(original.requestId);
+    expect(page.bankCommandAbsent()).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('A missing receipt does not prove the command cannot still commit');
+
+    const retryTask = page.retryBankCommandAfterLookup();
+    http.expectOne(`/api/ui/engagements/${id1}/fieldwork/bank-reconciliations/command-state`).flush(state);
+    await fixture.whenStable(); TestBed.tick();
+    const retryPreview = http.expectOne(`/api/ui/engagements/${id1}/fieldwork/bank-reconciliations/create/preview`);
+    expect(retryPreview.request.body).toMatchObject({ requestId: original.requestId, expectedRequestHash: null, reviewed: false });
+    retryPreview.flush({ value: { requestId: original.requestId, action: 'CREATE', requestHash: hash64,
+      reviewBasis: hash64, expectedGeneration: '2', canProceed: true, blockers: [], currentRecord: null,
+      calculated: null, summary: 'Review the exact saved request before retry.' } });
+    await retryTask;
+    TestBed.tick(); fixture.detectChanges();
+    expect(page.bankCommandPending()?.body.requestId).toBe(original.requestId);
+    expect(page.bankCommandReviewed()).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain('explicitly confirm the exact retry');
+    TestBed.inject(TabDrafts).clear(`audit-bank-reconciliation/${id1}/CREATE`);
+    page.bankCommandPending.set(null);
+    http.verify();
   });
 
   it('decodes and binds accepted listing and TB catalogs from the engagement source-intake route', () => {
@@ -1088,9 +1181,11 @@ describe('Fieldwork bank reconciliation inspection', () => {
     http.expectNone(r => r.url.startsWith(path));
     expect(fixture.nativeElement.textContent).not.toContain('100.123456');
     click('Inspect bank reconciliations');
+    http.expectOne(path + '/command-state').flush(commandState); TestBed.tick(); fixture.detectChanges();
     http.expectOne(path + '?offset=0&limit=25').flush(page); TestBed.tick(); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('#bank-reconciliation-inspection-heading')).toBe(document.activeElement);
     click('Inspect evidence');
+    http.expectOne(path + `/command-state?reconciliationId=${id2}`).flush(commandState); TestBed.tick(); fixture.detectChanges();
     http.expectOne(path + `/${id2}?offset=0&limit=100`).flush({ ...detail, total: 101,
       items: Array.from({ length: 100 }, (_, i) => ({ ...detail.items[0], id: `33333333-3333-4333-8333-${String(i).padStart(12, '0')}`, stableItemId: `item-${i}` })) });
     TestBed.tick(); fixture.detectChanges();
@@ -1123,6 +1218,7 @@ describe('Fieldwork bank reconciliation inspection', () => {
   it('clears a pending inspection on identity loss and refuses a guessed engagement response', () => {
     const { fixture, http, session, click } = open();
     click('Inspect bank reconciliations');
+    http.expectOne(path + '/command-state').flush(commandState); TestBed.tick(); fixture.detectChanges();
     http.expectOne(path + '?offset=0&limit=25').flush({ ...page, engagementId: id3 }); TestBed.tick(); fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Unsupported response');
     expect(fixture.nativeElement.textContent).not.toContain('100.123456');

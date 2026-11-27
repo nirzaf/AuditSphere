@@ -95,6 +95,7 @@ public interface IAuditSphereDbContext : IAsyncDisposable
   DbSet<AuditPlanningCommandReceipt> AuditPlanningCommandReceipts { get; }
   DbSet<AuditCompletionVarianceCommandReceipt> AuditCompletionVarianceCommandReceipts { get; }
   DbSet<AuditCompletionGoingConcernCommandReceipt> AuditCompletionGoingConcernCommandReceipts { get; }
+  DbSet<AuditBankReconciliationCommandReceipt> AuditBankReconciliationCommandReceipts { get; }
   DbSet<AuditCompletionSubsequentEventCommandReceipt> AuditCompletionSubsequentEventCommandReceipts { get; }
   DbSet<OpeningBalanceCommandReceipt> OpeningBalanceCommandReceipts { get; }
   DbSet<MaterialityAssessment> MaterialityAssessments { get; }

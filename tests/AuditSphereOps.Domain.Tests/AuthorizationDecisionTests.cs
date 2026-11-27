@@ -534,6 +534,7 @@ public sealed class AuthorizationDecisionTests
     public DbSet<AuditSphereOps.Domain.Accounting.SourceAcceptanceDecision> SourceAcceptanceDecisions => db.SourceAcceptanceDecisions;
     public DbSet<AuditSphereOps.Domain.Audit.AuditCompletionVarianceCommandReceipt> AuditCompletionVarianceCommandReceipts => db.AuditCompletionVarianceCommandReceipts;
     public DbSet<AuditSphereOps.Domain.Audit.AuditCompletionGoingConcernCommandReceipt> AuditCompletionGoingConcernCommandReceipts => db.AuditCompletionGoingConcernCommandReceipts;
+    public DbSet<AuditSphereOps.Domain.Audit.AuditBankReconciliationCommandReceipt> AuditBankReconciliationCommandReceipts => db.AuditBankReconciliationCommandReceipts;
     public DbSet<AuditSphereOps.Domain.Audit.AuditCompletionSubsequentEventCommandReceipt> AuditCompletionSubsequentEventCommandReceipts => db.AuditCompletionSubsequentEventCommandReceipts;
     public DbSet<AuditSphereOps.Domain.Audit.OpeningBalanceCommandReceipt> OpeningBalanceCommandReceipts => db.OpeningBalanceCommandReceipts;
     public DbSet<AuditSphereOps.Domain.Accounting.TrialBalanceValidationIssue> TrialBalanceValidationIssues => db.TrialBalanceValidationIssues;

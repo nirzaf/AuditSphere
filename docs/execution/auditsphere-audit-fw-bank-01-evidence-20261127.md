@@ -1,0 +1,35 @@
+# FW-BANK-01 implementation evidence — 2026-11-27
+
+## Disposition and source
+
+**FW-BANK-01: IMPLEMENTED (engineering source slice).** Implemented from the fetched `master` source `b93d5b927930ca1c50ecfcd9639925a2ddeb7149`. This does not establish professional acceptance, production readiness, or an overall assignment completion claim.
+
+Before this slice, bank reconciliation had typed create/review service operations and read-only inspection endpoints, but no supported `/api/ui/*` producer, review preview, actor-owned retry receipt, or Angular command handoff. The service needed strict null/shape validation before trimming/enumeration, and review had to join a caller-owned transaction safely.
+
+## Changed files and resulting behavior
+
+- `src/AuditSphereOps.Application/Audit/Fieldwork/AuditFieldworkService.BankReconciliations.cs`: strict bounded create/review input validation; reauthorization and current source-generation checks under the existing engagement lock; target row lock for review; create/review now join supported caller transactions and commit only owned transactions.
+- `src/AuditSphereOps.Application/Audit/BankReconciliationWorkspace.cs`: new server-projected eligibility, canonical preview, explicit assent, preparer/reviewer separation, current-source review basis, actor/session/scope/action-bound request hash, atomic mutation plus receipt, exact replay/conflict behavior and authorized receipt lookup. Revalidation clears preview-only hash/assent while preserving the immutable reviewed request hash.
+- `src/AuditSphereOps.Domain/Audit/AuditBankReconciliationCommandReceipt.cs`; `src/AuditSphereOps.Application/Operations/Contracts.cs`; `src/AuditSphereOps.Infrastructure/Persistence/AuditSphereDbContext.BankReconciliationCommands.cs`; `AuditSphereDbContext.cs`; migration `20261126233605_AuditBankReconciliationCommandReceipts` and its designer; `AuditSphereDbContextModelSnapshot.cs`: append-only command receipts with firm/client/engagement/record/actor scope, actor/request uniqueness, bounded JSON, restrictive FKs, update/delete/truncate guards and downgrade refusal while receipts exist.
+- `src/AuditSphereOps.Api/Ui/UiEndpoints.BankReconciliationInspection.cs`: preserves existing list/detail GETs and adds command-state, create/review preview and execute, and actor-scoped receipt lookup routes using existing UI boundary helpers and exact decimal strings.
+- `src/AuditSphereOps.Ui/src/app/features/audit/fieldwork-contracts.ts`, `fieldwork.ts`, `fieldwork.html`, `fieldwork.spec.ts`: adds authorized source choice, typed reconciling items, server eligibility, reviewed create and independent review, pending exact intent, unknown-outcome lookup/recovery, stale/denied outcomes, and focus handling.
+- Tests: `tests/AuditSphereOps.Domain.Tests/AuditFieldworkWorkflowTests.cs`; `tests/AuditSphereOps.Api.Tests/ConfirmationApiTests.cs`; test adapter `tests/AuditSphereOps.Domain.Tests/AuthorizationDecisionTests.cs` now implements the added DbSet.
+- Contract/docs: `contracts/auditsphere-openapi.json` (six routes and new schemas); `docs/architecture/auditsphere-architecture-code-map.md`; bounded current-slice and status ledgers.
+
+Preserved behavior: the existing typed bank calculation and distinct approved `BANK_LEDGER`/`BANK_STATEMENT` schedules; exact date/currency/current-generation, draft correction linkage, zero-residual approval and independent reviewer rules; existing GET contracts; no lifecycle advancement or professional conclusion. No provider effects or production writes were performed.
+
+## Verification executed
+
+- `AUDITSPHERE_TEST_CONNECTION='Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=qts' dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 -p:UseSharedCompilation=false -nodeReuse:false --filter 'FullyQualifiedName~AuditFieldworkWorkflowTests.FieldworkEvidence_IsScopedAndReviewable'` — **PASS, 1/1**, on the approved isolated PostgreSQL database. Covers typed producer/reviewer behavior, exact create/review retry and changed intent, self-review denial, revocation after preview (`generation.stale`, no reconciliation or receipt), lookup, SQL update/delete/truncate refusal, and receipt-write failure rolling back the reconciliation and receipt.
+- `AUDITSPHERE_TEST_CONNECTION='Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=qts' dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore -c Release --maxcpucount:1 -p:UseSharedCompilation=false -nodeReuse:false --filter 'FullyQualifiedName~ConfirmationApiTests.BankReconciliationProducer_UsesReviewedSourcesAndRetainsExactIndependentCommandReceipts'` — **PASS, 1/1**, through the authenticated HTTP producer/review/replay/receipt endpoints, using approved source preparation and testing nonzero-residual and foreign-engagement denial.
+- `npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/audit/fieldwork.spec.ts'` — **PASS, 39/39**.
+- `dotnet ef migrations has-pending-model-changes --project src/AuditSphereOps.Infrastructure --startup-project src/AuditSphereOps.Api --configuration Release` — **PASS**, no pending model changes. Migration was generated with EF tooling and exercised by isolated PostgreSQL fixtures; no production migration was run.
+- `dotnet run --project tools/AuditSphereOps.OpenApiEmitter --configuration Release --no-restore -- contracts/auditsphere-openapi.json`, then `bash scripts/contracts/verify-openapi.sh` — **PASS**. Semantic comparison against source `b93d5b9` found six added command routes and their schemas, no removed routes and no changed existing path/schema. The generated text diff is large because route ordering shifted.
+- `git diff --check`, Markdown health, filename and narrative validators — **PASS** after the final evidence/ledger edits; current ledgers are within the repository size budgets.
+- Browser journey: **NOT_RUN**. The focused Angular behavior spec and authenticated API producer test passed; full browser E2E remains for exact-SHA CI.
+
+## CI and remaining gates
+
+Fast CI run [45909563368](https://github.com/nirzaf/AuditSphere/actions/runs/45909563368) completed **FAILURE** on exact SHA `b93d5b927930ca1c50ecfcd9639925a2ddeb7149`, before this slice. .NET Release succeeded. Angular failed because `archive-record.spec.ts` left the new `GET /api/ui/records/archives/{id}/commercial-bundles?page=0` request unconsumed; `plan.spec.ts` also timed out at five seconds. The ARC-05 spec gap needs a narrow repair. The concurrent dirty `plan.spec.ts` is preserved and was not modified by this slice. No exact-SHA CI has yet run for the FW-BANK-01 source.
+
+Overall assignment remains **INCOMPLETE**. F21 terminal-release/records policy, production/provider acceptance, live browser journey and all remaining audit packets/gates are separate. No release, deployment, production migration/data change, permission change, live provider mutation, merge, or professional/accounting sign-off occurred.

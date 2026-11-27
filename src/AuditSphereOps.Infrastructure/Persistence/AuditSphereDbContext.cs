@@ -493,6 +493,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
   public DbSet<AuditPlanningCommandReceipt> AuditPlanningCommandReceipts => Set<AuditPlanningCommandReceipt>();
   public DbSet<AuditCompletionVarianceCommandReceipt> AuditCompletionVarianceCommandReceipts => Set<AuditCompletionVarianceCommandReceipt>();
   public DbSet<AuditCompletionGoingConcernCommandReceipt> AuditCompletionGoingConcernCommandReceipts => Set<AuditCompletionGoingConcernCommandReceipt>();
+  public DbSet<AuditBankReconciliationCommandReceipt> AuditBankReconciliationCommandReceipts => Set<AuditBankReconciliationCommandReceipt>();
   public DbSet<AuditCompletionSubsequentEventCommandReceipt> AuditCompletionSubsequentEventCommandReceipts => Set<AuditCompletionSubsequentEventCommandReceipt>();
   public DbSet<OpeningBalanceCommandReceipt> OpeningBalanceCommandReceipts => Set<OpeningBalanceCommandReceipt>();
   public DbSet<MaterialityAssessment> MaterialityAssessments => Set<MaterialityAssessment>();
@@ -701,6 +702,7 @@ public sealed partial class AuditSphereDbContext(DbContextOptions<AuditSphereDbC
     ConfigurePeriodMaintenanceReceipts(b);
     ConfigureAuditPlanningReceipts(b);
     ConfigureAuditCompletionCommands(b);
+    ConfigureBankReconciliationCommands(b);
     ConfigureFindingCommands(b);
     ConfigureReviewPointCommands(b);
     ConfigureWorkpaperCommands(b);

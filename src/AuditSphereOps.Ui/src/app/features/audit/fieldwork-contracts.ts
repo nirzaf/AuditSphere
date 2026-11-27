@@ -246,6 +246,35 @@ const bankPage = obj({ engagementId: guid, currentInputGeneration: nullable(bank
 const bankDetail = obj({ engagementId: guid, currentInputGeneration: nullable(bankGeneration), reconciliation: bankRow,
   ledgerScheduleId: guid, statementScheduleId: guid, ledgerSchedule: nullable(bankSchedule), statementSchedule: nullable(bankSchedule),
   offset: nat, limit: nat, total: nat, items: arr(bankItem, 100) });
+const bankCommandItem = obj({ id: guid, stableItemId: text, itemType: oneOf('LEDGER', 'STATEMENT', 'TIMING', 'PROPOSED_CORRECTION'),
+  signedAmount: dec, currency: text, description: text, sourceReference: text, evidenceReference: text,
+  sourceScheduleId: nullable(guid), proposedJournalId: nullable(guid) });
+const bankCommandRecord = obj({ id: guid, clientId: guid, engagementId: guid, procedureId: nullable(guid),
+  ledgerScheduleId: guid, statementScheduleId: guid, asOfDate: date, currency: text, ledgerBalance: dec,
+  statementBalance: dec, timingItemTotal: dec, proposedCorrectionTotal: dec, residual: dec,
+  status: oneOf('RECONCILED', 'UNRECONCILED', 'APPROVED', 'CHANGES_REQUIRED'), inputGeneration: bankGeneration,
+  conclusion: nullable(text), createdByUserId: guid, reviewedByUserId: nullable(guid), createdAt: instant,
+  reviewedAt: nullable(instant), items: arr(bankCommandItem, 1000) });
+const bankSourceOption = obj({ id: guid, scheduleType: oneOf('BANK_LEDGER', 'BANK_STATEMENT'), entityIdentifier: text,
+  asOfDate: nullable(date), currency: text, signedControlTotal: dec, sourceHash: sha256, status: text, inputGeneration: bankGeneration });
+const bankValue = obj({ bankReconciliationId: guid, status: oneOf('RECONCILED', 'UNRECONCILED', 'APPROVED', 'CHANGES_REQUIRED'),
+  currency: text, ledgerBalance: dec, statementBalance: dec, timingItemTotal: dec, proposedCorrectionTotal: dec, residual: dec });
+const bankCommandPreview = obj({ requestId: guid, action: oneOf('CREATE', 'REVIEW'), requestHash: sha256,
+  reviewBasis: sha256, expectedGeneration: bankGeneration, canProceed: bool, blockers: arr(text, 50),
+  currentRecord: nullable(bankCommandRecord), calculated: nullable(bankValue), summary: text });
+const bankCommandReceipt = obj({ id: guid, clientId: guid, engagementId: guid, bankReconciliationId: guid,
+  actorId: guid, actorEpoch: bankGeneration, requestId: guid, requestHash: sha256, reviewBasis: sha256,
+  action: oneOf('CREATE', 'REVIEW'), createdAt: instant, preview: bankCommandPreview, result: bankCommandRecord });
+export const decodeBankReconciliationCommandState = obj({ engagementId: guid, clientId: guid,
+  expectedGeneration: bankGeneration, reviewBasis: sha256, canCreate: bool, canReview: bool,
+  sources: arr(bankSourceOption, 200), record: nullable(bankCommandRecord), blockers: arr(text, 50) });
+export const decodeBankReconciliationCommandPreview = bankCommandPreview;
+export const decodeBankReconciliationCommandReceipt = bankCommandReceipt;
+export const decodeBankReconciliationCommandLookup = (raw: unknown, path: string) => {
+  const result = obj({ found: bool, receipt: nullable(bankCommandReceipt) })(raw, path);
+  if (result.found !== !!result.receipt) throw new DecodeError(`${path}: inconsistent receipt lookup`);
+  return result;
+};
 function requireBankPage(offset: number, limit: number, total: number, count: number, max: number, path: string): void {
   if (limit < 1 || limit > max || count > limit || count !== Math.min(limit, Math.max(0, total - offset)))
     throw new DecodeError(`${path}: inconsistent bounded page`);
