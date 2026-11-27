@@ -201,7 +201,13 @@ describe('Archive intent recovery', () => {
       manifestStatus: review ? 'BUILT' : null, manifestDigest: review ? hash64 : null, completenessStatus: review ? 'COMPLETE' : null,
       completenessException: null, canExport: false, canReview: review, canBuild: !review, entries: [], totalEntryCount: 0, nextOrdinal: null,
       activeHoldCount: 0, observedProtection: null, desiredLabel: null, observedLabel: null, actionState: null, externalReference: null, secondarySharePointCopy: null };
-    const read = async (changes: Record<string, unknown> = {}) => { Object.assign(raw, changes); data.set(decode(raw, 'archive')); await fixture.whenStable(); };
+    const read = async (changes: Record<string, unknown> = {}) => {
+      Object.assign(raw, changes);
+      data.set(decode(raw, 'archive'));
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
     await read();
     bundleData.set({ archiveId: id1, engagementId: id2, page: 0, hasMore: false, bundles: [
       { id: id3, contentSha256: hash64, manifestSha256: 'a'.repeat(64), assembledAt: '2026-11-26T10:00:00Z' },
@@ -376,7 +382,9 @@ describe('Archive export visibility', () => {
       desiredLabel: 'CONFIDENTIAL', observedLabel: 'CONFIDENTIAL', actionState: 'OBSERVED',
       externalReference: null, secondarySharePointCopy: null, canReview: false, canBuild: false,
     }, 'archive'));
+    fixture.detectChanges();
     await fixture.whenStable();
+    fixture.detectChanges();
 
     const page = fixture.nativeElement as HTMLElement;
     const exportLink = page.querySelector<HTMLAnchorElement>(`a[href="/api/ui/records/archives/${id1}/export"]`);
