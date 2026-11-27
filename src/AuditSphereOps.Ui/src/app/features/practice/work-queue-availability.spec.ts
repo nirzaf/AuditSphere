@@ -123,22 +123,30 @@ describe('work availability and session fencing', () => {
     http.verify({ ignoreCancelled: true }); fixture.destroy();
   });
 
-  it('clears task and review data at the returned expiry even while a refresh is pending', async () => {
-    const { http, fixture, availability: service } = start();
-    http.expectOne('/api/ui/workspace-availability').flush({ ...availability('available', 'available', ['my-work', 'reviews']), validForMs: 150 });
-    TestBed.tick();
-    const tasks = http.expectOne(tasksUrl); const reviews = http.expectOne(reviewsUrl);
-    expect(fixture.nativeElement.querySelector('a[href="/app/accounting/reviews"]')).not.toBeNull();
-    await new Promise(resolve => setTimeout(resolve, 220)); TestBed.tick();
-    expect(service.current()).toBeNull();
-    expect(tasks.cancelled).toBe(true); expect(reviews.cancelled).toBe(true);
-    expect(fixture.nativeElement.querySelector('a[href="/app/accounting/reviews"]')).toBeNull();
-    const refreshes = http.match('/api/ui/workspace-availability');
-    expect(refreshes).toHaveLength(2); expect(refreshes[0].cancelled).toBe(true);
-    refreshes[1].flush(availability('not_authorized', 'not_authorized', []));
-    TestBed.tick();
-    expect(fixture.nativeElement.textContent).not.toContain('My tasks: 0');
-    http.verify({ ignoreCancelled: true }); fixture.destroy();
+  it('clears task and review data at the returned expiry even while a refresh is pending', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout'] });
+    try {
+      const { http, fixture, availability: service } = start();
+      http.expectOne('/api/ui/workspace-availability').flush({ ...availability('available', 'available', ['my-work', 'reviews']), validForMs: 150 });
+      TestBed.tick();
+      const tasks = http.expectOne(tasksUrl); const reviews = http.expectOne(reviewsUrl);
+      expect(fixture.nativeElement.querySelector('a[href="/app/accounting/reviews"]')).not.toBeNull();
+      vi.advanceTimersByTime(149); TestBed.tick();
+      const renewal = http.expectOne('/api/ui/workspace-availability');
+      expect(renewal.cancelled).toBe(false);
+      expect(service.current()).not.toBeNull();
+      vi.advanceTimersByTime(1); TestBed.tick();
+      expect(service.current()).toBeNull();
+      expect(tasks.cancelled).toBe(true); expect(reviews.cancelled).toBe(true);
+      expect(fixture.nativeElement.querySelector('a[href="/app/accounting/reviews"]')).toBeNull();
+      expect(renewal.cancelled).toBe(true);
+      http.expectOne('/api/ui/workspace-availability').flush(availability('not_authorized', 'not_authorized', []));
+      TestBed.tick();
+      expect(fixture.nativeElement.textContent).not.toContain('My tasks: 0');
+      http.verify({ ignoreCancelled: true }); fixture.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('invalidates the shared session when the availability read receives 401', () => {

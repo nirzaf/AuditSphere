@@ -287,19 +287,25 @@ describe('Practical rounding form (STE 3.2)', () => {
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     const host = f.nativeElement as HTMLElement;
+    const opening = vi.spyOn(f.componentInstance, 'openWorkpaper');
     (Array.from(host.querySelectorAll('button')).find((candidate) => candidate.textContent?.includes('Create WORKING workpaper')) as HTMLButtonElement).click();
+    expect(opening).toHaveBeenCalledOnce();
     http.expectOne({ method: 'POST', url: `/api/ui/procedures/${id4}/workpaper` }).flush({ message: 'Unknown' }, { status: 503, statusText: 'Unavailable' });
-    await f.whenStable();
+    // Let the HTTP wrapper and its caller consume the response before flushing
+    // the association check. Waiting for Angular stability first can wait on that request.
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush(fieldworkPayload);
-    await f.whenStable();
+    await opening.mock.results[0].value;
+    f.detectChanges();
     const retry = Array.from(host.querySelectorAll('button')).find((candidate) => candidate.textContent?.includes('Recheck, then retry')) as HTMLButtonElement;
     expect(retry).toBeTruthy();
     expect(f.componentInstance.workpaperUncertainProcedureId()).toBe(id4);
-    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(f.componentInstance.workpaperBusy()).toBe(false);
     const retrying = f.componentInstance.recoverWorkpaper(fieldworkPayload.procedures[0]);
     http.expectOne(`/api/ui/engagements/${id1}/fieldwork`).flush(fieldworkPayload);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await Promise.resolve();
+    await Promise.resolve();
     http.expectOne({ method: 'POST', url: `/api/ui/procedures/${id4}/workpaper` }).flush({ value: id2 });
     await retrying;
     expect(navigate).toHaveBeenCalledWith(['/app/audit/workpapers', id2]);

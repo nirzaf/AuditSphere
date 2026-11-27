@@ -177,9 +177,14 @@ describe('Resource planning forms', () => {
   it('opens read-only staff/week details and filters the loaded grid without any write', async () => {
     const f = setup();
     const host = f.nativeElement as HTMLElement;
-    (host.querySelector('button[aria-label="Details for Synthetic planner week of 2026-10-04"]') as HTMLButtonElement).click();
-    TestBed.tick();
-    await new Promise(resolve => setTimeout(resolve));
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      (host.querySelector('button[aria-label="Details for Synthetic planner week of 2026-10-04"]') as HTMLButtonElement).click();
+      TestBed.tick();
+      vi.advanceTimersByTime(0);
+    } finally {
+      vi.useRealTimers();
+    }
     expect(document.activeElement?.id).toBe('cell-detail-heading');
     const detail = host.querySelector('section[aria-labelledby="cell-detail-heading"]')!.textContent!;
     expect(detail).toMatch(/Net capacity\s*20 h/);
@@ -314,11 +319,14 @@ describe('Resource planning forms', () => {
     };
   }
   async function review(f: ReturnType<typeof setup>, kind: string): Promise<PlanningPreview> {
+    const send = vi.spyOn(f.componentInstance, 'send');
+    const calls = send.mock.calls.length;
     await submit(f, kind);
     const request = http.expectOne('/api/ui/practice/resources/preview'),
       p = fakePreview(request.request.body);
     request.flush({ value: p });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(send.mock.calls.length).toBe(calls + 1);
+    await send.mock.results[calls].value;
     TestBed.tick();
     return p;
   }
@@ -392,6 +400,7 @@ describe('Resource planning forms', () => {
       a = editor(f, 'allocation');
     a.model.update((m) => ({ ...m, user: id, engagement, week: '2026-10-04', phase: 'FIELDWORK', riskArea: 'Revenue' }));
     TestBed.tick();
+    const send = vi.spyOn(f.componentInstance, 'send');
     await submit(f, 'allocation');
     const req = http.expectOne('/api/ui/practice/resources/preview'),
       p = fakePreview(req.request.body);
@@ -399,7 +408,8 @@ describe('Resource planning forms', () => {
     TestBed.tick();
     expect(f.nativeElement.textContent).not.toContain('Synthetic planner');
     req.flush({ value: p });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(send).toHaveBeenCalledOnce();
+    await send.mock.results[0].value;
     TestBed.tick();
     expect(f.componentInstance.preview()).toBeNull();
     expect(f.componentInstance.cmd.message()).toBe('');

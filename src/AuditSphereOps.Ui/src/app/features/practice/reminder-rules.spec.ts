@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { HttpInterceptorFn, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -37,7 +37,6 @@ const rootUrl = '/api/ui/practice/reminder-rules?pageSize=25';
 const revisionUrl = `/api/ui/practice/reminder-rules/${rule}/revisions/${revisionId}`;
 const historyUrl = `/api/ui/practice/reminder-rules/${rule}/history?pageSize=25`;
 const executionsUrl = `/api/ui/practice/reminder-rules/${rule}/executions?pageSize=25`;
-const yieldToAsyncWork = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 
 describe('workflow reminder rule contract', () => {
   it('requires nullable contract members and preserves server-projected authority', () => {
@@ -64,8 +63,19 @@ describe('workflow reminder rule administration', () => {
   afterEach(() => { TestBed.resetTestingModule(); });
 
   async function setup() {
+    const pending = new Map<string, () => void>();
+    const signalRequest: HttpInterceptorFn = (request, next) => {
+      const response = next(request);
+      const signal = pending.get(request.urlWithParams);
+      if (signal) {
+        pending.delete(request.urlWithParams);
+        signal();
+      }
+      return response;
+    };
+    const awaitRequest = (url: string) => new Promise<void>(resolve => pending.set(url, resolve));
     TestBed.configureTestingModule({ imports: [WorkflowReminderRules], providers: [
-      provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
+      provideHttpClient(withInterceptors([signalRequest])), provideHttpClientTesting(), provideRouter([]),
     ] });
     TestBed.inject(SessionService).current.set({ userId: user, firmId: firm, generation: '1', staff: true });
     const fixture = TestBed.createComponent(WorkflowReminderRules);
@@ -74,7 +84,7 @@ describe('workflow reminder rule administration', () => {
     http.expectOne(rootUrl).flush(catalogPage());
     await fixture.whenStable();
     fixture.detectChanges();
-    return { fixture, http, component: fixture.componentInstance };
+    return { fixture, http, awaitRequest, component: fixture.componentInstance };
   }
 
   it('starts with no timing policy defaults and saves the explicit definition as a draft', async () => {
@@ -113,7 +123,7 @@ describe('workflow reminder rule administration', () => {
   });
 
   it('checks the exact creation receipt and retries only the original body and request key', async () => {
-    const { fixture, http, component } = await setup();
+    const { fixture, http, awaitRequest, component } = await setup();
     component.startNewRule();
     const requestKey = component.draft.requestKey!;
     component.draft.definition = { ...definition };
@@ -121,9 +131,11 @@ describe('workflow reminder rule administration', () => {
     const post = http.expectOne('/api/ui/practice/reminder-rules/drafts');
     const originalBody = { ruleId: null, definition, expectedRevision: null, requestKey };
     expect(post.request.body).toEqual(originalBody);
+    const receiptUrl = `/api/ui/practice/reminder-rules/drafts/${requestKey}/receipt`;
+    const receiptRequested = awaitRequest(receiptUrl);
     post.flush({}, { status: 503, statusText: 'Lost response' });
-    await yieldToAsyncWork();
-    http.expectOne(`/api/ui/practice/reminder-rules/drafts/${requestKey}/receipt`)
+    await receiptRequested;
+    http.expectOne(receiptUrl)
       .flush({}, { status: 404, statusText: 'Not Found' });
     await saving;
     expect(component.uncertain()).toBe(true);
@@ -139,7 +151,6 @@ describe('workflow reminder rule administration', () => {
     http.expectOne(rootUrl).flush(catalogPage(createdRuleId));
     http.expectOne(`/api/ui/practice/reminder-rules/${createdRuleId}/history?pageSize=25`).flush(emptyHistory);
     http.expectOne(`/api/ui/practice/reminder-rules/${createdRuleId}/executions?pageSize=25`).flush(emptyExecutions);
-    await fixture.whenStable();
     expect(component.uncertain()).toBe(false);
     expect(component.receiptMissing()).toBe(false);
     fixture.destroy();
@@ -147,7 +158,7 @@ describe('workflow reminder rule administration', () => {
   });
 
   it('uses only server review authority and confirms an uncertain decision by exact history readback', async () => {
-    const { fixture, http, component } = await setup();
+    const { fixture, http, awaitRequest, component } = await setup();
     component.selectRule(decodeReminderRuleCatalog(catalogPage(), 'catalog').items[0]);
     http.expectOne(revisionUrl).flush(revision());
     http.expectOne(historyUrl).flush(emptyHistory);
@@ -160,19 +171,21 @@ describe('workflow reminder rule administration', () => {
     component.review(component.revision()!);
     const post = http.expectOne(`/api/ui/practice/reminder-rules/${rule}/revisions/${revisionId}/review`);
     expect(post.request.body).toEqual({ expectedRevision: 1, contentDigest: digest, rationale: component.rationale });
+    const historyReadbackUrl = `/api/ui/practice/reminder-rules/${rule}/history?pageSize=100`;
+    const readbackRequested = awaitRequest(historyReadbackUrl);
     post.flush({}, { status: 503, statusText: 'Lost response' });
-    await yieldToAsyncWork();
+    await readbackRequested;
+    const refreshRequested = awaitRequest(rootUrl);
     http.expectOne(revisionUrl).flush(revision({ status: 'REVIEWED', reviewedByUserId: user, reviewedAt: '2026-10-19T00:02:00Z' }));
-    http.expectOne(`/api/ui/practice/reminder-rules/${rule}/history?pageSize=100`).flush({
+    http.expectOne(historyReadbackUrl).flush({
       items: [{ id: 'ffffffff-ffff-4fff-8fff-ffffffffffff', ruleRevisionId: revisionId, kind: 'REVIEWED',
         contentDigest: digest, rationale: component.rationale, actorUserId: user, occurredAt: '2026-10-19T00:02:00Z' }],
       hasMore: false, nextAfterId: null,
     });
-    await yieldToAsyncWork();
+    await refreshRequested;
     http.expectOne(rootUrl).flush(catalogPage());
     http.expectOne(historyUrl).flush(emptyHistory);
     http.expectOne(executionsUrl).flush(emptyExecutions);
-    await fixture.whenStable();
     expect(component.uncertain()).toBe(false);
     expect(component.revision()?.status).toBe('REVIEWED');
     http.expectNone(request => request.method === 'POST');

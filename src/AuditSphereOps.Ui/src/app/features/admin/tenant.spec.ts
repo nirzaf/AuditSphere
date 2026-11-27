@@ -1,6 +1,6 @@
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { HttpInterceptorFn, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { vi } from 'vitest';
@@ -44,13 +44,26 @@ function selectMailEvidence(c: TenantConnection, payloadBytes: Uint8Array, signa
   c.selectMailAuthorizationFile({currentTarget:signatureInput} as unknown as Event,'signature');
   return {payload,signature};
 }
+const pendingRequestSignals = new Map<string, () => void>();
+const signalHttpRequest: HttpInterceptorFn = (request, next) => {
+  pendingRequestSignals.get(request.urlWithParams)?.();
+  return next(request);
+};
+
 async function waitForRequest(http: HttpTestingController, url: string) {
-  for (let attempt=0;attempt<50;attempt++) {
-    const requests=http.match(url);
-    if (requests.length) { expect(requests).toHaveLength(1); return requests[0]!; }
-    await new Promise(resolve=>setTimeout(resolve,1));
+  const requests = http.match(url);
+  if (requests.length) {
+    expect(requests).toHaveLength(1);
+    return requests[0]!;
   }
-  throw new Error(`No request was sent to ${url}`);
+  try {
+    await new Promise<void>(resolve => pendingRequestSignals.set(url, resolve));
+    // The interceptor signals when the request is issued. The continuation runs
+    // after the testing backend has subscribed, so expectOne can inspect it.
+    return http.expectOne(url);
+  } finally {
+    pendingRequestSignals.delete(url);
+  }
 }
 
 describe('Tenant saved setup metadata', () => {
@@ -58,11 +71,19 @@ describe('Tenant saved setup metadata', () => {
     const nodeWebCrypto=(globalThis as unknown as {process:{getBuiltinModule(name:string):{webcrypto:Crypto}}})
       .process.getBuiltinModule('crypto').webcrypto;
     vi.stubGlobal('crypto',nodeWebCrypto);
-    TestBed.configureTestingModule({imports:[TenantConnection],providers:[provideRouter([]),provideHttpClient(),provideHttpClientTesting()]});
+    TestBed.configureTestingModule({imports:[TenantConnection],providers:[provideRouter([]),provideHttpClient(withInterceptors([signalHttpRequest])),provideHttpClientTesting()]});
     TestBed.overrideComponent(TenantConnection,{remove:{imports:[SharePointAdministration,WorkspaceAdministration]},add:{schemas:[NO_ERRORS_SCHEMA]}});
     TestBed.inject(SessionService).current.set({userId:id,firmId:id,generation:'0',staff:true});
   });
-  afterEach(() => {TestBed.inject(HttpTestingController).verify({ignoreCancelled:true});TestBed.resetTestingModule();vi.unstubAllGlobals();});
+  afterEach(() => {
+    try {
+      TestBed.inject(HttpTestingController).verify({ignoreCancelled:true});
+    } finally {
+      pendingRequestSignals.clear();
+      TestBed.resetTestingModule();
+      vi.unstubAllGlobals();
+    }
+  });
   it('renders saved labels/states without claiming live verification and clears them on session loss', () => {
     const fixture=TestBed.createComponent(TenantConnection),http=TestBed.inject(HttpTestingController);
     fixture.detectChanges();http.expectOne('/api/ui/administration/microsoft365').flush(snapshot);TestBed.tick();fixture.detectChanges();
