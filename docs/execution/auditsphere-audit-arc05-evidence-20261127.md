@@ -2,7 +2,7 @@
 
 ## Disposition
 
-**IMPLEMENTED — source/API/UI handoff.** The archive catalogue is authorized and bounded, and the UI retains a reviewed exact selection during build recovery. The selected-bundle positive API producer journey and interactive browser journey remain **NOT_RUN**. F21 terminal-release and records policy remains **BLOCKED_DECISION**; this change does not approve a records profile or enable first-archive eligibility.
+**IMPLEMENTED — source/API/UI handoff; selected-bundle producer API journey locally verified.** The archive catalogue is authorized and bounded, and the UI retains a reviewed exact selection during build recovery. Interactive browser verification remains **NOT_RUN**. F21 terminal-release and records policy remains **BLOCKED_DECISION**; this change does not approve a records profile or enable first-archive eligibility.
 
 ## Behavior and scope
 
@@ -19,20 +19,21 @@
 - `src/AuditSphereOps.Ui/src/app/features/audit/archive-intent-recovery.ts`
 - `src/AuditSphereOps.Ui/src/app/features/audit/records.ts`
 - `src/AuditSphereOps.Ui/src/app/features/audit/records.spec.ts`
+- `tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj` (links the existing supported completion and bundle test fixtures for the producer journey)
 - `tests/AuditSphereOps.Api.Tests/RecordsArchiveRecoveryApiTests.cs`
 - `contracts/auditsphere-openapi.json`
 - `docs/architecture/auditsphere-architecture-code-map.md`
 
 ## Verification
 
-- Isolated PostgreSQL HTTP cohort: `AUDITSPHERE_TEST_CONNECTION='Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=qts' dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~RecordsArchiveRecoveryApiTests'` — **1 passed**. Covers authenticated empty catalogue, page bound, foreign-scope denial, stale guessed bundle refusal, changed retry and exact retained null-selection replay.
+- Isolated PostgreSQL HTTP cohort: `AUDITSPHERE_TEST_CONNECTION='Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=qts' dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~RecordsArchiveRecoveryApiTests' -p:UseSharedCompilation=false -nodeReuse:false` — **2 passed**. The new `SelectedProducedBundle_BuildsExactArchiveLineageAndRecoversAfterCommittedResponseLoss` case creates a real five-part bundle through `POST /api/ui/engagements/{id}/completion/bundle`, selects the exact ID returned by the authorized archive catalogue, and submits it through the archive build endpoint. A test-only Kestrel response filter truncates the response after the endpoint returns; PostgreSQL confirms the selected ID, request key, archive assembly/manifest hashes and all part hashes committed. Exact retry returns the captured result without another manifest or entries; changed selection conflicts; a stale ID is refused; an administrator from another firm is denied without revealing bundle availability. The existing null-selection recovery test also passes.
 - Angular: `npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/audit/records.spec.ts'` — **22 passed**. Covers explicit selection/review, changed selection clearing assent, and exact selected-ID/request-key retention across response loss and component recreation.
 - Angular production build: `npm --prefix src/AuditSphereOps.Ui run build` — **passed**; existing CSS budget warnings only.
 - Existing supported producer and lineage regression: `AUDITSPHERE_TEST_CONNECTION='Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=qts' dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~FivePartBundle_RequiresReviewedReleaseAndPostedBalance_IsIdempotent_AndClientScoped'` — **1 passed**. It generates the five-part bundle through the supported command and verifies persisted archive manifest hashes and source lineage at the service boundary; it does not exercise the new selected-ID HTTP build route.
 - OpenAPI: `dotnet run --project tools/AuditSphereOps.OpenApiEmitter --configuration Release --no-restore -- contracts/auditsphere-openapi.json` and `bash scripts/contracts/verify-openapi.sh` — **passed**; additive catalogue route and response only.
 - `git diff --check` — **passed**. Documentation validators run before commit.
-- Interactive browser: **NOT_RUN**. No authenticated local archive workflow was available; no claim of browser acceptance.
+- Interactive browser: **NOT_RUN**. The API integration test does not exercise Angular selection, responsive rendering or browser recovery; no browser acceptance is claimed.
 
 ## Remaining acceptance
 
-The API test does not yet create a real commercial bundle through the supported producer and then select it through the new archive HTTP route. The domain producer/manifest-lineage test and UI exact-intent recovery test cover those adjacent boundaries, but they do not replace that API journey. Keep this gap open for focused API/CI coverage. No production data, provider, records approval, release or deployment effect occurred.
+The supported producer-to-archive HTTP journey is locally verified against isolated PostgreSQL. Exact-SHA CI remains pending; interactive browser verification is still open. The synthetic RecordsProfile/archive fixture is test-only and does not establish or enable the blocked first-archive eligibility policy. No production data, provider, records approval, release or deployment effect occurred.

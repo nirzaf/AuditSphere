@@ -84,7 +84,7 @@ Statuses apply to the named engineering slice; IMPLEMENTED does not mean product
 | F30 | ALREADY_FIXED | Signed TB/source-side magnitude limits and parser refusal are present and verified. |
 | F31 | IMPLEMENTED | Final rendered bundle bytes and ZIP are bounded before persistence. |
 | FW-BANK-01 | IMPLEMENTED | Typed bank producer/review handoff, scoped receipts, locks and transaction participation; browser journey remains for exact-SHA CI. |
-| ARC-05 | IMPLEMENTED UI handoff | Exact selected bundle and actor-local recovery use the existing archive request identity; selected-bundle API/browser journey remains unverified locally; F21 still blocks first-archive eligibility. |
+| ARC-05 | IMPLEMENTED; selected-bundle API journey VERIFIED locally | Real completion API producer → authorized bundle catalogue → archive build; committed response-loss replay, exact manifest/part lineage, stale/changed selection and foreign-firm denial pass in isolated PostgreSQL. Interactive browser remains NOT_RUN; F21 still blocks first-archive eligibility. |
 | PRA-127 | IMPLEMENTED | Native finance flows capture strict UTC receipt time; no new backdating cutoff or allocation-date rewrite. |
 | M365-014 | IMPLEMENTED | Graph directory response byte limits apply to actual bytes read. |
 | M365-011 | IMPLEMENTED | Supported same-tenant replacement regression and current-binding guard are at `5eedb70e`; this continuation’s 2/2 test result is current local evidence. |
@@ -131,6 +131,8 @@ Statuses apply to the named engineering slice; IMPLEMENTED does not mean product
 ## Exact-source CI and release boundary
 
 At this observation (2026-11-27T01:38:07Z), `origin/master` and HEAD are `8ada67a742f438074f8fa1fe3f72930e06d7fa95`; five unrelated local Angular spec edits remain uncommitted and untouched. Fast CI run **45922099495** on that exact SHA passed its docs/MCP/M365 jobs; change classification skipped Angular and .NET builds because the pushed change was documentation-only. The latest full release-verification run, **45920288769**, was on parent SHA `3f96dcd6e43dd06cd7b905eba4db7ec295df5682` and finished **FAILURE**: its exact-source Release fallback build succeeded, but Angular had 9 five-second timeouts in `src/AuditSphereOps.Ui/src/app/features/practice/resources.spec.ts` (2,153 passed, 9 failed across 201 files). The retained `release-verification-logs-angular` artifact records the failures. Complete Domain/API/E2E and contract/publication jobs were skipped after the Angular failure. Image run **45922282423** on `8ada67a7` resolved the source but skipped both image build and summary jobs. Thus there is no exact-`8ada67a7` full-suite result and no `FULL_CI_PASS`. The five local spec edits were excluded from CI and do not qualify or repair the candidate. No browser/live-provider acceptance is inferred.
+
+Local follow-up on the `fcd05b44` working tree: the new supported producer-to-archive API regression passed **1/1**, and the full `RecordsArchiveRecoveryApiTests` cohort passed **2/2** against isolated PostgreSQL. The exact-SHA candidate commit and CI for this follow-up are pending; browser verification remains **NOT_RUN**. The five unrelated Angular edits remain untouched and excluded from this test run.
 
 No deployment, production migration/data or permission change, live provider mutation, merge, or professional/accounting approval occurred. The assignment is **INCOMPLETE**; no release is authorized by the conditions in this task.
 
