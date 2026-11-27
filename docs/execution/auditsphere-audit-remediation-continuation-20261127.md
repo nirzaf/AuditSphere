@@ -63,7 +63,7 @@ Statuses apply to the named engineering slice; IMPLEMENTED does not mean product
 | F09 / PRA-099 / PRA-103 | IMPLEMENTED | Unsafe budget actuals project null; no FX or rate-policy adoption. |
 | F10 | ALREADY_FIXED | Storage-aligned period/book bounds verified in the earlier current-master check. |
 | F11 | IMPLEMENTED | Explicit period context for balance reporting; overlapping periods do not use first-match selection. |
-| F12 | IMPLEMENTED containment | Generic self-comparison is blocked; AC-REC-07–10 remain separately gated. |
+| F12 | IMPLEMENTED containment | Generic self-comparison is blocked; analysis-evidence currentness names the missing independent control; browser/API/PostgreSQL focused evidence is in [the 2026-11-27 record](auditsphere-audit-f12-evidence-20261127.md). AC-REC-07–10 remain separately gated. |
 | F13 | IMPLEMENTED | Corrupt pending allocation evidence fails closed without clearing retained evidence. |
 | F14 / ARCX-003 | IMPLEMENTED | Current Graph bytes use item content; historical bytes remain version-pinned. |
 | F15 / AUTO-021 | IMPLEMENTED | Each archive receipt compares to its matched file timestamp; local PowerShell verification is separately environment-blocked where noted in historical evidence. |

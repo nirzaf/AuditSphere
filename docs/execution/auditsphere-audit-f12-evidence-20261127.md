@@ -1,0 +1,28 @@
+# F12 local verification evidence — 2026-11-27
+
+## Source and behavior
+
+Code commit `dd8278e8f31fa6907bc5364ab3fb062bbda6dc5e` follows the verified audit baseline `62059aa2e622bcb6245a211380021f5cf315cd97`. Generic TB/GL self-comparison remains fail-closed. This slice carries the missing-independent-control blocker into the analysis-evidence currentness projection used by the review UI, so a retained one-source ECL cannot appear merely stale without naming the missing independent population. Retained reconciliation and valuation evidence remains unchanged. Native AR/AP and typed bank paths remain separate; positive generic reconciliation is still gated on AC-REC-07–10 owner decisions.
+
+The E2E cases now assert that source-only reconciliation, review and valuation preparation do not publish new receipts or change the retained evidence, while the supported specialist schedule handoff remains usable. During verification, the first E2E attempt exposed an obsolete assertion expecting a blocked reconciliation receipt; that assertion was corrected. The review-page check also confirmed the old generic message concealed the missing-control reason; the query projection was corrected and covered below.
+
+## Changed files
+
+- `src/AuditSphereOps.Application/Accounting/ReconciliationWorkspaceQuery.cs`: one shared internal blocker value for the missing independent control population.
+- `src/AuditSphereOps.Application/Accounting/AccountingAnalysisReviewQuery.cs`: carry that precise blocker into `AccountingAnalysisReview.Blockers` when the retained reconciliation is source-only.
+- `tests/AuditSphereOps.Domain.Tests/AccountingAnalysisReviewQueryTests.cs`: PostgreSQL regression for the source-only currentness blocker.
+- `tests/AuditSphereOps.E2E.Tests/AngularAccountingPreparationCreationJourneyTests.cs`, `AngularEvidenceActionsJourneyTests.cs`, and `AngularValuationPreparationJourneyTests.cs`: real browser journeys assert blocked producer/reviewer actions, unchanged retained rows and the still-supported specialist schedule flow.
+- `docs/architecture/auditsphere-architecture-code-map.md`: records the analysis-evidence currentness blocker owner.
+
+## Focused checks
+
+- `git diff --check` — PASS.
+- `AUDITSPHERE_TEST_CONNECTION='Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=qts' dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore -c Release --maxcpucount:1 -p:UseSharedCompilation=false -nodeReuse:false --filter 'FullyQualifiedName~ReconciliationReviewApiTests.GenericSourceOnlyPreparationBlocksTrialBalanceAndSameBatchGeneralLedger|FullyQualifiedName~AccountingEvidenceActionsApiTests.ScopeSourceReplayPeriodAndLegacyRiskFencesNeverPublishAnUnsupportedDecision' --logger 'trx;LogFileName=f12-source-only-api-final.trx' --results-directory /tmp/auditsphere-f12-source-only-api-final` — PASS, 2/2. This run preceded the blocker-projection refinement in `dd8278e8`.
+- `AUDITSPHERE_TEST_CONNECTION='Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=qts' dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 -p:UseSharedCompilation=false -nodeReuse:false --filter 'FullyQualifiedName~AccountingAnalysisReviewQueryTests.GenericSourceOnlyEvidenceNamesTheMissingIndependentControlBlocker' --logger 'trx;LogFileName=f12-currentness-blocker.trx' --results-directory /tmp/auditsphere-f12-currentness-blocker` — PASS, 1/1 against the isolated PostgreSQL test database.
+- `AUDITSPHERE_TEST_CONNECTION='Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=qts' dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore -c Release --maxcpucount:1 -p:UseSharedCompilation=false -nodeReuse:false --filter 'FullyQualifiedName~AccountingEvidenceActionsApiTests.ScopeSourceReplayPeriodAndLegacyRiskFencesNeverPublishAnUnsupportedDecision' --logger 'trx;LogFileName=f12-evidence-currentness-api.trx' --results-directory /tmp/auditsphere-f12-evidence-currentness-api` — PASS, 1/1 after the blocker-projection change.
+- `npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/accounting/reconciliation-create.spec.ts'` — PASS, 1/1.
+- `AUDITSPHERE_TEST_CONNECTION='Host=127.0.0.1;Port=5433;Database=auditsphere_tests;Username=qts' dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore -c Release --maxcpucount:1 -p:UseSharedCompilation=false -nodeReuse:false --filter 'FullyQualifiedName~AngularAccountingPreparationCreationJourneyTests.SourceOnlyReconciliationIsBlockedWhileSpecialistPreparationRetainsReviewedReceipt|FullyQualifiedName~AngularEvidenceActionsJourneyTests.SourceOnlyAnalysisRetainsItsLinkButBlocksNewReviewAndClearsAfterRevocation|FullyQualifiedName~AngularValuationPreparationJourneyTests.SourceOnlyReconciliationBlocksNewEclAndInventoryPreparation' --logger 'trx;LogFileName=f12-source-only-e2e-verified.trx' --results-directory /tmp/auditsphere-f12-source-only-e2e-verified` — PASS, 3/3. Real Playwright journeys used the isolated PostgreSQL test database and synthetic local provider-free fixtures.
+
+## Remaining gates
+
+Fast CI run [45968438963](https://github.com/nirzaf/AuditSphere/actions/runs/45968438963) checked out the parent source `dd8278e8f31fa6907bc5364ab3fb062bbda6dc5e` and was `PENDING` at 2026-11-27 08:48 UTC; no current-source full release-verification run is recorded. These checks do not establish production migration or acceptance. AC-REC-07–10 remain `BLOCKED_DECISION` for the qualified owner’s independent-source pairing and adjustment-basis contract. No production, provider, or professional decision was made.
