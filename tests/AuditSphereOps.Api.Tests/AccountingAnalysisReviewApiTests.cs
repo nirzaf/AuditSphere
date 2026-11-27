@@ -19,7 +19,8 @@ public sealed class AccountingAnalysisReviewApiTests
       using var response=await c.GetAsync(Url(kind,id));Assert.Equal(HttpStatusCode.OK,response.StatusCode);Assert.True(response.Headers.CacheControl?.NoStore);
       var r=JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
       Assert.Equal(kind,r.GetProperty("kind").GetString());Assert.Equal(f.ClientId,r.GetProperty("clientId").GetGuid());
-      Assert.Equal(kind!="JOURNAL_RISK",r.GetProperty("inputsCurrent").GetBoolean());Assert.True(r.GetProperty("hasCurrentReviewedProcedure").GetBoolean());
+      Assert.Equal(kind is "SPECIALIST" or "ANALYTICAL",r.GetProperty("inputsCurrent").GetBoolean());Assert.True(r.GetProperty("hasCurrentReviewedProcedure").GetBoolean());
+      if(kind is "ECL" or "INVENTORY")Assert.Contains("A distinct independently evidenced control population is not retained",r.GetRawText());
       Assert.Equal(kind=="JOURNAL_RISK" ? "CLEARED" : "APPROVED",r.GetProperty("status").GetString());
       Assert.All(r.GetProperty("amounts").EnumerateArray(),x=>Assert.True(x.GetProperty("value").ValueKind is JsonValueKind.String or JsonValueKind.Null));
       if(kind=="ECL")Assert.Equal("7.006173",Amount(r,"CALCULATED"));
