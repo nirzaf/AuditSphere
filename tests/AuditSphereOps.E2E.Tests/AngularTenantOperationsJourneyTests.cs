@@ -176,9 +176,17 @@ public sealed class AngularTenantOperationsJourneyTests
 
     await using (var db = host.CreateDbContext())
     {
+      var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking().SingleAsync(x =>
+        x.FirmId == host.Fixture.FirmId && x.TenantId == seeded.TenantId);
+      var setupDraft = await db.Microsoft365SetupDrafts.AsNoTracking().SingleAsync(x =>
+        x.FirmId == host.Fixture.FirmId && x.ConnectionRevisionId == connection.Id);
+      var consentAttempt = await db.TenantConsentAttempts.AsNoTracking().SingleAsync(x =>
+        x.FirmId == host.Fixture.FirmId && x.SetupDraftId == setupDraft.Id &&
+        x.ExpectedTenantId == seeded.TenantId && x.State == TenantConsentAttemptStates.ConsentVerified);
       db.TenantCapabilityVerifications.Add(new TenantCapabilityVerification
       {
         Id = Guid.CreateVersion7(), FirmId = host.Fixture.FirmId, TenantId = seeded.TenantId,
+        ConnectionRevisionId = connection.Id, ConsentAttemptId = consentAttempt.Id,
         Capability = Microsoft365Capabilities.GuestInvitation, Permission = "User.Invite.All",
         State = CapabilityVerificationStates.NotGranted, DiagnosticCode = "app-role-not-granted",
         ObservedByUserId = seeded.Admin.Id, ObservedAt = DateTimeOffset.UtcNow.AddSeconds(1)

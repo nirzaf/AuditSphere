@@ -38,7 +38,8 @@ internal static class TenantAdministrationSeed
     db.Microsoft365ConnectionRevisions.Add(new Microsoft365ConnectionRevision
     {
       Id = connectionId, FirmId = host.Fixture.FirmId, TenantId = tenantId, LoginClientIdReference = "slot:login",
-      RuntimeCredentialReference = "slot:reader", State = Microsoft365RevisionStates.ConsentRequired, ConsentState = "REQUIRED", CreatedAt = now
+      RuntimeCredentialReference = "slot:reader", State = Microsoft365RevisionStates.ConsentRequired,
+      ConsentState = verified ? "VERIFIED" : "REQUIRED", CreatedAt = now
     });
     db.Microsoft365SetupDrafts.Add(new Microsoft365SetupDraft
     {
