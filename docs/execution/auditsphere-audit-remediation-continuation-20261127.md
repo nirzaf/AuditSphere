@@ -82,7 +82,7 @@ Statuses apply to the named engineering slice; IMPLEMENTED does not mean product
 | F12 | IMPLEMENTED containment | Generic self-comparison is blocked; analysis-evidence currentness names the missing independent control. The `2476c7b5` API, benchmark and reviewer-browser expectations now assert refusal/no publication and passed focused PostgreSQL/API/browser checks (3/3 API, 1/1 Domain, 1/1 E2E). Exact full run 45975374971 failed on stale expectations before these test-only corrections. [Evidence](auditsphere-audit-f12-evidence-20261127.md). AC-REC-07–10 remain separately gated. |
 | F13 | IMPLEMENTED | Corrupt pending allocation evidence fails closed without clearing retained evidence. |
 | F14 / ARCX-003 | IMPLEMENTED | Current Graph bytes use item content; historical bytes remain version-pinned. |
-| F15 / AUTO-021 | IMPLEMENTED | Each archive receipt compares to its matched file timestamp; local PowerShell verification is separately environment-blocked where noted in historical evidence. |
+| F15 / AUTO-021 | IMPLEMENTED; offline check BLOCKED_TEST_ENV | Each receipt compares with its matched file timestamp. `pwsh -NoProfile -File scripts/m365/tests/ArchiveCopies.Tests.ps1 -Offline` refused before script execution: PowerShell 7.6.6 requires .NET 10.0; only .NET 11.0 is installed. No provider call occurred. |
 | F16 / VERIFY-001 | IMPLEMENTED | Strict test-result/TRX assertions retained. |
 | F17 | ALREADY_FIXED | Identity-switch time/draft reset verified in earlier focused Angular evidence. |
 | F18 | ALREADY_FIXED | Criticality requires actual trimmed rationale and service validation. |
