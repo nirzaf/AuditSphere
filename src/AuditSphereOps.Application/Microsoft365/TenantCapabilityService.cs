@@ -64,10 +64,7 @@ public static class TenantCapabilityService
       return TenantAdministration.Denied<IReadOnlyList<CapabilityStatus>>();
     var tenantId = tenant.ToString("D");
     var connectionId = await CurrentConnectionIdAsync(db, actor.FirmId, tenantId, ct);
-    var consent = await db.TenantConsentAttempts.AsNoTracking()
-      .Where(x => x.FirmId == actor.FirmId && x.ExpectedTenantId == tenantId &&
-        x.State == TenantConsentAttemptStates.ConsentVerified)
-      .OrderByDescending(x => x.ConsentVerifiedAt).FirstOrDefaultAsync(ct);
+    var consentAttemptId = await CurrentConsentAttemptIdAsync(db, actor.FirmId, tenantId, connectionId, ct);
 
     var probes = Microsoft365PermissionMatrix.Rows
       .Where(x => x.Capability is not (Microsoft365Capabilities.SignIn or Microsoft365Capabilities.SelectedSite or
@@ -99,15 +96,15 @@ public static class TenantCapabilityService
         CapabilityVerificationStates.Failed or CapabilityVerificationStates.BlockedExternal
         ? result.State : CapabilityVerificationStates.Failed;
       // Application-permission capabilities also require a verified consenting administrator.
-      if (state == CapabilityVerificationStates.Verified && consent is null &&
+      if (state == CapabilityVerificationStates.Verified && consentAttemptId is null &&
           probe.Capability != Microsoft365Capabilities.SelectedSite)
         state = CapabilityVerificationStates.BlockedExternal;
       db.TenantCapabilityVerifications.Add(new TenantCapabilityVerification
       {
         Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ConnectionRevisionId = connectionId,
-        ConsentAttemptId = consent?.Id, TenantId = tenantId, Capability = probe.Capability,
+        ConsentAttemptId = consentAttemptId, TenantId = tenantId, Capability = probe.Capability,
         Permission = probe.Permission, State = state,
-        DiagnosticCode = state == CapabilityVerificationStates.BlockedExternal && consent is null &&
+        DiagnosticCode = state == CapabilityVerificationStates.BlockedExternal && consentAttemptId is null &&
           result?.State == CapabilityVerificationStates.Verified
             ? "consent-not-verified" : SafeCode(result?.DiagnosticCode),
         ProviderCorrelationId = Truncate(result?.ProviderCorrelationId, 200),
@@ -132,10 +129,15 @@ public static class TenantCapabilityService
     CancellationToken ct = default)
   {
     var tenantId = Guid.TryParse(options.TenantId, out var tenant) ? tenant.ToString("D") : string.Empty;
-    var rows = await db.TenantCapabilityVerifications.AsNoTracking()
+    var connectionId = await CurrentConnectionIdAsync(db, firmId, tenantId, ct);
+    var consentAttemptId = await CurrentConsentAttemptIdAsync(db, firmId, tenantId, connectionId, ct);
+    var verificationRows = db.TenantCapabilityVerifications.AsNoTracking()
       .Where(x => x.FirmId == firmId && x.TenantId == tenantId)
+      .Select(x => new { x.Id, x.ConnectionRevisionId, x.ConsentAttemptId, x.Capability, x.State, x.ObservedAt, x.DiagnosticCode });
+    var rows = await verificationRows
+      .Where(x => connectionId != null && consentAttemptId != null &&
+        x.ConnectionRevisionId == connectionId && x.ConsentAttemptId == consentAttemptId)
       .OrderByDescending(x => x.ObservedAt).ThenByDescending(x => x.Id)
-      .Select(x => new { x.Capability, x.State, x.ObservedAt, x.DiagnosticCode })
       .Take(200).ToListAsync(ct);
     var mail = await MailAuthorizationEvidenceEnrollment.StatusAsync(db, firmId, options, now, ct);
     return Microsoft365PermissionMatrix.Rows.Select(row =>
@@ -184,6 +186,31 @@ public static class TenantCapabilityService
     await db.Microsoft365ConnectionRevisions.AsNoTracking()
       .Where(x => x.FirmId == firmId && x.TenantId == tenantId)
       .OrderByDescending(x => x.Revision).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct);
+
+  private static async Task<Guid?> CurrentConsentAttemptIdAsync(IAuditSphereDbContext db, Guid firmId,
+    string tenantId, Guid? connectionId, CancellationToken ct)
+  {
+    if (connectionId is not { } currentConnectionId) return null;
+    var connection = await db.Microsoft365ConnectionRevisions.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.Id == currentConnectionId && x.TenantId == tenantId)
+      .Select(x => new { x.ConsentState, x.State, x.CreatedAt }).SingleOrDefaultAsync(ct);
+    if (connection is null || connection.ConsentState != "VERIFIED" ||
+        connection.State is Microsoft365RevisionStates.Suspended or Microsoft365RevisionStates.Blocked)
+      return null;
+
+    var drafts = await db.Microsoft365SetupDrafts.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.ExpectedTenantId == tenantId &&
+        x.ConnectionRevisionId == currentConnectionId)
+      .Select(x => x.Id).Take(2).ToListAsync(ct);
+    if (drafts.Count != 1) return null;
+    var setupDraftId = drafts[0];
+    return await db.TenantConsentAttempts.AsNoTracking()
+      .Where(x => x.FirmId == firmId && x.SetupDraftId == setupDraftId && x.ExpectedTenantId == tenantId &&
+        x.State == TenantConsentAttemptStates.ConsentVerified && x.ConsentVerifiedAt != null &&
+        x.ConsentVerifiedAt >= connection.CreatedAt)
+      .OrderByDescending(x => x.ConsentVerifiedAt).ThenByDescending(x => x.Id)
+      .Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct);
+  }
 
   private static string SafeCode(string? code) =>
     string.IsNullOrWhiteSpace(code) || code.Length > 100 || code.Any(c => !(char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.'))

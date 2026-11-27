@@ -184,6 +184,61 @@ public sealed class TenantAdministrationTests
   }
 
   [Fact]
+  public async Task CapabilityVerification_SameTenantConnectionReplacementRequiresFreshConsentAndVerification()
+  {
+    await using var f = await TenantAdministrationFixture.CreateAsync();
+    await f.ConnectAndVerifyAsync();
+    await using var db = f.Db();
+    var draftRevision = await db.Microsoft365SetupDrafts.AsNoTracking()
+      .Where(x => x.Id == f.DraftId && x.FirmId == f.FirmId).Select(x => x.Revision).SingleAsync();
+
+    var replacement = await Microsoft365ConfigurationService.PrepareConnectionRevisionAsync(db, f.AdminActor,
+      new(f.DraftId, draftRevision, "slot:replacement-login", "slot:replacement-runtime"), DateTimeOffset.UtcNow);
+    Assert.True(replacement.Succeeded, replacement.Message);
+    Assert.NotEqual(f.ConnectionId, replacement.Value);
+
+    var afterReplacement = await TenantCapabilityService.StatusesAsync(db, f.FirmId, f.Options, DateTimeOffset.UtcNow);
+    Assert.Equal(TenantCapabilityService.NotVerified,
+      afterReplacement.Single(x => x.Capability == Microsoft365Capabilities.TenantUserProvisioning).State);
+    var provider = new CountingProvisioner(f.Microsoft);
+    var request = new CreateTenantUserRequest(TenantAdministrationFixture.Key(), "Replacement User",
+      "replacement.user@example.test", "replacement.user", true, "Staff", "FIRM_WIDE", null, null,
+      "Current connection binding regression");
+    var refused = await DirectoryProvisioningService.CreateTenantUserAsync(db, f.AdminActor, provider, f.Options,
+      request, DateTimeOffset.UtcNow);
+    Assert.Equal(ErrorCodes.GateBlocked, refused.ErrorCode);
+    Assert.Equal((0, 0), (provider.LookupCalls, provider.CreateCalls));
+    Assert.Empty(await db.Microsoft365ExternalOperations.ToListAsync());
+
+    // The supported consent and capability checks for the replacement restore the allowed path.
+    await f.ConnectAndVerifyAsync();
+    var verifiedStatus = (await TenantCapabilityService.StatusesAsync(db, f.FirmId, f.Options, DateTimeOffset.UtcNow))
+      .Single(x => x.Capability == Microsoft365Capabilities.TenantUserProvisioning);
+    Assert.Equal(CapabilityVerificationStates.Verified, verifiedStatus.State);
+    var allowed = await DirectoryProvisioningService.CreateTenantUserAsync(db, f.AdminActor, provider, f.Options,
+      request, DateTimeOffset.UtcNow);
+    Assert.True(allowed.Succeeded, allowed.Message);
+    Assert.Equal(ExternalOperationStates.Bound, allowed.Value!.State);
+    Assert.Equal((1, 1), (provider.LookupCalls, provider.CreateCalls));
+
+    var latestConnection = await db.Microsoft365ConnectionRevisions.AsNoTracking()
+      .Where(x => x.FirmId == f.FirmId && x.TenantId == f.TenantId)
+      .OrderByDescending(x => x.Revision).FirstAsync();
+    var latestVerification = await db.TenantCapabilityVerifications.AsNoTracking()
+      .Where(x => x.FirmId == f.FirmId && x.Capability == Microsoft365Capabilities.TenantUserProvisioning)
+      .OrderByDescending(x => x.ObservedAt).ThenByDescending(x => x.Id).FirstAsync();
+    Assert.Equal(latestConnection.Id, latestVerification.ConnectionRevisionId);
+    Assert.True(await db.TenantCapabilityVerifications.AnyAsync(x => x.FirmId == f.FirmId &&
+      x.ConnectionRevisionId == f.ConnectionId && x.Capability == Microsoft365Capabilities.TenantUserProvisioning &&
+      x.State == CapabilityVerificationStates.Verified));
+    var latestConsent = await db.TenantConsentAttempts.SingleAsync(x => x.Id == latestVerification.ConsentAttemptId);
+    Assert.Equal(TenantConsentAttemptStates.ConsentVerified, latestConsent.State);
+    Assert.Equal(f.DraftId, latestConsent.SetupDraftId);
+    Assert.True(latestConsent.ConsentVerifiedAt.HasValue);
+    Assert.True(latestConsent.ConsentVerifiedAt.Value >= latestConnection.CreatedAt);
+  }
+
+  [Fact]
   public async Task OutboundMail_GenericRoleEvidenceCannotProveLegacyAapOrExchangeRbacScope()
   {
     await using var f = await TenantAdministrationFixture.CreateAsync();
@@ -611,6 +666,26 @@ public sealed class TenantAdministrationTests
       // Simulate a generic provider's Mail.Send role-only success even though no scoped mail check was made.
       return results.Append(new CapabilityProbeResult(Microsoft365Capabilities.OutboundMail,
         CapabilityVerificationStates.Verified, "generic-role-present")).ToArray();
+    }
+  }
+
+  private sealed class CountingProvisioner(IMicrosoftDirectoryUserProvisioner inner) : IMicrosoftDirectoryUserProvisioner
+  {
+    public int LookupCalls { get; private set; }
+    public int CreateCalls { get; private set; }
+    public bool IsConfigured => inner.IsConfigured;
+
+    public Task<ProviderMutationResult> CreateUserAsync(string tenantId, NewDirectoryUser user, CancellationToken ct)
+    {
+      CreateCalls++;
+      return inner.CreateUserAsync(tenantId, user, ct);
+    }
+
+    public Task<DirectoryUserRecord?> FindByUserPrincipalNameAsync(string tenantId, string userPrincipalName,
+      CancellationToken ct)
+    {
+      LookupCalls++;
+      return inner.FindByUserPrincipalNameAsync(tenantId, userPrincipalName, ct);
     }
   }
 }
