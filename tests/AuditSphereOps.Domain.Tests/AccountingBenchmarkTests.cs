@@ -224,7 +224,8 @@ public sealed class AccountingBenchmarkTests
     var operations = await verify.DurableOperations.AsNoTracking().ToListAsync();
     Assert.Equal(ClientCount, operations.Count);
     Assert.All(operations, operation => Assert.Equal(OperationState.COMPLETED, operation.Status));
-    Assert.Equal(ClientCount, await verify.GeneralLedgerCompletenessBridges.CountAsync(x => x.Status == "RECONCILED"));
+    Assert.Equal(0, await verify.GeneralLedgerCompletenessBridges.CountAsync(x => x.Status == "RECONCILED"));
+    Assert.Equal(ClientCount, await verify.GeneralLedgerCompletenessBridges.CountAsync(x => x.Status == "UNRECONCILED"));
     Assert.Equal(ClientCount, await verify.GeneralLedgerCompletenessBridges.CountAsync(x => x.IncompleteExtract));
     Assert.All(await verify.GeneralLedgerCompletenessBridges.Select(x => x.CompletenessDisclosure).ToListAsync(),
       disclosure => Assert.Contains("OPENING_DATASET_NOT_PROVIDED", disclosure, StringComparison.Ordinal));

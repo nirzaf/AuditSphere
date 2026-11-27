@@ -36,7 +36,8 @@ public sealed class AngularAnalysisReviewJourneyTests
     await using(var db=host.CreateDbContext())await db.TrialBalanceDatasets.Where(x=>x.Id==s.SourceId).ExecuteUpdateAsync(x=>x.SetProperty(v=>v.NormalizedDatasetDigest,new string('e',64)));
     await page.GetByRole(AriaRole.Button,new(){Name="Refresh current checks",Exact=true}).ClickAsync();
     await page.GetByRole(AriaRole.Heading,new(){Name="Current verification blockers",Exact=true}).WaitForAsync();
-    await Assertions.Expect(page.Locator("body")).ToContainTextAsync("7.006173");await Assertions.Expect(page.Locator("body")).ToContainTextAsync("Prepare new source-bound evidence");
+    await Assertions.Expect(page.Locator("body")).ToContainTextAsync("7.006173");
+    await Assertions.Expect(page.Locator("body")).ToContainTextAsync("A distinct independently evidenced control population is not retained; this source-only reconciliation cannot support current readiness.");
     await using(var db=host.CreateDbContext())await db.Users.Where(x=>x.Id==f.Staff.Id).ExecuteUpdateAsync(x=>x.SetProperty(v=>v.SessionEpoch,v=>v.SessionEpoch+1));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading,new(){Name="Access unavailable",Exact=true})).ToBeVisibleAsync(new(){Timeout=15000});
     Assert.DoesNotContain("7.006173",await page.Locator("body").InnerTextAsync());Assert.Empty(errors);
