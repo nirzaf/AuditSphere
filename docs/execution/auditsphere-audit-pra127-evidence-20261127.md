@@ -27,6 +27,12 @@ Files changed: `UiEndpoints.Finance.cs`, `UiEndpoints.FeeAgreement.cs`, Angular 
 
 Fast CI run [45973272824](https://github.com/nirzaf/AuditSphere/actions/runs/45973272824) is queued for `80af1003`; no exact-source full release-verification run is recorded. Historical `469a7cd9` results above remain attributed to that source.
 
+## Exact-source E2E locator alignment — `2476c7b5`
+
+Full release verification [45975374971](https://github.com/nirzaf/AuditSphere/actions/runs/45975374971) reported stale browser locators for the updated receipt-review labels. The test locators in `AngularInvoiceBillingScopeJourneyTests`, `AngularBillingWorkspaceJourneyTests`, `AngularSteCommercialAcceptanceJourneyTests` and `AngularCommercialJourneyTests` now match the visible labels for payment details, received time, fee, milestone and selected action. No UI copy or payment behavior changed in this test-only follow-up.
+
+Against the current local source and freshly built Angular assets, the focused Playwright cohort passed **6/6**: invoice billing scope, invoice receipt allocation/recovery, the three route-bound fee-payment cases, and quotation approval. The test suite remains synthetic and PostgreSQL-isolated. Exact-SHA CI is still required for the eventual candidate; no live finance/provider or accounting acceptance is claimed.
+
 ## Remaining gates
 
 - Exact-SHA CI for `469a7cd9` is pending; no full-suite claim is made.

@@ -105,7 +105,7 @@ public sealed class AngularInvoiceBillingScopeJourneyTests
     await page.GetByLabel("Payment amount (QAR)", new() { Exact = true }).FillAsync("40");
     await page.GetByLabel("Bank or cheque transaction reference", new() { Exact = true })
       .FillAsync("SYN-SCOPED-RECEIPT-A");
-    await page.GetByLabel("I reviewed the payment amount and transaction reference.", new() { Exact = true })
+    await page.GetByLabel("I reviewed the amount, transaction reference and received time.", new() { Exact = true })
       .CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Record receipt", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText(

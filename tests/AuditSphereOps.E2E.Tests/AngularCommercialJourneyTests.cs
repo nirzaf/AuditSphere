@@ -878,7 +878,7 @@ public sealed class AngularCommercialJourneyTests
     // The container survives the viewport-triggered replacement of its lazy placeholder.
     await page.Locator("#proposal-fee-agreement").ScrollIntoViewIfNeededAsync();
     await Assertions.Expect(fees.GetByRole(AriaRole.Heading, new() { Name = "Agreed fee and billing milestones", Exact = true })).ToBeVisibleAsync();
-    await fees.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this fee, milestone and selected action.", Exact = true }).CheckAsync();
+    await fees.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this fee, milestone, payment details and selected action.", Exact = true }).CheckAsync();
     var feeAgreementPosts = 0;
     await page.RouteAsync($"**/api/ui/proposals/{proposalId:D}/fee-agreement", async route =>
     {
@@ -899,7 +899,7 @@ public sealed class AngularCommercialJourneyTests
     await fees.GetByRole(AriaRole.Button, new() { Name = "I reviewed the persisted fee outcome", Exact = true }).ClickAsync();
     Assert.Equal(1, feeAgreementPosts);
     Assert.Equal(0, await fees.GetByRole(AriaRole.Button, new() { Name = "Create fee agreement", Exact = true }).CountAsync());
-    await fees.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this fee, milestone and selected action.", Exact = true }).CheckAsync();
+    await fees.GetByRole(AriaRole.Checkbox, new() { Name = "I reviewed this fee, milestone, payment details and selected action.", Exact = true }).CheckAsync();
     await Assertions.Expect(fees.GetByText("A current FinanceManager or FinanceReviewer assignment for this client is required for invoice and payment commands.", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(fees.GetByRole(AriaRole.Button, new() { Name = "Draft advance invoice", Exact = true })).ToBeDisabledAsync();
     await using (var db = host.CreateDbContext())

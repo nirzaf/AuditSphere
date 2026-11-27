@@ -105,7 +105,7 @@ public sealed class AngularBillingWorkspaceJourneyTests
     await page.Locator("details[data-action=\"receipt\"] > summary").ClickAsync();
     await page.GetByLabel("Payment amount (QAR)", new() { Exact = true }).FillAsync("40");
     await page.GetByLabel("Bank or cheque transaction reference", new() { Exact = true }).FillAsync("SYN-ANG-BANK-001");
-    await page.GetByLabel("I reviewed the payment amount and transaction reference.", new() { Exact = true }).CheckAsync();
+    await page.GetByLabel("I reviewed the amount, transaction reference and received time.", new() { Exact = true }).CheckAsync();
     await page.GetByRole(AriaRole.Button, new() { Name = "Record receipt", Exact = true }).ClickAsync();
     await Assertions.Expect(page.GetByText("Receipt recorded. Refresh or allocate it to a posted invoice when ready.", new() { Exact = true })).ToBeVisibleAsync();
     Guid receiptId;

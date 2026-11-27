@@ -276,7 +276,7 @@ public sealed class AngularSteCommercialAcceptanceJourneyTests
     await Assertions.Expect(fees.Locator("[data-testid='advance-preparation']"))
       .ToContainTextAsync("Create the fee agreement to establish the 50% advance milestone.");
     await fees.GetByRole(AriaRole.Checkbox,
-      new() { Name = "I reviewed this fee, milestone and selected action.", Exact = true }).CheckAsync();
+      new() { Name = "I reviewed this fee, milestone, payment details and selected action.", Exact = true }).CheckAsync();
     await fees.GetByRole(AriaRole.Button,
       new() { Name = "Create fee agreement", Exact = true }).ClickAsync();
     await Assertions.Expect(fees.Locator("[data-testid='advance-preparation']"))
@@ -350,7 +350,7 @@ public sealed class AngularSteCommercialAcceptanceJourneyTests
       new() { Name = "Create fee agreement", Exact = true })).ToHaveCountAsync(0);
     await Assertions.Expect(financeFees.GetByRole(AriaRole.Table,
       new() { Name = "Persisted fee milestones", Exact = true })).ToBeVisibleAsync();
-    await financeFees.GetByLabel("I reviewed this fee, milestone and selected action.",
+    await financeFees.GetByLabel("I reviewed this fee, milestone, payment details and selected action.",
       new() { Exact = true }).CheckAsync();
     await financeFees.GetByRole(AriaRole.Button,
       new() { Name = "Prepare or recover advance invoice", Exact = true }).ClickAsync();
