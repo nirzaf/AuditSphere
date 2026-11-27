@@ -26,6 +26,7 @@ describe('native analytical preparation',()=>{
     providers:[provideHttpClient(),provideHttpClientTesting(),provideRouter([]),{provide:ActivatedRoute,useValue:routeMock}]});
     http=TestBed.inject(HttpTestingController);TestBed.inject(SessionService).current.set({userId:user,firmId:id,generation:'1',staff:true});});
   afterEach(()=>{try{http.verify({ignoreCancelled:true});}finally{TestBed.resetTestingModule();sessionStorage.clear();}});
+  async function settle(){for(let i=0;i<8;i++)await Promise.resolve();TestBed.tick();}
   async function open(){const fixture=TestBed.createComponent(AnalyticalPreparation);fixture.detectChanges();TestBed.tick();http.expectOne(base).flush(context);TestBed.tick();
     http.expectOne(base+`/state?periodId=${period}`).flush(state);await Promise.resolve();TestBed.tick();return{fixture,component:fixture.componentInstance};}
   async function prepare(c:AnalyticalPreparation){c.model.set({...fields});TestBed.tick();const task=c.prepare();http.expectOne(base+'/preview').flush({value:preview});await task;TestBed.tick();}
@@ -70,7 +71,7 @@ describe('native analytical preparation',()=>{
     http.expectOne(base).flush(context);TestBed.tick();
     http.expectOne(base+`/state?periodId=${period}`).flush(state);
     http.expectOne(`/api/ui/engagements/${id}/statements/workspace`).flush({basis:{revision:statement}});
-    await new Promise((resolve)=>setTimeout(resolve,0));TestBed.tick();
+    await settle();
     const c=fixture.componentInstance;
     expect(c.model().area).toBe('Revenue');expect(c.model().measure).toBe('REV-100');expect(c.periodId()).toBe(period);
     expect(c.returnTarget()).toBe(`/app/engagements/${id}/statements`);
@@ -81,7 +82,7 @@ describe('native analytical preparation',()=>{
     http.expectOne(base).flush(context);TestBed.tick();
     http.expectOne(base+`/state?periodId=${period}`).flush(state);
     http.expectOne(`/api/ui/engagements/${id}/statements/workspace`).flush({basis:{revision:'d'.repeat(64)}});
-    await new Promise((resolve)=>setTimeout(resolve,0));TestBed.tick();
+    await settle();
     const c=fixture.componentInstance;
     expect(c.model().area).toBe('');expect(c.message()).toContain('earlier version');
   });
