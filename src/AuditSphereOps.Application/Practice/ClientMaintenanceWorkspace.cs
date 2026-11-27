@@ -248,13 +248,16 @@ public static class ClientMaintenanceWorkspace
     if (safety.InputGeneration != previousGeneration + 1)
       return Fail<ClientMaintenanceReceiptValue>(ErrorCodes.GenerationStale, "Client record changed during maintenance. Refresh and review again.");
 
+    var createdAtUtc = DateTimeOffset.UtcNow;
     var row = new ClientMaintenanceReceipt
     {
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = clientId, ContactId = contactId,
       OperationKind = operationKind, ActorId = actor.UserId, ActorEpoch = actor.SessionEpoch,
       RequestId = request.RequestId, RequestHash = request.ExpectedRequestHash!, ReviewBasis = request.ReviewBasis,
       PreviousGeneration = previousGeneration, ResultGeneration = previousGeneration + 1,
-      BeforeJson = beforeJson, AfterJson = afterJson, CreatedAt = DateTimeOffset.UtcNow
+      BeforeJson = beforeJson, AfterJson = afterJson,
+      // PostgreSQL timestamptz retains microseconds; return the same value a later receipt read observes.
+      CreatedAt = new DateTimeOffset(createdAtUtc.Ticks - createdAtUtc.Ticks % 10, TimeSpan.Zero)
     };
     db.ClientMaintenanceReceipts.Add(row);
     await db.SaveChangesAsync(ct);

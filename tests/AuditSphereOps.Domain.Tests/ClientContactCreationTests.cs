@@ -166,8 +166,10 @@ public sealed class ClientContactCreationTests
       $"DELETE FROM client_maintenance_receipts WHERE id={results[0].Value!.Id}"));
     Assert.Equal("55000", delete.SqlState);
     var migrations = db.Database.GetMigrations().ToArray();
-    Assert.Equal("20261126211715_ClientMaintenanceReceipts", migrations[^1]);
-    var downgrade = await Assert.ThrowsAnyAsync<Exception>(() => db.GetService<IMigrator>().MigrateAsync(migrations[^2]));
+    const string maintenanceMigration = "20261126211715_ClientMaintenanceReceipts";
+    var maintenanceIndex = Array.IndexOf(migrations, maintenanceMigration);
+    Assert.True(maintenanceIndex > 0, "The client-maintenance receipt migration must remain in the model history.");
+    var downgrade = await Assert.ThrowsAnyAsync<Exception>(() => db.GetService<IMigrator>().MigrateAsync(migrations[maintenanceIndex - 1]));
     Assert.Equal("55000", Assert.IsType<PostgresException>(downgrade.GetBaseException()).SqlState);
     Assert.Single(await db.ClientMaintenanceReceipts.ToListAsync());
   }
