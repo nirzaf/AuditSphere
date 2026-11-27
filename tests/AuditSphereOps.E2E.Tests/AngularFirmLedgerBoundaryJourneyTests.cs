@@ -82,7 +82,7 @@ public sealed class AngularFirmLedgerBoundaryJourneyTests
     await page.GetByLabel("Close reason", new() { Exact = true }).FillAsync("Recovered after posting all journals");
     await page.GetByRole(AriaRole.Button, new() { Name = "Confirm close", Exact = true }).ClickAsync();
     await Assertions.Expect(page.Locator("audit-command-message"))
-      .ToContainTextAsync("All journals must be posted before period close.");
+      .ToContainTextAsync("All journals must be posted or cancelled before period close.");
 
     await using (var db = host.CreateDbContext())
     {
