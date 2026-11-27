@@ -55,7 +55,7 @@ Statuses apply to the named engineering slice; IMPLEMENTED does not mean product
 | F01 | IMPLEMENTED | Consolidation lock ordering and immutable component inputs retained. |
 | F02 | IMPLEMENTED | Firm-finance lock-wait authority and seal rechecks; focused PostgreSQL evidence is historical and source-bound. |
 | F03 | IMPLEMENTED | Expense/journal transitions are atomic; cancelled-only period and SQL immutability behavior retained; no historical repair. |
-| F04 | IMPLEMENTED | Versioned completeness proofs preserve v1 history; no production migration. |
+| F04 | IMPLEMENTED | Versioned completeness proofs preserve v1 history. The no-opening benchmark expectation was aligned with the version-2 missing-opening gate and passed its isolated PostgreSQL method 1/1 on local source `2476c7b5`; no production migration. |
 | F05 | IMPLEMENTED | Cash-flow lineage binds exact nullable package book; historical bytes/links not rewritten. |
 | F06 | IMPLEMENTED | New external GL lines require posting/ACTIVE accounts; no incident or history mutation claimed. |
 | F07 / AC-LAY-01 | IMPLEMENTED | Minimal client-owned layout producer is on master; focused tests/OpenAPI evidence is source-bound. |
@@ -63,7 +63,7 @@ Statuses apply to the named engineering slice; IMPLEMENTED does not mean product
 | F09 / PRA-099 / PRA-103 | IMPLEMENTED | Unsafe budget actuals project null; no FX or rate-policy adoption. |
 | F10 | ALREADY_FIXED | Storage-aligned period/book bounds verified in the earlier current-master check. |
 | F11 | IMPLEMENTED | Explicit period context for balance reporting; overlapping periods do not use first-match selection. |
-| F12 | IMPLEMENTED containment | Generic self-comparison is blocked; analysis-evidence currentness names the missing independent control; exact `80af1003` PostgreSQL close-denial regression passed 1/1. [Evidence](auditsphere-audit-f12-evidence-20261127.md). AC-REC-07–10 remain separately gated. |
+| F12 | IMPLEMENTED containment | Generic self-comparison is blocked; analysis-evidence currentness names the missing independent control. The `2476c7b5` API, benchmark and reviewer-browser expectations now assert refusal/no publication and passed focused PostgreSQL/API/browser checks (3/3 API, 1/1 Domain, 1/1 E2E). Exact full run 45975374971 failed on stale expectations before these test-only corrections. [Evidence](auditsphere-audit-f12-evidence-20261127.md). AC-REC-07–10 remain separately gated. |
 | F13 | IMPLEMENTED | Corrupt pending allocation evidence fails closed without clearing retained evidence. |
 | F14 / ARCX-003 | IMPLEMENTED | Current Graph bytes use item content; historical bytes remain version-pinned. |
 | F15 / AUTO-021 | IMPLEMENTED | Each archive receipt compares to its matched file timestamp; local PowerShell verification is separately environment-blocked where noted in historical evidence. |
@@ -84,8 +84,8 @@ Statuses apply to the named engineering slice; IMPLEMENTED does not mean product
 | F30 | ALREADY_FIXED | Signed TB and independent debit/credit magnitude bounds are present in the shared CSV/XLSX parser; focused boundary cohort passed 4/4 on `21ddeba9`. No source change was needed. [Evidence](auditsphere-audit-f30-evidence-20261127.md). |
 | F31 | IMPLEMENTED | Final rendered bundle bytes and ZIP are bounded before persistence. |
 | FW-BANK-01 | IMPLEMENTED | Typed bank producer/review handoff, scoped receipts, locks and transaction participation; browser journey remains for exact-SHA CI. |
-| ARC-05 | IMPLEMENTED; selected-bundle API journey VERIFIED locally | Real completion API producer → authorized bundle catalogue → archive build; committed response-loss replay, exact manifest/part lineage, stale/changed selection and foreign-firm denial pass in isolated PostgreSQL. Interactive browser remains NOT_RUN; F21 still blocks first-archive eligibility. |
-| PRA-127 | IMPLEMENTED | Native finance flows capture strict UTC receipt time; fee-settlement Playwright journey passed 1/1 on `80af1003`; no backdating cutoff or allocation-date rewrite. |
+| ARC-05 | IMPLEMENTED; selected-bundle API journey and read-capability browser handoff VERIFIED locally | The exact custodian-scoped `CanBuild` projection gates catalogue requests while read-only archive metadata stays available. API recovery method 1/1, Angular records spec 22/22, built-asset Playwright 2/2, OpenAPI emitter/check pass. F21 still blocks first-archive eligibility. [Evidence](auditsphere-audit-arc05-evidence-20261127.md). |
+| PRA-127 | IMPLEMENTED | Native finance flows capture strict UTC receipt time; updated receipt/fee review locators passed the focused Playwright cohort 6/6 on local source `2476c7b5`; no backdating cutoff or allocation-date rewrite. [Evidence](auditsphere-audit-pra127-evidence-20261127.md). |
 | M365-014 | IMPLEMENTED | Graph directory response byte limits apply to actual bytes read. |
 | M365-011 | IMPLEMENTED | Supported same-tenant replacement regression and current-binding guard are at `5eedb70e`; this continuation’s 2/2 test result is current local evidence. |
 | M365-019 / M365-020 / M365-021 / M365-022 / LIVE-001 / DEPLOY-003 / DEPLOY-004 | BLOCKED_EXTERNAL | Independent target, environment, restore, identity, mail, selected-site, and recipient evidence remains absent; see rows below. |
