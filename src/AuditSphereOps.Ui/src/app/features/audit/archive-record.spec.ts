@@ -19,11 +19,11 @@ const copy = (state: 'NOT_REQUESTED' | 'REQUESTED' | 'OBSERVED' | 'BLOCKED_EXTER
     : 'No SharePoint secondary-copy request is recorded. The AuditSphere release/archive store remains authoritative.'
 });
 const archive = (n = 1, secondarySharePointCopy = copy(), fields: Record<string, unknown> = {}) => ({ id: id(n), engagementId: id(20), status: 'SEALED', createdAt: created,
-  profileId: 'SYNTHETIC-ARCHIVE', profileVersion: 1, manifestVersion: 1, manifestId: id(40 + n), manifestStatus: 'BUILT', manifestDigest: hash, completenessStatus: 'COMPLETE', completenessException: null, canExport: false, canReview: false,
+  profileId: 'SYNTHETIC-ARCHIVE', profileVersion: 1, manifestVersion: 1, manifestId: id(40 + n), manifestStatus: 'BUILT', manifestDigest: hash, completenessStatus: 'COMPLETE', completenessException: null, canExport: false, canReview: false, canBuild: false,
   entries: Array.from({ length: 100 }, (_, i) => entry(i + 1)), totalEntryCount: 205, nextOrdinal: 100,
   activeHoldCount: 1, observedProtection: null, desiredLabel: 'SYNTHETIC LABEL', observedLabel: null, actionState: 'REQUESTED', externalReference: 'SYNTHETIC REFERENCE', secondarySharePointCopy, ...fields });
 const unbuiltArchive = (n = 1) => archive(n, copy(), { manifestVersion: null, manifestId: null, manifestStatus: null,
-  manifestDigest: null, completenessStatus: null, completenessException: null, totalEntryCount: 0, entries: [], nextOrdinal: null });
+  manifestDigest: null, completenessStatus: null, completenessException: null, totalEntryCount: 0, entries: [], nextOrdinal: null, canBuild: true });
 const bundlePage = (archiveId = id(1)) => ({ archiveId, engagementId: id(20), page: 0, hasMore: false, bundles: [] });
 const page2 = () => ({ ...archive(), entries: Array.from({ length: 100 }, (_, i) => entry(i + 101)), nextOrdinal: 200 });
 const page3 = () => ({ ...archive(), entries: Array.from({ length: 5 }, (_, i) => entry(i + 201)), nextOrdinal: null });
@@ -38,7 +38,8 @@ describe('Archive detail and exact paging safety', () => {
   const reviewNoBundle = () => { component.selectBundle(''); component.reviewBundleSelection(); };
   const readArchive = async (value: ReturnType<typeof archive>, n = 1) => {
     http.expectOne(url(n)).flush(value); TestBed.tick();
-    http.expectOne(bundleUrl(n)).flush(bundlePage(id(n)));
+    if (value.canBuild === true) http.expectOne(bundleUrl(n)).flush(bundlePage(id(n)));
+    else http.expectNone(bundleUrl(n));
     await fixture.whenStable();
   };
   beforeEach(async () => {
@@ -52,6 +53,14 @@ describe('Archive detail and exact paging safety', () => {
   afterEach(() => { try { http.verify({ ignoreCancelled: true }); } finally {
     TestBed.resetTestingModule(); ownedRecoveryKeys.forEach(key => sessionStorage.removeItem(key));
   } });
+  it('keeps read-only archive metadata available without requesting the restricted bundle catalogue', async () => {
+    component.refresh(); TestBed.tick(); await readArchive(archive());
+    expect(component.archive()?.canBuild).toBe(false);
+    expect(component.archive()?.id).toBe(id(1));
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('SYNTHETIC-ARCHIVE');
+    expect(Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'))
+      .some(button => button.textContent?.includes('Build archive manifest'))).toBe(false);
+  });
   it('renders creation, exact rows, holds and requested-versus-observed protection honestly', () => {
     const host: HTMLElement = fixture.nativeElement;
     expect(host.textContent).toContain(created); expect(host.textContent).toContain('Records action requested; this is not evidence of Purview protection.');
