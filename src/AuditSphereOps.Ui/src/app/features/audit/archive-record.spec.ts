@@ -24,6 +24,7 @@ const archive = (n = 1, secondarySharePointCopy = copy(), fields: Record<string,
   activeHoldCount: 1, observedProtection: null, desiredLabel: 'SYNTHETIC LABEL', observedLabel: null, actionState: 'REQUESTED', externalReference: 'SYNTHETIC REFERENCE', secondarySharePointCopy, ...fields });
 const unbuiltArchive = (n = 1) => archive(n, copy(), { manifestVersion: null, manifestId: null, manifestStatus: null,
   manifestDigest: null, completenessStatus: null, completenessException: null, totalEntryCount: 0, entries: [], nextOrdinal: null });
+const bundlePage = (archiveId = id(1)) => ({ archiveId, engagementId: id(20), page: 0, hasMore: false, bundles: [] });
 const page2 = () => ({ ...archive(), entries: Array.from({ length: 100 }, (_, i) => entry(i + 101)), nextOrdinal: 200 });
 const page3 = () => ({ ...archive(), entries: Array.from({ length: 5 }, (_, i) => entry(i + 201)), nextOrdinal: null });
 
@@ -33,13 +34,20 @@ describe('Archive detail and exact paging safety', () => {
   const ownedRecoveryKeys = [[90, 1], [90, 2], [92, 1]].map(([actor, archive]) => archiveIntentKey({
     firmId: id(91), actorUserId: id(actor), engagementId: id(20), archiveId: id(archive),
   }));
+  const bundleUrl = (n = 1) => `${url(n)}/commercial-bundles?page=0`;
+  const reviewNoBundle = () => { component.selectBundle(''); component.reviewBundleSelection(); };
+  const readArchive = async (value: ReturnType<typeof archive>, n = 1) => {
+    http.expectOne(url(n)).flush(value); TestBed.tick();
+    http.expectOne(bundleUrl(n)).flush(bundlePage(id(n)));
+    await fixture.whenStable();
+  };
   beforeEach(async () => {
     ownedRecoveryKeys.forEach(key => sessionStorage.removeItem(key));
     params = new BehaviorSubject(convertToParamMap({ id: id(1) }));
     TestBed.configureTestingModule({ imports: [ArchiveRecord], providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([{ path: '**', component: ArchiveRecord }]), { provide: ActivatedRoute, useValue: { paramMap: params } }] });
     session = TestBed.inject(SessionService); session.current.set({ userId: id(90), firmId: id(91), generation: '1', staff: true });
     http = TestBed.inject(HttpTestingController); fixture = TestBed.createComponent(ArchiveRecord); component = fixture.componentInstance;
-    TestBed.tick(); http.expectOne(url()).flush(archive()); await fixture.whenStable();
+    TestBed.tick(); await readArchive(archive());
   });
   afterEach(() => { try { http.verify({ ignoreCancelled: true }); } finally {
     TestBed.resetTestingModule(); ownedRecoveryKeys.forEach(key => sessionStorage.removeItem(key));
@@ -54,11 +62,12 @@ describe('Archive detail and exact paging safety', () => {
     expect(Array.from(cells, c => c.textContent?.trim())).toEqual(['1', 'DOCUMENT', 'evidence/item-1.pdf', hash, '1']);
   });
   it('keeps the current archive command busy when a same-scope refresh invalidates only its read', async () => {
-    component.refresh(); TestBed.tick(); http.expectOne(url()).flush(unbuiltArchive()); await fixture.whenStable();
+    component.refresh(); TestBed.tick(); await readArchive(unbuiltArchive());
 
+    reviewNoBundle();
     const task = component.buildManifest(component.archive()!);
     const request = http.expectOne(url() + '/build');
-    component.refresh(); TestBed.tick(); http.expectOne(url()).flush(unbuiltArchive()); await fixture.whenStable();
+    component.refresh(); TestBed.tick(); await readArchive(unbuiltArchive());
     const remainedBusyForSameOwner = component.actionBusy();
     const buildButton = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'))
       .find(button => button.textContent?.includes('Build archive manifest'));
@@ -69,16 +78,16 @@ describe('Archive detail and exact paging safety', () => {
     expect(component.actionBusy()).toBe(false);
   });
   it('refreshes a successful build into the same-component exact review flow', async () => {
-    component.refresh(); TestBed.tick(); http.expectOne(url()).flush(unbuiltArchive()); await fixture.whenStable();
+    component.refresh(); TestBed.tick(); await readArchive(unbuiltArchive());
 
+    reviewNoBundle();
     const buildTask = component.buildManifest(component.archive()!);
     const build = http.expectOne(url() + '/build');
     expect(component.actionBusy()).toBe(true);
     build.flush({ value: { archiveId: id(1), manifestId: id(41), manifestVersion: 1, status: 'BUILT',
       digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
     await buildTask;
-    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', manifestStatus: 'BUILT', canReview: true }));
-    await fixture.whenStable();
+    await readArchive(archive(1, copy(), { status: 'MANIFEST_BUILT', manifestStatus: 'BUILT', canReview: true }));
     expect(component.actionBusy()).toBe(false);
     expect(component.archive()?.canReview).toBe(true);
 
@@ -88,18 +97,19 @@ describe('Archive detail and exact paging safety', () => {
     review.flush({ value: { archiveId: id(1), manifestId: id(41), manifestVersion: 1, status: 'REVIEWED',
       digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
     await reviewTask;
-    http.expectOne(url()).flush(archive(1, copy(), { status: 'ASSEMBLY_REVIEWED', manifestStatus: 'REVIEWED', canReview: false }));
-    await fixture.whenStable();
+    await readArchive(archive(1, copy(), { status: 'ASSEMBLY_REVIEWED', manifestStatus: 'REVIEWED', canReview: false }));
     expect(component.archive()?.status).toBe('ASSEMBLY_REVIEWED');
   });
   it('does not let a previous archive command clear the next archive command busy owner', async () => {
-    component.refresh(); TestBed.tick(); http.expectOne(url()).flush(unbuiltArchive()); await fixture.whenStable();
+    component.refresh(); TestBed.tick(); await readArchive(unbuiltArchive());
+    reviewNoBundle();
     const oldTask = component.buildManifest(component.archive()!);
     const oldRequest = http.expectOne(url() + '/build');
 
     params.next(convertToParamMap({ id: id(2) })); TestBed.tick();
-    http.expectOne(url(2)).flush(unbuiltArchive(2)); await fixture.whenStable();
+    await readArchive(unbuiltArchive(2), 2);
     expect(component.actionBusy()).toBe(false);
+    reviewNoBundle();
     const currentTask = component.buildManifest(component.archive()!);
     const currentRequest = http.expectOne(url(2) + '/build');
     expect(component.actionBusy()).toBe(true);
@@ -112,15 +122,14 @@ describe('Archive detail and exact paging safety', () => {
     currentRequest.flush({ value: { archiveId: id(2), manifestId: id(42), manifestVersion: 1, status: 'BUILT',
       digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
     await currentTask;
-    http.expectOne(url(2)).flush(archive(2, copy(), { status: 'MANIFEST_BUILT', manifestStatus: 'BUILT', canReview: true }));
-    await fixture.whenStable();
+    await readArchive(archive(2, copy(), { status: 'MANIFEST_BUILT', manifestStatus: 'BUILT', canReview: true }), 2);
     expect(component.actionBusy()).toBe(false);
     expect(component.archive()?.id).toBe(id(2));
     expect(component.archive()?.canReview).toBe(true);
   });
   it('reviews the exact displayed manifest and accepts only its matching receipt', async () => {
     component.refresh(); TestBed.tick();
-    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true })); await fixture.whenStable();
+    await readArchive(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true }));
     const reviewButton = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'))
       .find(button => button.textContent?.includes('Review exact manifest'));
     expect(reviewButton).toBeTruthy();
@@ -132,14 +141,13 @@ describe('Archive detail and exact paging safety', () => {
     request.flush({ value: { archiveId: id(1), manifestId: id(41), manifestVersion: 1, status: 'REVIEWED',
       digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
     await task;
-    http.expectOne(url()).flush(archive(1, copy(), { status: 'ASSEMBLY_REVIEWED', manifestStatus: 'REVIEWED' }));
-    await fixture.whenStable();
+    await readArchive(archive(1, copy(), { status: 'ASSEMBLY_REVIEWED', manifestStatus: 'REVIEWED' }));
     expect(component.archive()?.status).toBe('ASSEMBLY_REVIEWED');
     expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Review exact manifest');
   });
   it('reuses the same review request identity after an unknown HTTP outcome', async () => {
     component.refresh(); TestBed.tick();
-    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true })); await fixture.whenStable();
+    await readArchive(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true }));
     const firstTask = component.reviewManifest(component.archive()!);
     const first = http.expectOne(url() + '/review');
     const firstBody = first.request.body, firstKey = firstBody.requestKey;
@@ -154,13 +162,12 @@ describe('Archive detail and exact paging safety', () => {
     second.flush({ value: { archiveId: id(1), manifestId: id(41), manifestVersion: 1, status: 'REVIEWED',
       digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
     await secondTask;
-    http.expectOne(url()).flush(archive(1, copy(), { status: 'ASSEMBLY_REVIEWED', manifestStatus: 'REVIEWED' }));
-    await fixture.whenStable();
+    await readArchive(archive(1, copy(), { status: 'ASSEMBLY_REVIEWED', manifestStatus: 'REVIEWED' }));
     expect(component.archive()?.status).toBe('ASSEMBLY_REVIEWED');
   });
   it('does not expose or reuse another actor pending review after session replacement', async () => {
     component.refresh(); TestBed.tick();
-    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true })); await fixture.whenStable();
+    await readArchive(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true }));
     const firstTask = component.reviewManifest(component.archive()!);
     const first = http.expectOne(url() + '/review');
     const firstKey = first.request.body.requestKey;
@@ -173,22 +180,20 @@ describe('Archive detail and exact paging safety', () => {
     await firstTask;
     expect(component.archive()).toBeNull();
 
-    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true })); await fixture.whenStable();
+    await readArchive(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true }));
     const secondTask = component.reviewManifest(component.archive()!);
     const second = http.expectOne(url() + '/review');
     expect(second.request.body.requestKey).not.toBe(firstKey);
     second.flush({ value: { archiveId: id(1), manifestId: id(41), manifestVersion: 1, status: 'REVIEWED',
       digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
     await secondTask;
-    http.expectOne(url()).flush(archive(1, copy(), { status: 'ASSEMBLY_REVIEWED', manifestStatus: 'REVIEWED' }));
-    await fixture.whenStable();
+    await readArchive(archive(1, copy(), { status: 'ASSEMBLY_REVIEWED', manifestStatus: 'REVIEWED' }));
     expect(component.archive()?.status).toBe('ASSEMBLY_REVIEWED');
   });
   it('requires a fresh read and click after a first-send refusal but retains the same refusal on recovery', async () => {
     component.refresh();
     TestBed.tick();
-    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true }));
-    await fixture.whenStable();
+    await readArchive(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true }));
     const original = component.archive()!;
     const reviewUrl = url() + '/review';
     const invalidRequest = { code: 'records-manifest.request.invalid', message: 'The review request identity is invalid.' };
@@ -209,10 +214,9 @@ describe('Archive detail and exact paging safety', () => {
 
     TestBed.tick();
     const newDigest = 'f'.repeat(64);
-    http.expectOne(url()).flush(archive(1, copy(), {
+    await readArchive(archive(1, copy(), {
       status: 'MANIFEST_BUILT', canReview: true, manifestId: id(60), manifestVersion: 2, manifestDigest: newDigest,
     }));
-    await fixture.whenStable();
     http.expectNone(reviewUrl);
     const reviewButton = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'))
       .find(button => button.textContent?.trim() === 'Review exact manifest');
@@ -239,19 +243,18 @@ describe('Archive detail and exact paging safety', () => {
   });
   it('refreshes instead of accepting a receipt for another manifest identity', async () => {
     component.refresh(); TestBed.tick();
-    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true })); await fixture.whenStable();
+    await readArchive(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true }));
     const task = component.reviewManifest(component.archive()!);
     const request = http.expectOne(url() + '/review');
     request.flush({ value: { archiveId: id(1), manifestId: id(42), manifestVersion: 1, status: 'REVIEWED',
       digest: hash, entryCount: 205, completenessStatus: 'COMPLETE' } });
     await task;
-    http.expectOne(url()).flush(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true }));
-    await fixture.whenStable();
+    await readArchive(archive(1, copy(), { status: 'MANIFEST_BUILT', canReview: true }));
     expect(component.archive()?.status).toBe('MANIFEST_BUILT');
     expect(component.actionError()).toContain('did not confirm');
   });
   it('renders a separate historical SharePoint observation without implying current protection', async () => {
-    component.refresh(); TestBed.tick(); http.expectOne(url()).flush(archive(1, copy('OBSERVED'))); await fixture.whenStable();
+    component.refresh(); TestBed.tick(); await readArchive(archive(1, copy('OBSERVED')));
     const host: HTMLElement = fixture.nativeElement;
     expect(host.textContent).toContain('OBSERVED'); expect(host.textContent).toContain('Permission readback');
     expect(host.textContent).toContain('Historical readback only');
@@ -281,14 +284,14 @@ describe('Archive detail and exact paging safety', () => {
       await component.loadMore(base); http.expectNone(r => r.urlWithParams.includes('afterOrdinal'));
       if (status === 401) { session.current.set({ userId: id(90), firmId: id(91), generation: '2', staff: true }); TestBed.tick(); }
       else component.refresh();
-      http.expectOne(url()).flush(archive()); await fixture.whenStable(); expect(component.archive()?.id).toBe(id(1));
+      await readArchive(archive()); expect(component.archive()?.id).toBe(id(1));
     });
   }
   for (const fail of [false, true]) {
     it(`discards A-B-A late ${fail ? 'error' : 'success'} and does not clear the latest busy state in finally`, async () => {
       const base = component.archive()!, oldTask = component.loadMore(base), oldRequest = http.expectOne(url() + '?afterOrdinal=100');
-      params.next(convertToParamMap({ id: id(2) })); TestBed.tick(); http.expectOne(url(2)).flush(archive(2)); TestBed.tick();
-      params.next(convertToParamMap({ id: id(1) })); TestBed.tick(); http.expectOne(url()).flush(archive()); await fixture.whenStable();
+      params.next(convertToParamMap({ id: id(2) })); TestBed.tick(); await readArchive(archive(2), 2);
+      params.next(convertToParamMap({ id: id(1) })); TestBed.tick(); await readArchive(archive());
       const current = component.archive()!, newTask = component.loadMore(current), newRequest = http.expectOne(url() + '?afterOrdinal=100');
       if (fail) oldRequest.flush({}, { status: 403, statusText: 'Old denied' }); else oldRequest.flush(page2()); await oldTask;
       expect(component.loadingEntries()).toBe(true); expect(component.entriesError()).toBe(''); expect(component.archive()).toBe(current); expect(component.additionalEntries()).toEqual([]);
@@ -296,7 +299,7 @@ describe('Archive detail and exact paging safety', () => {
     });
     it(`discards same-ID/same-manifest refresh late ${fail ? 'error' : 'success'}`, async () => {
       const task = component.loadMore(component.archive()!), request = http.expectOne(url() + '?afterOrdinal=100');
-      component.refresh(); TestBed.tick(); http.expectOne(url()).flush(archive()); await fixture.whenStable();
+      component.refresh(); TestBed.tick(); await readArchive(archive());
       if (fail) request.flush({}, { status: 500, statusText: 'Old error' }); else request.flush(page2()); await task;
       expect(component.additionalEntries()).toEqual([]); expect(component.entriesError()).toBe(''); expect(component.nextOrdinal()).toBe(100);
     });
@@ -308,20 +311,20 @@ describe('Archive detail and exact paging safety', () => {
   }
   it('fences session invalidation while paging is pending', async () => {
     const task = component.loadMore(component.archive()!), request = http.expectOne(url() + '?afterOrdinal=100');
-    session.invalidation.update(n => n + 1); TestBed.tick(); http.expectOne(url()).flush(archive()); await fixture.whenStable();
+    session.invalidation.update(n => n + 1); TestBed.tick(); await readArchive(archive());
     request.flush(page2()); await task; expect(component.additionalEntries()).toEqual([]); expect(component.entriesError()).toBe('');
   });
   it('fences navigation away and back to the same archive', async () => {
     const router = TestBed.inject(Router);
     const task = component.loadMore(component.archive()!), request = http.expectOne(url() + '?afterOrdinal=100');
     await router.navigateByUrl('/app'); TestBed.tick(); expect(component.archive()).toBeNull();
-    await router.navigateByUrl('/app/records/archives/' + id(1)); TestBed.tick(); http.expectOne(url()).flush(archive()); await fixture.whenStable();
+    await router.navigateByUrl('/app/records/archives/' + id(1)); TestBed.tick(); await readArchive(archive());
     request.flush(page2()); await task; expect(component.additionalEntries()).toEqual([]);
   });
   it('rejects wrong returned root ID and supports explicit retry', async () => {
     component.refresh(); TestBed.tick(); http.expectOne(url()).flush(archive(2)); await fixture.whenStable(); expect(component.archive()).toBeNull();
     expect(fixture.nativeElement.textContent).not.toContain('SYNTHETIC-ARCHIVE');
-    component.refresh(); http.expectOne(url()).flush(archive()); await fixture.whenStable(); expect(component.archive()?.id).toBe(id(1));
+    component.refresh(); await readArchive(archive()); expect(component.archive()?.id).toBe(id(1));
   });
   const invalidPages = [
     ['returned ID', () => ({ ...page2(), id: id(2) })], ['engagement', () => ({ ...page2(), engagementId: id(22) })],
