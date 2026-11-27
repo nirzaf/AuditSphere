@@ -1134,6 +1134,7 @@ public sealed partial class ConsolidationWorkspaceApiTests
         ReportingCurrency = "QAR", Status = AccountingWorkflowStates.Approved,
         OpeningBasis = "OPENING_BALANCE",
         CreatedByUserId = seed.Staff.Id, CreatedAt = DateTimeOffset.UtcNow,
+        ApprovedByUserId = reviewer.Id, ApprovedAt = DateTimeOffset.UtcNow,
         GroupRevision = 1
       };
       db.ConsolidationScopeVersions.Add(scope);
