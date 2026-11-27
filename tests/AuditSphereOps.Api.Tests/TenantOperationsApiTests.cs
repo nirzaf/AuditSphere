@@ -1,9 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using AuditSphereOps.Application.Abstractions;
+using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Domain.Microsoft365;
 using AuditSphereOps.Domain.Tests;
 using AuditSphereOps.Infrastructure.Persistence;
+using AuditSphereOps.Infrastructure.Providers;
 using AuditSphereOps.Testing;
 using Microsoft.EntityFrameworkCore;
 
@@ -145,12 +148,51 @@ public sealed class TenantOperationsApiTests
     f.Admin.Subject = admin.Subject = Guid.NewGuid().ToString("D");
     var staff = await db.Users.SingleAsync(x => x.Id == f.Staff.Id);
     f.Staff.TenantId = staff.TenantId = admin.TenantId;
-    foreach (var (capability, permission) in new[] { (Microsoft365Capabilities.TenantUserProvisioning, "User.Create"),
-      (Microsoft365Capabilities.GuestInvitation, "User.Invite.All"), (Microsoft365Capabilities.GroupMembership, "GroupMember.ReadWrite.All") })
-      db.TenantCapabilityVerifications.Add(new TenantCapabilityVerification { Id = Guid.CreateVersion7(), FirmId = f.FirmId,
-        TenantId = admin.TenantId, Capability = capability, Permission = permission, State = CapabilityVerificationStates.Verified,
-        DiagnosticCode = "simulated-verified", ObservedAt = DateTimeOffset.UtcNow, ObservedByUserId = admin.Id });
+    var now = DateTimeOffset.UtcNow;
+    var setupSessionId = Guid.CreateVersion7();
+    var connectionId = Guid.CreateVersion7();
+    var setupDraftId = Guid.CreateVersion7();
+    db.Microsoft365SetupSessions.Add(new Microsoft365SetupSession
+    {
+      Id = setupSessionId, FirmId = f.FirmId, InstallationId = "tenant-operations-api-test",
+      BootstrapProofHash = new string('a', 64), CapabilityHash = new string('b', 64),
+      ClaimedByUserId = admin.Id, ClaimedAt = now, ExpiresAt = now.AddHours(1)
+    });
+    db.Microsoft365ConnectionRevisions.Add(new Microsoft365ConnectionRevision
+    {
+      Id = connectionId, FirmId = f.FirmId, TenantId = admin.TenantId,
+      LoginClientIdReference = "slot:login", RuntimeCredentialReference = "slot:reader",
+      State = Microsoft365RevisionStates.ConsentRequired, ConsentState = "REQUIRED", CreatedAt = now
+    });
+    db.Microsoft365SetupDrafts.Add(new Microsoft365SetupDraft
+    {
+      Id = setupDraftId, FirmId = f.FirmId, SetupSessionId = setupSessionId,
+      ConnectionRevisionId = connectionId, State = Microsoft365RevisionStates.ConsentRequired,
+      ExpectedTenantId = admin.TenantId, CreatedAt = now, UpdatedAt = now
+    });
     await db.SaveChangesAsync();
+
+    var actor = new ActorContext(admin.Id, f.FirmId, admin.SessionEpoch, ["Administrator"]);
+    var microsoft = new SimulatedMicrosoftTenant(admin.TenantId,
+      [new(admin.Subject, admin.DisplayName, admin.Email)],
+      [new(ManagedGroup, "Approved team"), new(PrivilegedGroup, "Privileged test group", IsAssignableToRole: true)]);
+    var options = new TenantAdministrationOptions(admin.TenantId, ProvisioningEnabled: true,
+      GuestInvitationEnabled: true, GroupMembershipEnabled: true, DirectoryReadEnabled: true,
+      GuestRedirectUrl: "https://example.test/auth/landing");
+    var consent = await TenantConsentService.BeginAsync(db, actor, setupDraftId, admin.TenantId,
+      Guid.NewGuid().ToString("D"), now);
+    Assert.True(consent.Succeeded, consent.Message);
+    var returned = await TenantConsentService.CompleteCallbackAsync(db, actor, consent.Value!.State,
+      admin.TenantId, consentReturned: true, providerError: false, now);
+    Assert.True(returned.Succeeded, returned.Message);
+    var challenge = await TenantConsentService.BeginIdentityVerificationAsync(db, actor, returned.Value!.AttemptId, now);
+    Assert.True(challenge.Succeeded, challenge.Message);
+    var code = microsoft.IssueCode(admin.TenantId, admin.Subject, challenge.Value!.Nonce);
+    var identity = await TenantConsentService.CompleteIdentityVerificationAsync(db, actor, microsoft,
+      challenge.Value.State, code, providerError: false, now);
+    Assert.True(identity.Succeeded, identity.Message);
+    var verified = await TenantCapabilityService.VerifyAsync(db, actor, microsoft, options, now);
+    Assert.True(verified.Succeeded, verified.Message);
     return f;
   }
   private static object Create(PbcSeed.Fixture f, string upn, string key) => new { idempotencyKey = key, displayName = "API joiner",
