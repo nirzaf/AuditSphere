@@ -37,7 +37,7 @@ export const decodeArchiveCommercialBundlePage = obj({ archiveId: guid, engageme
 export const decodeArchive = obj({ id: guid, engagementId: guid, status: text, createdAt: instant, profileId: text, profileVersion: int, manifestVersion: nullable(int),
   manifestStatus: nullable(text), manifestDigest: nullable(text), completenessStatus: nullable(text), completenessException: nullable(text), canExport: bool,
   entries: arr(obj({ ordinal: int, entryKind: text, relativeName: text, contentHash: text, byteCount: int }), 100), totalEntryCount: nat, nextOrdinal: nullable(int), activeHoldCount: nat,
-  observedProtection: nullable(text), desiredLabel: nullable(text), observedLabel: nullable(text), actionState: nullable(text), externalReference: nullable(text),
+  observedProtection: nullable(text), desiredLabel: nullable(text), observedLabel: nullable(text), actionState: nullable(text), externalReference: nullable(text), canBuild: bool,
   secondarySharePointCopy: nullable(obj({ state: oneOf('NOT_REQUESTED', 'REQUESTED', 'OBSERVED', 'BLOCKED_EXTERNAL'),
     operationId: nullable(guid), targetRevision: nullable(int), manifestVersion: nullable(int), manifestSha256: nullable(sha256),
     latestFileReadBackAt: nullable(instant), permissionReadBackAt: nullable(instant), note: text })),
@@ -312,7 +312,7 @@ export class ReleaseCandidate {
           <dt>Records profile</dt><dd>{{ a.profileId }} v{{ a.profileVersion }}</dd><dt>Protection</dt><dd>{{ a.observedProtection ?? 'Not observed' }}</dd>
           <dt>Manifest hash</dt><dd><code>{{ a.manifestDigest ?? 'Not built' }}</code></dd><dt>Active holds</dt><dd>{{ a.activeHoldCount }}</dd></dl>
         @if (a.completenessStatus === 'INCOMPLETE') { <p role="alert">Manifest incomplete: {{ a.completenessException }}</p> }
-        @if (a.manifestVersion === null || a.completenessStatus === 'INCOMPLETE') {
+        @if (a.canBuild && (a.manifestVersion === null || a.completenessStatus === 'INCOMPLETE')) {
           <div class="panel" aria-labelledby="commercial-bundle-heading">
             <h3 id="commercial-bundle-heading">Commercial bundle for this archive</h3>
             <p>Select the exact authorized bundle, or explicitly choose no commercial bundle. Review the displayed hashes before building.</p>
@@ -414,7 +414,7 @@ export class ArchiveRecord {
   readonly bundleSelectionError = signal('');
   readonly bundlePage = this.api.resource(() => {
     const archive = this.archive();
-    return archive ? `/api/ui/records/archives/${archive.id}/commercial-bundles?page=${this.bundlePageNumber()}` : null;
+    return archive?.canBuild ? `/api/ui/records/archives/${archive.id}/commercial-bundles?page=${this.bundlePageNumber()}` : null;
   }, (raw, path) => {
     const page = decodeArchiveCommercialBundlePage(raw, path);
     const archive = this.archive();
@@ -478,7 +478,7 @@ export class ArchiveRecord {
   }
   refresh(): void { this.invalidate(); this.baseEpoch.set(-1); this.rec.reload(); }
   async buildManifest(archive: ReturnType<typeof decodeArchive>): Promise<void> {
-    if (archive.manifestVersion !== null && archive.completenessStatus !== 'INCOMPLETE') return;
+    if (!archive.canBuild || archive.manifestVersion !== null && archive.completenessStatus !== 'INCOMPLETE') return;
     if (!this.bundleSelectionReviewed()) {
       this.bundleSelectionError.set('Review the exact bundle selection before building the archive manifest.');
       return;

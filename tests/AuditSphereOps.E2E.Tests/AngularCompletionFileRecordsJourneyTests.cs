@@ -249,7 +249,9 @@ public sealed class AngularCompletionFileRecordsJourneyTests
     await page.GotoAsync(origin + archiveRoute);
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Archive manifest", Exact = true })).ToBeVisibleAsync();
     Assert.True(requestedArchives.Count > requestsBeforeBookmark, "The bookmark must read the archive.");
-    Assert.All(requestedArchives, path => Assert.Equal($"/api/ui/records/archives/{archiveId:D}", path));
+    var archiveReadPath = $"/api/ui/records/archives/{archiveId:D}";
+    Assert.Contains(archiveReadPath, requestedArchives);
+    Assert.All(requestedArchives, path => Assert.Equal(archiveReadPath, path));
     Assert.Empty(errors);
   }
 

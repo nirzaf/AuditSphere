@@ -54,7 +54,7 @@ public sealed record ReleaseLegalHoldRequest(Guid ArchiveId, string HoldReferenc
 /// </summary>
 public static class RecordsArchiveService
 {
-  private static readonly string[] CustodianRoles = ["Administrator", "Partner", "RecordsCustodian"];
+  internal static readonly string[] CustodianRoles = ["Administrator", "Partner", "RecordsCustodian"];
   public const int CommercialBundlePageSize = 25;
   public const int MaximumCommercialBundlePage = 100;
 

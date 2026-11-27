@@ -111610,6 +111610,10 @@
           "canReview": {
             "type": "boolean",
             "default": false
+          },
+          "canBuild": {
+            "type": "boolean",
+            "default": false
           }
         }
       },

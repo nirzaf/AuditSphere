@@ -73,6 +73,7 @@ public sealed class RecordsArchiveRecoveryApiTests
     }
 
     var (custodian, custodianGrant) = await ProvisionAsync(scope.ClientId, scope.EngagementId, "Partner", "Staff");
+    var (archiveReader, _) = await ProvisionAsync(scope.ClientId, scope.EngagementId, "Staff", "Staff");
     var (clientUser, _) = await ProvisionAsync(scope.ClientId, scope.EngagementId, "ClientUser", "Client");
     var clientActor = new ActorContext(clientUser.Id, scope.FirmId, clientUser.SessionEpoch, ["ClientUser"]);
     PbcSeed.Fixture pbc;
@@ -171,6 +172,18 @@ public sealed class RecordsArchiveRecoveryApiTests
       Assert.Equal(built.EntryCount, view.Entries.Count);
       Assert.False(view.CanReview);
       Assert.False(view.CanExport);
+      Assert.True(view.CanBuild);
+    }
+    using (var archiveReaderFactory = Factory(pg, archiveReader))
+    using (var archiveReaderClient = archiveReaderFactory.CreateClient(new() { AllowAutoRedirect = false }))
+    {
+      await SignInAsync(archiveReaderClient);
+      using var readOnlyArchive = await archiveReaderClient.GetAsync(path);
+      Assert.Equal(HttpStatusCode.OK, readOnlyArchive.StatusCode);
+      var readerView = (await readOnlyArchive.Content.ReadFromJsonAsync<ArchiveRecordView>())!;
+      Assert.False(readerView.CanBuild);
+      using var deniedBundlePage = await archiveReaderClient.GetAsync(path + "/commercial-bundles?page=0");
+      await AssertRefusedAsync(deniedBundlePage, HttpStatusCode.Forbidden, ErrorCodes.ScopeDenied);
     }
     using var replay = await PostAsync(recovery, recoveryCsrf, path + "/build", request);
     Assert.Equal(HttpStatusCode.OK, replay.StatusCode);

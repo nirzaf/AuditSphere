@@ -143,6 +143,7 @@ describe('Audit Records Contracts', () => {
       manifestDigest: hash64,
       completenessStatus: 'COMPLETE',
       canExport: true,
+      canBuild: false,
       completenessException: null,
       entries: [
         {
@@ -198,7 +199,7 @@ describe('Archive intent recovery', () => {
     const raw = { id: id1, engagementId: id2, status: review ? 'MANIFEST_BUILT' : 'ISSUED', createdAt: '2026-11-01T10:00:00Z',
       profileId: 'ISQM1-PROFILE', profileVersion: 1, manifestVersion: review ? 1 : null, manifestId: review ? id2 : null,
       manifestStatus: review ? 'BUILT' : null, manifestDigest: review ? hash64 : null, completenessStatus: review ? 'COMPLETE' : null,
-      completenessException: null, canExport: false, canReview: review, entries: [], totalEntryCount: 0, nextOrdinal: null,
+      completenessException: null, canExport: false, canReview: review, canBuild: !review, entries: [], totalEntryCount: 0, nextOrdinal: null,
       activeHoldCount: 0, observedProtection: null, desiredLabel: null, observedLabel: null, actionState: null, externalReference: null, secondarySharePointCopy: null };
     const read = async (changes: Record<string, unknown> = {}) => { Object.assign(raw, changes); data.set(decode(raw, 'archive')); await fixture.whenStable(); };
     await read();
@@ -373,7 +374,7 @@ describe('Archive export visibility', () => {
       entries: [{ ordinal: 1, entryKind: 'SIGNED_REPORT', relativeName: 'Report.pdf', contentHash: hash64, byteCount: 42 }],
       totalEntryCount: 1, nextOrdinal: null, activeHoldCount: 0, observedProtection: 'PROTECTED',
       desiredLabel: 'CONFIDENTIAL', observedLabel: 'CONFIDENTIAL', actionState: 'OBSERVED',
-      externalReference: null, secondarySharePointCopy: null, canReview: false,
+      externalReference: null, secondarySharePointCopy: null, canReview: false, canBuild: false,
     }, 'archive'));
     await fixture.whenStable();
 

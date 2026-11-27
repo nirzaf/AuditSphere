@@ -41,3 +41,19 @@
 ## Remaining acceptance
 
 The supported producer-to-archive HTTP journey is locally verified against isolated PostgreSQL. The exact-source Release build passed, but the current full verification run failed in the Angular suite above; no Domain/API/E2E full-suite result is claimed. Interactive browser verification is still open. The synthetic RecordsProfile/archive fixture is test-only and does not establish or enable the blocked first-archive eligibility policy. No production data, provider, records approval, release or deployment effect occurred.
+
+## Read-capability authorization follow-up — `2476c7b5` working source
+
+The full browser run exposed a separate handoff defect: users who could read archive metadata were also causing the UI to request the narrower Partner/Administrator/RecordsCustodian bundle catalogue, which returned `403` and rendered a misleading read error. The fix preserves the catalogue's existing role boundary. `AuditRecordQueries.ArchiveAsync` now projects `CanBuild` only when the archive is in an assembly state, its exact records profile version is approved, and the current actor satisfies the existing custodian roles. The Angular page loads and displays bundle selection only when that server-projected capability is true. Build authorization remains authoritative in `BuildManifestCoreAsync`; no role was added to the catalogue endpoint.
+
+Changed files: `AuditRecordQueries.cs`, `RecordsArchiveService.cs` (shared custodian-role definition), Angular `records.ts` / `records.spec.ts`, `RecordsArchiveRecoveryApiTests.cs`, `AngularArchiveCompletenessJourneyTests.cs`, `AngularCompletionFileRecordsJourneyTests.cs`, generated `contracts/auditsphere-openapi.json`, and `auditsphere-architecture-code-map.md`.
+
+Focused verification:
+
+- Isolated PostgreSQL API regression `RecordsArchiveRecoveryApiTests.BuildReadFaultPersistsIncompleteAndExactHttpReplayDoesNotWriteAgain` — **1 passed**. It verifies an eligible custodian receives `CanBuild=true`; a signed-in read-only Staff actor retains archive read access, receives `CanBuild=false`, and remains denied the bundle catalogue.
+- `npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/audit/records.spec.ts'` — **22 passed**.
+- `npm --prefix src/AuditSphereOps.Ui run build` — **passed** with the existing CSS budget warnings only.
+- Built-asset Playwright/PostgreSQL checks `AngularArchiveCompletenessJourneyTests.IncompleteEmptyManifestShowsBlockerAndNoEntries` and `AngularCompletionFileRecordsJourneyTests.PartnerReviewsReadinessLocksScheduledFileAndLifecycleKeepsProviderStateSeparate` — **2 passed**. Read-only pages made archive reads without a bundle-catalogue request or 403; archive build handoff coverage stayed intact.
+- OpenAPI emitter and `bash scripts/contracts/verify-openapi.sh` — **passed**; only the additive `ArchiveRecordView.canBuild` field changed.
+
+The initial API attempt omitted sign-in for the added Staff fixture and returned 401; the fixture now uses the normal sign-in flow and the focused retry passed. The first browser attempt served stale `dist` assets; after rebuilding, both browser checks passed. Full exact-SHA CI for the committed candidate remains pending. F21 still blocks first-archive eligibility; this projection does not approve records policy or terminal release.

@@ -27,7 +27,7 @@ public sealed record ArchiveEntryView(int Ordinal, string EntryKind, string Rela
 public sealed record ArchiveRecordView(Guid Id, Guid EngagementId, string Status, DateTimeOffset CreatedAt, string ProfileId, long ProfileVersion, long? ManifestVersion,
   string? ManifestStatus, string? ManifestDigest, string? CompletenessStatus, string? CompletenessException, IReadOnlyList<ArchiveEntryView> Entries, int TotalEntryCount, int? NextOrdinal, int ActiveHoldCount,
   string? ObservedProtection, string? DesiredLabel, string? ObservedLabel, string? ActionState, string? ExternalReference,
-  ArchiveCopyStatusProjection? SecondarySharePointCopy = null, bool CanExport = false, Guid? ManifestId = null, bool CanReview = false);
+  ArchiveCopyStatusProjection? SecondarySharePointCopy = null, bool CanExport = false, Guid? ManifestId = null, bool CanReview = false, bool CanBuild = false);
 
 public sealed record WorkpaperSubmissionView(string Revision, DateTimeOffset SubmittedAt, string? Conclusion);
 public sealed record WorkpaperRecordView(Guid Id, Guid EngagementId, string Index, string Title, string Objective, string TemplateVersion, string Procedure,
@@ -42,6 +42,7 @@ public sealed record WorkpaperRecordView(Guid Id, Guid EngagementId, string Inde
 public static class AuditRecordQueries
 {
   private static readonly string[] AuditRoles = ["Administrator", "Partner", "Manager", "SeniorManager", "Senior", "Staff", "EngagementLeader", "Auditor"];
+  internal static readonly string[] ArchiveReaderRoles = ["Administrator", "Partner", "Manager", "EngagementLeader", "Senior", "Staff", "Auditor", "RecordsCustodian"];
 
   private static async Task<bool> AuthorizeAsync(IAuditSphereDbContext db, ActorContext actor, Guid clientId, Guid engagementId, string[] roles, CancellationToken ct) =>
     (await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, clientId, engagementId, roles, InternalOnly: true), ct)).Succeeded;
@@ -168,8 +169,7 @@ public static class AuditRecordQueries
   public static async Task<CommandResult<ArchiveRecordView>> ArchiveAsync(IRecordsArchiveCopyDbContext db, ActorContext actor, Guid id, int? afterOrdinal = null, CancellationToken ct = default)
   {
     var a = await db.Archives.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.FirmId == actor.FirmId, ct);
-    if (a is null || !await AuthorizeAsync(db, actor, a.ClientId, a.EngagementId,
-        ["Administrator", "Partner", "Manager", "EngagementLeader", "Senior", "Staff", "Auditor", "RecordsCustodian"], ct))
+    if (a is null || !await AuthorizeAsync(db, actor, a.ClientId, a.EngagementId, ArchiveReaderRoles, ct))
       return CommandResult<ArchiveRecordView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var manifest = await db.ArchiveManifests.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ArchiveId == a.Id).OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
     var entryQuery = manifest is null ? null : db.ArchiveManifestEntries.AsNoTracking()
@@ -196,8 +196,15 @@ public static class AuditRecordQueries
       (await AuthorizationDecision.AuthorizeAsync(db, actor,
         new AuthorizationRequest(actor.FirmId, a.ClientId, a.EngagementId,
           RequiredRoles: ["Administrator", "Partner", "RecordsCustodian"], InternalOnly: true), ct)).Succeeded;
+    var canBuild = (a.Status is ArchiveStates.Issued or ArchiveStates.AssemblyInProgress or ArchiveStates.ManifestBuilt) &&
+      (manifest is null || manifest.CompletenessStatus == "INCOMPLETE") &&
+      await db.RecordsProfiles.AsNoTracking().AnyAsync(x => x.FirmId == a.FirmId && x.ProfileCode == a.ProfileId &&
+        x.Version == a.ProfileVersion && x.Approved, ct) &&
+      (await AuthorizationDecision.AuthorizeAsync(db, actor,
+        new AuthorizationRequest(actor.FirmId, a.ClientId, a.EngagementId,
+          RequiredRoles: RecordsArchiveService.CustodianRoles, InternalOnly: true), ct)).Succeeded;
     return CommandResult<ArchiveRecordView>.Ok(new(a.Id, a.EngagementId, a.Status, a.CreatedAt, a.ProfileId, a.ProfileVersion, manifest?.Version, manifest?.Status, manifest?.ManifestDigest,
       manifest?.CompletenessStatus, manifest?.CompletenessException, entries, totalEntryCount, nextOrdinal, holds, action?.ObservedProtection, action?.DesiredLabel, action?.ObservedLabel, action?.State,
-      action?.ExternalReference, secondaryCopy, canExport, manifest?.Id, canReview));
+      action?.ExternalReference, secondaryCopy, canExport, manifest?.Id, canReview, canBuild));
   }
 }

@@ -308,7 +308,17 @@ public sealed class AngularArchiveCompletenessJourneyTests
     await using var context = await browser.NewContextAsync();
     var page = await context.NewPageAsync();
     var errors = new List<string>();
+    var archiveRequests = new List<string>();
     page.PageError += (_, error) => errors.Add(error);
+    page.Request += (_, request) =>
+    {
+      if (request.Method == "GET" && new Uri(request.Url).AbsolutePath.StartsWith("/api/ui/records/archives/", StringComparison.Ordinal))
+        archiveRequests.Add(new Uri(request.Url).AbsolutePath);
+    };
+    page.Response += (_, response) =>
+    {
+      if (response.Status >= 400) errors.Add($"http-response: {response.Status} {response.Url}");
+    };
     page.Console += (_, message) =>
     {
       if (message.Type == "error") errors.Add($"console-error: {message.Text}");
@@ -317,7 +327,7 @@ public sealed class AngularArchiveCompletenessJourneyTests
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString($"/app/records/archives/{archiveId:D}"));
     await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Records archive", Exact = true }))
       .ToBeVisibleAsync();
-    await Assertions.Expect(page.GetByRole(AriaRole.Alert)).ToContainTextAsync($"Manifest incomplete: {reason}");
+    await Assertions.Expect(page.GetByText($"Manifest incomplete: {reason}", new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByText("Manifest version 1 · 0 manifest entries · 0 unreleased local holds", new() { Exact = true }))
       .ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Cell, new() { Name = "No persisted manifest entries.", Exact = true }))
@@ -332,6 +342,8 @@ public sealed class AngularArchiveCompletenessJourneyTests
     await Assertions.Expect(evidence.GetByText("Not requested", new() { Exact = true })).ToHaveCountAsync(2);
     var text = await page.Locator("main").InnerTextAsync();
     Assert.DoesNotContain("Archive complete", text, StringComparison.OrdinalIgnoreCase);
+    Assert.NotEmpty(archiveRequests);
+    Assert.All(archiveRequests, path => Assert.Equal($"/api/ui/records/archives/{archiveId:D}", path));
     Assert.Empty(errors);
   }
 
