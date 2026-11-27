@@ -195,7 +195,7 @@ public sealed class AngularFeeSettlementJourneyTests
     await Assertions.Expect(fees).ToContainTextAsync(agreementId.ToString("D"));
     Assert.DoesNotContain("PRIVATE-COMMERCIAL-METADATA", await fees.InnerTextAsync());
     await Assertions.Expect(fees.GetByRole(AriaRole.Button, new() { Name = "Create fee agreement", Exact = true })).ToHaveCountAsync(0);
-    var assent = fees.GetByLabel("I reviewed this fee, milestone and selected action.", new() { Exact = true });
+    var assent = fees.GetByLabel("I reviewed this fee, milestone, payment details and selected action.", new() { Exact = true });
     await assent.CheckAsync();
     await fees.GetByRole(AriaRole.Button, new() { Name = "Prepare or recover advance invoice", Exact = true }).ClickAsync();
     await Assertions.Expect(fees.GetByRole(AriaRole.Link, new() { Name = "SYN-FEE-INTERRUPTED-DRAFT", Exact = true })).ToBeVisibleAsync();

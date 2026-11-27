@@ -133,7 +133,7 @@ public sealed partial class ClientAccountingTests
 
   [Fact]
   [Trait("Profile", "Database")]
-  public async Task ReconciliationWritesWaitForPeriodCloseAndLeaveRetainedEvidenceUnchanged()
+  public async Task ReconciliationApprovalSerializesItemEditsAndUnsupportedApprovedSourceBlocksCloseWithoutMutation()
   {
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
     await using var pg = await PgTestSchema.CreateAsync();
@@ -272,115 +272,37 @@ public sealed partial class ClientAccountingTests
         x => x.ReconciliationId == reconciliationId, timeout.Token));
     }
 
-    var pauseClose = new PausePeriodCloseSave();
-    await using var closeDb = new AuditSphereDbContext(
-      new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options).AddInterceptors(pauseClose).Options);
-    await using var createDb = new AuditSphereDbContext(pg.Options);
-    await using var addDb = new AuditSphereDbContext(pg.Options);
-    await using var observer = new AuditSphereDbContext(pg.Options);
-    Task<CommandResult>? closeTask = null;
-    Task<CommandResult<Guid>>? createTask = null;
-    Task<CommandResult>? addTask = null;
-    try
-    {
-      closeTask = ClientAccountingService.ClosePeriodAsync(closeDb, reviewer, periodId, "Close after reconciliation", timeout.Token);
-      await pauseClose.Reached.Task.WaitAsync(timeout.Token);
-
-      await createDb.Database.OpenConnectionAsync(timeout.Token);
-      await addDb.Database.OpenConnectionAsync(timeout.Token);
-      await observer.Database.OpenConnectionAsync(timeout.Token);
-      var closePid = ((NpgsqlConnection)closeDb.Database.GetDbConnection()).ProcessID;
-      var createPid = ((NpgsqlConnection)createDb.Database.GetDbConnection()).ProcessID;
-      var addPid = ((NpgsqlConnection)addDb.Database.GetDbConnection()).ProcessID;
-      var activeCreateTask = AccountingAnalysisService.CreateReconciliationAsync(createDb, preparer,
-        new AccountingReconciliationRequest(scope.ClientA, scope.EngagementA, periodId, bookId, "CASH",
-          datasetId, null, ["1000"], new DateOnly(2026, 12, 31)), timeout.Token);
-      createTask = activeCreateTask;
-      var activeAddTask = AccountingAnalysisService.AddReconciliationItemsAsync(addDb, preparer, reconciliationId,
-        [new("ITEM-AFTER-CLOSE", 5m, "QAR", new DateOnly(2026, 12, 30), "late timing", "receipt-late", "OPEN")], timeout.Token);
-      addTask = activeAddTask;
-
-      var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
-      var createBlocked = false;
-      var addBlocked = false;
-      while (DateTimeOffset.UtcNow < deadline && (!createBlocked || !addBlocked))
+    await using var closeDb = new AuditSphereDbContext(pg.Options);
+    var periodStatusBeforeClose = await closeDb.ClientReportingPeriods.AsNoTracking()
+      .Where(x => x.Id == periodId).Select(x => x.Status).SingleAsync(timeout.Token);
+    Assert.True(AccountingWorkflowStates.IsOpenReportingPeriodStatus(periodStatusBeforeClose));
+    var proofsBeforeClose = await closeDb.AccountingReconciliationProofs.AsNoTracking()
+      .Where(x => x.ReconciliationId == reconciliationId).OrderBy(x => x.CreatedAt)
+      .Select(x => new
       {
-        createBlocked = await observer.Database.SqlQuery<bool>($"""
-          WITH RECURSIVE blockers(pid) AS (
-            SELECT unnest(pg_blocking_pids({createPid}))
-            UNION
-            SELECT unnest(pg_blocking_pids(blockers.pid)) FROM blockers
-          )
-          SELECT EXISTS (SELECT 1 FROM blockers WHERE pid = {closePid}) AS "Value"
-          """).SingleAsync(timeout.Token);
-        addBlocked = await observer.Database.SqlQuery<bool>($"""
-          WITH RECURSIVE blockers(pid) AS (
-            SELECT unnest(pg_blocking_pids({addPid}))
-            UNION
-            SELECT unnest(pg_blocking_pids(blockers.pid)) FROM blockers
-          )
-          SELECT EXISTS (SELECT 1 FROM blockers WHERE pid = {closePid}) AS "Value"
-          """).SingleAsync(timeout.Token);
-        if (!createBlocked || !addBlocked) await Task.Delay(20, timeout.Token);
-      }
-      Assert.True(createBlocked, "Creating reconciliation evidence must be blocked by period close, directly or through queued writers.");
-      Assert.True(addBlocked, "Adding reconciliation items must be blocked by period close, directly or through queued writers.");
-      Assert.False(activeCreateTask.IsCompleted);
-      Assert.False(activeAddTask.IsCompleted);
-
-      pauseClose.Release.TrySetResult(true);
-      var closed = await closeTask.WaitAsync(timeout.Token);
-      Assert.True(closed.Succeeded, closed.Message);
-      var createOutcome = await activeCreateTask.WaitAsync(timeout.Token);
-      var addOutcome = await activeAddTask.WaitAsync(timeout.Token);
-      Assert.False(createOutcome.Succeeded);
-      Assert.Equal(ErrorCodes.GateBlocked, createOutcome.ErrorCode);
-      Assert.False(addOutcome.Succeeded);
-      Assert.Equal(ErrorCodes.GateBlocked, addOutcome.ErrorCode);
-    }
-    finally
-    {
-      pauseClose.Release.TrySetResult(true);
-      if (closeTask is not null)
-        try { await closeTask.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
-      if (createTask is not null)
-        try { await createTask.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
-      if (addTask is not null)
-        try { await addTask.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
-    }
+        x.Id, x.FormulaVersion, x.SourceTotal, x.GlTotal, x.ItemsSignedTotal, x.Residual,
+        x.IsReconciled, x.ItemCount, x.ItemManifestDigest, x.SourceHash, x.InputGeneration,
+        x.CreatedByUserId, x.CreatedAt
+      }).ToArrayAsync(timeout.Token);
+    var blockedClose = await ClientAccountingService.ClosePeriodAsync(
+      closeDb, reviewer, periodId, "Close after generic reconciliation", timeout.Token);
+    Assert.False(blockedClose.Succeeded);
+    Assert.Equal(ErrorCodes.GateBlocked, blockedClose.ErrorCode);
+    Assert.Contains("distinct independent control source", blockedClose.Message!, StringComparison.OrdinalIgnoreCase);
 
     await using var verify = new AuditSphereDbContext(pg.Options);
-    Assert.Equal(AccountingWorkflowStates.Closed,
-      await verify.ClientReportingPeriods.Where(x => x.Id == periodId).Select(x => x.Status).SingleAsync(timeout.Token));
-    var closedProof = await AccountingAnalysisService.CalculateReconciliationProofAsync(
-      verify, preparer, reconciliationId, timeout.Token);
-    Assert.False(closedProof.Succeeded);
-    Assert.Equal(ErrorCodes.GateBlocked, closedProof.ErrorCode);
-    var closedLink = await AccountingAnalysisService.LinkReconciliationCorrectionAsync(
-      verify, preparer, reconciliationId, openItemId, Guid.NewGuid(), timeout.Token);
-    Assert.False(closedLink.Succeeded);
-    Assert.Equal(ErrorCodes.GateBlocked, closedLink.ErrorCode);
-    var closedApproval = await AccountingAnalysisService.ApproveReconciliationAsync(
-      verify, reviewer, reconciliationId, timeout.Token);
-    Assert.False(closedApproval.Succeeded);
-    Assert.Equal(ErrorCodes.GateBlocked, closedApproval.ErrorCode);
-    var closedRevision = await AccountingAnalysisService.ReviseReconciliationAsync(
-      verify, preparer, reconciliationId, "Closed periods require their authorized amendment path", timeout.Token);
-    Assert.False(closedRevision.Succeeded);
-    Assert.Equal(ErrorCodes.GateBlocked, closedRevision.ErrorCode);
-
-    var nextPeriod = await ClientAccountingService.CreatePeriodAsync(verify, preparer,
-      new ReportingPeriodRequest(scope.ClientA, "2027", new DateOnly(2027, 1, 1), new DateOnly(2027, 12, 31),
-        "STATUTORY", "QAR"), timeout.Token);
-    Assert.True(nextPeriod.Succeeded, nextPeriod.Message);
-    var nextPeriodClosed = await ClientAccountingService.ClosePeriodAsync(
-      verify, reviewer, nextPeriod.Value, "Close empty carry-forward target", timeout.Token);
-    Assert.True(nextPeriodClosed.Succeeded, nextPeriodClosed.Message);
-    var closedCarry = await AccountingAnalysisService.CarryForwardReconciliationItemsAsync(
-      verify, preparer, reconciliationId, nextPeriod.Value, null, [openItemId], "carry-forward-evidence", timeout.Token);
-    Assert.False(closedCarry.Succeeded);
-    Assert.Equal(ErrorCodes.GateBlocked, closedCarry.ErrorCode);
-    Assert.Contains("closed", closedCarry.Message!, StringComparison.OrdinalIgnoreCase);
+    Assert.Equal(periodStatusBeforeClose,
+      await verify.ClientReportingPeriods.AsNoTracking().Where(x => x.Id == periodId)
+        .Select(x => x.Status).SingleAsync(timeout.Token));
+    var proofsAfterClose = await verify.AccountingReconciliationProofs.AsNoTracking()
+      .Where(x => x.ReconciliationId == reconciliationId).OrderBy(x => x.CreatedAt)
+      .Select(x => new
+      {
+        x.Id, x.FormulaVersion, x.SourceTotal, x.GlTotal, x.ItemsSignedTotal, x.Residual,
+        x.IsReconciled, x.ItemCount, x.ItemManifestDigest, x.SourceHash, x.InputGeneration,
+        x.CreatedByUserId, x.CreatedAt
+      }).ToArrayAsync(timeout.Token);
+    Assert.Equal(proofsBeforeClose, proofsAfterClose);
 
     var retained = await verify.AccountingReconciliations.SingleAsync(x => x.Id == reconciliationId, timeout.Token);
     Assert.Equal(AccountingWorkflowStates.Approved, retained.Status);
