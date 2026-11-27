@@ -63,7 +63,7 @@ Statuses apply to the named engineering slice; IMPLEMENTED does not mean product
 | F09 / PRA-099 / PRA-103 | IMPLEMENTED | Unsafe budget actuals project null; no FX or rate-policy adoption. |
 | F10 | ALREADY_FIXED | Storage-aligned period/book bounds verified in the earlier current-master check. |
 | F11 | IMPLEMENTED | Explicit period context for balance reporting; overlapping periods do not use first-match selection. |
-| F12 | IMPLEMENTED containment | Generic self-comparison is blocked; analysis-evidence currentness names the missing independent control; browser/API/PostgreSQL focused evidence is in [the 2026-11-27 record](auditsphere-audit-f12-evidence-20261127.md). AC-REC-07–10 remain separately gated. |
+| F12 | IMPLEMENTED containment | Generic self-comparison is blocked; analysis-evidence currentness names the missing independent control; exact `80af1003` PostgreSQL close-denial regression passed 1/1. [Evidence](auditsphere-audit-f12-evidence-20261127.md). AC-REC-07–10 remain separately gated. |
 | F13 | IMPLEMENTED | Corrupt pending allocation evidence fails closed without clearing retained evidence. |
 | F14 / ARCX-003 | IMPLEMENTED | Current Graph bytes use item content; historical bytes remain version-pinned. |
 | F15 / AUTO-021 | IMPLEMENTED | Each archive receipt compares to its matched file timestamp; local PowerShell verification is separately environment-blocked where noted in historical evidence. |
@@ -81,11 +81,11 @@ Statuses apply to the named engineering slice; IMPLEMENTED does not mean product
 | F27 | IMPLEMENTED | Possible fiscal month/day pairs validated; retained impossible-history precheck/repair and non-leap February 29 rollover remain separate. |
 | F28 / PRA-007 / PRA-008 | IMPLEMENTED | Reviewed profile/contact maintenance and retained receipts are on master. |
 | F29 / VERIFY-010 | IMPLEMENTED | Completion runner single-writer and crash/resume protections are on master. |
-| F30 | ALREADY_FIXED | Signed TB/source-side magnitude limits and parser refusal are present and verified. |
+| F30 | ALREADY_FIXED | Signed TB and independent debit/credit magnitude bounds are present in the shared CSV/XLSX parser; focused boundary cohort passed 4/4 on `21ddeba9`. No source change was needed. [Evidence](auditsphere-audit-f30-evidence-20261127.md). |
 | F31 | IMPLEMENTED | Final rendered bundle bytes and ZIP are bounded before persistence. |
 | FW-BANK-01 | IMPLEMENTED | Typed bank producer/review handoff, scoped receipts, locks and transaction participation; browser journey remains for exact-SHA CI. |
 | ARC-05 | IMPLEMENTED; selected-bundle API journey VERIFIED locally | Real completion API producer → authorized bundle catalogue → archive build; committed response-loss replay, exact manifest/part lineage, stale/changed selection and foreign-firm denial pass in isolated PostgreSQL. Interactive browser remains NOT_RUN; F21 still blocks first-archive eligibility. |
-| PRA-127 | IMPLEMENTED | Native finance flows capture strict UTC receipt time; no new backdating cutoff or allocation-date rewrite. |
+| PRA-127 | IMPLEMENTED | Native finance flows capture strict UTC receipt time; fee-settlement Playwright journey passed 1/1 on `80af1003`; no backdating cutoff or allocation-date rewrite. |
 | M365-014 | IMPLEMENTED | Graph directory response byte limits apply to actual bytes read. |
 | M365-011 | IMPLEMENTED | Supported same-tenant replacement regression and current-binding guard are at `5eedb70e`; this continuation’s 2/2 test result is current local evidence. |
 | M365-019 / M365-020 / M365-021 / M365-022 / LIVE-001 / DEPLOY-003 / DEPLOY-004 | BLOCKED_EXTERNAL | Independent target, environment, restore, identity, mail, selected-site, and recipient evidence remains absent; see rows below. |
@@ -137,6 +137,12 @@ Follow-up committed and pushed as `5ac788e052c177f6919c9fa2e5508bac3c05c6d4`: th
 The exact-source full run **45930824772** on `e4441ea13efa6ff755cfeb31e38ea61c217a2291` is terminal **FAILURE**: Release build/artifacts passed; Angular had nine five-second timeouts in `resources.spec.ts` (2,153 passed, 9 failed; 200/201 files passed). Domain/API/E2E, browser shards and contract/publication jobs were skipped. A targeted retry of the Angular job from the prior full run `45926687896` also failed with nine `resources.spec.ts` timeouts. Fast CI **45929929416** on `e4441ea1` passed docs/M365/MCP checks but skipped Angular/.NET under the docs-only classifier. Focused local checks on the current checkout passed F29 runner (18/18), F29 state/locks (12/12), and F16 result/TRX assertions (11/11) using `python3`. The five preserved local Angular specs and `accounting/plan-command.spec.ts` passed individually in the modified worktree; these are not commit-bound evidence. The local `accounting-calculation` prerequisite check reported the PostgreSQL 19 test database unverified, so it did not run its mapped .NET cohort. No `FULL_CI_PASS`; interactive browser remains NOT_RUN; the five dirty specs remain untouched.
 
 No deployment, production migration/data or permission change, live provider mutation, merge, or professional/accounting approval occurred. The assignment is **INCOMPLETE**; no release is authorized by the conditions in this task.
+
+## Source-bound follow-up — `80af1003`
+
+HEAD and fetched `origin/master` are `80af10032c3c41f69f9e70802c60dc3081b75049`. F12's PostgreSQL regression `ReconciliationApprovalSerializesItemEditsAndUnsupportedApprovedSourceBlocksCloseWithoutMutation` passed 1/1 on that SHA. A first post-commit attempt timed out during fixture `SaveChangesAsync` before reaching the changed assertion; the isolated database was then observed accepting connections with no other active test session, and the exact rerun passed in 3 seconds. PRA-127's `AngularFeeSettlementJourneyTests.ScopedFinancePreparesReviewsAndSettlesAdvanceWithoutCommercialAccess` passed 1/1 in Playwright against isolated PostgreSQL. F30 remains `ALREADY_FIXED`; its four focused parser tests passed on `21ddeba9`, with no affected parser paths changed in `80af1003`.
+
+Fast CI run [45973272824](https://github.com/nirzaf/AuditSphere/actions/runs/45973272824) is queued for exact SHA `80af1003`; no current-SHA full release-verification run exists. PR [#57](https://github.com/nirzaf/AuditSphere/pull/57) remains an open draft with 307 dependency-update files, pinned dependency/lockfile changes, and `DIRTY` merge state, so it conflicts with this assignment. No merge codeword was supplied. No release, deployment, migration, production mutation, tenant permission change or provider effect occurred.
 
 ## Production/external dependencies — separate gates
 

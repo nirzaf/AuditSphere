@@ -26,3 +26,9 @@ The E2E cases now assert that source-only reconciliation, review and valuation p
 ## Remaining gates
 
 Fast CI run [45968438963](https://github.com/nirzaf/AuditSphere/actions/runs/45968438963) checked out the parent source `dd8278e8f31fa6907bc5364ab3fb062bbda6dc5e` and was `PENDING` at 2026-11-27 08:48 UTC; no current-source full release-verification run is recorded. These checks do not establish production migration or acceptance. AC-REC-07–10 remain `BLOCKED_DECISION` for the qualified owner’s independent-source pairing and adjustment-basis contract. No production, provider, or professional decision was made.
+
+## Exact-source regression follow-up — `80af1003`
+
+The focused regression `ReconciliationApprovalSerializesItemEditsAndUnsupportedApprovedSourceBlocksCloseWithoutMutation` passed 1/1 on exact HEAD `80af10032c3c41f69f9e70802c60dc3081b75049`, using the isolated PostgreSQL database. It verifies the review/edit lock serialization and that a generic approved source-only reconciliation blocks period close with the missing-independent-control gate while leaving the period and retained proof unchanged. A first exact-commit run timed out during fixture `SaveChangesAsync` before reaching the assertion; the database was subsequently observed healthy and idle, and the rerun passed in 3 seconds. No application source or retained financial proof changed in this follow-up; the test assertion was aligned with F12's already-implemented fail-closed behavior in commit `80af1003`.
+
+Fast CI run [45973272824](https://github.com/nirzaf/AuditSphere/actions/runs/45973272824) is queued for `80af1003`; it is not full release verification. AC-REC-07–10 remain `BLOCKED_DECISION`; no production migration, data change or professional/accounting approval was made.

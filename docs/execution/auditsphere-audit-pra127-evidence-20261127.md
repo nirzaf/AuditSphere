@@ -21,6 +21,12 @@ Files changed: `UiEndpoints.Finance.cs`, `UiEndpoints.FeeAgreement.cs`, Angular 
 - `git diff --check`, `python3 scripts/docs/validate-markdown-documentation.py`, `python3 scripts/docs/validate-markdown-filenames.py`, and `python3 scripts/docs/validate-narrative-metrics.py` — **passed** (205 Markdown files, 3,086 relative links, no filename or protected-narrative findings).
 - Interactive browser verification was **NOT_RUN**. The available in-app browser was on GitHub Actions; no local application and authorized synthetic finance session were running. Focused Angular tests and the real isolated API tests covered the changed interactions and HTTP boundary.
 
+## Exact-source journey follow-up — `80af1003`
+
+`AngularFeeSettlementJourneyTests.ScopedFinancePreparesReviewsAndSettlesAdvanceWithoutCommercialAccess` passed 1/1 on exact HEAD `80af10032c3c41f69f9e70802c60dc3081b75049` using Playwright and the isolated PostgreSQL test database. This verified the supported finance preparation/review/advance-settlement browser journey after updating its locator to the current visible payment-details label. The source behavior and API contracts were unchanged by this test-only follow-up. This is local focused browser evidence, not full E2E-suite or production acceptance.
+
+Fast CI run [45973272824](https://github.com/nirzaf/AuditSphere/actions/runs/45973272824) is queued for `80af1003`; no exact-source full release-verification run is recorded. Historical `469a7cd9` results above remain attributed to that source.
+
 ## Remaining gates
 
 - Exact-SHA CI for `469a7cd9` is pending; no full-suite claim is made.
