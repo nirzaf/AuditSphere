@@ -34,26 +34,45 @@ public sealed class AccountingEvidenceActionsApiTests
     var lookup=await Read(staff,Url("ECL",id)+"/receipts/"+request.RequestId+"?requestHash="+receipt.GetProperty("requestHash").GetString());Assert.True(lookup.GetProperty("found").GetBoolean());
     var otherActor=await Read(reviewer,Url("ECL",id)+"/receipts/"+request.RequestId+"?requestHash="+receipt.GetProperty("requestHash").GetString());Assert.False(otherActor.GetProperty("found").GetBoolean());
     var self=await Read(staff,Url("ECL",id)+"/actions");Assert.False((await Preview(staff,csrf,"ECL",id,Review(self,"APPROVED"))).GetProperty("canProceed").GetBoolean());
-    var independent=await Read(reviewer,Url("ECL",id)+"/actions");Assert.Contains(independent.GetProperty("decisions").EnumerateArray(),x=>x.GetString()=="APPROVED");
-    var reviewed=await Execute(reviewer,reviewerCsrf,"ECL",id,Review(independent,"APPROVED"));Assert.Equal("APPROVED",reviewed.GetProperty("decision").GetString());
-    var final=await Read(reviewer,Url("ECL",id)+"/actions");Assert.False(final.GetProperty("canReview").GetBoolean());Assert.False(final.GetProperty("canLink").GetBoolean());Assert.Equal(2,final.GetProperty("count").GetInt32());
-    await using var db=new AuditSphereDbContext(pg.Options);Assert.Equal(1,await db.AccountingEvidenceAuditLinks.CountAsync(x=>x.EvidenceId==id));
-    Assert.Equal(2,await db.AccountingEvidenceActions.CountAsync(x=>x.EvidenceId==id));
-    var action=await db.AccountingEvidenceActions.SingleAsync(x=>x.EvidenceId==id&&x.Action=="REVIEW");
-    Assert.Contains("7.006173",action.BeforeJson);Assert.Contains("APPROVED",action.AfterJson);Assert.Equal(f.Reviewer.Id,action.ActorId);
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE accounting_evidence_actions SET reason='altered' WHERE id={action.Id}"));
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM accounting_evidence_actions WHERE id={action.Id}"));
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE ecl_assessments SET management_overlay=999 WHERE id={id}"));
-    var linkedId=receipt.GetProperty("linkId").GetGuid();
-    var otherTarget=Guid.NewGuid();
-    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE accounting_evidence_audit_links SET evidence_id={otherTarget} WHERE id={linkedId}"));
+    var independent=await Read(reviewer,Url("ECL",id)+"/actions");
+    Assert.False(independent.GetProperty("canReview").GetBoolean());Assert.Empty(independent.GetProperty("decisions").EnumerateArray());
+    var ecl=await Read(reviewer,Url("ECL",id));var reconciliationId=ecl.GetProperty("source").GetProperty("reconciliationId").GetGuid();
+    var reconciliation=await Read(reviewer,$"/api/ui/accounting/reconciliations/{reconciliationId}");
+    Assert.Contains(reconciliation.GetProperty("blockers").EnumerateArray(),x=>x.GetString()!.Contains("distinct independently evidenced control population",StringComparison.Ordinal));
+    Assert.False((await Preview(reviewer,reviewerCsrf,"ECL",id,Review(independent,"APPROVED"))).GetProperty("canProceed").GetBoolean());
+    using(var refused=await Post(reviewer,reviewerCsrf,Url("ECL",id)+"/actions",Review(independent,"APPROVED") with{Reviewed=true}))
+      Assert.Equal(HttpStatusCode.BadRequest,refused.StatusCode);
+    var final=await Read(reviewer,Url("ECL",id)+"/actions");Assert.False(final.GetProperty("canReview").GetBoolean());Assert.True(final.GetProperty("canLink").GetBoolean());Assert.Equal(1,final.GetProperty("count").GetInt32());
     foreach(var kind in new[]{"INVENTORY","SPECIALIST","ANALYTICAL"})
     {
       var target=seed.Evidence[kind];var fields=await Read(staff,Url(kind,target)+"/actions");var eligible=await Read(staff,Url(kind,target)+"/procedure-results");
       await Execute(staff,csrf,kind,target,Link(fields,eligible.GetProperty("rows")[0]));
-      var state=await Read(reviewer,Url(kind,target)+"/actions");await Execute(reviewer,reviewerCsrf,kind,target,Review(state,"APPROVED"));
-      Assert.False((await Read(reviewer,Url(kind,target)+"/actions")).GetProperty("canReview").GetBoolean());
+      var state=await Read(reviewer,Url(kind,target)+"/actions");
+      if(kind=="INVENTORY")
+      {
+        Assert.False(state.GetProperty("canReview").GetBoolean());Assert.Empty(state.GetProperty("decisions").EnumerateArray());
+        Assert.False((await Preview(reviewer,reviewerCsrf,kind,target,Review(state,"APPROVED"))).GetProperty("canProceed").GetBoolean());
+        using var refused=await Post(reviewer,reviewerCsrf,Url(kind,target)+"/actions",Review(state,"APPROVED") with{Reviewed=true});
+        Assert.Equal(HttpStatusCode.BadRequest,refused.StatusCode);
+      }
+      else
+      {
+        await Execute(reviewer,reviewerCsrf,kind,target,Review(state,"APPROVED"));
+        var finalState=await Read(reviewer,Url(kind,target)+"/actions");
+        Assert.False(finalState.GetProperty("canReview").GetBoolean());Assert.False(finalState.GetProperty("canLink").GetBoolean());
+      }
     }
+    await using var db=new AuditSphereDbContext(pg.Options);Assert.Equal(1,await db.AccountingEvidenceAuditLinks.CountAsync(x=>x.EvidenceId==id));
+    Assert.Equal(1,await db.AccountingEvidenceActions.CountAsync(x=>x.EvidenceId==id));
+    Assert.Empty(await db.AccountingEvidenceActions.Where(x=>x.EvidenceId==id&&x.Action=="REVIEW").ToListAsync());
+    var linkAction=await db.AccountingEvidenceActions.SingleAsync(x=>x.EvidenceId==id&&x.Action=="LINK");Assert.Contains("7.006173",linkAction.BeforeJson);
+    var action=await db.AccountingEvidenceActions.SingleAsync(x=>x.EvidenceId==seed.Evidence["SPECIALIST"]&&x.Action=="REVIEW");
+    Assert.Contains("APPROVED",action.AfterJson);Assert.Equal(f.Reviewer.Id,action.ActorId);
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE accounting_evidence_actions SET reason='altered' WHERE id={action.Id}"));
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM accounting_evidence_actions WHERE id={action.Id}"));
+    var linkedId=receipt.GetProperty("linkId").GetGuid();
+    var otherTarget=Guid.NewGuid();
+    await Assert.ThrowsAsync<PostgresException>(()=>db.Database.ExecuteSqlInterpolatedAsync($"UPDATE accounting_evidence_audit_links SET evidence_id={otherTarget} WHERE id={linkedId}"));
   }
 
   [Fact]
