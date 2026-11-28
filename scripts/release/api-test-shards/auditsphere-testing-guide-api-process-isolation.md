@@ -21,8 +21,10 @@ Partitioning canonicalizes actual discovered collection memberships, keeps each
 collection (and thus class/collection fixtures) together, and permits at most 24
 rows and three collections per shard. The statement review, GL completeness and
 accounting analysis review collections run separately after their combined shard
-exceeded the RSS limit. The GL completeness migration fixture has its own shard
-because it loads both schema versions. An oversized collection fails the run.
+exceeded the RSS limit. The dedicated GL completeness shard also exceeded the
+limit when it ran the historical-schema migration with the current-schema cases.
+The migration case loads both schema versions and now lives in a separate test
+class and process. An oversized collection fails the run.
 Every discovered ID must be assigned exactly once.
 Only one shard process runs at a time, avoiding cross-process database-template
 initialization races. Each fresh process rediscovers and exactly matches the frozen

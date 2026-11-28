@@ -61,15 +61,15 @@ class ProtocolTests(unittest.TestCase):
             shards.partition([])
 
     def test_measured_memory_sensitive_collections_are_isolated_without_losing_cases(self):
-        heavy = sorted(shards.ISOLATED_API_CLASSES)
+        api = "AuditSphereOps.Api.Tests."
         rows = [
             {"id": "ordinary1", "collection": "a", "className": "Ordinary"},
-            {"id": "accounting", "collection": "b", "className": heavy[0]},
+            {"id": "accounting", "collection": "b", "className": api + "AccountingAnalysisReviewApiTests"},
             {"id": "fixturePeer", "collection": "b", "className": "FixturePeer"},
             {"id": "ordinary2", "collection": "c", "className": "Ordinary2"},
-            {"id": "ledger", "collection": "d", "className": heavy[1]},
-            {"id": "migration", "collection": "e", "className": heavy[2]},
-            {"id": "statement", "collection": "f", "className": "AuditSphereOps.Api.Tests.StatementReviewApiTests"},
+            {"id": "ledger", "collection": "d", "className": api + "GeneralLedgerCompletenessApiTests"},
+            {"id": "migration", "collection": "e", "className": api + "GeneralLedgerCompletenessMigrationApiTests"},
+            {"id": "statement", "collection": "f", "className": api + "StatementReviewApiTests"},
         ]
         expected = [["ordinary1", "ordinary2"], ["accounting", "fixturePeer"], ["ledger"], ["migration"], ["statement"]]
         self.assertEqual(expected, shards.partition(rows))
