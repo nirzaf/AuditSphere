@@ -28,9 +28,10 @@ if [[ ! -x "$psql_bin" || ! -x "$pg_dump_bin" || ! -x "$pg_restore_bin" ]]; then
   exit 1
 fi
 
+postgres_19_banner='^[^[:space:]]+[[:space:]]+\(PostgreSQL\)[[:space:]]+19\.[0-9]+([[:space:]]|$)'
 for tool in "$psql_bin" "$pg_dump_bin" "$pg_restore_bin"; do
-  tool_version="$("$tool" --version | awk '{print $NF}')"
-  if [[ "${tool_version%%.*}" != 19 ]]; then
+  tool_version="$(LC_ALL=C "$tool" --version)"
+  if [[ ! "$tool_version" =~ $postgres_19_banner ]]; then
     echo "PostgreSQL 19 client tools are required; $tool reports $tool_version." >&2
     exit 1
   fi

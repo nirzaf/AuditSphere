@@ -248,6 +248,33 @@ class OperationalEvidenceTests(unittest.TestCase):
             "findings": [],
         }
 
+    @unittest.skipUnless(os.name == "posix", "restore drill requires Bash")
+    def test_restore_drill_validates_the_client_major_before_database_access(self) -> None:
+        script = ROOT / "scripts" / "db" / "restore-drill.sh"
+        stub = (
+            '#!/bin/sh\n'
+            'if [ "$1" = "--version" ]; then\n'
+            '  printf "%s (PostgreSQL) %s\\n" "${0##*/}" "$RESTORE_TEST_CLIENT_VERSION"\n'
+            '  exit 0\n'
+            'fi\n'
+            'echo "synthetic database boundary reached" >&2\n'
+            'exit 27\n'
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            for name in ("psql", "pg_dump", "pg_restore"):
+                tool = Path(directory) / name
+                tool.write_text(stub)
+                tool.chmod(0o700)
+            for version, allowed in (("19.0 (Homebrew)", True), ("19.0", True), ("18.6 (vendor 19.0)", False)):
+                with self.subTest(version=version):
+                    result = subprocess.run(
+                        ["bash", str(script)], cwd=ROOT,
+                        env={**os.environ, "PGSQL_HOME": directory, "RESTORE_TEST_CLIENT_VERSION": version},
+                        capture_output=True, text=True, timeout=10, check=False,
+                    )
+                    self.assertEqual(27 if allowed else 1, result.returncode, result.stderr)
+                    self.assertEqual(allowed, "synthetic database boundary reached" in result.stderr)
+
     def test_local_restore_export_requires_safe_path_hash_and_exact_source(self) -> None:
         commit = "a" * 40
         timestamp = "2026-11-28T01:00:00Z"
