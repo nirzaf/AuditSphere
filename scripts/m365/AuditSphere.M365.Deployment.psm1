@@ -436,7 +436,7 @@ function Get-AuditSphereDeploymentSettings($Plan, $Model, $SourceFiles, [string[
   foreach ($serviceName in $services.Keys) {
     $service = Get-DeploymentService $Model ([string]$serviceName)
     $image = Get-DeploymentString $service 'image'
-    if ($image -match ':(?<sha>[0-9a-fA-F]{40})$') { $images.Add($Matches.sha.ToLowerInvariant()) }
+    if ($image -match ':(?<sha>[0-9a-fA-F]{40})(?:@sha256:[0-9a-f]{64})?$') { $images.Add($Matches.sha.ToLowerInvariant()) }
   }
   if ($images.Count -gt 0 -and @($images | Select-Object -Unique).Count -eq 1) { $settings.declaredImageTagSha = $images[0] }
 
@@ -564,7 +564,7 @@ function New-AuditSpherePlannedDeploymentEvidence($SourceFiles, [string] $Expect
   }
 }
 
-function Get-AuditSphereDeploymentChecks($Plan, $Model, [string[]] $EnabledCapabilities = @(), [string] $OperatorDeclaredEnvironment = $null, $SourceEvidence = $null) {
+function Get-AuditSphereDeploymentChecks($Plan, $Model, [string[]] $EnabledCapabilities = @(), [string] $OperatorDeclaredEnvironment = $null, $SourceEvidence = $null, $VerifiedImageReferences = $null) {
   $checks = [System.Collections.Generic.List[object]]::new()
   $add = {
     param([string]$Id, [string]$State, [string]$Expected, [string]$Observed, [string]$ErrorCode)
@@ -618,6 +618,7 @@ function Get-AuditSphereDeploymentChecks($Plan, $Model, [string[]] $EnabledCapab
   & $add 'required-services-present' $(if ($missingServices.Count -eq 0) { 'PASS' } else { 'FAIL' }) 'core services and selected capability workers are present' $(if ($missingServices.Count -eq 0) { 'all required services present' } else { 'one or more required services missing' }) 'compose-service-set-mismatch'
 
   $imageFailures = 0
+  $immutableImageFailures = 0
   $imageServices = @('api', 'migrate', 'worker-general', 'worker-processing', 'worker-records')
   foreach ($optionalWorker in @('worker-mail', 'worker-pbc', 'worker-client-sites')) {
     if ($null -ne (Get-DeploymentService $Model $optionalWorker)) { $imageServices += $optionalWorker }
@@ -632,12 +633,16 @@ function Get-AuditSphereDeploymentChecks($Plan, $Model, [string[]] $EnabledCapab
   foreach ($serviceName in @($imageServices | Sort-Object -Unique)) {
     $service = Get-DeploymentService $Model $serviceName
     $image = Get-DeploymentString $service 'image'
-    $prefix = if ($serviceName -eq 'api') { 'ghcr.io/nirzaf/auditsphere-acceptance-api' } elseif ($serviceName -eq 'migrate') { 'ghcr.io/nirzaf/auditsphere-acceptance-migrations' } else { 'ghcr.io/nirzaf/auditsphere-acceptance-worker' }
+    $imageKey = if ($serviceName -eq 'api') { 'api' } elseif ($serviceName -eq 'migrate') { 'migrations' } else { 'worker' }
+    $prefix = "ghcr.io/nirzaf/auditsphere-acceptance-$imageKey"
+    if ($null -ne $VerifiedImageReferences -and $image -cne $VerifiedImageReferences[$imageKey]) { $immutableImageFailures++ }
     if (-not $image -or -not $image.StartsWith(($prefix + ':'), [System.StringComparison]::OrdinalIgnoreCase)) { $imageFailures++; continue }
     $tag = $image.Substring($prefix.Length + 1)
-    if ($tag -cnotmatch '^[0-9a-fA-F]{40}$' -or $tag -ine $planSha) { $imageFailures++ }
+    if (-not ($tag -cmatch '^(?<source>[0-9a-fA-F]{40})(?:@sha256:[0-9a-f]{64})?$') -or $Matches.source -ine $planSha) { $imageFailures++ }
   }
-  & $add 'declared-image-tags-match-plan' $(if ($imageFailures -eq 0) { 'PASS' } else { 'FAIL' }) 'required image names and tags declare the plan SHA' $(if ($imageFailures -eq 0) { 'declared tags match; artifact provenance remains unobserved' } else { 'declared image tag binding mismatch' }) 'deployment-image-tag-mismatch'
+  & $add 'declared-image-tags-match-plan' $(if ($imageFailures -eq 0) { 'PASS' } else { 'FAIL' }) 'required image names and tags declare the plan SHA' $(if ($imageFailures -eq 0) { 'declared tags match' } else { 'declared image tag binding mismatch' }) 'deployment-image-tag-mismatch'
+  $imageState = if ($null -eq $VerifiedImageReferences) { 'MISSING' } elseif ($immutableImageFailures -eq 0) { 'PASS' } else { 'FAIL' }
+  & $add 'immutable-images-match-verified-manifest' $imageState 'every application image matches the verified immutable reference' $(if ($imageState -eq 'PASS') { 'all declared references match' } elseif ($imageState -eq 'MISSING') { 'verified image manifest required' } else { 'declared immutable reference mismatch' }) 'deployment-image-digest-mismatch'
 
   $apiEnv = Get-DeploymentServiceEnvironment $Model 'api'
   $apiEnvironment = Get-DeploymentString $apiEnv 'ASPNETCORE_ENVIRONMENT'

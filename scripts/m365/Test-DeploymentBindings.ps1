@@ -15,6 +15,10 @@ param(
   [string] $ExpectedPlanSha256,
   [string] $IsolationOverridePath,
   [string] $ConfigJsonPath,
+  [string] $ImageManifestPath,
+  [string] $ExpectedImageManifestSha256,
+  [long] $ExpectedImageWorkflowRunId,
+  [int] $ExpectedImageWorkflowRunAttempt,
   [ValidateSet('Development', 'Acceptance', 'Production')] [string] $TargetEnvironment,
   [string] $EnabledCapability,
   [Parameter(Mandatory)] [string] $OutputPath
@@ -90,7 +94,22 @@ try {
   }
 
   $model = Read-AuditSphereSanitizedComposeConfig -Path $ConfigJsonPath
-  $deploymentChecks = Get-AuditSphereDeploymentChecks -Plan $plan -Model $model -EnabledCapabilities $enabledCapabilities -OperatorDeclaredEnvironment $TargetEnvironment -SourceEvidence $sourceEvidence
+  $verifiedImages = $null
+  if ($ImageManifestPath -or $ExpectedImageManifestSha256 -or $ExpectedImageWorkflowRunId -or $ExpectedImageWorkflowRunAttempt) {
+    if (-not $ImageManifestPath -or $ExpectedImageManifestSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        $ExpectedImageWorkflowRunId -lt 1 -or $ExpectedImageWorkflowRunAttempt -lt 1) {
+      throw 'deployment-image-manifest-invalid'
+    }
+    $verifier = Join-Path $repositoryRoot 'scripts/release/hostinger_image_manifest.py'
+    $references = & python3 $verifier verify --manifest $ImageManifestPath --manifest-sha256 $ExpectedImageManifestSha256 `
+      --repository 'nirzaf/AuditSphere' --source-sha $plan.repositoryCommit --run-id $ExpectedImageWorkflowRunId `
+      --run-attempt $ExpectedImageWorkflowRunAttempt --emit-references 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $references) { throw 'deployment-image-manifest-invalid' }
+    $verifiedImages = $references | ConvertFrom-Json -AsHashtable
+  } else {
+    $result.blockedPrerequisites += 'deployment.verified-image-manifest-not-provided'
+  }
+  $deploymentChecks = Get-AuditSphereDeploymentChecks -Plan $plan -Model $model -EnabledCapabilities $enabledCapabilities -OperatorDeclaredEnvironment $TargetEnvironment -SourceEvidence $sourceEvidence -VerifiedImageReferences $verifiedImages
   foreach ($check in $deploymentChecks) {
     if ($check.id -eq 'exact-checkout-source-binding') { continue }
     Add-M365Check $result $check.id $check.state $check.expected $check.observed $check.errorCode
@@ -98,6 +117,16 @@ try {
   $settings = Get-AuditSphereDeploymentSettings -Plan $plan -Model $model -SourceFiles $sourceFiles -EnabledCapabilities $enabledCapabilities -OperatorDeclaredEnvironment $TargetEnvironment -SourceEvidence $sourceEvidence
   $settings['sanitizedConfigSha256'] = Get-AuditSphereDeploymentArtifactSha256 $ConfigJsonPath
   $settings['evidenceLevel'] = 'SANITIZED_COMPOSE_MODEL_ONLY'
+  if ($null -ne $verifiedImages) {
+    $settings['artifactProvenanceState'] = 'VERIFIED_IMAGE_MANIFEST'
+    $settings['artifactProvenance'] = [ordered]@{
+      manifestSha256 = $ExpectedImageManifestSha256
+      sourceSha = $plan.repositoryCommit
+      workflowRunId = $ExpectedImageWorkflowRunId
+      workflowRunAttempt = $ExpectedImageWorkflowRunAttempt
+      immutableImageReferences = $verifiedImages
+    }
+  }
   $result['deploymentEvidence'] = $settings
   $result.blockedPrerequisites += @(
     'runtime.environment-not-observed',
@@ -122,6 +151,6 @@ catch {
     $errorCode = $_.Exception.Message
   }
   $result.errorCode = $errorCode
-  $status = if ($errorCode -match 'compose-config-not-sanitized|credential-reference-unsafe|override-not-approved|enabled-capability-selection-invalid') { 'INVALID_OR_UNSAFE' } else { 'INCOMPLETE_EVIDENCE' }
+  $status = if ($errorCode -match 'compose-config-not-sanitized|credential-reference-unsafe|override-not-approved|enabled-capability-selection-invalid|deployment-image-manifest-invalid') { 'INVALID_OR_UNSAFE' } else { 'INCOMPLETE_EVIDENCE' }
   exit (Complete-M365Result $result $status $OutputPath)
 }

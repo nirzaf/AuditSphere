@@ -34,7 +34,7 @@ services:
 
   migrate:
     profiles: ["migration"]
-    image: ghcr.io/nirzaf/auditsphere-acceptance-migrations:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    image: ${MIGRATIONS_IMAGE:?Set MIGRATIONS_IMAGE from the verified image manifest}
     restart: "no"
     environment:
       ConnectionStrings__AuditSphere: "Host=db;Port=5432;Database=auditsphere;Username=auditsphere_migrator;Password=${AUDITSPHERE_MIGRATOR_DB_PASSWORD:?Set AUDITSPHERE_MIGRATOR_DB_PASSWORD in .env}"
@@ -45,7 +45,7 @@ services:
       - acceptance
 
   api:
-    image: ghcr.io/nirzaf/auditsphere-acceptance-api:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    image: ${API_IMAGE:?Set API_IMAGE from the verified image manifest}
     restart: unless-stopped
     init: true
     environment:
@@ -158,7 +158,7 @@ services:
         ipv4_address: 172.29.91.10
 
   worker-general:
-    image: ghcr.io/nirzaf/auditsphere-acceptance-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    image: ${WORKER_IMAGE:?Set WORKER_IMAGE from the verified image manifest}
     restart: unless-stopped
     init: true
     environment: &worker_environment
@@ -181,7 +181,7 @@ services:
       - acceptance
 
   worker-processing:
-    image: ghcr.io/nirzaf/auditsphere-acceptance-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    image: ${WORKER_IMAGE:?Set WORKER_IMAGE from the verified image manifest}
     restart: unless-stopped
     init: true
     environment:
@@ -197,7 +197,7 @@ services:
       - acceptance
 
   worker-records:
-    image: ghcr.io/nirzaf/auditsphere-acceptance-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    image: ${WORKER_IMAGE:?Set WORKER_IMAGE from the verified image manifest}
     restart: unless-stopped
     init: true
     environment:
@@ -214,7 +214,7 @@ services:
 
   worker-mail:
     profiles: ["m365-mail"]
-    image: ghcr.io/nirzaf/auditsphere-acceptance-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    image: ${WORKER_IMAGE:?Set WORKER_IMAGE from the verified image manifest}
     restart: unless-stopped
     init: true
     environment:
@@ -258,7 +258,7 @@ services:
 
   worker-pbc:
     profiles: ["m365-pbc"]
-    image: ghcr.io/nirzaf/auditsphere-acceptance-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    image: ${WORKER_IMAGE:?Set WORKER_IMAGE from the verified image manifest}
     restart: unless-stopped
     init: true
     environment:
@@ -283,7 +283,7 @@ services:
       - acceptance
 
   worker-client-sites:
-    image: ghcr.io/nirzaf/auditsphere-acceptance-worker:${RELEASE_TAG:?Set RELEASE_TAG in .env}
+    image: ${WORKER_IMAGE:?Set WORKER_IMAGE from the verified image manifest}
     restart: unless-stopped
     init: true
     environment:

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -135,6 +138,33 @@ class HostingerImageManifestTests(unittest.TestCase):
                     attempt=ATTEMPT,
                 )
 
+    def test_reference_export_binds_the_artifact_bytes_and_rejects_ambiguous_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            records_dir = root / "records"
+            self.create_records(records_dir)
+            manifest = image_manifest.assemble_manifest(records_dir=records_dir, repository=REPOSITORY,
+                source_sha=SOURCE_SHA, run_id=RUN_ID, attempt=ATTEMPT)
+            path = root / "manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            expected = hashlib.sha256(path.read_bytes()).hexdigest()
+            command = [sys.executable, image_manifest.__file__, "verify", "--manifest", str(path),
+                "--repository", REPOSITORY, "--source-sha", SOURCE_SHA, "--run-id", str(RUN_ID),
+                "--run-attempt", str(ATTEMPT), "--emit-references"]
+            verified = subprocess.run(command + ["--manifest-sha256", expected], capture_output=True, text=True)
+            self.assertEqual(0, verified.returncode, verified.stderr)
+            self.assertEqual({key: image["immutableReference"] for key, image in manifest["images"].items()},
+                             json.loads(verified.stdout))
+
+            text = path.read_text(encoding="utf-8")
+            path.write_text('{"schemaVersion": 1, ' + text[1:], encoding="utf-8")
+            changed = subprocess.run(command + ["--manifest-sha256", expected], capture_output=True, text=True)
+            self.assertEqual(2, changed.returncode)
+            self.assertIn("artifact digest", changed.stderr)
+            actual = hashlib.sha256(path.read_bytes()).hexdigest()
+            ambiguous = subprocess.run(command + ["--manifest-sha256", actual], capture_output=True, text=True)
+            self.assertEqual(2, ambiguous.returncode)
+            self.assertIn("duplicate JSON field", ambiguous.stderr)
 
 if __name__ == "__main__":
     unittest.main()

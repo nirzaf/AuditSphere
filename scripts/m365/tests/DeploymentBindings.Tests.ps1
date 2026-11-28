@@ -225,6 +225,55 @@ try {
   Assert-That 'verify-does-not-infer-egress-policy' (@($verifyResult.checks | Where-Object { $_.id -eq 'role-specific-outbound-host-policy' -and $_.state -eq 'MISSING' }).Count -eq 1)
   Assert-That 'verify-selected-plan-identities-match' (@($verifyResult.checks | Where-Object { $_.id -eq 'enabled-capability-plan-client-id-bindings' -and $_.state -eq 'PASS' }).Count -eq 1)
   Assert-That 'verify-planned-but-unselected-groups-not-required' (@($verifyResult.checks | Where-Object { $_.id -eq 'enabled-capability-credential-settings' -and $_.state -eq 'PASS' }).Count -eq 1 -and @($evidence.operatorDeclaredEnabledCapabilities).Count -eq 2)
+  Assert-That 'tag-only-preview-missing-immutable-evidence' (@($verifyResult.checks | Where-Object { $_.id -eq 'immutable-images-match-verified-manifest' -and $_.state -eq 'MISSING' }).Count -eq 1)
+
+  $manifestHeader = @{
+    schemaVersion = 1; repository = 'nirzaf/AuditSphere'; workflow = '.github/workflows/hostinger-acceptance-images.yml'
+    workflowRunId = 91; workflowRunAttempt = 2; sourceSha = $headSha; platform = 'linux/amd64'
+  }
+  $manifestImages = @{}
+  foreach ($kind in @('api', 'worker', 'migrations')) {
+    $imageName = "auditsphere-acceptance-$kind"
+    $tagged = "ghcr.io/nirzaf/${imageName}:$headSha"
+    $digest = 'sha256:' + ('a' * 64)
+    $manifestImages[$kind] = $manifestHeader + @{
+      imageKey = $kind; imageName = $imageName; manifestDigest = $digest
+      taggedReference = $tagged; immutableReference = "$tagged@$digest"
+    }
+  }
+  $manifestPath = Join-Path $work 'synthetic-image-manifest.json'
+  ($manifestHeader + @{ images = $manifestImages }) | ConvertTo-Json -Depth 10 |
+    Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
+  $manifestSha = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  $manifestArgs = @('-ImageManifestPath', $manifestPath, '-ExpectedImageManifestSha256', $manifestSha,
+    '-ExpectedImageWorkflowRunId', '91', '-ExpectedImageWorkflowRunAttempt', '2')
+  $immutableModel = New-SyntheticComposeModel $headSha
+  foreach ($serviceName in @($immutableModel.services.Keys)) {
+    $key = if ($serviceName -eq 'api') { 'api' } elseif ($serviceName -eq 'migrate') { 'migrations' } elseif ($serviceName.StartsWith('worker-')) { 'worker' }
+    if ($key) { $immutableModel.services[$serviceName].image = $manifestImages[$key].immutableReference }
+  }
+  $immutableConfig = Join-Path $work 'compose-immutable.json'
+  $immutableModel | ConvertTo-Json -Depth 64 | Set-Content -LiteralPath $immutableConfig -Encoding utf8NoBOM
+  $immutableOut = Join-Path $work 'immutable-verify.json'
+  $immutableExit = Invoke-EntryPoint 'Test-DeploymentBindings' ((Get-VerifyArguments $verifyPlanPath $immutableConfig $immutableOut) + $manifestArgs)
+  $immutableResult = Read-ResultJson $immutableOut
+  Assert-That 'manifest-bound-declared-images-pass-with-runtime-unobserved' ($immutableExit -eq 8 -and
+    $immutableResult.deploymentEvidence.artifactProvenanceState -eq 'VERIFIED_IMAGE_MANIFEST' -and
+    $immutableResult.deploymentEvidence.artifactProvenance.manifestSha256 -ceq $manifestSha -and
+    $null -eq $immutableResult.deploymentEvidence.runtimeEnvironment -and $immutableResult.networkCalls -eq 0 -and
+    @($immutableResult.checks | Where-Object { $_.id -eq 'immutable-images-match-verified-manifest' -and $_.state -eq 'PASS' }).Count -eq 1)
+  $immutableModel.services['worker-client-sites'].image = $manifestImages.worker.taggedReference + '@sha256:' + ('b' * 64)
+  $immutableModel | ConvertTo-Json -Depth 64 | Set-Content -LiteralPath $immutableConfig -Encoding utf8NoBOM
+  $mismatchOut = Join-Path $work 'immutable-mismatch.json'
+  $mismatchExit = Invoke-EntryPoint 'Test-DeploymentBindings' ((Get-VerifyArguments $verifyPlanPath $immutableConfig $mismatchOut) + $manifestArgs)
+  Assert-That 'same-source-optional-worker-digest-drift-denied' ($mismatchExit -eq 2 -and
+    @((Read-ResultJson $mismatchOut).checks | Where-Object { $_.errorCode -eq 'deployment-image-digest-mismatch' -and $_.state -eq 'FAIL' }).Count -eq 1)
+  $manifestArgs[-1] = '1'
+  $staleAttemptOut = Join-Path $work 'image-manifest-stale-attempt.json'
+  $staleAttemptExit = Invoke-EntryPoint 'Test-DeploymentBindings' ((Get-VerifyArguments $verifyPlanPath $immutableConfig $staleAttemptOut) + $manifestArgs)
+  Assert-That 'same-source-stale-image-attempt-denied' ($staleAttemptExit -eq 4 -and
+    (Read-ResultJson $staleAttemptOut).errorCode -eq 'deployment-image-manifest-invalid')
+
   $apiSitesKeyModel = New-SyntheticComposeModel $headSha
   $apiSitesKeyModel.services.api.environment.ClientSites__SigningKey = '[REDACTED:CLIENT_SITES_SIGNING_KEY]'
   $apiSitesKeyPath = Join-Path $work 'compose-api-client-sites-key.json'

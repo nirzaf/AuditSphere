@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -37,11 +38,28 @@ def _validate_identity(repository: str, source_sha: str, run_id: int, attempt: i
     return f"ghcr.io/{owner}"
 
 
-def _read_json(path: Path) -> dict[str, Any]:
+def _object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate JSON field: {key}")
+        value[key] = item
+    return value
+
+
+def _read_json(path: Path, expected_sha256: str | None = None) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise ValueError(f"expected a regular JSON file: {path}")
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        if expected_sha256 is None:
+            data = path.read_text(encoding="utf-8")
+        else:
+            with path.open("rb") as stream:
+                raw = stream.read(1024 * 1024 + 1)
+            if len(raw) > 1024 * 1024 or hashlib.sha256(raw).hexdigest() != expected_sha256:
+                raise ValueError("image manifest artifact digest or size mismatch")
+            data = raw.decode("utf-8")
+        value = json.loads(data, object_pairs_hook=_object_without_duplicate_keys)
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"cannot read JSON file {path}: {exc}") from exc
     if not isinstance(value, dict):
@@ -128,7 +146,8 @@ def _validate_image_record(
         "immutableReference": f"{tagged_reference}@{digest}",
     }
     for field, expected_value in expected.items():
-        if record.get(field) != expected_value:
+        actual = record.get(field)
+        if type(actual) is not type(expected_value) or actual != expected_value:
             raise ValueError(f"{image_key} record mismatch for {field}")
     return {
         "imageName": image_name,
@@ -207,7 +226,8 @@ def verify_manifest(
         "platform": PLATFORM,
     }
     for field, expected_value in expected_header.items():
-        if manifest.get(field) != expected_value:
+        actual = manifest.get(field)
+        if type(actual) is not type(expected_value) or actual != expected_value:
             raise ValueError(f"manifest mismatch for {field}")
 
     images = manifest.get("images")
@@ -257,6 +277,8 @@ def _parser() -> argparse.ArgumentParser:
     verify.add_argument("--source-sha", required=True)
     verify.add_argument("--run-id", type=int, required=True)
     verify.add_argument("--run-attempt", type=int, required=True)
+    verify.add_argument("--manifest-sha256", help="require the independently recorded artifact SHA-256")
+    verify.add_argument("--emit-references", action="store_true", help="emit the verified image references as JSON")
     return parser
 
 
@@ -286,7 +308,7 @@ def main(argv: list[str] | None = None) -> int:
             for image_key, image in manifest["images"].items():
                 print(f"{image_key}: {image['immutableReference']}")
         else:
-            manifest = _read_json(args.manifest)
+            manifest = _read_json(args.manifest, expected_sha256=args.manifest_sha256)
             images = verify_manifest(
                 manifest=manifest,
                 repository=args.repository,
@@ -294,7 +316,10 @@ def main(argv: list[str] | None = None) -> int:
                 run_id=args.run_id,
                 attempt=args.run_attempt,
             )
-            print(f"Verified {len(images)} immutable images for {args.source_sha}")
+            if args.emit_references:
+                print(json.dumps({key: record["immutableReference"] for key, record in images.items()}, sort_keys=True))
+            else:
+                print(f"Verified {len(images)} immutable images for {args.source_sha}")
     except (OSError, ValueError) as exc:
         print(f"image manifest error: {exc}", file=sys.stderr)
         return 2

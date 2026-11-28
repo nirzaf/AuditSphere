@@ -33,7 +33,8 @@ These are all inputs interpolated by the checked-in base Hostinger Compose. A pr
 
 | Operator variable | Container/application key or purpose | Value/behavior |
 | --- | --- | --- |
-| `RELEASE_TAG` | API, worker and migration image tag | Approved full source SHA |
+| `RELEASE_TAG` | Source commit used for mail evidence | Approved full source SHA |
+| `API_IMAGE`, `WORKER_IMAGE`, `MIGRATIONS_IMAGE` | Hostinger Acceptance application images | Three exact immutable references from the verified, source-bound image manifest |
 | `DEPLOYMENT_EPOCH` | `Worker:DeploymentEpoch` | Positive rollout fence; coordinate with release procedure |
 | `POSTGRES_PASSWORD` | Database password / connection string | Secret; no terminal/log output |
 | `FIRM_ID` | `Application:FirmId`, `Setup:FirmId`, `Worker:FirmId` | Firm GUID shared by intended installation processes |

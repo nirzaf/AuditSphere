@@ -163,10 +163,24 @@ Run `fallocate` after `mkfs.ext4`; formatting the image can discard preallocated
 2. Build the three `linux/amd64` images from the approved source commit using the GitHub Actions
    workflow `Hostinger acceptance images`. It publishes them to private GitHub Container Registry
    packages. On the VPS, authenticate Docker to `ghcr.io` with a GitHub token that has only
-   `read:packages` access, then use the same full source SHA as `RELEASE_TAG`. Enter the token
-   directly at the VPS terminal prompt; do not place it in `.env`, shell history, chat or the repo.
-   Validate the Compose model with `docker compose config -q` and pull the API, worker and
-   migration images with `docker compose --profile migration pull`.
+   `read:packages` access. Enter the token at the VPS terminal prompt and keep it out of
+   `.env`, source control and shell history. Verify the retained image manifest against
+   the approved source SHA, image workflow run, attempt and manifest JSON SHA-256:
+
+   ```bash
+   python3 scripts/release/hostinger_image_manifest.py verify --manifest "$image_manifest" \
+     --manifest-sha256 "$approved_manifest_sha256" --repository nirzaf/AuditSphere \
+     --source-sha "$approved_source_sha" --run-id "$approved_image_run_id" \
+     --run-attempt "$approved_image_run_attempt" --emit-references
+   ```
+
+   Copy the verified `api`, `worker` and `migrations` values into `API_IMAGE`,
+   `WORKER_IMAGE` and `MIGRATIONS_IMAGE`. Keep `RELEASE_TAG` equal to the approved source
+   SHA for mail evidence. Run `docker compose config -q` and compare the sanitized rendered
+   model using `Test-DeploymentBindings.ps1 -Mode Verify` with the same manifest file,
+   digest, run and attempt. This verifies declarations while deployed runtime acceptance
+   remains separate. An authorized operator can pull the pinned images with
+   `docker compose --profile migration pull` after the deployment prerequisites are met.
 3. Start only PostgreSQL, wait for its healthy status, then run the one-shot migration job:
    `docker compose up -d db`; `docker compose --profile migration run --rm migrate`.
    Application containers never apply schema changes at startup.
