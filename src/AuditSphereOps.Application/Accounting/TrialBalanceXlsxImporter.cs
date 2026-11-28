@@ -84,7 +84,7 @@ public static class TrialBalanceXlsxImporter
         var credit = TrialBalanceCsvImporter.ParseSourceSideAmount(creditText, rowNumber + 1);
         sourceDebit = debit;
         sourceCredit = credit;
-        amount = MoneyPolicy.Normalize(debit - credit);
+        amount = TrialBalanceCsvImporter.ValidateStoredAmount(debit - credit, rowNumber + 1);
       }
       else
         amount = TrialBalanceCsvImporter.ParseAmount(amountText, rowNumber + 1);

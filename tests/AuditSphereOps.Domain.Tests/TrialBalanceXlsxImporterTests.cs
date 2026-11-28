@@ -37,7 +37,47 @@ public sealed class TrialBalanceXlsxImporterTests
     Assert.Throws<InvalidOperationException>(() => TrialBalanceXlsxImporter.Parse(Workbook("Cash", "10.25", macro: true)));
   }
 
-  private static byte[] Workbook(string accountName, string amount, bool macro = false)
+  [Theory]
+  [Trait("Profile", "Unit")]
+  [InlineData("10000000000000", "9999999999999.999999", "amount exceeds the supported storage range.")]
+  [InlineData("9999999999999.999999", "10000000000000", "amount exceeds the supported storage range.")]
+  [InlineData("10000000000000", "10000000000000", "amount exceeds the supported storage range.")]
+  [InlineData("1.0000001", "1", "amount exceeds 6 decimal places; no silent rounding.")]
+  [InlineData("1", "1.0000001", "amount exceeds 6 decimal places; no silent rounding.")]
+  public void SourceComponents_AreCheckedBeforeNetting(string debit, string credit, string error)
+  {
+    var bytes = Workbook([
+      ["AccountCode", "AccountName", "Debit", "Credit", "Currency", "Entity", "MappingCode"],
+      ["00100", "Cash", debit, credit, "QAR", "ENTITY-A", "ASSET"]]);
+
+    var exception = Assert.Throws<InvalidOperationException>(() =>
+      TrialBalanceXlsxImporter.Parse(bytes, TrialBalanceImportProfile.DebitCreditV1));
+    Assert.Equal($"Row 2: {error}", exception.Message);
+  }
+
+  [Fact]
+  [Trait("Profile", "Unit")]
+  public void ExactSourceLimits_PreserveBothSignsAndComponents()
+  {
+    var bytes = Workbook([
+      ["AccountCode", "AccountName", "Debit", "Credit", "Currency", "Entity", "MappingCode"],
+      ["00100", "Cash", "9999999999999.999999", "0", "QAR", "ENTITY-A", "ASSET"],
+      ["00200", "Equity", "0", "9999999999999.999999", "QAR", "ENTITY-A", "EQUITY"]]);
+    var parsed = TrialBalanceXlsxImporter.Parse(bytes, TrialBalanceImportProfile.DebitCreditV1);
+
+    Assert.Equal(new[]
+    {
+      new TbImportRow("00100", "Cash", 9_999_999_999_999.999999m, "QAR", "ENTITY-A", "ASSET", 9_999_999_999_999.999999m, 0m),
+      new TbImportRow("00200", "Equity", -9_999_999_999_999.999999m, "QAR", "ENTITY-A", "EQUITY", 0m, 9_999_999_999_999.999999m)
+    }, parsed.Rows);
+    Assert.True(TrialBalanceCalculator.Parse(parsed.Rows).Balanced);
+  }
+
+  private static byte[] Workbook(string accountName, string amount, bool macro = false) => Workbook([
+    ["AccountCode", "AccountName", "NetClosingBalance", "Currency", "Entity", "MappingCode"],
+    ["00100", accountName, amount, "QAR", "ENTITY-A", "ASSET"]], macro);
+
+  internal static byte[] Workbook(IReadOnlyList<IReadOnlyList<string>> rows, bool macro = false)
   {
     using var stream = new MemoryStream();
     using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
@@ -62,8 +102,10 @@ public sealed class TrialBalanceXlsxImporterTests
         """);
       Add(archive, "xl/worksheets/sheet1.xml", $"""
         <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>
-          <row r="1">{Inline("A1", "AccountCode")}{Inline("B1", "AccountName")}{Inline("C1", "NetClosingBalance")}{Inline("D1", "Currency")}{Inline("E1", "Entity")}{Inline("F1", "MappingCode")}</row>
-          <row r="2">{Inline("A2", "00100")}{Inline("B2", accountName)}<c r="C2"><v>{amount}</v></c>{Inline("D2", "QAR")}{Inline("E2", "ENTITY-A")}{Inline("F2", "ASSET")}</row>
+          {string.Join("", rows.Select((row, r) => $"<row r=\"{r + 1}\">" + string.Join("", row.Select((value, c) =>
+            r > 0 && rows[0][c] is "NetClosingBalance" or "Debit" or "Credit"
+              ? $"<c r=\"{(char)('A' + c)}{r + 1}\"><v>{value}</v></c>"
+              : Inline($"{(char)('A' + c)}{r + 1}", value))) + "</row>"))}
         </sheetData></worksheet>
         """);
       if (macro)

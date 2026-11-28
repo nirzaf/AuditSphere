@@ -25,6 +25,22 @@ public sealed class TrialBalanceCsvParserTests
 
   [Theory]
   [Trait("Profile", "Unit")]
+  [InlineData("10000000000000", "amount exceeds the supported storage range.")]
+  [InlineData("-10000000000000", "amount exceeds the supported storage range.")]
+  [InlineData("0.0000001", "amount exceeds 6 decimal places; no silent rounding.")]
+  public void StoredAmountFailures_PreserveLogicalRowIdentity(string amount, string error)
+  {
+    var opposite = (-decimal.Parse(amount, System.Globalization.CultureInfo.InvariantCulture))
+      .ToString(System.Globalization.CultureInfo.InvariantCulture);
+    var csv = CsvHeader + "\n001,Zero,0,QAR,DEMO,\n" +
+      $"002,Cash,{amount},QAR,DEMO,\n003,Equity,{opposite},QAR,DEMO,\n";
+
+    var exception = Assert.Throws<InvalidOperationException>(() => TrialBalanceCsvImporter.Parse(csv));
+    Assert.Equal($"Row 2: {error}", exception.Message);
+  }
+
+  [Theory]
+  [Trait("Profile", "Unit")]
   [InlineData("\n", ',')]
   [InlineData("\r\n", ',')]
   [InlineData("\n", ';')]
@@ -371,6 +387,182 @@ public sealed class AdjustmentBridgeTests
     return TrialBalanceImportService.ImportAsync(
       new AuditSphereDbContext(pg.Options), actor, scope.ClientId, scope.EngagementId, csv,
       new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"));
+  }
+
+  // Exercise the typed persistence boundary independently of CSV/XLSX validation,
+  // without making the private command a public application API for tests.
+  private static Task<CommandResult<Guid>> ImportParsedAsync(
+    AuditSphereDbContext db, Users users, Scope scope, ParsedCsvFile parsed)
+  {
+    var method = typeof(TrialBalanceImportService).GetMethod("ImportParsedAsync",
+      System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+    Assert.NotNull(method);
+    return (Task<CommandResult<Guid>>)method.Invoke(null,
+      [db, Actor(users.Preparer, "AccountingPreparer"), scope.ClientId, scope.EngagementId, parsed,
+        new TrialBalanceImportContext(scope.PeriodId, scope.BookId, "STATUTORY"), null, CancellationToken.None])!;
+  }
+
+  [Theory]
+  [InlineData("0.0000001", null, null, "amount exceeds 6 decimal places; no silent rounding.")]
+  [InlineData("10000000000000", null, null, "amount exceeds the supported storage range.")]
+  [InlineData("-10000000000000", null, null, "amount exceeds the supported storage range.")]
+  [InlineData("0.000001", "10000000000000", "9999999999999.999999", "amount exceeds the supported storage range.")]
+  [InlineData("-0.000001", "9999999999999.999999", "10000000000000", "amount exceeds the supported storage range.")]
+  [InlineData("0", "10000000000000", "10000000000000", "amount exceeds the supported storage range.")]
+  [InlineData("0", "1.0000001", "1", "amount exceeds 6 decimal places; no silent rounding.")]
+  [InlineData("0", "1", "1.0000001", "amount exceeds 6 decimal places; no silent rounding.")]
+  [InlineData("-1", "-1", "0", "debit and credit source amounts must be nonnegative.")]
+  [InlineData("1", "0", "-1", "debit and credit source amounts must be nonnegative.")]
+  public async Task ImportParsed_InvalidStoredAmounts_RejectBeforeAnyDatasetIsPersisted(
+    string amountText, string? debitText, string? creditText, string error)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+    static decimal Number(string text) => decimal.Parse(text, System.Globalization.CultureInfo.InvariantCulture);
+    var amount = Number(amountText);
+    TbImportRow[] rows = [
+      new("001", "Zero", 0m, "QAR", "DEMO", null),
+      new("002", "Source", amount, "QAR", "DEMO", null,
+        debitText is null ? null : Number(debitText), creditText is null ? null : Number(creditText)),
+      new("003", "Offset", -amount, "QAR", "DEMO", null)];
+    Assert.Equal(0m, rows.Sum(x => x.Amount)); // Balanced amounts cannot excuse invalid stored components.
+    var parsed = TrialBalanceCsvImporter.BuildParsed(rows, "QAR", Hashing.Sha256Hex("synthetic-typed-source"),
+      debitText is null ? TrialBalanceImportProfile.SignedNetV1 : TrialBalanceImportProfile.DebitCreditV1);
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var result = await ImportParsedAsync(db, users, scope, parsed);
+      Assert.False(result.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.ImportRejected, result.ErrorCode);
+      Assert.Equal($"Row 2: {error}", result.Message);
+      Assert.Empty(db.ChangeTracker.Entries<TrialBalanceDataset>());
+      Assert.Empty(db.ChangeTracker.Entries<TrialBalanceRow>());
+    }
+    await ValidateAsync(pg, scope.FirmId);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await verify.TrialBalanceDatasets.ToListAsync());
+    Assert.Empty(await verify.TrialBalanceRows.ToListAsync());
+    Assert.Empty(await verify.TrialBalanceImportBatches.ToListAsync());
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task ImportParsed_ExactLimitsAndOrdinarySignedRows_RoundTripAndValidate(bool sourceSides)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+    const decimal maximum = 9_999_999_999_999.999999m;
+    var amounts = new[] { maximum, -maximum, 12.345678m, -12.345678m };
+    var rows = amounts.Select((amount, i) => new TbImportRow($"00{i + 1}", "Synthetic", amount, "QAR", "DEMO", null,
+      sourceSides ? Math.Max(amount, 0m) : null, sourceSides ? Math.Max(-amount, 0m) : null)).ToArray();
+    var parsed = TrialBalanceCsvImporter.BuildParsed(rows, "QAR", Hashing.Sha256Hex("synthetic-exact-source"),
+      sourceSides ? TrialBalanceImportProfile.DebitCreditV1 : TrialBalanceImportProfile.SignedNetV1);
+    Guid datasetId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      static string Number(decimal value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+      List<IReadOnlyList<string>> table = sourceSides ? [
+        ["PeriodCode", "AccountCode", "AccountName", "Debit", "Credit", "Currency", "Entity", "MappingCode"]] : [
+        ["PeriodCode", "AccountCode", "AccountName", "NetClosingBalance", "Currency", "Entity", "MappingCode"]];
+      foreach (var row in rows)
+        table.Add(sourceSides ? ["2026", row.AccountCode, row.AccountName, Number(row.SourceDebit!.Value),
+          Number(row.SourceCredit!.Value), "QAR", "DEMO", ""] : [
+          "2026", row.AccountCode, row.AccountName, Number(row.Amount), "QAR", "DEMO", ""]);
+      foreach (var xlsx in new[] { false, true })
+      {
+        var bytes = xlsx ? TrialBalanceXlsxImporterTests.Workbook(table) :
+          System.Text.Encoding.UTF8.GetBytes(string.Join('\n', table.Select(row => string.Join(',', row))));
+        var preview = await TrialBalanceUploadWorkspace.PreviewAsync(db, Actor(users.Preparer, "AccountingPreparer"),
+          scope.EngagementId, xlsx ? "synthetic.xlsx" : "synthetic.csv", bytes);
+        Assert.True(preview.Succeeded, preview.Message);
+        Assert.True(preview.Value!.CanImport);
+        var period = Assert.Single(preview.Value.Periods);
+        Assert.Null(period.Error);
+        Assert.True(period.Balanced);
+        Assert.Equal(0m, period.NetTotal);
+        Assert.Equal(rows.Length, period.RowCount);
+      }
+      var result = await ImportParsedAsync(db, users, scope, parsed);
+      Assert.True(result.Succeeded, result.Message);
+      datasetId = result.Value;
+      var dataset = await db.TrialBalanceDatasets.SingleAsync();
+      Assert.Equal(TrialBalanceImportStates.Sealed, dataset.ImportState);
+      Assert.Equal("Pending", dataset.ValidationStatus);
+    }
+    await ValidateAsync(pg, scope.FirmId);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    var stored = await verify.TrialBalanceRows.OrderBy(x => x.AccountCode)
+      .Select(x => new TbImportRow(x.AccountCode, x.AccountName, x.Amount, x.Currency, x.Entity,
+        x.MappingCode, x.SourceDebit, x.SourceCredit)).ToArrayAsync();
+    Assert.Equal(rows, stored);
+    var accepted = await verify.TrialBalanceDatasets.SingleAsync(x => x.Id == datasetId);
+    Assert.Equal("Accepted", accepted.ValidationStatus);
+    Assert.True(accepted.Balanced);
+    Assert.Equal(0m, accepted.ControlTotal);
+  }
+
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task ReviewedUpload_StorageErrors_BlockPreviewAndEntireFile(bool xlsx)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var (scope, users) = await SeedFirmWithStaffAsync(pg);
+    await using var db = new AuditSphereDbContext(pg.Options);
+    db.ClientReportingPeriods.Add(new ClientReportingPeriod
+    {
+      Id = Guid.NewGuid(), FirmId = scope.FirmId, ClientId = scope.ClientId, PeriodCode = "2025",
+      StartDate = new(2025, 1, 1), EndDate = new(2025, 12, 31), Basis = "STATUTORY", Currency = "QAR",
+      Status = AccountingWorkflowStates.Active, CreatedAt = DateTimeOffset.UtcNow
+    });
+    await db.SaveChangesAsync();
+    var actor = Actor(users.Preparer, "AccountingPreparer");
+    var fileName = xlsx ? "synthetic.xlsx" : "synthetic.csv";
+    foreach (var (amount, debit, credit, error) in new (string, string?, string?, string)[]
+    {
+      ("10000000000000", null, null, "amount exceeds the supported storage range."),
+      ("-10000000000000", null, null, "amount exceeds the supported storage range."),
+      ("0.0000001", null, null, "amount exceeds 6 decimal places; no silent rounding."),
+      ("0.000001", "10000000000000", "9999999999999.999999", "amount exceeds the supported storage range."),
+      ("-0.000001", "9999999999999.999999", "10000000000000", "amount exceeds the supported storage range."),
+      ("0", "10000000000000", "10000000000000", "amount exceeds the supported storage range."),
+      ("0", "1.0000001", "1", "amount exceeds 6 decimal places; no silent rounding."),
+      ("0", "1", "1.0000001", "amount exceeds 6 decimal places; no silent rounding.")
+    })
+    {
+      IReadOnlyList<IReadOnlyList<string>> table = debit is null ? [
+        ["PeriodCode", "AccountCode", "AccountName", "NetClosingBalance", "Currency", "Entity", "MappingCode"],
+        ["2025", "001", "Cash", "1", "QAR", "DEMO", ""],
+        ["2025", "002", "Equity", "-1", "QAR", "DEMO", ""],
+        ["2026", "001", "Zero", "0", "QAR", "DEMO", ""],
+        ["2026", "002", "Source", amount, "QAR", "DEMO", ""],
+        ["2026", "003", "Offset", (-decimal.Parse(amount, System.Globalization.CultureInfo.InvariantCulture)).ToString(System.Globalization.CultureInfo.InvariantCulture), "QAR", "DEMO", ""]] : [
+        ["PeriodCode", "AccountCode", "AccountName", "Debit", "Credit", "Currency", "Entity", "MappingCode"],
+        ["2025", "001", "Cash", "1", "0", "QAR", "DEMO", ""],
+        ["2025", "002", "Equity", "0", "1", "QAR", "DEMO", ""],
+        ["2026", "001", "Zero", "0", "0", "QAR", "DEMO", ""],
+        ["2026", "002", "Source", debit, credit!, "QAR", "DEMO", ""]];
+      var bytes = xlsx ? TrialBalanceXlsxImporterTests.Workbook(table) :
+        System.Text.Encoding.UTF8.GetBytes(string.Join('\n', table.Select(row => string.Join(',', row))));
+      var preview = await TrialBalanceUploadWorkspace.PreviewAsync(db, actor, scope.EngagementId, fileName, bytes);
+      Assert.True(preview.Succeeded, preview.Message);
+      var review = preview.Value!;
+      Assert.False(review.CanImport);
+      Assert.Null(review.Periods.Single(x => x.PeriodCode == "2025").Error);
+      Assert.True(review.Periods.Single(x => x.PeriodCode == "2025").Balanced);
+      Assert.Equal($"Row 2: {error}", review.Periods.Single(x => x.PeriodCode == "2026").Error);
+      var imported = await TrialBalanceUploadWorkspace.ImportAsync(db, actor, scope.EngagementId, fileName, bytes,
+        review.Revision, review.FileSha256, reviewed: true);
+      Assert.False(imported.Succeeded);
+      Assert.Equal(ErrorCodes.Accounting.ImportRejected, imported.ErrorCode);
+      Assert.Equal("Every period must pass preview before any new period is imported.", imported.Message);
+    }
+    await ValidateAsync(pg, scope.FirmId);
+    await using var verify = new AuditSphereDbContext(pg.Options);
+    Assert.Empty(await verify.TrialBalanceDatasets.ToListAsync());
+    Assert.Empty(await verify.TrialBalanceRows.ToListAsync());
+    Assert.Empty(await verify.TrialBalanceImportBatches.ToListAsync());
   }
 
   private static async Task SeedLegacyV2DatasetAsync(

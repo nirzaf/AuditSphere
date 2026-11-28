@@ -258,6 +258,24 @@ public static class TrialBalanceImportService
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected,
         "The uploaded legal entity does not match the authorized accounting context.");
 
+    // Typed callers must meet the same storage contract before any dataset is persisted.
+    try
+    {
+      for (var i = 0; i < parsed.Rows.Count; i++)
+      {
+        var row = parsed.Rows[i];
+        if (row.SourceDebit is { } debit)
+          TrialBalanceCsvImporter.ValidateStoredAmount(debit, i + 1, sourceSide: true);
+        if (row.SourceCredit is { } credit)
+          TrialBalanceCsvImporter.ValidateStoredAmount(credit, i + 1, sourceSide: true);
+        TrialBalanceCsvImporter.ValidateStoredAmount(row.Amount, i + 1);
+      }
+    }
+    catch (InvalidOperationException ex)
+    {
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ImportRejected, ex.Message);
+    }
+
     // Resolve the engagement first so the firm scope comes from the stored record.
     var engagement = await db.Engagements.AsNoTracking()
       .SingleOrDefaultAsync(e => e.Id == engagementId, ct);

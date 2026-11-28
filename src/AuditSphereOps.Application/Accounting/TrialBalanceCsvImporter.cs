@@ -116,7 +116,7 @@ public static class TrialBalanceCsvImporter
         var credit = ParseSourceSideAmount(creditText, n);
         sourceDebit = debit;
         sourceCredit = credit;
-        amount = MoneyPolicy.Normalize(debit - credit);
+        amount = ValidateStoredAmount(debit - credit, n);
       }
       else
         amount = ParseAmount(amountText, n);
@@ -204,7 +204,7 @@ public static class TrialBalanceCsvImporter
       writer.Write(amount.Value.ToString("0.000000", CultureInfo.InvariantCulture));
   }
 
-  internal static decimal ParseAmount(string text, int row)
+  internal static decimal ParseAmount(string text, int row, bool sourceSide = false)
   {
     if (text.StartsWith('='))
       throw new InvalidOperationException($"Row {row}: formula cells are rejected; supply literal values.");
@@ -213,20 +213,21 @@ public static class TrialBalanceCsvImporter
       throw new InvalidOperationException($"Row {row}: non-finite amounts are rejected.");
     if (!decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount))
       throw new InvalidOperationException($"Row {row}: amount '{text}' is not a valid invariant-culture decimal.");
+    return ValidateStoredAmount(amount, row, sourceSide);
+  }
+
+  internal static decimal ValidateStoredAmount(decimal amount, int row, bool sourceSide = false)
+  {
     if (((decimal.GetBits(amount)[3] >> 16) & 0xff) > MoneyPolicy.MaxScale)
       throw new InvalidOperationException($"Row {row}: amount exceeds 6 decimal places; no silent rounding.");
     if (amount < -ClientNativeAmountRules.MaximumStoredAmount || amount > ClientNativeAmountRules.MaximumStoredAmount)
       throw new InvalidOperationException($"Row {row}: amount exceeds the supported storage range.");
+    if (sourceSide && amount < 0m)
+      throw new InvalidOperationException($"Row {row}: debit and credit source amounts must be nonnegative.");
     return MoneyPolicy.Normalize(amount);
   }
 
-  internal static decimal ParseSourceSideAmount(string text, int row)
-  {
-    var amount = ParseAmount(text, row);
-    if (amount < 0m)
-      throw new InvalidOperationException($"Row {row}: debit and credit source amounts must be nonnegative.");
-    return amount;
-  }
+  internal static decimal ParseSourceSideAmount(string text, int row) => ParseAmount(text, row, sourceSide: true);
 
   // Scan the bounded source once and retain only the current logical record.
   internal static IEnumerable<List<string>> ReadRecords(string text, char delimiter, bool enforceRowLimit = true)
