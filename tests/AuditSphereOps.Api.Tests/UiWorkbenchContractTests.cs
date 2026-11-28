@@ -51,7 +51,7 @@ public sealed class UiWorkbenchContractTests
       DisplayName = "Expense finance", UserKind = "Staff", SessionEpoch = 1, CreatedAt = DateTimeOffset.UtcNow
     };
     var finance = PbcSeed.Actor(financeUser, "FinanceManager");
-    Guid expenseId;
+    Guid expenseId, journalId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       db.Users.Add(financeUser);
@@ -76,12 +76,17 @@ public sealed class UiWorkbenchContractTests
       Assert.True(draft.Succeeded, draft.Message);
       expenseId = draft.Value;
       Assert.True((await FirmExpenseService.SubmitAsync(db, finance, expenseId)).Succeeded);
+      journalId = (await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == expenseId)).JournalId!.Value;
       var reviewed = await FirmExpenseService.ReviewAsync(db, PbcSeed.Actor(seed.Reviewer, "FinanceReviewer"), expenseId, true, "Independent source review");
       Assert.True(reviewed.Succeeded, reviewed.Message);
     }
     using var financeFactory = Factory(pg.ConnectionString, financeUser.Subject, financeUser.TenantId);
     using var authorized = financeFactory.CreateClient(new() { AllowAutoRedirect = false });
     var financeCsrf = await SignInAsync(authorized);
+    using var generic = await PostAsync(authorized, $"/api/ui/finance/journals/{journalId:D}/post",
+      JsonContent.Create(new { confirmed = true }), financeCsrf);
+    Assert.Equal(HttpStatusCode.BadRequest, generic.StatusCode);
+    Assert.Equal("protected-state.denied", (await generic.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
     var url = $"/api/ui/finance/books/expenses/{expenseId:D}/post";
     using var first = await PostAsync(authorized, url, JsonContent.Create(new { }), financeCsrf);
     Assert.Equal(HttpStatusCode.OK, first.StatusCode);

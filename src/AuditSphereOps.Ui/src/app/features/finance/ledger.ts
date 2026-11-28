@@ -256,10 +256,14 @@ interface PendingClose {
             </td>
               <td>{{ j.currency }}</td><td><audit-status [value]="j.status" /></td><td>{{ j.lines.length }}</td>
               <td class="actions">
-                @if (j.status === 'DRAFT' && l.canCreateJournals) { <button matButton (click)="actOnJournal(j.id, 'submit')" [disabled]="journalActionLocked()">Submit for review</button> }
-                @if (j.status === 'REVIEW_REQUIRED' && l.canReviewJournals && !journalPreparedByCurrentUser(j.createdByUserId)) { <button matButton="filled" (click)="actOnJournal(j.id, 'review')" [disabled]="journalActionLocked()">Review and approve</button> }
-                @if (j.status === 'REVIEW_REQUIRED' && l.canReviewJournals && journalPreparedByCurrentUser(j.createdByUserId)) { <span>Prepared by you; another reviewer must approve</span> }
-                @if (j.status === 'APPROVED' && l.canPostJournals) { <button matButton="filled" (click)="actOnJournal(j.id, 'post')" [disabled]="journalActionLocked()">Post</button> }
+                @if (j.sourceKind.toUpperCase() === 'EXPENSE') {
+                  <a matButton routerLink="/app/finance/books">Open Firm expenses</a>
+                } @else {
+                  @if (j.status === 'DRAFT' && l.canCreateJournals) { <button matButton (click)="actOnJournal(j.id, 'submit')" [disabled]="journalActionLocked()">Submit for review</button> }
+                  @if (j.status === 'REVIEW_REQUIRED' && l.canReviewJournals && !journalPreparedByCurrentUser(j.createdByUserId)) { <button matButton="filled" (click)="actOnJournal(j.id, 'review')" [disabled]="journalActionLocked()">Review and approve</button> }
+                  @if (j.status === 'REVIEW_REQUIRED' && l.canReviewJournals && journalPreparedByCurrentUser(j.createdByUserId)) { <span>Prepared by you; another reviewer must approve</span> }
+                  @if (j.status === 'APPROVED' && l.canPostJournals) { <button matButton="filled" (click)="actOnJournal(j.id, 'post')" [disabled]="journalActionLocked()">Post</button> }
+                }
                 @if (j.status === 'CANCELLED') { <span>Cancelled; retained as immutable journal history</span> }
               </td></tr>
             <tr><td colspan="7"><details><summary>Review {{ j.journalNumber }} lines</summary>
@@ -650,7 +654,7 @@ export class FirmLedger {
   async actOnJournal(id: string, action: JournalActionKind, retry = false): Promise<void> {
     if (this.journalActionCommand.busy()) return;
     const journal = this.ledger.data()?.journals.find(x => x.id === id);
-    if (!journal) return;
+    if (!journal || journal.sourceKind.toUpperCase() === 'EXPENSE') return;
     const states = { submit: ['DRAFT', 'REVIEW_REQUIRED'], review: ['REVIEW_REQUIRED', 'APPROVED'], post: ['APPROVED', 'POSTED'] } as const;
     const [previousStatus, nextStatus] = states[action];
     if (!retry) {
@@ -668,7 +672,10 @@ export class FirmLedger {
         this.journalActionMessage.set('');
         this.ledger.reload();
       });
-    if (!success && !this.journalActionCommand.uncertain()) this.pendingJournalAction.set(null);
+    if (!success && !this.journalActionCommand.uncertain()) {
+      this.pendingJournalAction.set(null);
+      if (['protected-state.denied', 'ledger.conflict'].includes(this.journalActionCommand.code())) this.ledger.reload();
+    }
   }
 
   async verifyJournalAction(): Promise<void> {
@@ -700,6 +707,8 @@ export class FirmLedger {
   async retryJournalAction(): Promise<void> {
     const pending = this.pendingJournalAction();
     if (!pending || this.journalActionState() !== 'unchanged' || this.journalActionCommand.busy()) return;
+    const journal = this.ledger.data()?.journals.find(x => x.id === pending.id);
+    if (!journal || journal.sourceKind.toUpperCase() === 'EXPENSE') return;
     this.journalActionCommand.uncertain.set(false);
     this.journalActionCommand.failed.set(false);
     this.journalActionState.set(null);

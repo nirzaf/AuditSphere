@@ -219,28 +219,48 @@ public static partial class LedgerService
 
   public static Task<CommandResult> SubmitFirmJournalAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid journalId, CancellationToken ct = default) =>
-    TransitionJournalAsync(db, actor, journalId, LedgerStates.JournalDraft,
+    TransitionJournalAsync(db, actor, journalId, [LedgerStates.JournalDraft],
       LedgerStates.JournalReviewRequired, ManagerRoles, null, validateBalanced: true, ct);
 
   public static Task<CommandResult> ApproveFirmJournalAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid journalId, CancellationToken ct = default) =>
-    TransitionJournalAsync(db, actor, journalId, LedgerStates.JournalReviewRequired,
+    TransitionJournalAsync(db, actor, journalId, [LedgerStates.JournalReviewRequired],
       LedgerStates.JournalApproved, ReviewerRoles, actor.UserId, validateBalanced: true, ct);
 
-  internal static Task<CommandResult> CancelFirmJournalAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid journalId, CancellationToken ct = default) =>
+  internal static Task<CommandResult> SubmitExpenseJournalAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid expenseId, Guid journalId, CancellationToken ct) =>
+    TransitionJournalAsync(db, actor, journalId, [LedgerStates.JournalDraft],
+      LedgerStates.JournalReviewRequired, ManagerRoles, null, validateBalanced: true, ct, expenseId);
+
+  internal static Task<CommandResult> ApproveExpenseJournalAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid expenseId, Guid journalId, CancellationToken ct) =>
+    TransitionJournalAsync(db, actor, journalId, [LedgerStates.JournalReviewRequired],
+      LedgerStates.JournalApproved, ReviewerRoles, actor.UserId, validateBalanced: true, ct, expenseId);
+
+  internal static Task<CommandResult> CancelExpenseJournalAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid expenseId, Guid journalId, CancellationToken ct) =>
     TransitionJournalAsync(db, actor, journalId,
       [LedgerStates.JournalReviewRequired, LedgerStates.JournalApproved], LedgerStates.JournalCancelled,
-      ReviewerRoles, forbidActor: null, validateBalanced: false, ct);
+      ReviewerRoles, forbidActor: null, validateBalanced: false, ct, expenseId);
 
-  public static async Task<CommandResult<Guid>> PostFirmJournalAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid journalId, CancellationToken ct = default)
+  public static Task<CommandResult<Guid>> PostFirmJournalAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid journalId, CancellationToken ct = default) =>
+    PostJournalAsync(db, actor, journalId, ct);
+
+  internal static Task<CommandResult<Guid>> PostExpenseJournalAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid expenseId, Guid journalId, CancellationToken ct) =>
+    PostJournalAsync(db, actor, journalId, ct, expenseId);
+
+  private static async Task<CommandResult<Guid>> PostJournalAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid journalId, CancellationToken ct, Guid? expenseId = null)
   {
     var journal = await db.FirmJournals.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == journalId && x.FirmId == actor.FirmId, ct);
     if (journal is null) return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeFirmAsync(db, actor, ManagerRoles, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (expenseId.HasValue && db.Database.CurrentTransaction is null)
+      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "Expense transitions require the owning transaction.");
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
@@ -250,11 +270,20 @@ public static partial class LedgerService
     // Re-evaluate current grants and session after all mutation locks, including replay.
     auth = await AuthorizeFirmAsync(db, actor, ManagerRoles, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    if (await IsRejectedExpenseJournalAsync(db, actor.FirmId, lockedJournal.Id, ct))
-      return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "A rejected expense journal cannot be posted.");
+    var ownership = await ResolveExpenseJournalAsync(db, lockedJournal, period, expenseId, ct);
+    if (!ownership.Succeeded) return CommandResult<Guid>.Fail(ownership.ErrorCode!, ownership.Message!);
     if (lockedJournal.Status == LedgerStates.JournalPosted)
     {
-      var existing = await db.FirmPostings.SingleAsync(x => x.FirmId == actor.FirmId && x.JournalId == journalId, ct);
+      var existing = await db.FirmPostings.AsNoTracking().SingleOrDefaultAsync(x =>
+        x.FirmId == actor.FirmId && x.JournalId == journalId, ct);
+      if (existing is null || (ownership.Value is { } expense &&
+          (expense.PostingId != existing.Id || existing.PeriodId != period.Id ||
+            existing.Currency != lockedJournal.Currency ||
+            !await db.LedgerSourceLinks.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId &&
+              x.PostingId == existing.Id && x.SourceKind == lockedJournal.SourceKind &&
+              x.SourceKey == lockedJournal.SourceKey && x.SourceRevision == lockedJournal.SourceRevision &&
+              x.PostingPurpose == lockedJournal.PostingPurpose, ct))))
+        return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The retained posting does not match the journal source.");
       if (tx is not null) await tx.CommitAsync(ct);
       return CommandResult<Guid>.Ok(existing.Id);
     }
@@ -488,19 +517,16 @@ public static partial class LedgerService
   }
 
   private static async Task<CommandResult> TransitionJournalAsync(
-    IAuditSphereDbContext db, ActorContext actor, Guid journalId, string expected, string next,
-    string[] roles, Guid? forbidActor, bool validateBalanced, CancellationToken ct)
-    => await TransitionJournalAsync(db, actor, journalId, [expected], next, roles, forbidActor, validateBalanced, ct);
-
-  private static async Task<CommandResult> TransitionJournalAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid journalId, string[] expected, string next,
-    string[] roles, Guid? forbidActor, bool validateBalanced, CancellationToken ct)
+    string[] roles, Guid? forbidActor, bool validateBalanced, CancellationToken ct, Guid? expenseId = null)
   {
     var journal = await db.FirmJournals.AsNoTracking().SingleOrDefaultAsync(x =>
       x.Id == journalId && x.FirmId == actor.FirmId, ct);
     if (journal is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     var auth = await AuthorizeFirmAsync(db, actor, roles, ct);
     if (!auth.Succeeded) return auth;
+    if (expenseId.HasValue && db.Database.CurrentTransaction is null)
+      return CommandResult.Fail(ErrorCodes.ProtectedState, "Expense transitions require the owning transaction.");
     await using var tx = db.Database.CurrentTransaction is null ? await db.Database.BeginTransactionAsync(ct) : null;
     if (await LockFirmAsync(db, actor.FirmId, ct) is null)
       return CommandResult.Fail(ErrorCodes.GateBlocked, "Firm safety state is unavailable.");
@@ -510,9 +536,9 @@ public static partial class LedgerService
     // Re-evaluate current grants and session after all mutation locks, including replay.
     auth = await AuthorizeFirmAsync(db, actor, roles, ct);
     if (!auth.Succeeded) return auth;
-    if (next == LedgerStates.JournalApproved && await IsRejectedExpenseJournalAsync(db, actor.FirmId, locked.Id, ct))
-      return CommandResult.Fail(ErrorCodes.ProtectedState, "A rejected expense journal cannot be approved.");
-    if (locked.Status == next) return CommandResult.Ok();
+    var ownership = await ResolveExpenseJournalAsync(db, locked, period, expenseId, ct);
+    if (!ownership.Succeeded) return CommandResult.Fail(ownership.ErrorCode!, ownership.Message!);
+    if (locked.Status == next && ownership.Value is null) return CommandResult.Ok();
     if (period.Status != LedgerStates.PeriodOpen || !expected.Contains(locked.Status, StringComparer.Ordinal))
       return CommandResult.Fail(ErrorCodes.ProtectedState, "The journal or period is not in the required state.");
     if (forbidActor.HasValue && locked.CreatedByUserId == forbidActor.Value)
@@ -538,10 +564,53 @@ public static partial class LedgerService
     return CommandResult.Ok();
   }
 
-  private static Task<bool> IsRejectedExpenseJournalAsync(
-    IAuditSphereDbContext db, Guid firmId, Guid journalId, CancellationToken ct) =>
-    db.FirmExpenses.AsNoTracking().AnyAsync(x => x.FirmId == firmId && x.JournalId == journalId &&
-      x.Status == FirmExpenseStates.Rejected, ct);
+  private sealed record ExpenseJournalBinding(Guid Id, DateOnly ExpenseDate, string Status, string Currency,
+    Guid ExpenseAccountId, Guid PaymentAccountId, decimal Amount, Guid PreparedByUserId,
+    Guid? ReviewedByUserId, DateTimeOffset? ReviewedAt, Guid? PostingId);
+
+  private static async Task<CommandResult<ExpenseJournalBinding?>> ResolveExpenseJournalAsync(
+    IAuditSphereDbContext db, FirmJournal journal, FirmPeriod period, Guid? expenseId, CancellationToken ct)
+  {
+    var linked = db.FirmExpenses.AsNoTracking().Where(x => x.FirmId == journal.FirmId && x.JournalId == journal.Id);
+    if (!expenseId.HasValue)
+      return string.Equals(journal.SourceKind, "EXPENSE", StringComparison.OrdinalIgnoreCase) || await linked.AnyAsync(ct)
+        ? CommandResult<ExpenseJournalBinding?>.Fail(ErrorCodes.ProtectedState, "Use the firm expense workflow for this journal.")
+        : CommandResult<ExpenseJournalBinding?>.Ok(null);
+
+    var links = await linked.Select(x => new ExpenseJournalBinding(x.Id, x.ExpenseDate, x.Status, x.Currency,
+      x.ExpenseAccountId, x.PaymentAccountId, x.Amount, x.PreparedByUserId, x.ReviewedByUserId, x.ReviewedAt,
+      x.PostingId)).Take(2).ToArrayAsync(ct);
+    var binding = links.Length == 1 ? links[0] : null;
+    var expectedStatus = journal.Status switch
+    {
+      LedgerStates.JournalDraft => FirmExpenseStates.Draft,
+      LedgerStates.JournalReviewRequired => FirmExpenseStates.Submitted,
+      LedgerStates.JournalApproved => FirmExpenseStates.Approved,
+      LedgerStates.JournalPosted => FirmExpenseStates.Posted,
+      _ => null
+    };
+    if (binding is null || binding.Id != expenseId.Value || binding.Status != expectedStatus ||
+        journal.SourceKind != "EXPENSE" || journal.SourceKey != binding.Id.ToString("D") ||
+        journal.SourceRevision != 1 || journal.PeriodId != period.Id || journal.Currency != binding.Currency ||
+        binding.ExpenseDate.ToString("yyyy-MM", CultureInfo.InvariantCulture) != period.PeriodCode)
+      return CommandResult<ExpenseJournalBinding?>.Fail(ErrorCodes.ProtectedState,
+        "The journal does not match the retained expense source and state.");
+
+    if (binding.Status is FirmExpenseStates.Approved or FirmExpenseStates.Posted &&
+        (binding.ReviewedByUserId is null || binding.ReviewedByUserId == binding.PreparedByUserId ||
+          binding.ReviewedByUserId == journal.CreatedByUserId || binding.ReviewedByUserId != journal.ApprovedByUserId ||
+          binding.ReviewedAt is null || journal.ApprovedAt is null))
+      return CommandResult<ExpenseJournalBinding?>.Fail(ErrorCodes.ProtectedState,
+        "The journal does not match the independent expense review.");
+
+    var lines = await db.FirmJournalLines.AsNoTracking().Where(x => x.FirmId == journal.FirmId &&
+      x.JournalId == journal.Id).Take(3).ToArrayAsync(ct);
+    if (lines.Length != 2 || !lines.Any(x => x.FirmAccountId == binding.ExpenseAccountId && x.Debit == binding.Amount && x.Credit == 0) ||
+        !lines.Any(x => x.FirmAccountId == binding.PaymentAccountId && x.Debit == 0 && x.Credit == binding.Amount))
+      return CommandResult<ExpenseJournalBinding?>.Fail(ErrorCodes.ProtectedState,
+        "The journal lines do not match the retained expense.");
+    return CommandResult<ExpenseJournalBinding?>.Ok(binding);
+  }
 
   private static async Task<CommandResult> AuthorizeFirmAsync(
     IAuditSphereDbContext db, ActorContext actor, string[] roles, CancellationToken ct) =>

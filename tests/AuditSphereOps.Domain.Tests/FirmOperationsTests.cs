@@ -551,10 +551,20 @@ public sealed partial class FirmOperationsTests
         "receipt.pdf", "application/pdf", Encoding.UTF8.GetBytes($"%PDF receipt {payee} {amount}")));
       Assert.True(expense.Succeeded, expense.Message);
       Assert.True((await FirmExpenseService.SubmitAsync(db, finance, expense.Value)).Succeeded);
+      var journalId = (await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == expense.Value)).JournalId!.Value;
+      Assert.Equal(ErrorCodes.ProtectedState, (await LedgerService.SubmitFirmJournalAsync(db, finance, journalId)).ErrorCode);
+      Assert.Equal(ErrorCodes.ProtectedState, (await LedgerService.ApproveFirmJournalAsync(db, reviewer, journalId)).ErrorCode);
+      Assert.Equal(LedgerStates.JournalReviewRequired,
+        await db.FirmJournals.AsNoTracking().Where(x => x.Id == journalId).Select(x => x.Status).SingleAsync());
       Assert.Equal(ErrorCodes.ScopeDenied, (await FirmExpenseService.ReviewAsync(db, finance, expense.Value, true, null)).ErrorCode);
       Assert.True((await FirmExpenseService.ReviewAsync(db, reviewer, expense.Value, true, "Agreed to the invoice.")).Succeeded);
+      Assert.Equal(ErrorCodes.ProtectedState, (await LedgerService.PostFirmJournalAsync(db, finance, journalId)).ErrorCode);
+      Assert.False(await db.FirmPostings.AnyAsync(x => x.JournalId == journalId));
       var posted = await FirmExpenseService.PostAsync(db, finance, expense.Value);
       Assert.True(posted.Succeeded, posted.Message);
+      var replay = await FirmExpenseService.PostAsync(db, finance, expense.Value);
+      Assert.Equal(posted.Value, replay.Value);
+      Assert.Equal(ErrorCodes.ProtectedState, (await LedgerService.PostFirmJournalAsync(db, finance, journalId)).ErrorCode);
       return expense.Value;
     }
     var postedExpenseId = await ExpenseAsync(new DateOnly(2026, 1, 31), FirmExpenseCategories.Salaries, salaries, 18_000m, "Payroll");
@@ -1026,8 +1036,12 @@ public sealed partial class FirmOperationsTests
 
     var legacyApprovedId = await CreateSubmittedExpenseAsync("legacy-approved");
     var legacyApproved = await db.FirmExpenses.AsNoTracking().SingleAsync(x => x.Id == legacyApprovedId);
-    Assert.True((await LedgerService.ApproveFirmJournalAsync(db, reviewer, legacyApproved.JournalId!.Value)).Succeeded);
-    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE firm_expenses SET status = 'REJECTED' WHERE id = {legacyApprovedId}");
+    Assert.True((await FirmExpenseService.ReviewAsync(db, reviewer, legacyApprovedId, true, "Verify the source receipt.")).Succeeded);
+    // Recreate the legacy mismatch in the isolated fixture after a legitimate journal approval.
+    await db.Database.ExecuteSqlInterpolatedAsync($"""
+      UPDATE firm_expenses SET status = 'REJECTED', reviewed_by_user_id = NULL, reviewed_at = NULL, review_comment = NULL
+      WHERE id = {legacyApprovedId}
+      """);
     Assert.Equal(ErrorCodes.ProtectedState,
       (await LedgerService.PostFirmJournalAsync(db, finance, legacyApproved.JournalId!.Value)).ErrorCode);
     Assert.Equal(LedgerStates.JournalApproved,

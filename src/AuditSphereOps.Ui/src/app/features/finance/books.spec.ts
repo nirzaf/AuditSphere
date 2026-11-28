@@ -7,11 +7,10 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideRouter } from '@angular/router';
 import { SessionService } from '../../core/session';
 import { decode } from '../../core/decode';
-import { decodeLedger } from './ledger';
+import { decodeLedger, FirmLedger } from './ledger';
 
-describe('firm ledger cancelled journal contract', () => {
-  it('accepts CANCELLED as a retained terminal status and rejects unknown statuses', () => {
-    const response = { canCreateSetup: false, canClosePeriod: false, canReviewJournals: true, accessMode: 'OPERATIONAL',
+describe('firm ledger expense journals', () => {
+  const response = { canCreateSetup: false, canClosePeriod: false, canReviewJournals: true, accessMode: 'OPERATIONAL',
       canPostJournals: true, canCreateJournals: true, canReversePostings: false, canReopenPeriod: false,
       periods: [], accounts: [], postings: [], journals: [{ id: '11111111-1111-4111-8111-111111111111',
         periodId: '22222222-2222-4222-8222-222222222222', periodCode: '2026-01', journalNumber: 'EXP-1', sourceKind: 'EXPENSE',
@@ -19,8 +18,33 @@ describe('firm ledger cancelled journal contract', () => {
         status: 'CANCELLED', createdByUserId: '44444444-4444-4444-8444-444444444444', approvedByUserId: null,
         createdAt: '2026-01-01T00:00:00Z', approvedAt: null, postedAt: null, supportingEvidenceFileName: null,
         supportingEvidenceSha256: null, lines: [] }] };
+
+  it('accepts CANCELLED as a retained terminal status and rejects unknown statuses', () => {
     expect(decode(decodeLedger, response).journals[0].status).toBe('CANCELLED');
     expect(() => decode(decodeLedger, { ...response, journals: [{ ...response.journals[0], status: 'UNKNOWN' }] })).toThrow();
+  });
+
+  it('keeps expense transitions in Firm expenses while retaining manual posting', async () => {
+    TestBed.configureTestingModule({ imports: [FirmLedger], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
+    const userId = '55555555-5555-4555-8555-555555555555';
+    TestBed.inject(SessionService).current.set({ userId, firmId: userId, generation: '1', staff: true });
+    const fixture = TestBed.createComponent(FirmLedger), http = TestBed.inject(HttpTestingController);
+    const expense = { ...response.journals[0], status: 'APPROVED' };
+    const manual = { ...expense, id: userId, journalNumber: 'MANUAL-1', sourceKind: 'MANUAL' };
+    try {
+      fixture.detectChanges(); TestBed.tick();
+      http.expectOne('/api/ui/finance').flush({ ...response, journals: [expense, manual] });
+      TestBed.tick(); fixture.detectChanges();
+      const rows = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('tr'));
+      const expenseRow = rows.find(row => row.querySelector('th')?.textContent === expense.journalNumber);
+      const manualRow = rows.find(row => row.querySelector('th')?.textContent === manual.journalNumber);
+      expect(expenseRow?.querySelector('a')?.textContent).toContain('Open Firm expenses');
+      expect(expenseRow?.querySelector('button')).toBeNull();
+      expect(manualRow?.querySelector('button')?.textContent).toBe('Post');
+      await fixture.componentInstance.actOnJournal(expense.id, 'post');
+      http.expectNone(`/api/ui/finance/journals/${expense.id}/post`);
+      http.verify();
+    } finally { fixture.destroy(); TestBed.resetTestingModule(); }
   });
 });
 

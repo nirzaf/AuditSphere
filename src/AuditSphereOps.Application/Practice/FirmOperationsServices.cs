@@ -601,8 +601,8 @@ public static class FirmExpenseService
   {
     var result = await WithLockedExpenseAsync(db, actor, expenseId, Preparers, async (expense, period) =>
     {
-      if (expense.Status != FirmExpenseStates.Draft)
-        return CommandResult<bool>.Fail(ErrorCodes.ProtectedState, "Only a draft expense can be submitted.");
+      if (expense.Status != FirmExpenseStates.Draft || expense.JournalId.HasValue)
+        return CommandResult<bool>.Fail(ErrorCodes.ProtectedState, "Only an unlinked draft expense can be submitted.");
       if (period.Status != LedgerStates.PeriodOpen)
         return CommandResult<bool>.Fail(ErrorCodes.GateBlocked, "A closed period cannot receive an expense journal.");
       var journalNumber = $"EXP-{expense.ExpenseDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}-{expense.Id.ToString("N", CultureInfo.InvariantCulture).ToUpperInvariant()}";
@@ -611,13 +611,16 @@ public static class FirmExpenseService
         [new FirmJournalLineRequest(expense.ExpenseAccountId, $"{expense.Payee}: {expense.Description}", expense.Amount, 0m),
          new FirmJournalLineRequest(expense.PaymentAccountId, $"{expense.Payee}: {expense.Description}", 0m, expense.Amount)]), ct);
       if (!journal.Succeeded) return CommandResult<bool>.Fail(journal.ErrorCode!, journal.Message!);
-      var submitted = await LedgerService.SubmitFirmJournalAsync(db, actor, journal.Value, ct);
+      var linked = await db.FirmExpenses.Where(x => x.Id == expense.Id && x.FirmId == actor.FirmId &&
+          x.Status == FirmExpenseStates.Draft && x.JournalId == null)
+        .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.JournalId, journal.Value), ct);
+      if (linked != 1)
+        return CommandResult<bool>.Fail(ErrorCodes.ProtectedState, "The expense changed; reload before continuing.");
+      var submitted = await LedgerService.SubmitExpenseJournalAsync(db, actor, expense.Id, journal.Value, ct);
       if (!submitted.Succeeded) return CommandResult<bool>.Fail(submitted.ErrorCode!, submitted.Message!);
       var updated = await db.FirmExpenses.Where(x => x.Id == expense.Id && x.FirmId == actor.FirmId &&
-          x.Status == FirmExpenseStates.Draft)
-        .ExecuteUpdateAsync(setters => setters
-          .SetProperty(x => x.JournalId, journal.Value)
-          .SetProperty(x => x.Status, FirmExpenseStates.Submitted), ct);
+          x.Status == FirmExpenseStates.Draft && x.JournalId == journal.Value)
+        .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.Status, FirmExpenseStates.Submitted), ct);
       return updated == 1
         ? CommandResult<bool>.Ok(true)
         : CommandResult<bool>.Fail(ErrorCodes.ProtectedState, "The expense changed; reload before continuing.");
@@ -644,12 +647,13 @@ public static class FirmExpenseService
       if (expense.JournalId is not { } journalId)
         return CommandResult<bool>.Fail(ErrorCodes.ProtectedState, "The expense has no linked review journal.");
       var journalResult = approve
-        ? await LedgerService.ApproveFirmJournalAsync(db, actor, journalId, ct)
-        : await LedgerService.CancelFirmJournalAsync(db, actor, journalId, ct);
+        ? await LedgerService.ApproveExpenseJournalAsync(db, actor, expense.Id, journalId, ct)
+        : await LedgerService.CancelExpenseJournalAsync(db, actor, expense.Id, journalId, ct);
       if (!journalResult.Succeeded) return CommandResult<bool>.Fail(journalResult.ErrorCode!, journalResult.Message!);
       var reviewedAt = DateTimeOffset.UtcNow;
       var expectedStatus = expense.Status;
-      var updated = await db.FirmExpenses.Where(x => x.Id == expense.Id && x.FirmId == actor.FirmId && x.Status == expectedStatus)
+      var updated = await db.FirmExpenses.Where(x => x.Id == expense.Id && x.FirmId == actor.FirmId &&
+          x.Status == expectedStatus && x.JournalId == journalId)
         .ExecuteUpdateAsync(setters => setters
           .SetProperty(x => x.Status, approve ? FirmExpenseStates.Approved : FirmExpenseStates.Rejected)
           .SetProperty(x => x.ReviewedByUserId, actor.UserId)
@@ -666,16 +670,14 @@ public static class FirmExpenseService
   {
     return await WithLockedExpenseAsync(db, actor, expenseId, Preparers, async (expense, _) =>
     {
-      if (expense.Status == FirmExpenseStates.Posted && expense.PostingId is { } existingPosting)
-        return CommandResult<Guid>.Ok(existingPosting);
-      if (expense.Status != FirmExpenseStates.Approved)
+      if (expense.Status is not (FirmExpenseStates.Approved or FirmExpenseStates.Posted))
         return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "Only an approved expense can be posted.");
       if (expense.JournalId is not { } journalId)
         return CommandResult<Guid>.Fail(ErrorCodes.ProtectedState, "The expense has no linked review journal.");
-      var posting = await LedgerService.PostFirmJournalAsync(db, actor, journalId, ct);
-      if (!posting.Succeeded) return posting;
+      var posting = await LedgerService.PostExpenseJournalAsync(db, actor, expense.Id, journalId, ct);
+      if (!posting.Succeeded || expense.Status == FirmExpenseStates.Posted) return posting;
       var updated = await db.FirmExpenses.Where(x => x.Id == expense.Id && x.FirmId == actor.FirmId &&
-          x.Status == FirmExpenseStates.Approved)
+          x.Status == FirmExpenseStates.Approved && x.JournalId == journalId)
         .ExecuteUpdateAsync(setters => setters
           .SetProperty(x => x.Status, FirmExpenseStates.Posted)
           .SetProperty(x => x.PostingId, posting.Value), ct);
