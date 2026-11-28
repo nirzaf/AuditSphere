@@ -72,10 +72,9 @@ public static class ClientOpenItemAllocationWorkflow
       return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (periodId == Guid.Empty)
       return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.GateBlocked, "Choose a reporting period.");
-    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.Id == periodId, ct);
+    var period = await db.ClientReportingPeriods.AsNoTracking().SingleOrDefaultAsync(
+      x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.Id == periodId, ct);
     if (period is null)
-      return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.GateBlocked, "The selected reporting period is unavailable.");
-    if (period.FirmId != actor.FirmId || period.ClientId != clientId)
       return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     if (asOfDate < period.StartDate || asOfDate > period.EndDate)
       return CommandResult<IReadOnlyList<ClientOpenItemBalance>>.Fail(ErrorCodes.GateBlocked,

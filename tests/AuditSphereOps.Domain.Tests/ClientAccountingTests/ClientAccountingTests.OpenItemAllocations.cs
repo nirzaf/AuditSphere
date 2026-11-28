@@ -682,6 +682,10 @@ public sealed partial class ClientAccountingTests
         foreignPeriodId, new(2026, 1, 31));
       Assert.False(foreign.Succeeded);
       Assert.Equal(ErrorCodes.ScopeDenied, foreign.ErrorCode);
+      var missing = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA,
+        Guid.NewGuid(), new(2026, 1, 31));
+      Assert.False(missing.Succeeded);
+      Assert.Equal(foreign.ErrorCode, missing.ErrorCode);
       var outside = await ClientOpenItemAllocationWorkflow.BalancesAsync(db, reviewer, scope.ClientA,
         alternatePeriodId, new(2026, 7, 1));
       Assert.False(outside.Succeeded);

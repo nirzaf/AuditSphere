@@ -24,13 +24,26 @@ public sealed class ClientManualSettlementsApiTests
     var fixture = await PbcSeed.SeedAsync(pg);
     var foreign = await PbcSeed.SeedAsync(pg);
     var (periodId, _) = await SeedNativeSupplierBookkeeping(pg, fixture);
-    Guid alternatePeriodId, foreignPeriodId;
+    Guid alternatePeriodId, siblingPeriodId, foreignPeriodId;
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       var alternate = await ClientAccountingService.CreatePeriodAsync(db, PbcSeed.Actor(fixture.Staff, "AccountingPreparer"),
         new(fixture.ClientId, "2026-H1", new(2026, 1, 1), new(2026, 6, 30), "ALTERNATE", "QAR"));
       Assert.True(alternate.Succeeded, alternate.Message);
       alternatePeriodId = alternate.Value;
+      var siblingClientId = Guid.CreateVersion7();
+      db.PracticeClients.Add(new PracticeClient
+      {
+        Id = siblingClientId, FirmId = fixture.FirmId, LegalName = "Synthetic sibling client",
+        CreatedAt = DateTimeOffset.UtcNow
+      });
+      siblingPeriodId = Guid.CreateVersion7();
+      db.ClientReportingPeriods.Add(new ClientReportingPeriod
+      {
+        Id = siblingPeriodId, FirmId = fixture.FirmId, ClientId = siblingClientId, PeriodCode = "SIBLING-2026",
+        StartDate = new(2026, 1, 1), EndDate = new(2026, 12, 31), Basis = "STATUTORY", Currency = "QAR",
+        CreatedByUserId = fixture.Staff.Id, CreatedAt = DateTimeOffset.UtcNow
+      });
       foreignPeriodId = Guid.CreateVersion7();
       db.ClientReportingPeriods.Add(new ClientReportingPeriod
       {
@@ -66,8 +79,15 @@ public sealed class ClientManualSettlementsApiTests
     using (var foreignPeriod = await client.GetAsync($"{basePath}&periodId={foreignPeriodId:D}"))
     {
       Assert.Equal(HttpStatusCode.Forbidden, foreignPeriod.StatusCode);
-      using var body = JsonDocument.Parse(await foreignPeriod.Content.ReadAsStringAsync());
+      var error = await foreignPeriod.Content.ReadAsStringAsync();
+      using var body = JsonDocument.Parse(error);
       Assert.Equal("scope.denied", body.RootElement.GetProperty("code").GetString());
+      foreach (var unavailable in new[] { siblingPeriodId, Guid.NewGuid() })
+      {
+        using var denied = await client.GetAsync($"{basePath}&periodId={unavailable:D}");
+        Assert.Equal(foreignPeriod.StatusCode, denied.StatusCode);
+        Assert.Equal(error, await denied.Content.ReadAsStringAsync());
+      }
     }
     using (var outside = await client.GetAsync($"/api/ui/accounting/clients/{fixture.ClientId}/open-item-balances?asOf=2026-07-01&periodId={alternatePeriodId:D}"))
     {
@@ -81,6 +101,12 @@ public sealed class ClientManualSettlementsApiTests
       using var body = JsonDocument.Parse(await empty.Content.ReadAsStringAsync());
       Assert.Equal("request.invalid", body.RootElement.GetProperty("code").GetString());
     }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+      await db.Users.Where(x => x.Id == fixture.Staff.Id)
+        .ExecuteUpdateAsync(x => x.SetProperty(u => u.SessionEpoch, u => u.SessionEpoch + 1));
+    using var revoked = await client.GetAsync($"{basePath}&periodId={periodId:D}");
+    Assert.Equal(HttpStatusCode.Unauthorized, revoked.StatusCode);
   }
 
   [Fact]
