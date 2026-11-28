@@ -508,7 +508,7 @@ public static partial class AuditPlanningService
     /// <summary>
     /// Returns the tenant capability status and provenance narrative.
     /// ExternalEffects.Enabled=false / AllowSimulationAdapters=true may affect this in local dev.
-    /// Production requires Entra tenant, selected SharePoint grants, Purview profile.
+    /// Production requires Entra tenant and selected SharePoint grants.
     /// </summary>
     public static TenantCapabilityResult CheckTenantCapability(
         bool entraConfigured, bool sharePointGranted)
