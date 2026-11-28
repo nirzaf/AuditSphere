@@ -1,5 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { PendingTasks } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -77,27 +78,32 @@ describe('accounting group creation', () => {
     finally { TestBed.resetTestingModule(); sessionStorage.clear(); vi.restoreAllMocks(); }
   });
 
-  async function open(initial = overview()) {
+  function open(initial = overview()) {
     const fixture = TestBed.createComponent(ConsolidationOverview);
     fixture.detectChanges();
     http.expectOne(groupsUrl).flush(initial);
-    await fixture.whenStable();
     fixture.detectChanges();
     return { fixture, component: fixture.componentInstance };
   }
 
-  it('exposes oversight perimeter reading without offering scope creation, while preserving existing group creation authority', async () => {
-    const { fixture } = await open(overview([{ ...createdGroup, accessMode: 'READ_ONLY' }], true));
-    expect(fixture.nativeElement.textContent).toContain('Read-only — Administrator oversight');
-    expect(fixture.nativeElement.textContent).toContain('View legal-entity perimeter');
-    expect(fixture.nativeElement.querySelector('#create-scope-heading')).toBeNull();
-    expect(fixture.nativeElement.querySelector('#create-group-heading')).not.toBeNull();
-    http.expectNone(optionsUrl);
-    http.expectNone({ method: 'POST', url: groupsUrl });
+  it('exposes oversight perimeter reading without offering scope creation, while preserving existing group creation authority', () => {
+    // Rendering the authorized response should not wait for unrelated Angular work.
+    const finishUnrelatedWork = TestBed.inject(PendingTasks).add();
+    try {
+      const { fixture } = open(overview([{ ...createdGroup, accessMode: 'READ_ONLY' }], true));
+      expect(fixture.nativeElement.textContent).toContain('Read-only — Administrator oversight');
+      expect(fixture.nativeElement.textContent).toContain('View legal-entity perimeter');
+      expect(fixture.nativeElement.querySelector('#create-scope-heading')).toBeNull();
+      expect(fixture.nativeElement.querySelector('#create-group-heading')).not.toBeNull();
+      http.expectNone(optionsUrl);
+      http.expectNone({ method: 'POST', url: groupsUrl });
+    } finally {
+      finishUnrelatedWork();
+    }
   });
 
   it('posts the exact group intent, refreshes permitted groups and navigates to its perimeter', async () => {
-    const { fixture, component } = await open();
+    const { fixture, component } = open();
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     component.groupCode = ' HOLDCO-01 ';
@@ -111,18 +117,16 @@ describe('accounting group creation', () => {
     await creating;
     expect(navigate).toHaveBeenCalledWith([], { fragment: `group-${groupId}` });
     http.expectOne(groupsUrl).flush(overview([createdGroup]));
-    await fixture.whenStable();
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('HOLDCO-01');
     const members = http.expectOne(request => request.urlWithParams === `/api/ui/consolidation/groups/${groupId}/members?page=0&pageSize=25`);
     members.flush(membership());
-    await fixture.whenStable();
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Holding Company Group');
   });
 
   it('reconciles an unknown create only from an exact permitted group and never resends', async () => {
-    const { fixture, component } = await open();
+    const { fixture, component } = open();
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     component.groupCode = 'HOLDCO-01';
@@ -138,7 +142,6 @@ describe('accounting group creation', () => {
     http.expectOne(request => request.method === 'GET' && request.url === groupsUrl).flush(overview([createdGroup]));
     await recovering;
     http.expectOne(groupsUrl).flush(overview([createdGroup]));
-    await fixture.whenStable();
     http.expectNone(request => request.method === 'POST' && request.url === groupsUrl + '/groups');
     expect(component.createCommand.uncertain()).toBe(false);
     expect(navigate).toHaveBeenCalledWith([], { fragment: `group-${groupId}` });
@@ -154,13 +157,12 @@ describe('accounting group creation', () => {
   });
 
   it('loads authorized options and posts explicit nullable pins before navigating to the new scope workspace', async () => {
-    const { fixture, component } = await open(overview([createdGroup]));
+    const { fixture, component } = open(overview([createdGroup]));
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     component.selectScopeGroup(groupId);
     fixture.detectChanges();
     http.expectOne(optionsUrl).flush(scopeOptions);
-    await fixture.whenStable();
     fixture.detectChanges();
     const periodId = scopeOptions.periods[0].id;
     component.scopePeriodId = periodId;
@@ -183,13 +185,13 @@ describe('accounting group creation', () => {
   });
 
   it('reconciles an uncertain save from the exact scoped version and does not resend', async () => {
-    const { fixture, component } = await open(overview([createdGroup]));
+    const { fixture, component } = open(overview([createdGroup]));
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     component.selectScopeGroup(groupId);
     fixture.detectChanges();
     http.expectOne(optionsUrl).flush(scopeOptions);
-    await fixture.whenStable();
+    fixture.detectChanges();
     component.scopePeriodId = scopeOptions.periods[0].id;
     component.scopeMethod = 'FULLY_OWNED_SAME_CURRENCY';
     component.scopeCurrency = 'QAR';
@@ -213,11 +215,11 @@ describe('accounting group creation', () => {
   });
 
   it('refreshes pinned group basis after a stale refusal without retrying creation', async () => {
-    const { fixture, component } = await open(overview([createdGroup]));
+    const { fixture, component } = open(overview([createdGroup]));
     component.selectScopeGroup(groupId);
     fixture.detectChanges();
     http.expectOne(optionsUrl).flush(scopeOptions);
-    await fixture.whenStable();
+    fixture.detectChanges();
     component.scopePeriodId = scopeOptions.periods[0].id;
     component.scopeMethod = 'FULLY_OWNED_SAME_CURRENCY';
     component.scopeCurrency = 'QAR';
@@ -228,7 +230,7 @@ describe('accounting group creation', () => {
     expect(component.scopeCommand.uncertain()).toBe(false);
     expect(component.scopeValidation()).toContain('group basis changed');
     http.expectOne(optionsUrl).flush({ ...scopeOptions, groupRevision: 8 });
-    await fixture.whenStable();
+    fixture.detectChanges();
     http.expectNone(request => request.method === 'POST' && request.url === groupsUrl + '/scopes');
   });
 });
@@ -261,10 +263,9 @@ describe('consolidation correction handoff context', () => {
     expect(component.correctionContext()).toEqual({
       state: 'valid', group: { ...createdGroup, scopes: [correctionScope] }, scope: correctionScope, componentId,
     });
-    await harness.fixture.whenStable();
     harness.fixture.detectChanges();
     http.expectOne(optionsUrl).flush(scopeOptions);
-    await harness.fixture.whenStable();
+    harness.fixture.detectChanges();
     expect(component.scopeGroupId()).toBe(groupId);
     component.selectScopeGroup(otherGroupId);
     expect(component.scopeGroupId()).toBe(groupId);
@@ -279,6 +280,8 @@ describe('consolidation correction handoff context', () => {
       .find(link => link.textContent?.includes('Continue to the existing new-scope form'));
     expect(continueLink).toBeDefined();
     expect(new URL(continueLink!.href).searchParams.get('correctionComponentId')).toBe(componentId);
+    // NgModel applies the disabled state in a microtask.
+    await Promise.resolve();
     expect(harness.routeNativeElement?.querySelector<HTMLSelectElement>('select[name="scopeGroup"]')?.disabled).toBe(true);
     http.expectNone(request => request.method === 'POST');
     component.scopePeriodId = scopeOptions.periods[0].id;
@@ -290,7 +293,7 @@ describe('consolidation correction handoff context', () => {
     http.expectOne(optionsUrl).flush({ ...scopeOptions,
       periods: [...scopeOptions.periods, { ...scopeOptions.periods[0], id: otherGroupId, code: 'FY2027' }],
       existingScopes: [correctionSourceOption] });
-    await harness.fixture.whenStable();
+    harness.fixture.detectChanges();
     component.scopePeriodId = otherGroupId;
     await component.createScope();
     expect(component.scopeValidation()).toContain('retain the original reporting period');
