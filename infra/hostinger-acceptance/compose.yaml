@@ -104,6 +104,7 @@ services:
       TenantAdministration__OutboundMail__PrivateKeyPath: /run/auditsphere/m365/outbound-mail/private-key.pem
       ClientSites__Enabled: ${CLIENT_SITES_ENABLED:-true}
       ClientSites__ClientsCreatedAfter: ${CLIENT_SITES_CLIENTS_CREATED_AFTER:-}
+      ClientSites__SiteHost: ${CLIENT_SITES_SITE_HOST:-}
       FeatureActivation__LiveAuditRelease: "false"
       ForwardedHeaders__KnownProxies__0: 172.29.91.1
       Storage__PbcStagingRoot: /var/lib/auditsphere/pbc-staging
@@ -311,18 +312,19 @@ services:
       TenantAdministration__OutboundMail__ClientId: ${OUTBOUND_MAIL_CLIENT_ID:-}
       GraphMail__ClientId: ${OUTBOUND_MAIL_CLIENT_ID:-}
     volumes:
+      - release_checkpoints:/var/lib/auditsphere/release-checkpoints
       - type: bind
         source: /opt/auditsphere/storage/m365-credentials/client-sites
         target: /run/auditsphere/m365/client-sites
         read_only: true
         bind:
-          create_host_path: true
+          create_host_path: false
       - type: bind
         source: /opt/auditsphere/storage/m365-credentials/directory-reader
         target: /run/auditsphere/m365/directory-reader
         read_only: true
         bind:
-          create_host_path: true
+          create_host_path: false
     depends_on:
       db:
         condition: service_healthy
