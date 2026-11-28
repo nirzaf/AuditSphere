@@ -10,7 +10,7 @@ review_decision: ""
 reviewed_commit: ""
 evidence_ref: ""
 approval_ref: ""
-blocked_reason: "Hard dependency T025 is NOT_STARTED and lacks reviewed proof/correction-handoff evidence. A carry-forward safety subset was fixed, but T026 cannot proceed to task-level completion until T025 is completed."
+blocked_reason: "Hard dependency T025 is BLOCKED and lacks reviewed proof/correction-handoff evidence. A carry-forward safety subset was fixed, but T026 cannot proceed to task-level completion until T025 is completed."
 branch: ""
 issue_pr: ""
 updated_at: "2026-10-17"
@@ -149,7 +149,7 @@ Use pure xUnit for deterministic rules, real PostgreSQL for persistence/concurre
 | Code commit / schema / deployed build if applicable | `d91a271356cca1a3933aac46ddb59e71d60851d1`; no schema change |
 | Requirement → assertion → command/run → observed result | Settled-item and wrong-period-book carry attempts rejected; valid outstanding item carried without copied approval; `ReconciliationRevision_CreatesSuccessorAndCarryForward` passed 1/1 in 38 s. `dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~ReconciliationRevision_CreatesSuccessorAndCarryForward'` |
 | Policy / scope approval reference | Not recorded |
-| Known limitations / exact blocker | T025 proof/correction handoff is NOT_STARTED; T026 reviewed rework lifecycle and export are unimplemented or unaudited; no task-level completion claimed |
+| Known limitations / exact blocker | T025 proof/correction handoff is BLOCKED; T026 reviewed rework lifecycle and export are unimplemented or unaudited; no task-level completion claimed |
 | Exported contract / manifest / artifact references for consumers | Not recorded |
 | Reviewer and acceptance decision | Not recorded |
 
