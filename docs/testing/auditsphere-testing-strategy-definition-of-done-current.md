@@ -4,6 +4,8 @@
 
 `AGENTS.md` controls test selection, safety, and the local/CI boundary. This document combines the strategy, E2E guidance, and test-catalog navigation; it does not authorize full local suites or convert partial evidence into release acceptance.
 
+The [historical CI optimization review at revision `0400e2fe`](https://github.com/nirzaf/AuditSphere/blob/0400e2fe11f500dd4ffe0579986c4064c05398ff/docs/auditsphere-ci-optimization-report.md) records its exact source, workflow decisions and run evidence. It proposed no workflow change or measured speedup; its observations do not qualify a later source revision.
+
 ## Verification tiers
 
 1. **Focused local checks:** select the smallest existing named test, build, contract, or validator that covers the changed behavior. Add a minimal regression test when the invariant is not already covered. Do not run full .NET, Angular, or Playwright suites locally.

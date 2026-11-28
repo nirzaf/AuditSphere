@@ -17,6 +17,8 @@ updated_at: ""
 ---
 # T010 — Build shared Blazor forms, state, dirty guards and conflict UI
 
+> **Source-era wording:** The title and work steps below preserve the original Blazor task. ADR-0002 retired the Blazor host; apply the underlying validation, dirty-state and stale-response requirements through the current Angular and API owners described in the master index. Do not create Blazor components or restore the retired host.
+
 [Master index](../../auditsphere-r2r-index-task-breakdown.md) · [Status rules](../../auditsphere-r2r-index-task-breakdown.md#status-rules) · [Original work-package order](../../reference/auditsphere-r2r-reference-execution-coordination-and-handover.md#section-6-1)
 
 **Status scope:** NOT_STARTED means this new task has not been assessed/executed under this breakdown. It does not assert that its underlying code is absent. First inspect and reuse the current implementation. No current repository progress has been imported.
