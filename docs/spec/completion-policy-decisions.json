@@ -464,7 +464,7 @@
       "ownerRole": "Qualified firm accounting/finance owner and independent reviewer",
       "scope": "Technical Stories C02 billing-to-firm-ledger integration; existing invoice approval/post/send and separate journal workflows retained",
       "effectiveFrom": null,
-      "evidenceReference": "docs/execution/auditsphere-execution-technical-stories-current.md",
+      "evidenceReference": "docs/execution/auditsphere-pms-open-decisions-and-acceptance-proposed.md (Q07 pending decision checklist)",
       "status": "PENDING",
       "dependentWorkUnits": [],
       "observedAtSource": "a53ff729ed91e14753a78a60eff037f309b526a6",
