@@ -1,6 +1,6 @@
-## Previous exact-source status (2026-11-26)
+## Feature audit (2026-11-28)
 
-The `ba6c2fb5` observation and its exact CI/deployment boundaries are retained in the [historical handoff archive](archive/auditsphere-execution-current-slice-history-20261126.md).
+[November 28 feature audit](auditsphere-execution-feature-audit-20261128.md). [November 26 exact-source handoff](archive/auditsphere-execution-current-slice-history-20261126.md).
 
 ## Historical PostgreSQL 19 exact-source verification and Hostinger boundary (2026-11-23; source `d59d6be05e30a6dc84f146ee3861cf0ec994d8e6`)
 
