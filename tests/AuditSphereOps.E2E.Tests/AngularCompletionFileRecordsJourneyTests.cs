@@ -122,9 +122,17 @@ public sealed class AngularCompletionFileRecordsJourneyTests
     await Assertions.Expect(workflow).ToContainTextAsync("final bundle available in the client portal");
 
     var completionRoute = engagementRoute + "/completion";
-    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(completionRoute));
-    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
-      new() { Name = "File freeze and activity trail", Exact = true })).ToBeVisibleAsync();
+    var completionStateUrl = $"{origin}/api/ui/engagements/{f.EngagementId:D}/completion";
+    async Task OpenCompletionAsync()
+    {
+      var state = await page.RunAndWaitForResponseAsync(
+        () => page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(completionRoute)),
+        response => response.Request.Method == "GET" && response.Url == completionStateUrl);
+      Assert.Equal(200, state.Status);
+      await Assertions.Expect(page.GetByRole(AriaRole.Heading,
+        new() { Name = "File freeze and activity trail", Exact = true })).ToBeVisibleAsync();
+    }
+    await OpenCompletionAsync();
     var earlyLock = page.GetByRole(AriaRole.Region,
       new() { Name = "Early compliance lock (STE 4.4.3)", Exact = true });
     await Assertions.Expect(earlyLock.GetByText("Reviewed readiness digest:", new() { Exact = false })).ToBeVisibleAsync();
@@ -180,9 +188,7 @@ public sealed class AngularCompletionFileRecordsJourneyTests
 
     // Rendering the frozen completion workspace projects a disabled workprogram capability. A read-only
     // projection must not record another attempted write or change the three command refusal events above.
-    await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(completionRoute));
-    await Assertions.Expect(page.GetByRole(AriaRole.Heading,
-      new() { Name = "File freeze and activity trail", Exact = true })).ToBeVisibleAsync();
+    await OpenCompletionAsync();
     await using (var db = host.CreateDbContext())
       Assert.Equal(priorProfessionalWorkRefusals + 3, await db.FrozenAccessAttempts.CountAsync(x => x.FirmId == f.FirmId &&
         x.EngagementId == f.EngagementId && x.ActorUserId == partner.Id &&
