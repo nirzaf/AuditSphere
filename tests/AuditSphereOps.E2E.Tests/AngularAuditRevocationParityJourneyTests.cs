@@ -91,6 +91,12 @@ public sealed class AngularAuditRevocationParityJourneyTests
     await Assertions.Expect(planPage.GetByRole(AriaRole.Region,
       new() { Name = "Materiality (§19.2)", Exact = true })).ToContainTextAsync("Total assets");
 
+    // The shell polls the session even on a page that has not been manually refreshed.
+    // Observe each denial before revoking access, since the poll can remove the page controls.
+    IPage[] pages = [workpaperPage, findingPage, planPage];
+    var deniedSessions = Task.WhenAll(pages.Select(page => page.WaitForResponseAsync(response =>
+      response.Status == 401 && response.Url == origin + "/api/ui/session")));
+
     await using (var db = host.CreateDbContext())
     {
       var grants = await db.RoleGrants.Where(x => x.FirmId == f.FirmId && x.UserId == f.Staff.Id &&
@@ -105,7 +111,10 @@ public sealed class AngularAuditRevocationParityJourneyTests
       }
     }
 
-    await workpaperPage.GetByRole(AriaRole.Button, new() { Name = "Refresh current target", Exact = true }).ClickAsync();
+    await Task.WhenAll(pages.Select(page =>
+      page.EvaluateAsync("() => window.dispatchEvent(new FocusEvent('focus'))")));
+    await deniedSessions;
+
     await Assertions.Expect(workpaperPage.GetByRole(AriaRole.Alert))
       .ToContainTextAsync("current AuditSphere identity");
     await Assertions.Expect(workpaperPage.GetByLabel("Work performed", new() { Exact = true })).ToHaveCountAsync(0);
@@ -114,14 +123,12 @@ public sealed class AngularAuditRevocationParityJourneyTests
     Assert.DoesNotContain("SYN-REVOKED-WP", workpaperDenied, StringComparison.Ordinal);
     Assert.DoesNotContain(workpaperBody, workpaperDenied, StringComparison.Ordinal);
 
-    await findingPage.GetByRole(AriaRole.Button, new() { Name = "Refresh finding", Exact = true }).ClickAsync();
     await Assertions.Expect(findingPage.GetByRole(AriaRole.Alert))
       .ToContainTextAsync("current AuditSphere identity");
     var findingDenied = await findingPage.Locator("main").InnerTextAsync();
     Assert.DoesNotContain("Synthetic cut-off exception", findingDenied, StringComparison.Ordinal);
     Assert.DoesNotContain(findingImpact, findingDenied, StringComparison.Ordinal);
 
-    await planPage.GetByRole(AriaRole.Button, new() { Name = "Refresh plan", Exact = true }).ClickAsync();
     await Assertions.Expect(planPage.GetByRole(AriaRole.Alert))
       .ToContainTextAsync("current AuditSphere identity");
     var planDenied = await planPage.Locator("main").InnerTextAsync();
