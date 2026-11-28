@@ -36,6 +36,9 @@ export class SectionTabs {
   readonly active = signal<string | null>(null);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private frame = 0;
+  private destroyed = false;
+  private readonly settleTimers = new Set<number>();
+  private readonly settleStops: Array<{ name: 'wheel' | 'touchstart' | 'keydown'; listener: () => void }> = [];
 
   constructor() {
     const onScroll = () => {
@@ -47,8 +50,10 @@ export class SectionTabs {
       this.track();
     });
     inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true;
       window.removeEventListener('scroll', onScroll);
       if (this.frame) cancelAnimationFrame(this.frame);
+      this.cancelSettling();
     });
   }
 
@@ -60,6 +65,7 @@ export class SectionTabs {
     const target = document.getElementById(id);
     event.preventDefault();
     if (!target) return;
+    this.cancelSettling();
     const align = () => {
       const offset = this.host.nativeElement.getBoundingClientRect().height + this.stickyTop() + 12;
       const top = target.getBoundingClientRect().top + window.scrollY - offset;
@@ -70,14 +76,36 @@ export class SectionTabs {
     target.focus({ preventScroll: true });
     this.active.set(id);
     let settles = 0;
-    const stop = () => { settles = Number.MAX_SAFE_INTEGER; };
-    for (const name of ['wheel', 'touchstart', 'keydown'] as const) window.addEventListener(name, stop, { once: true, passive: true });
-    const settle = () => { if (settles++ < 6) { align(); setTimeout(settle, 200); } };
-    setTimeout(settle, 200);
+    const stop = () => { settles = Number.MAX_SAFE_INTEGER; this.cancelSettling(); };
+    for (const name of ['wheel', 'touchstart', 'keydown'] as const) {
+      window.addEventListener(name, stop, { once: true, passive: true });
+      this.settleStops.push({ name, listener: stop });
+    }
+    const settle = () => {
+      if (this.destroyed || settles++ >= 6) { this.cancelSettling(); return; }
+      align();
+      const timer = window.setTimeout(() => {
+        this.settleTimers.delete(timer);
+        settle();
+      }, 200);
+      this.settleTimers.add(timer);
+    };
+    const timer = window.setTimeout(() => {
+      this.settleTimers.delete(timer);
+      settle();
+    }, 200);
+    this.settleTimers.add(timer);
   }
 
   private stickyTop(): number {
-    return parseFloat(getComputedStyle(this.host.nativeElement).top) || 0;
+    return parseFloat(window.getComputedStyle(this.host.nativeElement).top) || 0;
+  }
+
+  private cancelSettling(): void {
+    for (const timer of this.settleTimers) window.clearTimeout(timer);
+    this.settleTimers.clear();
+    for (const stop of this.settleStops) window.removeEventListener(stop.name, stop.listener);
+    this.settleStops.length = 0;
   }
 
   /** The last section whose top has passed the bottom of the tab bar is the one being read. */

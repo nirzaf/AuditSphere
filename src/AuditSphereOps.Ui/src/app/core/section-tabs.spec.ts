@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SectionTabs } from './section-tabs';
 import { pageIconFor } from './ui';
 
@@ -31,6 +31,27 @@ describe('record section tabs', () => {
     expect(links[1].getAttribute('aria-current')).toBe('location');
     links[2].click();
     expect(location.href).toBe(before);
+  });
+
+  it('cancels delayed alignment when the tabs view is destroyed', () => {
+    vi.useFakeTimers();
+    try {
+      const fixture = TestBed.createComponent(Host);
+      fixture.detectChanges();
+      const before = vi.getTimerCount();
+      const styles = vi.spyOn(window, 'getComputedStyle');
+      const tab = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLAnchorElement>('nav a')[1];
+      tab.click();
+      const callsBeforeDestroy = styles.mock.calls.length;
+      expect(vi.getTimerCount()).toBeGreaterThan(before);
+
+      fixture.destroy();
+      vi.advanceTimersByTime(1600);
+
+      expect(styles).toHaveBeenCalledTimes(callsBeforeDestroy);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
