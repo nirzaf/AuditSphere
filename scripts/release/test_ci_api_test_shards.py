@@ -60,6 +60,22 @@ class ProtocolTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             shards.partition([])
 
+    def test_measured_memory_sensitive_collections_are_isolated_without_losing_cases(self):
+        heavy = sorted(shards.ISOLATED_API_CLASSES)
+        rows = [
+            {"id": "ordinary1", "collection": "a", "className": "Ordinary"},
+            {"id": "accounting", "collection": "b", "className": heavy[0]},
+            {"id": "fixturePeer", "collection": "b", "className": "FixturePeer"},
+            {"id": "ordinary2", "collection": "c", "className": "Ordinary2"},
+            {"id": "ledger", "collection": "d", "className": heavy[1]},
+            {"id": "migration", "collection": "e", "className": heavy[2]},
+            {"id": "statement", "collection": "f", "className": "AuditSphereOps.Api.Tests.StatementReviewApiTests"},
+        ]
+        expected = [["ordinary1", "ordinary2"], ["accounting", "fixturePeer"], ["ledger"], ["migration"], ["statement"]]
+        self.assertEqual(expected, shards.partition(rows))
+        self.assertEqual(expected, shards.partition(list(reversed(rows))))
+        self.assertEqual(sorted(r["id"] for r in rows), sorted(x for group in expected for x in group))
+
     def test_trx_and_runner_reconciliation_fail_closed(self):
         rows = shards.inventory(*discoveries())[:2]
         ids = [r["id"] for r in rows]

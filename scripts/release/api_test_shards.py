@@ -24,6 +24,15 @@ MAX_ROWS = 24
 # A four-collection shard exceeded the verified 3 GiB process-group RSS ceiling
 # on the exact full run. Keep fixture collections intact, but reduce co-location.
 MAX_COLLECTIONS = 3
+# Release verification run 46062526987 hit the RSS limit with the statement,
+# completeness, and accounting-review collections in one process. Keep their
+# complete collections separate, including the dedicated two-model migration fixture.
+ISOLATED_API_CLASSES = frozenset({
+    "AuditSphereOps.Api.Tests.AccountingAnalysisReviewApiTests",
+    "AuditSphereOps.Api.Tests.GeneralLedgerCompletenessApiTests",
+    "AuditSphereOps.Api.Tests.GeneralLedgerCompletenessMigrationApiTests",
+    "AuditSphereOps.Api.Tests.StatementReviewApiTests",
+})
 RSS_LIMIT = 3 * 1024**3
 NS = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
 
@@ -76,12 +85,18 @@ def inventory(xunit, vstest):
 
 def partition(rows):
     groups = defaultdict(list)
+    isolated = set()
     for row in rows:
         groups[row["collection"]].append(row["id"])
-    shards, current, count = [], [], 0
+        if row.get("className") in ISOLATED_API_CLASSES:
+            isolated.add(row["collection"])
+    shards, dedicated, current, count = [], [], [], 0
     for key in sorted(groups):
         group = sorted(groups[key])
         require(0 < len(group) <= MAX_ROWS, "Collection exceeds bounded shard size; never split fixtures")
+        if key in isolated:
+            dedicated.append(group)
+            continue
         if current and (len(current) + len(group) > MAX_ROWS or count == MAX_COLLECTIONS):
             shards.append(sorted(current))
             current, count = [], 0
@@ -89,6 +104,7 @@ def partition(rows):
         count += 1
     if current:
         shards.append(sorted(current))
+    shards.extend(dedicated)
     require(shards and all(shards), "Empty shard assignment")
     require(Counter(i for s in shards for i in s) == Counter(r["id"] for r in rows), "Invalid exact partition")
     return shards
