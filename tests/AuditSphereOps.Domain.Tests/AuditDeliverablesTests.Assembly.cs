@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Data.Common;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AuditSphereOps.Application.Abstractions;
