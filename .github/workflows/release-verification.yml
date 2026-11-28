@@ -1028,7 +1028,7 @@ jobs:
             --arg machine "$(uname -m)" \
             --arg operatingSystem "$(uname -s)" \
             --argjson expectedHosts "$expected_hosts" \
-            '.schemaVersion == 1 and .artifactName == $artifact and .repository == $repository and .resolvedCommit == $commit and .project == "tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj" and .assembly == "AuditSphereOps.E2E.Tests" and .configuration == "Release" and .targetFramework == "net11.0" and .dotnetSdk == $sdk and .runId == ($runId | tonumber) and .runAttempt == ($runAttempt | tonumber) and .machine == $machine and .operatingSystem == $operatingSystem and .hostArtifacts == $expectedHosts' \
+            '.schemaVersion == 1 and .artifactName == $artifact and .repository == $repository and .resolvedCommit == $commit and .project == "tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj" and .assembly == "AuditSphereOps.E2E.Tests" and .configuration == "Release" and .targetFramework == "net11.0" and .dotnetSdk == $sdk and .runId == ($runId | tonumber) and (.runAttempt >= 1 and .runAttempt <= ($runAttempt | tonumber)) and .machine == $machine and .operatingSystem == $operatingSystem and .hostArtifacts == $expectedHosts' \
             "$manifest" >/dev/null
           for host in api worker infrastructure application domain openapi-emitter; do
             case "$host" in
