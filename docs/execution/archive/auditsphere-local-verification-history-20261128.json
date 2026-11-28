@@ -1,0 +1,707 @@
+{
+  "schemaVersion": 1,
+  "archivedAtUtc": "2026-11-28T19:31:43Z",
+  "archivedFrom": "docs/execution/status.json#localVerification",
+  "sourceHeadAtArchival": "65a01004f88fbf3aa9740da761d2fe87d4d1fa7f",
+  "note": "Verbatim historical local-verification observations moved out of the current status ledger to meet its 100 KiB budget. Each observation retains its original source identity and result. Current November 28 checks are recorded in status.json#auditRemediation20261128.",
+  "data": {
+    "documentationHealth": {
+      "result": "PASS",
+      "markdownFiles": 193,
+      "canonicalDocuments": 22,
+      "relativeLinksChecked": 3073,
+      "backtickedRepositoryPathsChecked": 285,
+      "deletedPathReferences": 0,
+      "globallyUniqueBasenames": "100%",
+      "command": "python3 scripts/docs/validate-markdown-documentation.py",
+      "observedAtUtc": "2026-11-26T08:06:55Z"
+    },
+    "filenameValidation": {
+      "result": "PASS",
+      "markdownFiles": 193,
+      "conventionalExceptions": 3,
+      "command": "python3 scripts/docs/validate-markdown-filenames.py",
+      "observedAtUtc": "2026-11-26T08:06:55Z"
+    },
+    "narrativeMetricsValidation": {
+      "result": "PASS",
+      "protectedDocuments": 6,
+      "command": "python3 scripts/docs/validate-narrative-metrics.py",
+      "observedAtUtc": "2026-11-26T08:06:55Z"
+    },
+    "documentationReconciliation": {
+      "result": "WU-015: 33/33 focused API checks passed on disposable PG19.0; nine existing cases included by trait only, assertions unchanged. Evidence .local/autonomous/evidence/wu015-boundary-review-20261123/focused-review.json.",
+      "scope": "WU-015 PARTIAL; parent fast passed but expanded diff needs exact CI and boundary inventory. Hostinger target/recovery gates open."
+    },
+    "auditProgramSource": {
+      "result": "PASS",
+      "orderedSections": 20,
+      "procedureParagraphs": 165,
+      "sourceShaVerified": true,
+      "command": "python3 scripts/docs/verify-audit-program-source.py",
+      "observedAtUtc": "2026-11-08T13:05:03Z"
+    },
+    "taskStatusUtilityTests": {
+      "result": "PASS",
+      "testsPassed": 21,
+      "testsFailed": 0,
+      "command": "python3 -m unittest discover -s docs/task_breakdown/tools -p 'test_*.py'"
+    },
+    "hashPinnedTaskSources": {
+      "result": "PASS",
+      "r2rSourceSha256": "3847e73e50cb6c9971281e8d1b8660ced437c00fbac377b2c5c6f7053a0bb2ed",
+      "auditSourceSha256": "c05b20c9dd90c1c90360bda463e2a95000ba26d07f6d07d41247e02af0273895",
+      "note": "Exact source bytes restored from pinned source commit; Markdown hard-break whitespace is exempted narrowly in .gitattributes.",
+      "taskPackSourceCommit": "574ed0c9b04882088aac8cf1e5030b2afbde6467",
+      "taskPackFilesRestoredExact": 111,
+      "evidence": ".local/autonomous/evidence/docs-consolidation-20261107/exact-task-pack-restore.json"
+    },
+    "diffCheck": {
+      "result": "PASS",
+      "command": "git diff --check -- documentation paths",
+      "observedAtUtc": "2026-11-26T08:06:55Z"
+    },
+    "taskBoardGenerator": {
+      "result": "PASS_PARTIAL_SOURCE",
+      "command": "python3 scripts/docs/build-task-board.py --check",
+      "observedAtUtc": "2026-11-26T08:06:55Z"
+    },
+    "angularOffboardingReadinessSpec": {
+      "result": "PASS",
+      "testsPassed": 24,
+      "testsFailed": 0,
+      "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/clients/client-offboarding-readiness.spec.ts'"
+    },
+    "domainOffboardingReadinessTests": {
+      "result": "BLOCKED_TEST_ENV",
+      "testsExecuted": 0,
+      "reason": "Last recorded attempt could not use the approved auditsphere_tests database on port 5433; consult the current autonomous checkpoint for later work. The unrelated 55432 cluster was not reused."
+    },
+    "applicationReleaseBuild": {
+      "result": "PASS",
+      "warnings": 0,
+      "errors": 0,
+      "command": "dotnet build src/AuditSphereOps.Application/AuditSphereOps.Application.csproj --no-restore -c Release --maxcpucount:1",
+      "scope": "Observed for T09 commit 0375b67e only; this build is not a full practice-management or release-acceptance gate."
+    },
+    "angularProductionBuild": {
+      "result": "PASS_WITH_EXISTING_CSS_BUDGET_WARNINGS",
+      "warnings": [
+        "src/app/features/commercial/settings.scss: 7.53 kB against 4.00 kB budget",
+        "src/app/app.scss: 4.11 kB against 4.00 kB budget"
+      ],
+      "observedAtUtc": "2026-11-08T05:12:32Z",
+      "evidence": ".local/autonomous/evidence/practice-gap-t12b-20261108/final-verification/angular-production-build.log"
+    },
+    "capabilityCatalogValidation": {
+      "result": "PASS",
+      "packets": 3,
+      "sourceSha256": "2931b367103966b6b656d36eb3e1def8fbee70161fc7977d1319b133a7bf7b8d",
+      "command": "python3 scripts/agent/agent-check.py --validate-catalog",
+      "observedAtUtc": "2026-11-07T23:20:24Z"
+    },
+    "imageBuildMemoryGuard": {
+      "result": "PASS_ON_STANDALONE_RERUN",
+      "firstParallelRun": "Transiently failed active-counter cleanup assertion; standalone rerun passed all cases.",
+      "command": "bash scripts/diagnostics/test-image-build-memory.sh"
+    },
+    "imageBuildCounterTests": {
+      "result": "PASS",
+      "testsPassed": 21,
+      "testsFailed": 0,
+      "command": "python3 scripts/diagnostics/test-image-build-counters.py"
+    },
+    "openApiEmitterBuild": {
+      "result": "PASS",
+      "warnings": 0,
+      "errors": 0,
+      "command": "dotnet build tools/AuditSphereOps.OpenApiEmitter/AuditSphereOps.OpenApiEmitter.csproj --no-restore -c Release --maxcpucount:1",
+      "observedAtUtc": "2026-11-07T15:09:00Z"
+    },
+    "openApiContract": {
+      "result": "PASS",
+      "command": "PATH=\"$PWD/.dotnet:$PATH\" bash scripts/contracts/verify-openapi.sh",
+      "observedAtUtc": "2026-11-24T23:11:14Z"
+    },
+    "operationalEvidenceFocusedRegression": {
+      "result": "PASS",
+      "testsPassed": 14,
+      "testsFailed": 0,
+      "command": "python3 -m unittest discover -s scripts/verification/tests -p 'test_operational_evidence.py'",
+      "observedAtUtc": "2026-11-07T15:48:10Z",
+      "note": "The current record remains INCOMPLETE; localRestore is UNKNOWN and LOCAL_RESTORE_EVIDENCE_UNKNOWN is present because current evidence is absent. Historical blob equality does not establish a current drill."
+    },
+    "operationalEvidenceCurrentRecord": {
+      "result": "INCOMPLETE_AS_DECLARED",
+      "localRestore": "UNKNOWN",
+      "blocker": "LOCAL_RESTORE_EVIDENCE_UNKNOWN",
+      "historicalBlobSha256MatchesDeclaredReference": true,
+      "historicalBlobCommit": "c19f4cb73412",
+      "currentEvidenceFilePresent": false,
+      "productionRecovery": "INCOMPLETE",
+      "command": "python3 scripts/verification/verify-operational-evidence.py docs/spec/completion-operational-evidence.json"
+    },
+    "uiSourceInventory": {
+      "result": "PASS",
+      "summary": "legacy Blazor source retired; historical discovery inventory retained",
+      "command": "python3 scripts/ui/inventory.py --check",
+      "observedAtUtc": "2026-11-26T08:06:55Z"
+    },
+    "t18GroupIssueTerminalRecovery": {
+      "historicalResult": "PASS_FOCUSED_PUBLISHED",
+      "evidenceReferences": [
+        ".local/autonomous/evidence/practice-gap-t18-20261107/issue-recovery-verification.json"
+      ],
+      "sourceIdentities": [
+        "3bb2d04dd5001ac18467d65c5e86f00ba73bcb19",
+        "eb16f119ce3c7fab82677c61b9847d194deb00ac27522aa60b5408c67c2aecc5",
+        "77985dee8644f422d227c9ec694eac5ff3c8cddf"
+      ],
+      "limits": [
+        "FAIL: exact run 42411559445 is terminal FAILURE; Domain 3/2009, API hosted-runner communication annotation with checkout unconfirmed, E2E inactivity abort after 335 completed passes. See observedCi.t18FullRun77985. The focused change is published at 77985 but release verification did not pass.",
+        "NOT_RUN"
+      ],
+      "scope": "Historical focused proof; details in evidence, not release acceptance."
+    },
+    "t18DomainFailureFixCandidate20261108": {
+      "historicalResult": "BOUNDED_LOCAL_PROOF",
+      "evidenceReferences": [
+        ".local/autonomous/evidence/practice-gap-t18-20261107/local-domain-fix-candidate-revised-20261108/t18-domain-candidate-revised.trx",
+        ".local/autonomous/evidence/practice-gap-t18-20261107/local-domain-fix-cohort-20261108/t18-domain-fixes.trx",
+        ".local/autonomous/evidence/practice-gap-t18-20261107/domain-failure-fix-candidate-20261108.json",
+        ".local/autonomous/evidence/ci-560005a6-current-20261108/t18-and-t13a-current-source-focused-revalidation.json"
+      ],
+      "sourceIdentities": [
+        "84309bfcd27fce89b723617e7b0d470af5354839ff9a9f0e7ca721a060b33dc0",
+        "38c5609c154c4bbcd807ced94aa2ad903afb7e25d131943c577d64dfb3d3c2ca",
+        "190213772c932f595b7da74da3c005be3550a18f",
+        "77985dee8644f422d227c9ec694eac5ff3c8cddf",
+        "f468cea3a6491386c9600ba4b50c88ba21762ea21fccf80c08b83371600ccf50",
+        "6311f5e3513b8bc48a3a57a0ba17723b7d0933e34c65169e1893b84de3bb6ff7",
+        "560005a63471e428d7ffc7de16ad5a156b521f65",
+        "0a3eed460b58661e8e5c0bf891a14972bf0a6ab5249b1bfab449f4f65c7b4247"
+      ],
+      "limits": [
+        "Exact command and focused evidence retained in .local/autonomous/evidence/practice-gap-t18-20261107/domain-failure-fix-candidate-20261108.json",
+        "PUBLISHED_IN_190213772c932f595b7da74da3c005be3550a18f; EXACT_FAST_PASS; BASE_IMAGES_ACTIVE; FULL_NOT_DISPATCHED_FOR_CURRENT_T13B_CANDIDATE",
+        ".local/autonomous/evidence/practice-gap-t18-20261107/domain-failure-fix-candidate-20261108.json"
+      ],
+      "scope": "Historical focused proof; details in evidence, not release acceptance."
+    },
+    "autonomousState": {
+      "result": "PASS_PARTIAL",
+      "taskRows": 48,
+      "activeTaskId": "WU-004",
+      "sourceBaseSha": "5a12500032b9b840580995ff44cd5ce1f0304747",
+      "currentBrowserPolicy": "Chrome only; local focused E2E passed 1/1; Edge app absent.",
+      "baseSourceCi": "Fast and images PASS on 5a; not exact evidence for Chrome policy change.",
+      "candidateCi": "Pending publication and exact-source fast/images/full verification.",
+      "externalAcceptance": "OPEN; see current-slice handoff."
+    },
+    "docsConsolidationRecheck20261108": {
+      "result": "PASS_NO_ADDITIONAL_STALE_MARKDOWN",
+      "evidenceReferences": [
+        ".local/autonomous/evidence/docs-consolidation-20261108/recheck.json"
+      ],
+      "sourceIdentities": [],
+      "limitations": [
+        "Markdown, filename, narrative, audit source, task-board, UI inventory and docs diff checks passed; task board remains PARTIAL_SOURCE."
+      ]
+    },
+    "docsPostT13aRevalidation20261108": {
+      "result": "PASS",
+      "evidenceReferences": [
+        ".local/autonomous/evidence/practice-gap-t13a-20261108/docs-verification-20261108.json"
+      ],
+      "sourceIdentities": [
+        "8f7010e05ecb48c87d77d46f4a902655e4fd98038daa652eb610ddf2c9c329c5"
+      ],
+      "limitations": [
+        "PASS_WITH_SOURCE_LIMITATIONS; 75 rows; PARTIAL_SOURCE; code verdicts NOT_AUDITED"
+      ]
+    },
+    "docsT18PublicationRefresh20261108": {
+      "result": "PASS",
+      "evidenceReferences": [
+        ".local/autonomous/evidence/practice-gap-t13a-20261108/docs-verification-t18-publication-refresh-final.json"
+      ],
+      "sourceIdentities": [],
+      "limitations": [
+        "179 Markdown files; 22 canonical documents; 2,896 relative links; 253 repository paths; zero deleted references; 179 filenames pass; 6 protected narrative docs pass; 20 audit sections/165 procedure paragraphs pass; task board PARTIAL_SOURCE; UI inventory pass."
+      ],
+      "observedAtUtc": "2026-11-08T01:59:34Z"
+    },
+    "t13bArchiveReviewIdentity20261108": {
+      "historicalResult": "PUBLISHED_FAST_AND_IMAGES_PASS_FULL_NOT_DISPATCHED",
+      "evidenceReferences": [
+        ".local/autonomous/evidence/practice-gap-t13b-20261108/verification/t13b-focused-verification.json",
+        ".local/autonomous/evidence/practice-gap-t13b-20261108/domain-final/t13b-domain-final.trx"
+      ],
+      "sourceIdentities": [
+        "5d8c84aed73c75fcd88a690868f974be985f8241e1884539718146a4aefddf2c",
+        "35dc103e41b0b4f398241a3d393070a1675e3995"
+      ],
+      "limits": [
+        "PUBLISHED_FAST_AND_IMAGES_PASS_FULL_NOT_DISPATCHED",
+        "NOT_RUN",
+        "NOT_DISPATCHED"
+      ],
+      "scope": "Historical focused proof; details in evidence, not release acceptance."
+    },
+    "docsAndT13bRefresh20261108": {
+      "result": "PASS",
+      "evidenceReferences": [
+        ".local/autonomous/evidence/practice-gap-t13b-20261108/docs-refresh/validation.json"
+      ],
+      "sourceIdentities": [
+        "190213772c932f595b7da74da3c005be3550a18f"
+      ],
+      "limitations": [
+        "PARTIAL_SOURCE; code verdicts NOT_AUDITED"
+      ],
+      "observedAtUtc": "2026-11-08T03:01:35Z"
+    },
+    "postTransitionReceiptReplay": {
+      "historicalResult": "PASS",
+      "evidenceReferences": [
+        ".local/autonomous/evidence/practice-gap-t13b-20261108/t13b-historical-replay-after-transition.json"
+      ],
+      "sourceIdentities": [],
+      "limits": [
+        ".local/autonomous/evidence/practice-gap-t13b-20261108/t13b-historical-replay-after-transition.json"
+      ],
+      "scope": "Historical focused proof; details in evidence, not release acceptance."
+    },
+    "postReplayDocumentationValidation": {
+      "result": "PASS",
+      "evidenceReferences": [
+        ".local/autonomous/evidence/practice-gap-t13b-20261108/docs-refresh/post-replay-refresh-validation.json"
+      ],
+      "sourceIdentities": [],
+      "limitations": [],
+      "observedAtUtc": "2026-11-08T03:14:39.071445Z"
+    },
+    "apiCleanPublishDiagnostic20261108": {
+      "result": "PASS_LOCAL_DIAGNOSTIC_ONLY",
+      "evidence": ".local/autonomous/evidence/ci-19021377-current-20261108/api-clean-publish-diagnostic.json",
+      "sourceBaseSha": "190213772c932f595b7da74da3c005be3550a18f",
+      "clean": "Release clean passed with zero warnings/errors",
+      "publish": "Release API publish passed using the same GC/build flags as the image workflow",
+      "elapsedSeconds": "NOT_RETAINED",
+      "interpretation": "Does not establish the cause of hosted job cancellation."
+    },
+    "postBaseImageTerminalDocumentationValidation20261108": {
+      "result": "PASS",
+      "evidenceReferences": [
+        ".local/autonomous/evidence/practice-gap-t13b-20261108/docs-refresh/post-base-image-terminal-validation-rerun.json"
+      ],
+      "sourceIdentities": [],
+      "limitations": [
+        "PASS_PARTIAL_SOURCE; generated board matches available sources; code verdicts remain NOT_AUDITED"
+      ],
+      "observedAtUtc": "2026-11-08T03:39:50Z"
+    },
+    "t12bArchiveCommandOwnership20261108": {
+      "result": "PASS_FOCUSED",
+      "angularSpec": "38 passed / 0 failed / 0 skipped",
+      "productionBuild": "PASS_WITH_EXISTING_CSS_BUDGET_WARNINGS",
+      "evidence": ".local/autonomous/evidence/practice-gap-t12b-20261108/final-verification/",
+      "observedAtUtc": "2026-11-08T05:12:32Z"
+    },
+    "docsConsolidationFollowup20261108": {
+      "result": "PASS",
+      "evidenceReferences": [
+        ".local/autonomous/evidence/docs-consolidation-followup-20261108/pre-terminal-refresh-repair-20261108T054729Z/manifest.json",
+        ".local/autonomous/evidence/docs-consolidation-followup-20261108/fbb153-final-validation-20261108T054924Z.json"
+      ],
+      "sourceIdentities": [
+        "fbb153055546bf868515704eb310ca979752a396"
+      ],
+      "limitations": [],
+      "observedAtUtc": "2026-11-08T05:56:14Z"
+    },
+    "t24OffboardingRecovery20261108": {
+      "result": "PASS_FOCUSED",
+      "observedAtUtc": "2026-11-08T07:49:59Z",
+      "baseSha": "969018a85ed2ff4a00a65698d0a7d06456819e47",
+      "candidateStatus": "UNCOMMITTED_AT_OBSERVATION",
+      "domainRecoveryCohort": {
+        "result": "PASS",
+        "passed": 5,
+        "failed": 0,
+        "evidence": ".local/autonomous/evidence/practice-gap-t24-20261108/domain/t24-offboarding-recovery.trx"
+      },
+      "domainOriginalReadinessRegression": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "evidence": ".local/autonomous/evidence/practice-gap-t24-20261108/final/domain/t24-readiness-final.trx"
+      },
+      "domainWaitFenceCohort": {
+        "result": "PASS",
+        "passed": 2,
+        "failed": 0,
+        "overlapsRecoveryCohort": true,
+        "evidence": ".local/autonomous/evidence/practice-gap-t24-20261108/readcommitted-fence/t24-fence-red-green.trx"
+      },
+      "apiRecoveryRoute": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "evidence": ".local/autonomous/evidence/practice-gap-t24-20261108/api/t24-recovery-api.trx"
+      },
+      "angularReadinessSpec": {
+        "result": "PASS",
+        "passed": 29,
+        "failed": 0,
+        "command": "npm --prefix src/AuditSphereOps.Ui run test:ci -- --include 'src/app/features/clients/client-offboarding-readiness.spec.ts'",
+        "evidence": "fresh 2026-11-08 focused rerun; result captured in final-verification.json"
+      },
+      "angularProductionBuild": {
+        "result": "PASS_WITH_EXISTING_CSS_BUDGET_WARNINGS",
+        "warnings": [
+          "src/app/features/commercial/settings.scss",
+          "src/app/app.scss"
+        ]
+      },
+      "openApiEmitterReleaseBuild": {
+        "result": "PASS",
+        "warnings": 0,
+        "errors": 0
+      },
+      "openApiContract": {
+        "result": "PASS",
+        "command": "bash scripts/contracts/verify-openapi.sh"
+      },
+      "browserAcceptance": "NOT_RUN",
+      "exactCandidateFastImagesFullCi": "NOT_RUN"
+    },
+    "latestDocsRefreshValidation": {
+      "result": "PASS_CURRENT_REFRESH",
+      "evidenceReferences": [
+        ".local/autonomous/evidence/docs-consolidation-live-refresh-20261108/post-full-terminal-20261108T120840Z/final-validation.json",
+        ".local/autonomous/evidence/ci-cd-acceleration-20261108/pre-terminal-doc-refresh-20261108T225009Z/manifest.json"
+      ],
+      "sourceIdentities": [
+        "84215010a896ff94089e13751ad89354335d076c",
+        "4f2c0e43e0b8f0ff59032bbcffe6a941eec50253b536786a85ae7375be00ee06"
+      ],
+      "limitations": [
+        "PASS_PARTIAL_SOURCE_75_ROWS_NOT_AUDITED"
+      ],
+      "observedAtUtc": "2026-11-08T22:53:13Z"
+    },
+    "wu015ScopeDenialReconciliation20261108": {
+      "status": "PARTIAL; historical 42-endpoint 400 finding not reproduced",
+      "sourceSha": "428ad16b904bce309ea06b713d95b958aa6dc3e2",
+      "endpointFilesScanned": 84,
+      "explicitDenialBranches": 59,
+      "mappedTo403": 59,
+      "unclassifiedOrWrong": 0,
+      "focusedApiTests": "6 passed / 0 failed / 0 skipped",
+      "evidence": ".local/autonomous/evidence/wu015-scope-denial-reconciliation-20261108/review.json",
+      "evidenceSha256": "016e933ed49e5508a225398e1717e0d22c897b3788932e5b61c23af76ce33d8f",
+      "broaderSiblingScopeAndRevocationRaceAcceptance": "OPEN"
+    },
+    "wu016CurrentReconciliation20261108": {
+      "status": "FOCUSED_PASS; acceptance pending dependencies",
+      "sourceSha": "428ad16b904bce309ea06b713d95b958aa6dc3e2",
+      "tests": "4 passed / 0 failed / 0 skipped",
+      "evidence": ".local/autonomous/evidence/wu016-current-reconciliation-20261108/review.json",
+      "evidenceSha256": "099448922887efa0cc0ad2ea1303c6023077d359bdf87cf686f274d149d49900",
+      "databaseCleanup": "PASS; ephemeral PostgreSQL 18.6 container removed, port 5433 closed"
+    },
+    "ciFailureReconciliation20261108": {
+      "result": "FOCUSED_LOCAL_PASS; EXACT_CANDIDATE_FULL_CI_NOT_RUN",
+      "apiRouteContract": {
+        "result": "PASS",
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.Api.Tests/AuditSphereOps.Api.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AngularRoutingContractTests'"
+      },
+      "engagementScopeJourney": {
+        "result": "PASS",
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0,
+        "command": "dotnet test tests/AuditSphereOps.E2E.Tests/AuditSphereOps.E2E.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~EngagementAndAuditPlanClearOnScopeChangeAndRefuseRevokedWrites'",
+        "environment": "ephemeral PostgreSQL 18.6 on 127.0.0.1:5433; container removed and port closed"
+      },
+      "fullCiRuns": [
+        42463038759,
+        42465046946
+      ],
+      "scheduledRunEvidence": ".local/autonomous/evidence/ci-428ad16-current-20261108/full-42465046946-terminal/scheduled-run-terminal-review.json",
+      "candidateEvidence": ".local/autonomous/evidence/practice-ci-failure-reconciliation-20261108/candidate-review.json",
+      "limitations": "Neither full run includes this local candidate. Scheduled API cancellation and E2E inactivity causes remain unconfirmed; no retry of unchanged source."
+    },
+    "ciAccelerationStaticReview": {
+      "result": "PASS_STATIC_AND_PREVIOUS_EXACT_FAST",
+      "actionlint": "PASS for release-verification.yml and release.yml after local overlap edit",
+      "diffCheck": "PASS after local overlap edit; rerun with final docs",
+      "workflowGraphCheck": "PASS: build-images depends only on verify-ci-passed; release remains dependent on verify-ci-passed, verify-release-source and build-images; image job has no OIDC, Azure login or docker push",
+      "exactCandidateCi": "Exact fast run 42505925107 SUCCESS on 2f713a4; Angular, Docs and Release logs confirm exact checkout; Angular 2,029/196 files; Docs 2,896 links; Release build and guards passed",
+      "exactFullCi": "NOT_DISPATCHED for the final workflow candidate",
+      "imageBuild": "NOT_RUN",
+      "deployment": "NOT_PERFORMED",
+      "observedAtUtc": "2026-11-08T18:02:29Z"
+    },
+    "ciAccelerationFast42502644835": {
+      "result": "PASS",
+      "runId": 42502644835,
+      "attempt": 1,
+      "sourceSha": "09a76bde75314b3a76ae12c6d310365d82427c6a",
+      "allThreeActualCheckoutShasMatch": true,
+      "angularTestsPassed": 2029,
+      "angularTestFilesPassed": 196,
+      "docsRelativeLinks": 2896,
+      "releaseBuild": "PASS",
+      "openApiSemanticTests": "12 passed, 0 failed, 0 skipped",
+      "openApiContract": "CURRENT",
+      "runCreatedAtUtc": "2026-11-08T16:59:23Z",
+      "runCompletedAtUtc": "2026-11-08T17:28:44Z",
+      "evidence": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-42502644835/fast-terminal-proof.json"
+    },
+    "ciAccelerationFast42505925107": {
+      "result": "PASS",
+      "runId": 42505925107,
+      "attempt": 1,
+      "sourceSha": "2f713a4cffdc08499b06901af80ff5ec504ba972",
+      "allThreeActualCheckoutShasMatch": true,
+      "angularTestsPassed": 2029,
+      "angularTestFilesPassed": 196,
+      "docsRelativeLinks": 2896,
+      "releaseBuild": "PASS",
+      "openApiSemanticTests": "12 passed, 0 failed, 0 skipped",
+      "openApiContract": "CURRENT",
+      "runCreatedAtUtc": "2026-11-08T17:37:57Z",
+      "runCompletedAtUtc": "2026-11-08T18:00:27Z",
+      "releaseJobSeconds": 1181,
+      "totalRunSeconds": 1350,
+      "evidence": ".local/autonomous/evidence/ci-cd-acceleration-20261108/fast-2f713a4c-42505925107/fast-terminal-proof.json"
+    },
+    "ciBuildArtifactReuseFocused20261108": {
+      "baseSha": "00966fcbf750808c6b7c4ee18c87826f0f816013",
+      "candidateStatus": "LOCAL_UNCOMMITTED",
+      "unitTests": "PASS_6_6",
+      "coverage": [
+        "exact successful master-push SHA/run/attempt selection",
+        "valid archive round trip and Release output replacement",
+        "wrong source rejected without mutation",
+        "archive size/digest mismatch rejected",
+        "tar traversal rejected before extraction",
+        "Actions API unavailable fails closed to normal build"
+      ],
+      "pythonCompile": "PASS",
+      "actionlint": "PASS",
+      "gitDiffCheck": "PASS",
+      "fullLocalSuites": "NOT_RUN",
+      "exactCandidateCi": "NOT_RUN",
+      "artifactReuseTiming": "NOT_MEASURED",
+      "evidenceArchive": ".local/autonomous/evidence/ci-cd-acceleration-20261108/pre-build-reuse-20261108T191522Z/manifest.json",
+      "observedAtUtc": "2026-11-08T19:21:32Z",
+      "documentationValidation": "PASS_179_MARKDOWN_22_CANONICAL_2896_LINKS_179_FILENAMES_6_NARRATIVE"
+    },
+    "completionReviewR02": {
+      "result": "PASS",
+      "test": "1 passed, 0 failed, 0 skipped",
+      "database": "Disposable PostgreSQL 18.6, loopback-only; removed after run",
+      "command": "dotnet test tests/AuditSphereOps.Domain.Tests/AuditSphereOps.Domain.Tests.csproj --no-restore -c Release --maxcpucount:1 --filter 'FullyQualifiedName~AuditCompletionTests'",
+      "evidence": ".local/autonomous/evidence/pms-reassessment-20261110/r02-review-scope-test.json",
+      "limitations": "Historical focused review limits apply. Integrated exact-source CI is recorded separately."
+    },
+    "e2eRouteChainRepair20261112": {
+      "owner": "repair_e2e_route_chain",
+      "baseSha": "95c0c847ec227f25fa3b5ddf2170d7561477c2dd",
+      "status": "HISTORICAL_FOCUSED_PASS_PUBLISHED_06008DCD",
+      "scope": "Preserve older Playwright route handlers for unmatched/completed capture requests; signal finding-refresh interception before backend fetch. No product or timeout changes.",
+      "acceptance": [
+        "Both capture APIs retain older handlers and capture exactly one target response.",
+        "Lost-committed finding receipt, loading and exact one-mutation persistence checks pass without weakened assertions."
+      ],
+      "red": "Same two regression variants fail on original helper because the older handler is bypassed.",
+      "green": "2/2 database-free real-browser regressions and 3/3 finding lost-committed actions passed; zero skips/failures.",
+      "evidence": ".local/autonomous/evidence/e2e-route-chain-95",
+      "cleanup": "All three owned-host manifests CLEANED, recorded PIDs absent, PostgreSQL stopped.",
+      "limits": "Does not prove the exact CI interleaving, resolve the separate ordering timeout, or establish successor full CI/deployment acceptance."
+    },
+    "e2eOrderingGesture20261112": {
+      "owner": "repair_e2e_route_chain",
+      "baseSha": "95c0c847ec227f25fa3b5ddf2170d7561477c2dd",
+      "status": "HISTORICAL_FOCUSED_PASS_PUBLISHED_06008DCD",
+      "scope": "Preventive test-only synchronization: after capture registration, recheck assent/enabled/focus and press Enter once on the current exact confirmation control. Exact-task response and single-POST assertion; original persistence, authority and independence checks unchanged.",
+      "acceptance": [
+        "Keyboard action targets the still-reviewed current control only after response capture is installed.",
+        "One exact reopen POST and original revision, activity and no-professional-approval assertions pass.",
+        "No retries, timeout increases, application guard changes or suppressed failures."
+      ],
+      "diagnostic": "Original global-Enter diagnostic run passed1/1; focused/enabled current confirm, checked assent, one POST and confirmed response observed. Historical timeout cause not reproduced or established.",
+      "final": "Corrected named case passed1/1 in19 seconds, zero failures/skips.",
+      "evidence": ".local/autonomous/evidence/e2e-ordering-95",
+      "cleanup": "Both diagnostic and final owned hosts CLEANED, recorded processes absent, isolated PostgreSQL stopped.",
+      "limits": "Initial diagnostic declaration compile failure retained separately; no assertions ran in that attempt. Preventive correction is not proof of historical focus loss or a full-CI/deployment pass."
+    },
+    "historicalSupportedRepairE667": {
+      "baseSha": "e6670e9617e11823011dbe95580ba5acc39451f7",
+      "evidence": ".local/autonomous/evidence/r03-e667-supported-repair-20261111",
+      "scope": "Focused accepted scopes only; no aggregate pass/count. Failed attempts retained.",
+      "acceptedScopes": [
+        "bank/report3: bank-report-v2.trx",
+        "seven corruption-source bundle cases: six bundle-source-remaining-v1.trx plus report Passed in mixed portal-freeze-commercial-v1.trx; separate failure retained",
+        "portal current-risk/original-letter fix and negative/freeze/concurrency: portal-candidate-v1/proof-index.json",
+        "historical3: historical-three-v1.trx",
+        "opinion split1: opinion-split-v1.trx",
+        "confirmations4: confirmation-supported-v2.trx; representation1: supported-deliverables-v3.trx",
+        "underlying helper/acceptance/R02 checks separately retained",
+        "freeze/EQR/workpaper3 passed3/3, independent exact-hash review accepted; freeze-supported-candidate"
+      ],
+      "e2e": ".local/autonomous/evidence/r03-e667-e2e-repair-20261111/acceptance-supported-v3*:1passed,0failed/skipped,69s",
+      "correctedSourceCi": "NOT_RUN",
+      "completionE2e": {
+        "result": "PASS_INDEPENDENTLY_ACCEPTED",
+        "passed": 1,
+        "seconds": 101.787,
+        "provenance": "Corrected OwnedHost/source provenance",
+        "evidence": ".local/autonomous/evidence/r03-e667-e2e-repair-20261111/completion-supported-v1"
+      },
+      "administrationE2e": {
+        "result": "PASS_INDEPENDENTLY_ACCEPTED",
+        "passed": 1,
+        "seconds": 67,
+        "source": "b0ff2f61",
+        "evidence": ".local/autonomous/evidence/r03-e667-e2e-repair-20261111/administration-supported-v1"
+      },
+      "ownershipApi": {
+        "result": "PASS_INDEPENDENTLY_ACCEPTED",
+        "passed": 1,
+        "seconds": 64.184,
+        "evidence": ".local/autonomous/evidence/api-ownership-supported-20261111/verified-corrections",
+        "scope": "Existing-fixture csproj link and required now argument; no production change; original transport root cause unknown."
+      },
+      "originalDomainFailureNameReconciliation": {
+        "source": "Parent read-only retained XML reconciliation",
+        "originalFailedNames": 35,
+        "namesWithAtLeastOneRetainedFocusedPass": 33,
+        "namesWithoutRetainedFocusedPass": 2,
+        "limit": "Historical focused-name coverage only, not a full/current-source suite pass."
+      },
+      "domainLatest": "Correspondence3 pass/accepted; completion six initially5pass/1role-catalog failure. Legacy projection alone subsequently passed scoped read-boundary compatibility probe with genuine supported Staff grant and unchanged persisted state; no raw grant/new role policy. Final legacy runtime review finishing.",
+      "e2eFinalFreeze": {
+        "result": "FIVE_ORIGINAL_METHODS_FOCUSED_PASS_INDEPENDENTLY_REVIEWED",
+        "rows": 6,
+        "filesVerified": 10,
+        "archive": ".local/autonomous/evidence/r03-e667-e2e-repair-20261111/e2e-final-freeze.zip",
+        "sha256": "23209113b2ab220f18b152c27c8a7ab480c8d6da697f4690bf508ba89da9612b",
+        "manifestSha256": "c36cce3336bdb7f7743f12a94407f294fc623a5cfbcf63ea2b464d775ed6d057",
+        "limits": "Sequential candidates, Acceptance prediagnostic patch, Opening Draft-only companion; original root causes unknown. Not full/current-source CI."
+      }
+    },
+    "documentationReconciliationHistorical20261108": {
+      "archivedInExactPriorStatus": ".local/autonomous/evidence/chrome-only-e2e-20261115/checkpoint-archive-before-chrome-publication/status.json",
+      "priorObservedAtUtc": "2026-11-07T17:23:40Z",
+      "priorResult": "PASS",
+      "priorEvidenceCount": 14
+    },
+    "chromeOnlyE2e20261115": {
+      "result": "PASS_PARTIAL",
+      "evidence": ".local/autonomous/evidence/chrome-only-e2e-20261115/local-chrome-e2e-review.json",
+      "sourceBaseSha": "5a12500032b9b840580995ff44cd5ce1f0304747",
+      "focusedTest": "AngularFirmBooksKeepsExpenseReviewIndependentAndPostsBalancedTrialBalance",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "googleChrome": "157.0.8103.79",
+      "browserEnvironment": "E2E_BROWSER unset; shared launcher selected Chrome channel",
+      "temporaryPostgres": "18.6 isolated loopback cluster; owned database/processes cleaned; cluster stopped and removed",
+      "releaseBuild": "PASS",
+      "browserPreflightTests": "2 passed",
+      "actionlint": "PASS",
+      "exactCandidateCi": "PENDING"
+    },
+    "wu004ApplicationDmlRole": "PASS 41/41 PG19.0; no model drift; scope, append-only and history probes passed. Evidence .local/autonomous/evidence/wu004-resume-20261123/focused-review.json; production untouched.",
+    "postgresql19Candidate20261120": {
+      "result": "FOCUSED PASS; EXACT CANDIDATE CI PENDING",
+      "baseSha": "f198f25ffa7b9e996a963b32b057b6a085636ccd",
+      "checks": "Guard 5/5; docs PASS; exact-image local PG19.0 rehearsal applied 329 migrations, API ready 200, cleanup complete.",
+      "baseCi": "F198 fast 44814490207, images 44815270983, full 44816403371 PASS on base only.",
+      "evidence": ".local/autonomous/evidence/pg19-compose-entrypoint-fix-20261120/candidate-review.json",
+      "limits": "Live PG18.6 unchanged; local rehearsal is not production recovery or cutover evidence."
+    },
+    "pg19ReleaseDocs20261122": {
+      "result": "PASS_DOCUMENTATION_ONLY",
+      "evidence": ".local/autonomous/evidence/pg19-f42-recovery-20261122/documentation-validation-20261122T031148Z.json",
+      "markdownFiles": 191,
+      "relativeLinksChecked": 3013,
+      "deletedPathReferences": 0,
+      "filenameValidation": "PASS",
+      "narrativeMetricsValidation": "PASS",
+      "taskBoard": "PASS_PARTIAL_SOURCE",
+      "tests": "NOT_RUN_DOCUMENTATION_ONLY"
+    },
+    "hostingerImageManifestUnitTests": {
+      "result": "PASS",
+      "testsPassed": 4,
+      "command": "python3 -m unittest scripts.release.test_hostinger_image_manifest",
+      "observedAtUtc": "2026-11-22T22:52:31Z",
+      "evidence": ".local/autonomous/evidence/release-cycle-optimization-20261123/local-validation-20261122T225231Z.json"
+    },
+    "hostingerImageManifestPythonCompile": {
+      "result": "PASS",
+      "command": "python3 -m py_compile scripts/release/hostinger_image_manifest.py scripts/release/test_hostinger_image_manifest.py",
+      "observedAtUtc": "2026-11-22T22:52:31Z",
+      "evidence": ".local/autonomous/evidence/release-cycle-optimization-20261123/local-validation-20261122T225231Z.json"
+    },
+    "releaseOptimizationClassifierTests": {
+      "result": "PASS",
+      "testsPassed": 12,
+      "command": "python3 scripts/release/test_ci_change_scope.py",
+      "observedAtUtc": "2026-11-23T05:02:57Z",
+      "scope": "Local FRC-004 candidate; missing preflight file fails closed; unpublished."
+    },
+    "scope": "Published FRC-004 exact-path classifier; 12/12 tests, including missing-file fail-closed case.",
+    "acceptanceFirstOnboarding20261125": {
+      "status": "FOCUSED_LOCAL_PASS_CI_PENDING_NOT_DEPLOYED",
+      "baseSha": "b3b30c9f03210e2e811117a89deb1c1d87b435cc",
+      "scope": "Canonical prospect discovery precedes exact-opportunity client acceptance/continuance; current unconditional Partner decision gates commercial progression.",
+      "domain": "102 passed, 0 failed, 0 skipped; PracticeCrmTests, CommercialWorkflowTests, CommercialPricingPolicyTests, WorkspaceQueryTests.",
+      "gateRegression": "1 passed; Pending, Conditional, Declined, Deferred and stale decisions do not permit exact-scope commercial progression.",
+      "angular": "47 passed: 16 opportunity tests and 31 acceptance tests.",
+      "chromeE2e": "1 passed: unpriced discovery persists and is linked to its exact Client Acceptance checklist; route, period, scope and entity exclusion are shown. Full CE questionnaire and Partner decision are not submitted in-browser.",
+      "angularBuild": "PASS_WITH_EXISTING_CSS_BUDGET_WARNINGS (settings.scss 7.53 kB/4 kB; app.scss 4.11 kB/4 kB).",
+      "openApi": "PASS; generated contract current.",
+      "efModel": "PASS; no pending model changes.",
+      "docsAndDiff": "PASS; Markdown health 192 files/3014 links; filename and narrative validators; git diff --check.",
+      "exactSourceCi": "PENDING_COMMIT",
+      "deployment": "NOT_PERFORMED"
+    },
+    "f29RunnerOwnership20261126": {
+      "result": "PASS_FOCUSED_LOCAL",
+      "baseSha": "62059aa2e622bcb6245a211380021f5cf315cd97",
+      "runnerTests": {
+        "passed": 18,
+        "failed": 0,
+        "command": "python3 scripts/agent/tests/test_completion_runner.py"
+      },
+      "stateTests": {
+        "passed": 12,
+        "failed": 0,
+        "command": "python3 scripts/agent/tests/test_completion_state.py StateIntegrityTests"
+      },
+      "compile": {
+        "result": "PASS",
+        "command": "python3 -m py_compile scripts/agent/complete.py scripts/agent/completion_state.py scripts/agent/tests/test_completion_runner.py scripts/agent/tests/test_completion_state.py"
+      },
+      "diffCheck": "PASS",
+      "exactSourceCi": "PENDING_COMMIT",
+      "scopeLimit": "Focused Python runner/state checks only; no full project or production acceptance claim.",
+      "documentation": "PASS: python3 scripts/docs/validate-markdown-documentation.py; validate-markdown-filenames.py; validate-narrative-metrics.py."
+    },
+    "fwBank01": "PASS: Domain 1/1 including pre-execution revocation/rollback, API 1/1, Angular 39/39, EF drift, OpenAPI and docs gates; isolated PostgreSQL. Details in auditsphere-audit-fw-bank-01-evidence-20261127.md.",
+    "latestCandidateCi": {
+      "sha": "b93d5b927930ca1c50ecfcd9639925a2ddeb7149",
+      "runId": "45909563368",
+      "fast": "FAILURE before FW-BANK-01; .NET Release pass, Angular archive-record unconsumed request and plan.spec timeout."
+    }
+  }
+}

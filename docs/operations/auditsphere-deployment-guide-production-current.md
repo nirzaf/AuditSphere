@@ -4,7 +4,7 @@ AuditSphereOps uses Microsoft Entra ID for staff identity, local database grants
 
 This Wiki is the primary source for deployment guidance. Update it when the implementation, approved topology, or operational procedure changes; do not rely on a copied Google Doc as the current runbook.
 
-This guide is a deployment runbook. Read it with the [current requirements](../requirements/auditsphere-accounting-module-requirements-current.md), the [implementation architecture](../architecture/auditsphere-architecture-current-architecture.md), and the [execution ledger](../execution/status.json).
+This guide is a deployment runbook. Use the [requirements index](../requirements/auditsphere-requirements-index-current.md) to identify approved/current requirements; it classifies revision 2.3 of the accounting-module requirements as `PROPOSED`, not implementation authority. Read the deployment guidance with the [implementation architecture](../architecture/auditsphere-architecture-current-architecture.md) and [execution ledger](../execution/status.json).
 
 ## Current implementation boundary
 

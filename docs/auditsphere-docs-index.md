@@ -1,6 +1,6 @@
 # AuditSphere documentation index
 
-**Status: CURRENT · Navigation only · Reconciled 2026-11-26**
+**Status: CURRENT · Navigation only · Reconciled 2026-11-28**
 
 This index helps developers find the current source of authority. It does not create requirements, approve proposals, or certify release readiness.
 
@@ -44,4 +44,4 @@ When documents differ, use this order:
 
 Category entry points are the maintained summaries. Keep a separate detailed file when it is an approved decision, a normative requirement, a proposed source, or an operator procedure with its own scope. Do not copy volatile test counts, run IDs, or changing task status into these summaries; record those in `docs/execution/status.json`. Historical material is referenced at its source commit so consolidation does not rewrite or silently discard its provenance.
 
-One-off review reports and superseded audit findings are not kept at the repository root. Their recoverable copies remain in Git history and the removal is recorded in the [current-slice handoff](execution/auditsphere-execution-current-slice.md); current observations belong in `docs/execution/status.json`.
+One-off review reports and superseded audit findings are not kept at the repository root. Their recoverable copies remain in Git history and removals are recorded in the [current-slice handoff](execution/auditsphere-execution-current-slice.md). The CI optimization review is consolidated in the testing strategy, with its exact historical evidence recoverable from its source commit. Current observations belong in `docs/execution/status.json`.

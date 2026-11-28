@@ -8,7 +8,7 @@
 **Intended repository path:** `docs/architecture/auditsphere-autonomous-completion-remediation-spec.md`\
 **Repository status:** PROPOSED execution specification adopted 22 October 2026 at `e5c24072`. Paths marked "(proposed …)" do not exist until the named work unit creates them.\
 **Deliverable:** One self-contained Markdown implementation and verification specification.\
-**Architecture at review baseline (2026-10-22):** .NET 10/C# 14 modular monolith, ASP.NET Core API, Angular 22, EF Core/Npgsql/PostgreSQL, isolated .NET Workers. No framework replacement. The verified current stack on `master` at `ba6c2fb5083b5bb020b88ffe817cb2298996c5a5` is .NET 11/C# 15, ASP.NET Core 11, EF Core 10.0.12/Npgsql 10.0.0, Angular 22.2.1, and PostgreSQL 19.x; see [`AGENTS.md`](../../AGENTS.md), [`README.md`](../../README.md), and the [current architecture](auditsphere-architecture-current-architecture.md).
+**Architecture at review baseline (2026-10-22):** .NET 10/C# 14 modular monolith, ASP.NET Core API, Angular 22, EF Core/Npgsql/PostgreSQL, isolated .NET Workers. No framework replacement. The verified stack snapshot at source `ba6c2fb5083b5bb020b88ffe817cb2298996c5a5` recorded .NET 11/C# 15, ASP.NET Core 11, EF Core 10.0.12/Npgsql 10.0.0, Angular 22.2.1, and PostgreSQL 19.x; that source-specific observation is historical. Consult [`AGENTS.md`](../../AGENTS.md), [`README.md`](../../README.md), and the [current architecture](auditsphere-architecture-current-architecture.md) for current stack pins.
 
 ## Executive decision
 
