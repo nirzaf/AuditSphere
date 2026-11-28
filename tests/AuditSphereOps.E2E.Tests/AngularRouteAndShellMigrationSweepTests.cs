@@ -119,8 +119,10 @@ public sealed class AngularRouteAndShellMigrationSweepTests
         await Assertions.Expect(staffPage.GetByText(
           "Forwarding an invitation link cannot grant access.",
           new() { Exact = true })).ToBeVisibleAsync();
-        await Assertions.Expect(staffPage.GetByRole(AriaRole.Link,
-          new() { Name = "Sign out", Exact = true })).ToHaveAttributeAsync("href", "/auth/sign-out");
+        var signOutForm = staffPage.Locator("form[method='post'][action='/auth/sign-out']");
+        await Assertions.Expect(signOutForm).ToHaveCountAsync(1);
+        await Assertions.Expect(signOutForm.GetByRole(AriaRole.Button,
+          new() { Name = "Sign out", Exact = true })).ToBeVisibleAsync();
       }
       var currentLinks = staffPage.Locator("audit-workspace-navigation nav a[aria-current='page']");
       Assert.True(await currentLinks.CountAsync() <= 1, $"{route} marked more than one workspace destination current.");

@@ -126,6 +126,9 @@ def _validate_image_record(
     attempt: int,
 ) -> dict[str, Any]:
     registry = _validate_identity(repository, source_sha, run_id, attempt)
+    record_attempt = record.get("workflowRunAttempt")
+    if isinstance(record_attempt, bool) or not isinstance(record_attempt, int) or not 1 <= record_attempt <= attempt:
+        raise ValueError(f"{image_key} record has an invalid or future workflow attempt")
     digest = record.get("manifestDigest")
     if not isinstance(digest, str) or _DIGEST_RE.fullmatch(digest) is None:
         raise ValueError(f"{image_key} record has an invalid manifest digest")
@@ -137,7 +140,7 @@ def _validate_image_record(
         "repository": repository,
         "workflow": WORKFLOW,
         "workflowRunId": run_id,
-        "workflowRunAttempt": attempt,
+        "workflowRunAttempt": record_attempt,
         "sourceSha": source_sha,
         "platform": PLATFORM,
         "imageKey": image_key,

@@ -9,10 +9,11 @@ public static partial class ApiHost
 {
   private static void ConfigureHealth(WebApplicationBuilder builder, string connectionString)
   {
+    ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
     // Liveness/readiness split (§45.4): self = always; ready = DB reachable (custom check, no extra package).
     builder.Services.AddHealthChecks()
       .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("web alive"))
-      .AddNpgSqlCheck(connectionString ?? "Host=127.0.0.1;Port=5433;Database=auditsphere;Username=postgres")
+      .AddNpgSqlCheck(connectionString)
       .AddCheck<MigrationCheck>("migrations", tags: ["ready"]);
   }
 }

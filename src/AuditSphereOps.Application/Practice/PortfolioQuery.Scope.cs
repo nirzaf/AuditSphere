@@ -16,27 +16,23 @@ public static partial class PortfolioQuery
     string[]? requiredRoles = null, bool caseInsensitiveRoles = false)
   {
     var roles = requiredRoles ?? Roles;
-    var grantsQuery = db.RoleGrants.AsNoTracking().Where(g => g.FirmId == actor.FirmId &&
-      g.UserId == actor.UserId && g.RevokedAt == null);
-    List<(Guid? ClientId, Guid? EngagementId)> grants;
-    if (caseInsensitiveRoles)
-    {
-      var candidates = await grantsQuery.Select(g => new { g.Role, g.ClientId, g.EngagementId }).ToListAsync(ct);
-      grants = candidates.Where(g => roles.Contains(g.Role, StringComparer.OrdinalIgnoreCase))
-        .Select(g => (g.ClientId, g.EngagementId)).Distinct().ToList();
-    }
-    else
-    {
-      var candidates = await grantsQuery.Where(g => roles.Contains(g.Role))
-        .Select(g => new { g.ClientId, g.EngagementId }).Distinct().ToListAsync(ct);
-      grants = candidates.Select(g => (g.ClientId, g.EngagementId)).ToList();
-    }
+    var snapshot = await AuthorizationDecision.LoadBatchAuthorizationSnapshotAsync(
+      db, actor, requestedClientIds: null, requestedEngagementIds: null, includeGrantTargets: true, ct);
+    if (!snapshot.Identity.Succeeded) return null;
+
+    var grants = caseInsensitiveRoles
+      ? snapshot.Grants.Where(g => roles.Contains(g.Role, StringComparer.OrdinalIgnoreCase))
+          .Select(g => (g.ClientId, g.EngagementId)).Distinct().ToList()
+      : snapshot.Grants.Where(g => roles.Contains(g.Role))
+          .Select(g => (g.ClientId, g.EngagementId)).Distinct().ToList();
+
+    var evaluatedAt = DateTimeOffset.UtcNow;
     var requests = new List<AuthorizationRequest>();
     foreach (var grant in grants)
     {
       var request = new AuthorizationRequest(actor.FirmId, grant.ClientId, grant.EngagementId, roles,
         InternalOnly: true, RequireFirmWide: grant.ClientId is null && grant.EngagementId is null);
-      if ((await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded) requests.Add(request);
+      if (snapshot.Authorize(actor, request, evaluatedAt).Succeeded) requests.Add(request);
     }
     return requests.Count == 0 ? null : new(requests.Any(r => r.RequireFirmWide),
       requests.Where(r => r.ClientId.HasValue && !r.EngagementId.HasValue).Select(r => r.ClientId!.Value).ToArray(),
@@ -71,8 +67,17 @@ public static partial class PortfolioQuery
 
   private static async Task<bool> CurrentAsync(IAuditSphereDbContext db, ActorContext actor, Scope scope, CancellationToken ct)
   {
+    if (scope.Requests.Count == 0) return true;
+    var snapshot = await AuthorizationDecision.LoadBatchAuthorizationSnapshotAsync(
+      db,
+      actor,
+      scope.Requests.Where(r => r.ClientId.HasValue).Select(r => r.ClientId!.Value),
+      scope.Requests.Where(r => r.EngagementId.HasValue).Select(r => r.EngagementId!.Value),
+      includeGrantTargets: false,
+      ct);
+    var evaluatedAt = DateTimeOffset.UtcNow;
     foreach (var request in scope.Requests)
-      if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded) return false;
+      if (!snapshot.Authorize(actor, request, evaluatedAt).Succeeded) return false;
     return true;
   }
 }

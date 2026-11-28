@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Acceptance;
 using AuditSphereOps.Domain.Accounting;
@@ -103,6 +105,58 @@ public sealed partial class ClientAccountingTests
     {
       await using var db = new AuditSphereDbContext(pg.Options);
       var error = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync(sql, original.Id)); Assert.Equal("23514", error.SqlState);
+    }
+
+    Guid corruptHashId;
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var prior = await db.ClientSalesInvoiceDrafts.AsNoTracking()
+        .Where(x => x.FirmId == scope.FirmId && x.ClientId == scope.ClientA && x.InvoiceId == original.InvoiceId)
+        .OrderByDescending(x => x.Revision).SingleAsync();
+      var corruptHash = db.Entry(prior).CurrentValues.ToObject() as ClientSalesInvoiceDraft
+        ?? throw new InvalidOperationException("Could not clone the immutable sales draft fixture.");
+      corruptHashId = Guid.CreateVersion7();
+      corruptHash.Id = corruptHashId;
+      corruptHash.Revision = prior.Revision + 1;
+      corruptHash.PreviousRevisionId = prior.Id;
+      corruptHash.PreviousRevision = prior.Revision;
+      corruptHash.CommandId = Guid.CreateVersion7();
+      corruptHash.IntentHash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(corruptHash.CommandId.ToString())));
+      corruptHash.DraftReference = "CORRUPT-HASH";
+      corruptHash.SnapshotJson = "{}";
+      corruptHash.SnapshotHash = new string('0', 64);
+      db.ClientSalesInvoiceDrafts.Add(corruptHash);
+      await db.SaveChangesAsync();
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var corruptHashRead = await ClientSalesInvoiceWorkflow.GetLifecycleAsync(db, preparer, scope.ClientA, original.InvoiceId);
+      Assert.False(corruptHashRead.Succeeded);
+      Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ProtectedState, corruptHashRead.ErrorCode);
+    }
+
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var prior = await db.ClientSalesInvoiceDrafts.AsNoTracking().SingleAsync(x => x.Id == corruptHashId);
+      var malformed = db.Entry(prior).CurrentValues.ToObject() as ClientSalesInvoiceDraft
+        ?? throw new InvalidOperationException("Could not clone the immutable sales draft fixture.");
+      malformed.Id = Guid.CreateVersion7();
+      malformed.Revision = prior.Revision + 1;
+      malformed.PreviousRevisionId = prior.Id;
+      malformed.PreviousRevision = prior.Revision;
+      malformed.CommandId = Guid.CreateVersion7();
+      malformed.IntentHash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(malformed.CommandId.ToString())));
+      malformed.DraftReference = "CORRUPT-JSON";
+      malformed.SnapshotJson = "{";
+      malformed.SnapshotHash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(malformed.SnapshotJson)));
+      db.ClientSalesInvoiceDrafts.Add(malformed);
+      await db.SaveChangesAsync();
+    }
+    await using (var db = new AuditSphereDbContext(pg.Options))
+    {
+      var malformedRead = await ClientSalesInvoiceWorkflow.GetLifecycleAsync(db, preparer, scope.ClientA, original.InvoiceId);
+      Assert.False(malformedRead.Succeeded);
+      Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ProtectedState, malformedRead.ErrorCode);
     }
   }
 }

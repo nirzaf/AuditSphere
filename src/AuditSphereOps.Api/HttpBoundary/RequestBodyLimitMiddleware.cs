@@ -33,13 +33,20 @@ internal sealed class RequestBodyLimitMiddleware(RequestDelegate next, RequestBo
     }
     if (IsJsonCommand(request) && !request.ContentLength.HasValue)
     {
+      if (options.MaxJsonBodyBytes <= 0 || options.MaxJsonBodyBytes >= int.MaxValue)
+      {
+        await RefuseAsync(context);
+        return;
+      }
       var buffered = await ReadCappedAsync(request, (int)options.MaxJsonBodyBytes, context.RequestAborted);
       if (buffered is null)
       {
         await RefuseAsync(context);
         return;
       }
-      request.Body = new MemoryStream(buffered, writable: false);
+      var replacement = new MemoryStream(buffered, writable: false);
+      context.Response.RegisterForDispose(replacement);
+      request.Body = replacement;
     }
     await next(context);
   }
@@ -52,7 +59,7 @@ internal sealed class RequestBodyLimitMiddleware(RequestDelegate next, RequestBo
 
   private static async Task<byte[]?> ReadCappedAsync(HttpRequest request, int limit, CancellationToken ct)
   {
-    var buffer = new MemoryStream(limit + 1);
+    using var buffer = new MemoryStream();
     var chunk = new byte[16 * 1024];
     int read;
     while ((read = await request.Body.ReadAsync(new Memory<byte>(chunk, 0, Math.Min(chunk.Length, limit + 1 - (int)buffer.Length)), ct)) > 0)

@@ -11,29 +11,38 @@ namespace AuditSphereOps.Api.Tests;
 
 public sealed class StandaloneApiHostTests
 {
-  [Theory]
-  [InlineData("Development")]
-  [InlineData("Production")]
-  [InlineData("Acceptance")]
-  public void LegacyBlazorPresentation_RequiresExplicitOptInOutsideTest(string environment)
-  {
-    var error = Assert.Throws<InvalidOperationException>(() =>
-      ApiHost.EnsureLegacyPresentationEnvironment(legacyPresentation: true, environment));
-    Assert.Contains("LegacyPresentation:Enabled=true", error.Message, StringComparison.Ordinal);
-    ApiHost.EnsureLegacyPresentationEnvironment(legacyPresentation: true, environment, enabled: true);
-  }
-
   [Fact]
-  public void LegacyBlazorPresentation_IsAvailableToIsolatedTestHosts()
+  public async Task AuthenticationSignOutRequiresCsrfAndDeletesXsrfCookie()
   {
-    ApiHost.EnsureLegacyPresentationEnvironment(legacyPresentation: true, "Test");
-  }
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("AUTH-SIGN-OUT-CSRF");
+    var seed = await PbcSeed.SeedAsync(pg);
+    using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?>
+    {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
+      ["DevelopmentIdentity:Enabled"] = "true", ["DevelopmentIdentity:Subject"] = seed.Staff.Subject,
+      ["DevelopmentIdentity:TenantId"] = seed.Staff.TenantId,
+      ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false"
+    });
+    using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
 
-  [Fact]
-  public void StandardApiHostPresentation_RequiresNoLegacyPresentation()
-  {
-    ApiHost.EnsureLegacyPresentationEnvironment(legacyPresentation: false, "Test");
-    ApiHost.EnsureLegacyPresentationEnvironment(legacyPresentation: false, "Production");
+    using var legacyGet = await client.GetAsync("/auth/sign-out");
+    Assert.Equal(HttpStatusCode.MethodNotAllowed, legacyGet.StatusCode);
+    Assert.Equal(HttpStatusCode.Redirect, (await client.GetAsync("/auth/sign-in")).StatusCode);
+    using var session = await client.GetAsync("/api/ui/session");
+    Assert.Equal(HttpStatusCode.OK, session.StatusCode);
+    var proof = Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie")
+      .Single(h => h.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal)).Split(';')[0]["XSRF-TOKEN=".Length..]);
+
+    using var missingCsrf = await client.PostAsync("/auth/sign-out", new StringContent(""));
+    Assert.Equal(HttpStatusCode.Forbidden, missingCsrf.StatusCode);
+    Assert.Equal("csrf.invalid", (await missingCsrf.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+
+    using var signout = new HttpRequestMessage(HttpMethod.Post, "/auth/sign-out") { Content = new StringContent("") };
+    signout.Headers.Add("X-XSRF-TOKEN", proof);
+    using var response = await client.SendAsync(signout);
+    Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+    Assert.Contains(response.Headers.GetValues("Set-Cookie"), value => value.StartsWith("XSRF-TOKEN=;", StringComparison.Ordinal));
+    Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/ui/session")).StatusCode);
   }
 
   [Fact]

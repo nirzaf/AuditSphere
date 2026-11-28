@@ -1,4 +1,4 @@
-import { arr, bool, date, dec, DecodeError, guid, instant, int, nat, nullable, obj, oneOf, sha256, text } from '../../core/decode';
+import { arr, bool, date, dec, DecodeError, Decoder, guid, instant, int, nat, nullable, obj, oneOf, sha256, text } from '../../core/decode';
 
 export type TailorProcedureCommand = {
   title: string;
@@ -34,6 +34,36 @@ export const decodeManagerReview = obj({ engagementId: guid, completionReady: bo
   unresolvedReviewThreads: nat, openConfirmations: nat, bankReconciliationsNeedingApproval: nat, unevaluatedDifferences: nat,
   summaryReviewMemorandumState: text, summaryReviewMemorandumVersion: nullable(nat),
   summaryReviewMemorandumGeneratedAt: nullable(instant), blockers: arr(obj({ code: text, label: text, count: nat }), 100) });
+const areaSections: Record<string, number> = {
+  CASH_BANK: 2, RECEIVABLES: 3, INVENTORY: 4, REVENUE: 5, PAYABLES: 6, FIXED_ASSETS: 7,
+  EXPENSES: 8, PAYROLL: 9, LOANS: 10, EQUITY: 11, RELATED_PARTIES: 12, TAX_STATUTORY: 13,
+  JOURNALS_FRAUD: 14, ANALYTICAL_REVIEW: 15, GOING_CONCERN: 16, SUBSEQUENT_EVENTS: 17,
+  FINANCIAL_STATEMENTS: 18, AUDIT_DIFFERENCES: 19,
+};
+const areaSummaryShape = obj({ engagementId: guid, areaCode: text, sectionNumber: int, sectionTitle: text,
+  procedureCount: nat, applicableProcedureCount: nat, reviewedProcedureCount: nat,
+  procedures: arr(obj({ procedureId: guid, sourceProcedureId: text, status: text, applicabilityStatus: text }), 5000),
+  assessments: arr(obj({ assessmentId: guid, assessmentKind: text, conclusion: text, status: text,
+    bookedAmount: nullable(dec), auditedAmount: nullable(dec), residualAmount: nullable(dec), currency: nullable(text), revision: nat,
+    preparedByMe: bool }), 1000),
+  scheduleCount: nat, approvedScheduleCount: nat, selectionCount: nat, selectedItemCount: nat, testedItemCount: nat,
+  exceptionItemCount: nat, cutOffRecordedCount: nat, cutOffExceptionCount: nat, subsequentRecordedCount: nat,
+  subsequentMatchedCount: nat, confirmationCount: nat, confirmationClosedCount: nat,
+  differences: arr(obj({ differenceId: guid, differenceType: text, amount: dec, currency: text, status: text,
+    correctionState: nullable(text) }), 5000), workpapersReviewed: bool, hasBlockingEvidence: bool });
+export const decodeAreaSummary: Decoder<ReturnType<typeof areaSummaryShape>> = (raw, path) => {
+  const value = areaSummaryShape(raw, path);
+  if (areaSections[value.areaCode] !== value.sectionNumber || value.applicableProcedureCount > value.procedureCount ||
+      value.reviewedProcedureCount > value.procedureCount || value.approvedScheduleCount > value.scheduleCount ||
+      value.selectedItemCount < value.testedItemCount || value.testedItemCount < value.exceptionItemCount ||
+      value.subsequentMatchedCount > value.subsequentRecordedCount || value.confirmationClosedCount > value.confirmationCount ||
+      new Set(value.procedures.map(x => x.procedureId)).size !== value.procedures.length ||
+      new Set(value.assessments.map(x => x.assessmentId)).size !== value.assessments.length ||
+      new Set(value.differences.map(x => x.differenceId)).size !== value.differences.length)
+    throw new DecodeError(`${path}: inconsistent audit area summary`);
+  return value;
+};
+export type AreaSummary = ReturnType<typeof decodeAreaSummary>;
 export const decodeFieldwork = obj({ engagementId: guid, catalogProcedureCount: nat, catalogVersion: text,
   program: nullable(obj({ programCode: text, version: text, sourceHash: text })), procedures: arr(procedure, 5000),
   risks: arr(obj({ id: guid, area: text, significanceDecision: text, band: nullable(text), effectiveBand: nullable(text),

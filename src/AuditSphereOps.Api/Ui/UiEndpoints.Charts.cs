@@ -16,6 +16,59 @@ public static partial class UiEndpoints
   public sealed record ChartPublicationInput(string Version, string Digest, bool Reviewed);
   public sealed record ChartAliasesInput(string Version, IReadOnlyList<SourceAccountAliasInput> Aliases, bool Reviewed);
   public sealed record ClientDimensionsInput(IReadOnlyList<AccountingDimensionInput> Dimensions, bool Reviewed);
+  public sealed record DimensionSchemaValueHttpInput(string Code, string Name, string EffectiveFrom,
+    string? EffectiveTo, bool Active, Guid? ValueId = null);
+  public sealed record DimensionSchemaDefinitionHttpInput(string DimensionType, string Code, string Name,
+    bool Required, IReadOnlyList<DimensionSchemaValueHttpInput> Values, Guid? DefinitionId = null);
+  public sealed record DimensionSchemaDraftHttpInput(Guid? BaseRevisionRef,
+    IReadOnlyList<DimensionSchemaDefinitionHttpInput> Definitions, Guid? DraftRevisionRef = null,
+    bool ImpactAcknowledged = false, string? ExpectedCanonicalDigest = null);
+
+  private static bool TryBuildDimensionSchemaDraftDto(Guid clientId, DimensionSchemaDraftHttpInput? input,
+    out DimensionSchemaDraftDto? dto, out string error)
+  {
+    dto = null;
+    error = "Provide a valid client dimension schema definition set and YYYY-MM-DD effective dates.";
+    if (clientId == Guid.Empty || input is null || input.Definitions is null)
+      return false;
+    var definitions = new List<DimensionSchemaDefinitionDraftDto>(input.Definitions.Count);
+    foreach (var def in input.Definitions)
+    {
+      if (def is null || def.Values is null) return false;
+      var values = new List<DimensionSchemaValueDraftDto>(def.Values.Count);
+      foreach (var val in def.Values)
+      {
+        if (val is null || !TryDate(val.EffectiveFrom, out var effectiveFrom))
+          return false;
+        DateOnly? effectiveTo = null;
+        if (!string.IsNullOrWhiteSpace(val.EffectiveTo))
+        {
+          if (!TryDate(val.EffectiveTo, out var parsedTo))
+            return false;
+          effectiveTo = parsedTo;
+        }
+        values.Add(new DimensionSchemaValueDraftDto(
+          val.Code ?? string.Empty,
+          val.Name ?? string.Empty,
+          effectiveFrom,
+          effectiveTo,
+          val.Active,
+          val.ValueId));
+      }
+      definitions.Add(new DimensionSchemaDefinitionDraftDto(
+        def.DimensionType ?? string.Empty,
+        def.Code ?? string.Empty,
+        def.Name ?? string.Empty,
+        def.Required,
+        values,
+        def.DefinitionId));
+    }
+    dto = new DimensionSchemaDraftDto(clientId, input.BaseRevisionRef, definitions, input.DraftRevisionRef,
+      input.ImpactAcknowledged, input.ExpectedCanonicalDigest);
+    error = string.Empty;
+    return true;
+  }
+
   private static void MapChartEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/accounting/clients/{id:guid}/charts/{chartId:guid}/publication", async (Guid id, Guid chartId,
@@ -194,5 +247,28 @@ public static partial class UiEndpoints
       .Produces<UiCodeErrorResponse>(StatusCodes.Status400BadRequest, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<ApiError>(StatusCodes.Status503ServiceUnavailable, "application/json");
+    group.MapPost("/clients/{clientId:guid}/dimension-schemas/drafts", (Guid clientId, DimensionSchemaDraftHttpInput input, HttpContext http) =>
+      !TryBuildDimensionSchemaDraftDto(clientId, input, out var dto, out var error)
+        ? Task.FromResult(Invalid(error))
+        : CommandAsync(http, (db, actor, ct) => ClientAccountingService.SaveDimensionSchemaDraftAsync(db, actor, dto!, ct)))
+      .WithUiResponse<UiValueResponse<DimensionSchemaDraftReceiptDto>>(includeConflict: true);
+    group.MapPost("/clients/{clientId:guid}/dimension-schemas/{schemaId:guid}/publish", (Guid clientId, Guid schemaId, DimensionSchemaDraftHttpInput input, HttpContext http) =>
+    {
+      if (schemaId == Guid.Empty) return Task.FromResult(Invalid("A schema identity is required."));
+      if (!TryBuildDimensionSchemaDraftDto(clientId, input, out var dto, out var error)) return Task.FromResult(Invalid(error));
+      return CommandAsync(http, async (db, actor, ct) =>
+      {
+        if (dto!.DraftRevisionRef is { } draftId && await db.ClientAccountingDimensionSchemaRevisions.AsNoTracking()
+              .AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == clientId && x.Id == draftId && x.SchemaId != schemaId, ct))
+          return CommandResult<DimensionSchemaPublicationReceiptDto>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+        return await ClientAccountingService.PublishDimensionSchemaAsync(db, actor, dto, ct);
+      });
+    })
+      .WithUiResponse<UiValueResponse<DimensionSchemaPublicationReceiptDto>>(includeConflict: true);
+    group.MapGet("/clients/{clientId:guid}/dimension-schemas/{schemaId:guid}/revisions/{revision:int}",
+      (Guid clientId, Guid schemaId, int revision, Guid revisionId, int canonicalDigestVersion, string canonicalDigest, HttpContext http) =>
+        ReadAsync(http, (db, actor, ct) => ClientAccountingService.ResolvePublishedDimensionSchemaRevisionAsync(
+          db, actor, clientId, new DimensionSchemaRevisionRef(schemaId, revisionId, revision, canonicalDigestVersion, canonicalDigest ?? string.Empty), ct)))
+      .WithUiResponse<ResolvedDimensionSchemaRevisionDto>(includeConflict: true);
   }
 }

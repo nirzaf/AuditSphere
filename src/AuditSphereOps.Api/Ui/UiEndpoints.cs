@@ -20,7 +20,7 @@ public static partial class UiEndpoints
   public sealed record BudgetInput(string Currency, string ExpectedVersion, IReadOnlyList<BudgetLineRequest> Lines);
   public sealed record EngagementInput(string ServiceRoute, string PeriodStart, string PeriodEnd, string ServiceProfile);
   public sealed record AcceptanceAnswerInput(string Answer, string? Evidence, string Generation, string Revision);
-  public static void MapUiEndpoints(this WebApplication app, bool legacyPresentation = false)
+  public static void MapUiEndpoints(this WebApplication app)
   {
     var canonical = AngularRouteOwnership.Canonical(app.Configuration);
     if (canonical && !app.Configuration.GetValue<bool>("AngularUi:Enabled"))
@@ -440,7 +440,7 @@ public static partial class UiEndpoints
           !(app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Test")), SameSite = SameSiteMode.Strict, Path = "/" });
       return Results.Ok(new SessionHttpResponse(actor.UserId, actor.FirmId,
         actor.SessionEpoch.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        user.UserKind == "Staff" && actor.Roles.Any() && !actor.Roles.Contains("ClientUser"),
+        user.UserKind == "Staff" && actor.Roles.Any() && !actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase),
         user.DisplayName, user.Email, !app.Configuration.GetValue<bool>("DevelopmentIdentity:Enabled") &&
           !string.IsNullOrWhiteSpace(app.Configuration["Identity:TenantId"])));
     }).Produces<SessionHttpResponse>();

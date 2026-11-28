@@ -24,6 +24,8 @@ public static partial class ClientAccountingService
     var auth = await AuthorizeClientAsync(db, actor, request.ClientId, roles, ct);
     if (!auth.Succeeded)
       return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
+    if (request.FiscalYearStartMonth == 2 && request.FiscalYearStartDay == 29)
+      return CommandResult<Guid>.Fail(ErrorCodes.Accounting.MappingInvalid, FiscalLeapDayPolicyRequired);
     if (sourceMode == ClientAccountingSourceModes.NativeBookkeeping &&
         await db.ClientReportingPeriods.AnyAsync(x => x.FirmId == actor.FirmId && x.ClientId == request.ClientId, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, "A client with existing reporting periods requires a reviewed cutover before native bookkeeping can be enabled.");
@@ -90,6 +92,9 @@ public static partial class ClientAccountingService
     var auth = await AuthorizeClientAsync(db, actor, request.ClientId, roles, ct);
     if (!auth.Succeeded)
       return CommandResult<long>.Fail(auth.ErrorCode!, auth.Message!);
+    if (request.FiscalYearStartMonth == 2 && request.FiscalYearStartDay == 29 &&
+        (profile.FiscalYearStartMonth != 2 || profile.FiscalYearStartDay != 29))
+      return CommandResult<long>.Fail(ErrorCodes.Accounting.MappingInvalid, FiscalLeapDayPolicyRequired);
     var bookIdentityChanged = profile.Jurisdiction != request.Jurisdiction.Trim() ||
       profile.FunctionalCurrency != currency || profile.FiscalYearStartMonth != request.FiscalYearStartMonth ||
       profile.FiscalYearStartDay != request.FiscalYearStartDay || profile.SourceSystem != request.SourceSystem.Trim() ||
@@ -203,6 +208,10 @@ public static partial class ClientAccountingService
 
   private static bool IsInvalidProfileReason(string? reason) =>
     reason is not null && reason.Trim().Length > 2000;
+
+  private const string FiscalLeapDayPolicyRequired =
+    "February 29 requires an approved non-leap-year rollover policy before it can be selected as a recurring fiscal boundary. " +
+    "Obtain that policy approval or choose another valid fiscal start date. An unchanged historical February 29 may be retained.";
 
   private static bool IsValidFiscalMonthDay(int month, int day) =>
     month is >= 1 and <= 12 && day >= 1 && day <= (month switch

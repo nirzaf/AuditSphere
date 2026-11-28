@@ -10,7 +10,7 @@ export const selectedResources = obj({ probeConfigured: bool, workspace: obj({
     connectionState: nullable(text), consentState: nullable(text) })),
   templates: arr(folderTemplate, 100), clientDefaultManifest: str(20000), engagementDefaultManifest: str(20000),
   clientSteManifest: str(20000), engagementSteManifest: str(20000),
-  verification: nullable(obj({ state: text, diagnosticCode: text, observedAt: instant })) }) });
+    verification: nullable(obj({ state: text, diagnosticCode: text, observedAt: instant, verificationId: guid })) }) });
 
 export function editableResource(state: string): boolean { return !['ACTIVE', 'SUSPENDED', 'BLOCKED'].includes(state); }
 export function currentVerification(state: string, at: string, now = Date.now()): boolean {

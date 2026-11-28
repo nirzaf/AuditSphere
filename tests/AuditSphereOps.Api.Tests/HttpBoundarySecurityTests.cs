@@ -225,6 +225,11 @@ public sealed class HttpBoundarySecurityTests
     m365.Request.Method = "POST";
     m365.Request.Path = "/api/ui/administration/microsoft365/verify";
     Assert.Equal(ApiRateClass.M365Administration, ApiRateLimiter.ResolveClass(m365));
+
+    var groups = new DefaultHttpContext();
+    groups.Request.Method = "POST";
+    groups.Request.Path = "/api/ui/administration/groups/change";
+    Assert.Equal(ApiRateClass.M365Administration, ApiRateLimiter.ResolveClass(groups));
   }
 
   [Fact]
@@ -308,23 +313,54 @@ public sealed class HttpBoundarySecurityTests
   [Fact]
   public async Task OversizedJsonCommandsAreRefusedBeforeBusinessProcessing()
   {
+    await using var pg = await OwnedPostgresDatabase.CreateAsync("HTTP-BOUNDARY-BODY-LIMIT");
+    var seed = await PbcSeed.SeedAsync(pg);
     using var factory = new StandaloneApiApplicationFactory(new Dictionary<string, string?> {
+      ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
       ["DevelopmentIdentity:Enabled"] = "true",
-      ["DevelopmentIdentity:Subject"] = "boundary-size-subject",
-      ["DevelopmentIdentity:TenantId"] = Guid.NewGuid().ToString("D"),
+      ["DevelopmentIdentity:Subject"] = seed.Staff.Subject,
+      ["DevelopmentIdentity:TenantId"] = seed.Staff.TenantId,
       ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false",
       ["HttpBoundary:BodyLimits:MaxJsonBodyBytes"] = "64" });
     using var client = factory.CreateClient(new() { AllowAutoRedirect = false });
 
-    using var oversized = await client.PostAsJsonAsync("/api/ui/portfolio/export", new { search = new string('x', 500) });
+    using var anonymousRequest = new HttpRequestMessage(HttpMethod.Post, "/api/ui/portfolio/export")
+      { Content = UnknownLengthJson(new { search = new string('x', 500) }) };
+    using var anonymous = await client.SendAsync(anonymousRequest);
+    Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+
+    Assert.Equal(HttpStatusCode.Redirect, (await client.GetAsync("/auth/sign-in")).StatusCode);
+    using var session = await client.GetAsync("/api/ui/session");
+    Assert.Equal(HttpStatusCode.OK, session.StatusCode);
+    var xsrf = Uri.UnescapeDataString(session.Headers.GetValues("Set-Cookie")
+      .Single(h => h.StartsWith("XSRF-TOKEN=", StringComparison.Ordinal)).Split(';')[0]["XSRF-TOKEN=".Length..]);
+    using var oversizedRequest = new HttpRequestMessage(HttpMethod.Post, "/api/ui/portfolio/export")
+      { Content = UnknownLengthJson(new { search = new string('x', 500) }) };
+    oversizedRequest.Headers.Add("X-XSRF-TOKEN", xsrf);
+    using var oversized = await client.SendAsync(oversizedRequest);
     Assert.Equal(413, (int)oversized.StatusCode);
     var refusal = await oversized.Content.ReadFromJsonAsync<Dictionary<string, string?>>();
     Assert.Equal("request.too-large", refusal!["code"]);
     Assert.False(string.IsNullOrWhiteSpace(refusal["correlationId"]));
     Assert.True(oversized.Headers.CacheControl!.NoStore);
+  }
 
-    // A bounded body still reaches the normal boundary behavior (unauthenticated refusal).
-    using var bounded = await client.PostAsJsonAsync("/api/ui/portfolio/export", new { search = "client" });
-    Assert.Equal(HttpStatusCode.Unauthorized, bounded.StatusCode);
+  private static HttpContent UnknownLengthJson<T>(T value)
+  {
+    var content = new UnknownLengthContent(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(value));
+    content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+    return content;
+  }
+
+  private sealed class UnknownLengthContent(byte[] bytes) : System.Net.Http.HttpContent
+  {
+    protected override Task SerializeToStreamAsync(System.IO.Stream stream, System.Net.TransportContext? context) =>
+      stream.WriteAsync(bytes.AsMemory()).AsTask();
+
+    protected override bool TryComputeLength(out long length)
+    {
+      length = 0;
+      return false;
+    }
   }
 }

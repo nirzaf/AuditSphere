@@ -701,6 +701,57 @@
       </section>
       }
 
+      @if (w.canManageFieldwork || w.canReviewSelections) {
+        <section class="panel" aria-labelledby="area-summary-heading">
+          <h2 id="area-summary-heading">Audit area summary</h2>
+          <p>Read the procedures, assessments, schedule coverage, testing, confirmations and differences retained for one audit area. Summary figures do not replace professional conclusions or evidence review.</p>
+          <div class="inline-form">
+            <label>Audit area
+              <select name="audit-area-summary" [ngModel]="areaCode()" (ngModelChange)="selectAreaSummary($event)">
+                @for (area of areaOptions; track area[0]) { <option [value]="area[0]">{{ area[1] }}</option> }
+              </select>
+            </label>
+            <button matButton="filled" type="button" (click)="openAreaSummary()" [disabled]="areaSummary.loading()">{{ areaSummaryOpen() ? 'Refresh area summary' : 'Load area summary' }}</button>
+          </div>
+          <audit-state [loading]="areaSummary.loading()" [error]="areaSummary.error()" label="the selected audit area summary" />
+          @if (areaSummary.data(); as summary) {
+            <dl class="facts">
+              <dt>Section</dt><dd>{{ summary.sectionNumber }} · {{ summary.sectionTitle }}</dd>
+              <dt>Procedures applicable / reviewed</dt><dd>{{ summary.applicableProcedureCount }} / {{ summary.reviewedProcedureCount }} of {{ summary.procedureCount }}</dd>
+              <dt>Approved schedules</dt><dd>{{ summary.approvedScheduleCount }} of {{ summary.scheduleCount }}</dd>
+              <dt>Selected / tested / exceptions</dt><dd>{{ summary.selectedItemCount }} / {{ summary.testedItemCount }} / {{ summary.exceptionItemCount }}</dd>
+              <dt>Cut-off exceptions</dt><dd>{{ summary.cutOffExceptionCount }} of {{ summary.cutOffRecordedCount }}</dd>
+              <dt>Subsequent matches</dt><dd>{{ summary.subsequentMatchedCount }} of {{ summary.subsequentRecordedCount }}</dd>
+              <dt>Closed confirmations</dt><dd>{{ summary.confirmationClosedCount }} of {{ summary.confirmationCount }}</dd>
+              <dt>Workpapers reviewed</dt><dd>{{ summary.workpapersReviewed ? 'Yes' : 'No' }}</dd>
+              <dt>Blocking evidence</dt><dd>{{ summary.hasBlockingEvidence ? 'Present' : 'None identified by this summary' }}</dd>
+            </dl>
+            @if (summary.assessments.length) {
+              <h3>Retained area assessments</h3>
+              @for (assessment of summary.assessments; track assessment.assessmentId) {
+                <article class="panel">
+                  <p><strong>{{ assessment.assessmentKind }}</strong> · {{ assessment.status }} · revision {{ assessment.revision }}{{ assessment.preparedByMe ? ' · prepared by you' : '' }}</p>
+                  <p>{{ assessment.conclusion }}</p>
+                  @if (assessment.bookedAmount !== null || assessment.auditedAmount !== null || assessment.residualAmount !== null) {
+                    <p>Booked {{ assessment.bookedAmount ?? 'not recorded' }} · audited {{ assessment.auditedAmount ?? 'not recorded' }} · residual {{ assessment.residualAmount ?? 'not recorded' }} {{ assessment.currency ?? '' }}</p>
+                  }
+                  @if (w.canReviewSelections && assessment.status !== 'REVIEWED' && !assessment.preparedByMe) {
+                    <button matButton="filled" type="button" (click)="send('/api/ui/area-assessments/' + assessment.assessmentId + '/review', {}, 'Area assessment reviewed.', () => areaSummary.reload())"
+                      [disabled]="fieldworkCommandBlocked()">Review this assessment</button>
+                  }
+                </article>
+              }
+            } @else { <p role="status">No area assessments are retained for this area.</p> }
+            @if (summary.differences.length) {
+              <h3>Differences</h3>
+              <ul>@for (difference of summary.differences; track difference.differenceId) {
+                <li>{{ difference.differenceType }} · {{ difference.amount }} {{ difference.currency }} · {{ difference.status }}{{ difference.correctionState ? ' · ' + difference.correctionState : '' }}</li>
+              }</ul>
+            }
+          }
+        </section>
+      }
+
       @if (w.canManageFieldwork) {
       <section class="panel" aria-labelledby="program-heading">
         <h2 id="program-heading">Versioned audit program</h2>
@@ -800,6 +851,18 @@
                     }
                     @if (procedure.tailoringMessage()) { <p [attr.role]="procedure.tailoringFailed() || procedure.tailoringUncertain() ? 'alert' : 'status'">{{ procedure.tailoringMessage() }}</p> }
                   </form>
+                }
+                @if (canEditAdHoc(w, p)) {
+                  @if (adHocEditingId() === p.id) {
+                    <form class="stack-form" (submit)="$event.preventDefault(); saveAdHocEdit(p.id)" aria-label="Edit ad hoc procedure wording">
+                      <p>Only this engagement-added step can be changed. The controlled programme remains unchanged, and each saved edit is retained as a wording revision. Submitted work cannot be reworded.</p>
+                      <label>Ad hoc step wording <textarea [name]="'ad-hoc-wording-' + p.id" [ngModel]="adHocEditWording()" (ngModelChange)="adHocEditWording.set($event)" maxlength="4000" rows="4" required [disabled]="fieldworkCommandBlocked()"></textarea></label>
+                      <button matButton="filled" type="submit" [disabled]="fieldworkCommandBlocked() || !adHocEditWording().trim() || adHocEditWording().trim().length > 4000">Save wording revision</button>
+                      <button matButton="outlined" type="button" (click)="cancelAdHocEdit()" [disabled]="fieldworkCommandBlocked()">Cancel</button>
+                    </form>
+                  } @else {
+                    <button matButton="outlined" type="button" (click)="beginAdHocEdit(p)" [disabled]="fieldworkCommandBlocked()">Edit ad hoc wording</button>
+                  }
                 }
                 </td><td>{{ p.applicabilityStatus }}</td>
                 <td>

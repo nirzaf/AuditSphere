@@ -45,11 +45,6 @@ public static partial class ConsolidationService
     if (scope.Status != AccountingWorkflowStates.Approved || run.Status != AccountingWorkflowStates.Approved)
       return CommandResult<ConsolidationReport>.Ok(new(scope.Id, run.Id, "REVIEW_REQUIRED", run.ApprovedAt, empty));
 
-    var current = await BuildCalculationAsync(db, actor.FirmId, scope, ct);
-    if (!current.Succeeded || current.Value!.Calculation.RunHash != run.RunHash ||
-        current.Value.Calculation.InputManifest != run.InputManifest)
-      return CommandResult<ConsolidationReport>.Ok(new(scope.Id, run.Id, "STALE", run.ApprovedAt, empty));
-
     var runLines = await db.ConsolidationRunLines.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.ScopeVersionId == scope.Id && x.RunId == run.Id).ToListAsync(ct);
     var componentIds = runLines.Where(x => x.ComponentId.HasValue).Select(x => x.ComponentId!.Value).Distinct().ToArray();

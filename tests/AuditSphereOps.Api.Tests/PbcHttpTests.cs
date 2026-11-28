@@ -112,11 +112,15 @@ public sealed class PbcHttpTests
     Assert.DoesNotContain("text/html", anonymousChunk.Content.Headers.ContentType?.MediaType ?? "");
 
     var started = await StartUploadAsync(pg, fixture, clientActor, requestId, "origin.txt"u8.ToArray());
-    using var signedIn = await SignInAsync(factory, fixture.Client);
+    using var signedIn = await SignInAsync(factory, fixture.Client, includeXsrf: false);
     using var missing = ChunkRequest(started.UploadIntentId, 0, "origin.txt"u8.ToArray(), started.Capability,
       origin: null);
     using var missingResponse = await signedIn.SendAsync(missing);
     Assert.Equal(HttpStatusCode.Forbidden, missingResponse.StatusCode);
+
+    using var missingCsrf = ChunkRequest(started.UploadIntentId, 0, "origin.txt"u8.ToArray(), started.Capability);
+    using var missingCsrfResponse = await signedIn.SendAsync(missingCsrf);
+    Assert.Equal(HttpStatusCode.Forbidden, missingCsrfResponse.StatusCode);
 
     using var forged = ChunkRequest(started.UploadIntentId, 0, "origin.txt"u8.ToArray(), started.Capability,
       origin: "https://attacker.invalid");
@@ -764,13 +768,15 @@ public sealed class PbcHttpTests
   }
 
   private static async Task<HttpClient> SignInAsync(StandaloneApiApplicationFactory factory,
-    AuditSphereOps.Domain.Security.AppUser user)
+    AuditSphereOps.Domain.Security.AppUser user, bool includeXsrf = true)
   {
     var client = factory.CreateClient(new() { AllowAutoRedirect = false });
     var response = await client.GetAsync($"/auth/sign-in?returnUrl=%2Fportal&subject={Uri.EscapeDataString(user.Subject)}");
     Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
     Assert.NotNull(response.Headers.Location);
     response.Dispose();
+    if (includeXsrf)
+      client.DefaultRequestHeaders.Add("X-XSRF-TOKEN", await XsrfAsync(client));
     return client;
   }
 

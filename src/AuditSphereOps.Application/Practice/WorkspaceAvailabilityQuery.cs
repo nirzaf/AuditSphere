@@ -24,7 +24,7 @@ public static class WorkspaceAvailabilityQuery
     if (!initial.Succeeded) return CommandResult<WorkspaceAvailabilityView>.Fail(initial.ErrorCode!, initial.Message!);
     var staff = await db.Users.AsNoTracking().AnyAsync(u => u.Id == actor.UserId && u.FirmId == actor.FirmId &&
       u.SessionEpoch == actor.SessionEpoch && !u.Disabled && u.UserKind == "Staff", ct);
-    if (!staff || !actor.Roles.Any() || actor.Roles.Contains("ClientUser"))
+    if (!staff || !actor.Roles.Any() || actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase))
       return CommandResult<WorkspaceAvailabilityView>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
 
     // An expiry during construction must not release a hint evaluated before that expiry.

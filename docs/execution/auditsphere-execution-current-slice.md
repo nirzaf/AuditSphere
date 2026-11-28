@@ -1,3 +1,5 @@
+AUDITSPHER-65 local-only evidence: `.local/autonomous/AUDITSPHER-65.json`.
+
 ## Feature audit (2026-11-28)
 
 [November 28 feature audit](auditsphere-execution-feature-audit-20261128.md). [November 26 exact-source handoff](archive/auditsphere-execution-current-slice-history-20261126.md).

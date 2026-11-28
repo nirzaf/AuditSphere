@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Audit;
 using AuditSphereOps.Domain.Audit;
 using AuditSphereOps.Domain.Shared;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Api.Ui;
 
@@ -43,6 +44,7 @@ public static partial class UiEndpoints
   public sealed record PhysicalLinkInput(Guid ProcedureId);
   public sealed record PhysicalMoveInput(string ToLocation);
   public sealed record AdHocInput(string Title, string Wording, string Reason, string? SectionTitle);
+  public sealed record EditAdHocProcedureHttpInput(string Wording);
   public sealed record ReviewNoteInput(Guid ResultId, string Field, string Excerpt, string Body);
   public sealed record ReviewNoteEventInput(string Kind, string? Body);
   public sealed record AdoptProgramInput(Guid ProgramVersionId, string SourceHash, string ContentDigest, Guid? ExpectedAdoptionId);
@@ -189,6 +191,17 @@ public static partial class UiEndpoints
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/engagements/{id:guid}/fieldwork/ad-hoc", (Guid id, AdHocInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => AuditFieldworkService.InsertAdHocProcedureAsync(db, actor, new InsertAdHocProcedureRequest(id, i.Title ?? "", i.Wording ?? "",
         i.Reason ?? "", i.SectionTitle, null), ct))));
+    UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPut("/engagements/{id:guid}/fieldwork/ad-hoc/{procedureId:guid}", (Guid id, Guid procedureId, EditAdHocProcedureHttpInput i, HttpContext http) =>
+      id == Guid.Empty || procedureId == Guid.Empty
+        ? Task.FromResult(Invalid("Engagement and procedure identities are required."))
+        : CommandAsync(http, async (db, actor, ct) =>
+        {
+          if (await db.AuditProcedures.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.Id == procedureId && x.EngagementId != id, ct))
+            return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+          return await AuditFieldworkService.EditAdHocProcedureAsync(db, actor, procedureId, i?.Wording ?? string.Empty, ct);
+        })), includeConflict: true);
+    UiEndpointContractMetadata.WithUiResponse<AuditAreaSummaryView>(group.MapGet("/engagements/{id:guid}/fieldwork/areas/{areaCode}/summary", (Guid id, string areaCode, HttpContext http) =>
+      ReadAsync(http, (db, actor, ct) => AuditAreaSummaryQuery.GetAreaSummaryAsync(db, actor, id, areaCode, ct))), includeConflict: true);
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/review-notes", (ReviewNoteInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => ReviewNotesService.AddNoteAsync(db, actor, new AddReviewNoteRequest(i.ResultId, i.Field, i.Excerpt, i.Body), ct))));
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/review-notes/{id:guid}/events", (Guid id, ReviewNoteEventInput i, HttpContext http) =>

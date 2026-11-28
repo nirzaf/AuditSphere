@@ -18,7 +18,8 @@ public sealed record AuditAreaProcedureRow(
 
 public sealed record AuditAreaAssessmentRow(
   Guid AssessmentId, string AssessmentKind, string Conclusion, string Status,
-  decimal? BookedAmount, decimal? AuditedAmount, decimal? ResidualAmount, string? Currency, long Revision);
+  decimal? BookedAmount, decimal? AuditedAmount, decimal? ResidualAmount, string? Currency, long Revision,
+  bool PreparedByMe);
 
 public sealed record AuditAreaDifferenceRow(
   Guid DifferenceId, string DifferenceType, decimal Amount, string Currency, string Status, string? CorrectionState);
@@ -84,7 +85,7 @@ public static class AuditAreaSummaryQuery
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.AreaCode == area)
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
       .Select(x => new AuditAreaAssessmentRow(x.Id, x.AssessmentKind, x.Conclusion, x.Status,
-        x.BookedAmount, x.AuditedAmount, x.ResidualAmount, x.Currency, x.Revision))
+        x.BookedAmount, x.AuditedAmount, x.ResidualAmount, x.Currency, x.Revision, x.CreatedByUserId == actor.UserId))
       .ToListAsync(ct);
     var schedules = await db.AuditSchedules.AsNoTracking()
       .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)

@@ -44,6 +44,12 @@ import { currentVerification, editableResource, selectedResources } from './shar
         </select></label>
         <label><input type="checkbox" [formControl]="activateReviewed" /> I reviewed the verified resource and selected approved client template for future workspaces.</label>
         <button matButton="filled" (click)="activate()" [disabled]="!canActivate() || busy() || uncertain()">Activate selected workspace</button>
+        <section class="panel" aria-labelledby="archive-resource-activation"><h4 id="archive-resource-activation">Activate a separate archive library</h4>
+          <p>This activates only the exact verified resource shown above for secondary archive copies. It does not switch the working library or prove an archive copy has completed.</p>
+          <label><input type="checkbox" [formControl]="archiveActivateReviewed" /> I reviewed this exact tenant, site, library, root, connection and selected-site boundary for secondary archive use.</label>
+          <button matButton="outlined" type="button" (click)="activateArchiveResource()" [disabled]="!canActivateArchive() || busy() || uncertain()">Activate exact archive resource</button>
+          @if (d.state === 'ACTIVE') { <p role="status">This resource is already active. Refresh the exact archive and connection evidence before any further action.</p> }
+        </section>
       } @else { <p>No tenant setup draft exists. Complete initial administrator setup first.</p> }
       <h3>Versioned folder templates</h3><p>Local manifests are immutable after saving. Approval does not create folders or verify Microsoft access. Existing workspaces keep their pinned version. The latest 50 versions of each purpose are shown.</p>
       <form [formGroup]="templateForm" (ngSubmit)="saveTemplate()">
@@ -80,6 +86,7 @@ export class SharePointAdministration {
     driveId: ['', Validators.required], rootFolderId: ['', Validators.required], accessProfile: ['APP_MEDIATED'], reviewed: [false, Validators.requiredTrue] });
   readonly templateForm = this.fb.group({ purpose: ['CLIENT_WORKSPACE'], manifestJson: ['', [Validators.required, Validators.maxLength(20000)]], reviewed: [false, Validators.requiredTrue] });
   readonly verifyReviewed = this.fb.control(false); readonly activateReviewed = this.fb.control(false); readonly activationTemplate = this.fb.control('');
+  readonly archiveActivateReviewed = this.fb.control(false);
   readonly approveReviewed = this.fb.control(false); readonly templateId = signal('');
   readonly busy = signal(false); readonly uncertain = signal(false); readonly message = signal(''); readonly failed = signal(false);
   readonly editableResource = editableResource; readonly currentVerification = currentVerification;
@@ -91,7 +98,7 @@ export class SharePointAdministration {
     effect(() => {
       const w = this.ws.data();
       this.resourceForm.reset(); this.templateForm.reset({ purpose: 'CLIENT_WORKSPACE', manifestJson: w?.workspace.clientDefaultManifest ?? '', reviewed: false });
-      this.verifyReviewed.reset(); this.activateReviewed.reset(); this.approveReviewed.reset(); this.activationTemplate.reset(); this.templateId.set('');
+      this.verifyReviewed.reset(); this.activateReviewed.reset(); this.archiveActivateReviewed.reset(); this.approveReviewed.reset(); this.activationTemplate.reset(); this.templateId.set('');
       this.resourceScope.set(null); this.templateScope.set(null);
       if(w?.workspace.draft) { const d = w.workspace.draft; this.resourceForm.patchValue({ siteUrl: d.siteUrl ?? '', siteId: d.siteId ?? '', driveId: d.driveId ?? '', rootFolderId: d.rootFolderId ?? '', accessProfile: d.accessProfile });
         if(!editableResource(d.state)) this.resourceForm.disable(); else this.resourceForm.enable(); }
@@ -102,12 +109,15 @@ export class SharePointAdministration {
       if(w && this.refreshing) { this.uncertain.set(false); this.refreshing = false; this.message.set('Persisted state refreshed. Review it before submitting another action.'); }
     });
     const subscriptions = [ ...(['siteUrl','siteId','driveId','rootFolderId','accessProfile'] as const).map(key =>
-      this.resourceForm.controls[key].valueChanges.subscribe(() => this.resourceForm.controls.reviewed.setValue(false, { emitEvent: false }))),
+      this.resourceForm.controls[key].valueChanges.subscribe(() => {
+        this.resourceForm.controls.reviewed.setValue(false, { emitEvent: false });
+        this.archiveActivateReviewed.setValue(false, { emitEvent: false });
+      })),
       this.templateForm.controls.purpose.valueChanges.subscribe(() => this.templateForm.controls.reviewed.setValue(false)),
       this.templateForm.controls.manifestJson.valueChanges.subscribe(() => this.templateForm.controls.reviewed.setValue(false)),
       this.activationTemplate.valueChanges.subscribe(() => this.activateReviewed.setValue(false))];
     inject(DestroyRef).onDestroy(() => subscriptions.forEach(s => s.unsubscribe()));
-    effect(() => { this.session.invalidation(); this.message.set(''); this.failed.set(false); this.uncertain.set(false); });
+    effect(() => { this.session.invalidation(); this.archiveActivateReviewed.reset(); this.message.set(''); this.failed.set(false); this.uncertain.set(false); });
   }
   private resourceValues() { const v=this.resourceForm.getRawValue(); return {siteUrl:v.siteUrl,siteId:v.siteId,driveId:v.driveId,rootFolderId:v.rootFolderId,accessProfile:v.accessProfile}; }
   private templateValues() { const v=this.templateForm.getRawValue(); return {purpose:v.purpose,manifestJson:v.manifestJson}; }
@@ -175,6 +185,13 @@ export class SharePointAdministration {
     d.consentState === 'VERIFIED' && !!d.siteId && !!d.driveId && !!d.rootFolderId && !!d.siteUrl; }
   canActivate(): boolean { const w = this.ws.data()?.workspace, d = w?.draft, v = w?.verification; return !!d && d.connectionState === 'VERIFIED' &&
     d.consentState === 'VERIFIED' && !!v && currentVerification(v.state,v.observedAt) && !!this.activationTemplate.value && this.activateReviewed.value; }
+  canActivateArchive(): boolean {
+    const w=this.ws.data()?.workspace, d=w?.draft, v=w?.verification;
+    return !!d && d.state==='VERIFIED' && d.connectionState==='VERIFIED' && d.consentState==='VERIFIED' &&
+      !!d.connectionRevisionId && !!d.tenantId && !!d.siteId && !!d.driveId && !!d.rootFolderId && !!d.siteUrl &&
+      !!v?.verificationId && v.state==='VERIFIED' && v.diagnosticCode==='exact-resource-and-control-denial' &&
+      currentVerification(v.state,v.observedAt) && this.archiveActivateReviewed.value;
+  }
   private async run(path: string, body: unknown, success: string): Promise<void> {
     if(this.busy() || this.uncertain()) return; const epoch = this.session.invalidation(); this.busy.set(true);
     try { const result = await this.api.command('/api/ui/administration/microsoft365/' + path, body); if(epoch !== this.session.invalidation()) return;
@@ -198,4 +215,14 @@ export class SharePointAdministration {
   async activate(): Promise<void> { const d = this.ws.data()?.workspace.draft; if(!d || !this.canActivate()) return;
     if(!(await this.confirmNavigation())) return;
     await this.run('resources/activate', { draftId:d.id, expectedRevision:d.revision, templateId:this.activationTemplate.value, reviewed:true }, 'Selected workspace activated for future clients. Mail, records and production acceptance remain separate.'); }
+  async activateArchiveResource(): Promise<void> {
+    const w=this.ws.data()?.workspace,d=w?.draft,v=w?.verification;
+    if(!d || !v || !this.canActivateArchive()) return;
+    if(!(await this.confirmNavigation())) return;
+    await this.run('resources/activate-archive', { draftId:d.id, expectedRevision:d.revision,
+      connectionRevisionId:d.connectionRevisionId, capabilityVerificationId:v.verificationId, tenantId:d.tenantId,
+      siteId:d.siteId, driveId:d.driveId, rootFolderId:d.rootFolderId, displayUrl:d.siteUrl,
+      accessProfile:d.accessProfile, reviewed:true },
+    'Exact verified secondary archive resource activated. No copy, retention, or provider-protection outcome is implied.');
+  }
 }

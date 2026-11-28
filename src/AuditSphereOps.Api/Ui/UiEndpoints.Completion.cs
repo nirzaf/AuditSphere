@@ -192,19 +192,21 @@ public static partial class UiEndpoints
       CommandAsync(http, (db, actor, ct) => AuditDeliverableService.AssembleBundleAsync(db, actor, id, i.StatementsReviewed, ct,
         http.RequestServices.GetRequiredService<IReportSigningCredentialSource>())))
       .WithUiResponse<UiValueResponse<Guid>>();
-    group.MapUiPost("/signatures", async http =>
+    group.MapUiPost("/signatures", http => CommandAsync(http, async (db, actor, ct) =>
     {
       var png = await ReadUploadAsync(http, "file", AuditDeliverableService.MaxSignatureBytes);
-      return png is null ? Invalid("Upload a PNG of at most 512 KB.")
-        : await CommandAsync(http, (db, actor, ct) => AuditDeliverableService.RegisterSignatureAsync(db, actor, png.Value.Content, ct));
-    }).Accepts<SignatureUploadForm>("multipart/form-data")
+      return png is null ? CommandResult<Guid>.Fail("request.invalid", "Upload a PNG of at most 512 KB.")
+        : await AuditDeliverableService.RegisterSignatureAsync(db, actor, png.Value.Content, ct);
+    })).WithMetadata(new AuditSphereOps.Api.HttpBoundary.ApiRateClassAttribute(AuditSphereOps.Api.HttpBoundary.ApiRateClass.FileUpload))
+      .Accepts<SignatureUploadForm>("multipart/form-data")
       .WithUiResponse<UiValueResponse<Guid>>();
-    group.MapUiPost("/firm-seal", async http =>
+    group.MapUiPost("/firm-seal", http => CommandAsync(http, async (db, actor, ct) =>
     {
       var png = await ReadUploadAsync(http, "file", AuditDeliverableService.MaxSignatureBytes);
-      return png is null ? Invalid("Seal PNG must be at most 512 KB.")
-        : await CommandAsync(http, (db, actor, ct) => AuditDeliverableService.RegisterFirmSealAsync(db, actor, png.Value.Content, ct));
-    }).Accepts<SignatureUploadForm>("multipart/form-data")
+      return png is null ? CommandResult<Guid>.Fail("request.invalid", "Seal PNG must be at most 512 KB.")
+        : await AuditDeliverableService.RegisterFirmSealAsync(db, actor, png.Value.Content, ct);
+    })).WithMetadata(new AuditSphereOps.Api.HttpBoundary.ApiRateClassAttribute(AuditSphereOps.Api.HttpBoundary.ApiRateClass.FileUpload))
+      .Accepts<SignatureUploadForm>("multipart/form-data")
       .WithUiResponse<UiValueResponse<Guid>>();
     group.MapPost("/engagements/{id:guid}/amendments", (Guid id, AmendmentInput i, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => FileFreezeService.RequestAmendmentAsync(db, actor, id, i.Reason ?? "", ct)))

@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { AuditFieldwork } from './fieldwork';
 import { FieldworkProcedureState } from './fieldwork-procedure-state';
 import { FieldworkSourceIntakeState } from './fieldwork-source-intake-state';
+import { decodeAreaSummary } from './fieldwork-contracts';
 import { decodeBankReconciliationCommandLookup, decodeBankReconciliationCommandPreview, decodeBankReconciliationCommandReceipt,
   decodeBankReconciliationCommandState, decodeBankReconciliationDetail, decodeBankReconciliationPage, decodeFieldwork,
   decodeProcedureCommandLookup, decodeProcedureCommandPreview, decodeProcedureCommandReceipt, decodeProcedureCommandState,
@@ -287,6 +288,21 @@ describe('Audit Fieldwork Contracts', () => {
     expect(decoded.options[0].procedureCount).toBe(165);
     expect(() => decodeProgramOptions({ engagementId: id1, options: [] }, 'programOptions')).toThrow();
   });
+
+  it('decodes only bounded summaries whose area and section identities agree', () => {
+    const summary = decodeAreaSummary({ engagementId: id1, areaCode: 'CASH_BANK', sectionNumber: 2, sectionTitle: 'Cash & Bank',
+      procedureCount: 1, applicableProcedureCount: 1, reviewedProcedureCount: 0,
+      procedures: [{ procedureId: id2, sourceProcedureId: 'AWP-02-01', status: 'PLANNED', applicabilityStatus: 'APPLICABLE' }],
+      assessments: [{ assessmentId: id3, assessmentKind: 'BANK_COVERAGE', conclusion: 'Investigate the outstanding item.',
+        status: 'SUBMITTED', bookedAmount: null, auditedAmount: null, residualAmount: null, currency: null, revision: 1, preparedByMe: false }],
+      scheduleCount: 1, approvedScheduleCount: 1, selectionCount: 1, selectedItemCount: 3, testedItemCount: 2,
+      exceptionItemCount: 1, cutOffRecordedCount: 0, cutOffExceptionCount: 0, subsequentRecordedCount: 0,
+      subsequentMatchedCount: 0, confirmationCount: 1, confirmationClosedCount: 0, differences: [],
+      workpapersReviewed: false, hasBlockingEvidence: true }, 'areaSummary');
+    expect(summary.areaCode).toBe('CASH_BANK');
+    expect(summary.assessments[0].preparedByMe).toBe(false);
+    expect(() => decodeAreaSummary({ ...summary, sectionNumber: 3 }, 'areaSummary')).toThrow();
+  });
 });
 
 describe('Accepted listing source command recovery', () => {
@@ -422,6 +438,25 @@ describe('Procedure execution and review workspace', () => {
     expect(drafts.save).toHaveBeenCalledWith(expect.objectContaining({ entity: `audit-procedure-tailoring/${id2}` }),
       expect.objectContaining({ expectedDefinitionRevision: 4 }), expect.any(Function), true);
     expect(drafts.clear).toHaveBeenCalledWith(`audit-procedure-tailoring/${id2}`);
+  });
+  it('saves a wording revision only for a planned ad hoc procedure through its scoped PUT route', async () => {
+    const { page, workspace, api } = open();
+    const procedure = { ...workspace().procedures[0], id: id2, sourceProcedureId: 'ADHOC-001', status: 'PLANNED',
+      workpaperId: null, effectiveWording: 'Original retained ad hoc wording.' } as unknown as Parameters<AuditFieldwork['beginAdHocEdit']>[0];
+    workspace.update(w => ({ ...w, procedures: [procedure as unknown as typeof w.procedures[number]] }));
+    TestBed.tick();
+    page.beginAdHocEdit(procedure);
+    page.adHocEditWording.set('Revised wording with the same engagement scope.');
+    api.command.mockResolvedValueOnce({ ok: true, value: true });
+    expect(await page.saveAdHocEdit(id2)).toBe(true);
+    expect(api.command).toHaveBeenCalledWith(`/api/ui/engagements/${id1}/fieldwork/ad-hoc/${id2}`,
+      { wording: 'Revised wording with the same engagement scope.' }, 'PUT');
+    expect(page.adHocEditingId()).toBeNull();
+
+    const controlled = { ...procedure, sourceProcedureId: 'AWP-02-01' } as Parameters<AuditFieldwork['beginAdHocEdit']>[0];
+    page.beginAdHocEdit(controlled);
+    expect(page.adHocEditingId()).toBeNull();
+    expect(api.command).toHaveBeenCalledTimes(1);
   });
   it('retains and retries the same tailoring identity after an uncertain response', async () => {
     const { page, workspace, api } = open();
@@ -938,6 +973,32 @@ describe('Fieldwork bank reconciliation inspection', () => {
       { ...page, rows: [{ ...row, ledgerBalance: 100.123456 }] },
     ]) expect(() => decodeBankReconciliationPage(malformed, '')).toThrow();
     expect(() => decodeBankReconciliationDetail({ ...detail, ledgerSchedule: { ...source, id: id3 } }, '')).toThrow();
+  });
+
+  it('loads an engagement-bound area summary and calls the existing independent assessment review route', async () => {
+    const { fixture, http, click } = open(true);
+    click('Load area summary');
+    const summaryRequest = http.expectOne(`/api/ui/engagements/${id1}/fieldwork/areas/CASH_BANK/summary`);
+    expect(summaryRequest.request.method).toBe('GET');
+    summaryRequest.flush({ engagementId: id1, areaCode: 'CASH_BANK', sectionNumber: 2, sectionTitle: 'Cash & Bank',
+      procedureCount: 1, applicableProcedureCount: 1, reviewedProcedureCount: 0,
+      procedures: [{ procedureId: id2, sourceProcedureId: 'AWP-02-01', status: 'PLANNED', applicabilityStatus: 'APPLICABLE' }],
+      assessments: [{ assessmentId: id4, assessmentKind: 'BANK_COVERAGE', conclusion: 'Investigate the outstanding item.',
+        status: 'SUBMITTED', bookedAmount: null, auditedAmount: null, residualAmount: null, currency: null, revision: 1, preparedByMe: false }],
+      scheduleCount: 1, approvedScheduleCount: 1, selectionCount: 1, selectedItemCount: 3, testedItemCount: 2,
+      exceptionItemCount: 1, cutOffRecordedCount: 0, cutOffExceptionCount: 0, subsequentRecordedCount: 0,
+      subsequentMatchedCount: 0, confirmationCount: 1, confirmationClosedCount: 0, differences: [],
+      workpapersReviewed: false, hasBlockingEvidence: true });
+    TestBed.tick(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Investigate the outstanding item.');
+    expect(fixture.nativeElement.textContent).toContain('Review this assessment');
+    click('Review this assessment');
+    const review = http.expectOne(`/api/ui/area-assessments/${id4}/review`);
+    expect(review.request.method).toBe('POST');
+    expect(review.request.body).toEqual({});
+    review.flush({ value: true });
+    await Promise.resolve();
+    fixture.destroy();
   });
 
   it('retains reviewed bank command intent after an unknown response and requires lookup plus renewed assent', async () => {

@@ -3,18 +3,75 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { Subscription, timeout } from 'rxjs';
+import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { guidPattern } from '../../core/contracts';
 interface Chart { id: string; version: string; sourceScope: string; status: string; effectiveFrom: string; effectiveTo: string | null; preparedBy: string; publishedBy: string | null; publishedAt: string | null }
-interface Charts { clientId: string; items: Chart[]; hasMore: boolean }
+interface Charts { clientId: string; items: Chart[]; hasMore: boolean; canSaveDimensionSchema: boolean; canPublishDimensionSchema: boolean }
 interface Account { id: string; stableIdentity: string; accountCode: string; accountName: string; accountType: string; normalBalance: string; isPosting: boolean; parentAccountId: string | null; parentAccountCode: string | null; childCount: number }
 interface Publication { chartId: string; version: string; digest: string; accountCount: number; canPublish: boolean }
 interface Accounts { items: Account[]; totalCount: number; page: number; pageSize: number }
 export interface Alias { id: string; clientAccountId: string; accountCode: string; sourceSystem: string; aliasCode: string; aliasName: string; createdAt: string }
+type DimensionValue = { code: string; name: string; effectiveFrom: string; effectiveTo: string | null; active: boolean; valueId?: string | null };
+type DimensionDefinition = { dimensionType: string; code: string; name: string; required: boolean; values: DimensionValue[]; definitionId?: string | null };
+type DimensionDraftBody = { baseRevisionRef: string | null; definitions: DimensionDefinition[]; draftRevisionRef?: string; impactAcknowledged?: boolean; expectedCanonicalDigest?: string };
+type DimensionDraftReceipt = { draftRevisionRef: string; schemaId: string; revision: number; canonicalDigestVersion: number; canonicalDigest: string; definitions: DimensionDefinition[] };
+type DimensionPublication = { schemaRevisionRef: string; schemaId: string; revision: number; canonicalDigestVersion: number; canonicalDigest: string; status: string };
+type ResolvedDimensionRevision = { firmId: string; clientId: string; reference: { schemaId: string; revisionId: string; revision: number; canonicalDigestVersion: number; canonicalDigest: string } };
+
+const dimensionTypes = ['BRANCH', 'COST_CENTRE', 'DEPARTMENT', 'PROJECT', 'INTERCOMPANY_COUNTERPARTY'];
+function record(value: unknown): value is Record<string, unknown> { return !!value && typeof value === 'object' && !Array.isArray(value); }
+function optionalGuid(value: unknown): value is string | null | undefined { return value == null || typeof value === 'string' && guidPattern.test(value); }
+function isoDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= days[month - 1];
+}
+function dimensionDefinitions(value: unknown): DimensionDefinition[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > dimensionTypes.length) throw new Error('Enter one to five dimension definitions.');
+  for (const d of value) {
+    if (!record(d) || typeof d['dimensionType'] !== 'string' || !dimensionTypes.includes(d['dimensionType']) ||
+        typeof d['code'] !== 'string' || d['code'].length > 100 || typeof d['name'] !== 'string' || d['name'].length > 300 ||
+        typeof d['required'] !== 'boolean' || !Array.isArray(d['values']) || !optionalGuid(d['definitionId'])) throw new Error('A dimension definition is invalid.');
+    for (const v of d['values']) {
+      if (!record(v) || typeof v['code'] !== 'string' || v['code'].length > 100 || typeof v['name'] !== 'string' || v['name'].length > 300 ||
+          !isoDate(v['effectiveFrom']) || !(v['effectiveTo'] == null || isoDate(v['effectiveTo'])) ||
+          typeof v['active'] !== 'boolean' || !optionalGuid(v['valueId'])) throw new Error('A dimension value is invalid.');
+    }
+  }
+  return value as DimensionDefinition[];
+}
+export function decodeDimensionDraftReceipt(value: unknown): DimensionDraftReceipt {
+  if (!record(value) || typeof value['draftRevisionRef'] !== 'string' || !guidPattern.test(value['draftRevisionRef']) ||
+      typeof value['schemaId'] !== 'string' || !guidPattern.test(value['schemaId']) || !Number.isSafeInteger(value['revision']) || Number(value['revision']) < 1 ||
+      value['canonicalDigestVersion'] !== 1 || typeof value['canonicalDigest'] !== 'string' || !/^[a-f0-9]{64}$/.test(value['canonicalDigest'])) throw new Error('Invalid dimension draft receipt.');
+  return { ...(value as unknown as DimensionDraftReceipt), definitions: dimensionDefinitions(value['definitions']) };
+}
+export function decodeDimensionPublication(value: unknown): DimensionPublication {
+  if (!record(value) || typeof value['schemaRevisionRef'] !== 'string' || !guidPattern.test(value['schemaRevisionRef']) ||
+      typeof value['schemaId'] !== 'string' || !guidPattern.test(value['schemaId']) || !Number.isSafeInteger(value['revision']) || Number(value['revision']) < 1 ||
+      value['canonicalDigestVersion'] !== 1 || typeof value['canonicalDigest'] !== 'string' || !/^[a-f0-9]{64}$/.test(value['canonicalDigest']) || typeof value['status'] !== 'string')
+    throw new Error('Invalid dimension publication receipt.');
+  return value as unknown as DimensionPublication;
+}
+export function decodeResolvedDimensionRevision(value: unknown): ResolvedDimensionRevision {
+  if (!record(value) || typeof value['firmId'] !== 'string' || !guidPattern.test(value['firmId']) ||
+      typeof value['clientId'] !== 'string' || !guidPattern.test(value['clientId']) || !record(value['reference'])) throw new Error('Invalid resolved dimension revision.');
+  const r = value['reference'];
+  if (typeof r['schemaId'] !== 'string' || !guidPattern.test(r['schemaId']) || typeof r['revisionId'] !== 'string' || !guidPattern.test(r['revisionId']) ||
+      !Number.isSafeInteger(r['revision']) || Number(r['revision']) < 1 || r['canonicalDigestVersion'] !== 1 ||
+      typeof r['canonicalDigest'] !== 'string' || !/^[a-f0-9]{64}$/.test(r['canonicalDigest'])) throw new Error('Invalid resolved dimension revision reference.');
+  return value as unknown as ResolvedDimensionRevision;
+}
 export function decodeCharts(value: unknown): Charts {
   if (!value || typeof value !== 'object') throw new Error('Invalid charts');
   const v = value as Record<string, unknown>;
-  if (typeof v['clientId'] !== 'string' || !guidPattern.test(v['clientId']) || typeof v['hasMore'] !== 'boolean' || !Array.isArray(v['items']) || v['items'].length > 100) throw new Error('Invalid charts');
+  if (typeof v['clientId'] !== 'string' || !guidPattern.test(v['clientId']) || typeof v['hasMore'] !== 'boolean' ||
+      typeof v['canSaveDimensionSchema'] !== 'boolean' || typeof v['canPublishDimensionSchema'] !== 'boolean' ||
+      !Array.isArray(v['items']) || v['items'].length > 100) throw new Error('Invalid charts');
   for (const c of v['items']) {
     if (!c || typeof c.id !== 'string' || !guidPattern.test(c.id) || typeof c.version !== 'string' || !/^[1-9]\d{0,9}$/.test(c.version) ||
       !['sourceScope', 'status'].every(k => typeof c[k] === 'string') || typeof c.effectiveFrom !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(c.effectiveFrom) ||
@@ -123,6 +180,50 @@ export function decodeAliases(value: unknown): Alias[] {
       @if (!aliasList.length) { <p>No source account aliases configured for this revision.</p> }
       @if (aliasesTruncated()) { <p>Showing the first 1,000 source aliases for this revision.</p> }
     }
+    @if (data(); as schemaAccess) {
+      <section aria-labelledby="dimension-schema-heading">
+        <h3 id="dimension-schema-heading">Client dimension schema revisions</h3>
+        <p>Save an exact client-owned draft and have a different authorized reviewer publish it. Publication does not activate a reporting context.</p>
+        @if (!schemaAccess.canSaveDimensionSchema && !schemaAccess.canPublishDimensionSchema) {
+          <p role="status">Dimension schema maintenance is unavailable for this assignment.</p>
+        }
+        @if (dimensionError()) { <p role="alert">{{ dimensionError() }}</p> }
+        @if (dimensionMessage()) { <p [attr.role]="dimensionUnknown() ? 'alert' : 'status'">{{ dimensionMessage() }}</p> }
+        @if (schemaAccess.canSaveDimensionSchema) {
+          <label>Exact published base revision ID (leave blank for the first revision)
+            <input name="dimensionBaseRevision" [(ngModel)]="dimensionBaseRevisionRef" (ngModelChange)="dimensionInputChanged()" maxlength="36" />
+          </label>
+          <label>Dimension definitions JSON
+            <textarea name="dimensionDefinitions" [(ngModel)]="dimensionDefinitionsJson" (ngModelChange)="dimensionInputChanged()" rows="12" maxlength="200000"></textarea>
+          </label>
+          @if (dimensionDraft(); as draft) {
+            <p>Saved draft revision {{ draft.revision }} · schema {{ draft.schemaId }} · SHA-256 <code>{{ draft.canonicalDigest }}</code></p>
+          }
+          <button matButton type="button" (click)="saveDimensionDraft()"
+            [disabled]="dimensionBusy() || dimensionUnknown() || !schemaAccess.canSaveDimensionSchema || dimensionDefinitionsJson.length > 200000">
+            {{ dimensionDraft() ? 'Save changes to this exact draft' : 'Save dimension schema draft' }}
+          </button>
+          @if (dimensionDraft(); as draft) {
+            @if (!schemaAccess.canPublishDimensionSchema) { <p role="status">An independently authorized reviewer must publish this draft.</p> }
+            <label><input type="checkbox" name="dimensionReviewed" [(ngModel)]="dimensionReviewed" /> I reviewed the exact saved definitions and base revision shown above.</label>
+            <label><input type="checkbox" name="dimensionImpactAcknowledged" [(ngModel)]="dimensionImpactAcknowledged" /> I reviewed the schema impact acknowledgement.</label>
+            <button matButton type="button" (click)="publishDimensionDraft()"
+              [disabled]="dimensionBusy() || dimensionUnknown() || !schemaAccess.canPublishDimensionSchema || !dimensionReviewed || !dimensionImpactAcknowledged || !dimensionDraftMatchesInput()">
+              Publish reviewed dimension schema
+            </button>
+          }
+        }
+        @if (dimensionPublication(); as publication) {
+          <p>Published schema {{ publication.schemaId }} · revision {{ publication.revision }} · <code>{{ publication.canonicalDigest }}</code></p>
+          <button matButton type="button" (click)="readDimensionRevision()" [disabled]="dimensionBusy()">Resolve this exact published revision</button>
+          <button matButton type="button" (click)="usePublishedDimensionBase()" [disabled]="dimensionBusy() || dimensionUnknown() || !schemaAccess.canSaveDimensionSchema">Prepare a successor from this exact revision</button>
+        }
+        @if (dimensionResolved(); as resolved) {
+          <p role="status">Exact published revision verified for this client: {{ resolved.reference.revisionId }} · revision {{ resolved.reference.revision }} · <code>{{ resolved.reference.canonicalDigest }}</code></p>
+        }
+        @if (dimensionUnknown()) { <p role="alert">The command outcome is unknown. Do not repeat it; the existing schema API has no retained command lookup for this request.</p> }
+      </section>
+    }
   </section>` })
 export class AccountingCharts {
   readonly clientId = input.required<string>(); readonly data = signal<Charts | null>(null); readonly accounts = signal<Accounts | null>(null);
@@ -131,18 +232,45 @@ export class AccountingCharts {
   readonly aliasesTruncated = signal(false);
   readonly loading = signal(false); readonly error = signal(''); selected = '';
   private readonly http = inject(HttpClient); private readonly session = inject(SessionService);
+  private readonly api = inject(Api);
   private request?: Subscription; private detail?: Subscription; private write?: Subscription; private publicationRead?: Subscription;
   private aliasRead?: Subscription;
+  private dimensionWrite?: Subscription; private dimensionRead?: Subscription;
   readonly publication = signal<Publication | null>(null); publicationReviewed = false;
   readonly busy = signal(false); readonly uncertain = signal(false);
   sourceScope = ''; effectiveFrom = ''; creationReviewed = false; accountReviewed = false;
   account = { stable: '', code: '', name: '', type: '', balance: 'DEBIT', parent: '', posting: true };
   aliasReviewed = false;
   alias = { accountId: '', sourceSystem: '', code: '', name: '' };
+  readonly dimensionDraft = signal<DimensionDraftReceipt | null>(null);
+  readonly dimensionPublication = signal<DimensionPublication | null>(null);
+  readonly dimensionResolved = signal<ResolvedDimensionRevision | null>(null);
+  readonly dimensionBusy = signal(false);
+  readonly dimensionUnknown = signal(false);
+  readonly dimensionMessage = signal('');
+  readonly dimensionError = signal('');
+  dimensionDefinitionsJson = '[]';
+  dimensionBaseRevisionRef = '';
+  dimensionReviewed = false;
+  dimensionImpactAcknowledged = false;
+  private dimensionDraftBody: DimensionDraftBody | null = null;
+  private dimensionSavedInput = '';
+  private dimensionSavedBase = '';
   constructor() {
     effect(() => { this.clientId(); this.session.invalidation(); const staff = this.session.current()?.staff;
       untracked(() => { this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.publicationRead?.unsubscribe(); this.aliasRead?.unsubscribe(); this.publication.set(null); this.publicationReviewed = false; this.busy.set(false); this.creationReviewed = false; this.accountReviewed = false; this.aliasReviewed = false; this.aliasLoading.set(false); this.aliasError.set(''); this.aliasesTruncated.set(false); this.sourceScope = ''; this.effectiveFrom = ''; this.account = { stable: '', code: '', name: '', type: '', balance: 'DEBIT', parent: '', posting: true }; this.alias = { accountId: '', sourceSystem: '', code: '', name: '' }; this.data.set(null); this.accounts.set(null); this.aliases.set(null); this.selected = ''; this.loading.set(false); if (staff) this.load(); }); });
     inject(DestroyRef).onDestroy(() => { this.request?.unsubscribe(); this.detail?.unsubscribe(); this.write?.unsubscribe(); this.publicationRead?.unsubscribe(); this.aliasRead?.unsubscribe(); this.publication.set(null); this.publicationReviewed = false; });
+    effect(() => {
+      this.clientId(); this.session.invalidation(); this.session.current();
+      untracked(() => {
+        this.dimensionWrite?.unsubscribe(); this.dimensionRead?.unsubscribe();
+        this.dimensionDraft.set(null); this.dimensionPublication.set(null); this.dimensionResolved.set(null);
+        this.dimensionBusy.set(false); this.dimensionUnknown.set(false); this.dimensionMessage.set(''); this.dimensionError.set('');
+        this.dimensionDefinitionsJson = '[]'; this.dimensionBaseRevisionRef = ''; this.dimensionReviewed = false;
+        this.dimensionImpactAcknowledged = false; this.dimensionDraftBody = null; this.dimensionSavedInput = ''; this.dimensionSavedBase = '';
+      });
+    });
+    inject(DestroyRef).onDestroy(() => { this.dimensionWrite?.unsubscribe(); this.dimensionRead?.unsubscribe(); });
   }
   load(): void {
     if (this.busy()) return;
@@ -224,6 +352,132 @@ export class AccountingCharts {
     const p = this.publication();
     if (!p || !p.canPublish || !this.publicationReviewed || p.chartId !== this.selected || this.busy() || this.uncertain()) return;
     this.mutate('/charts/' + p.chartId + '/publish', { version: p.version, digest: p.digest, reviewed: true });
+  }
+
+  dimensionInputChanged(): void {
+    this.dimensionReviewed = false;
+    this.dimensionImpactAcknowledged = false;
+    this.dimensionError.set('');
+  }
+
+  dimensionDraftMatchesInput(): boolean {
+    return !!this.dimensionDraftBody && this.dimensionDefinitionsJson === this.dimensionSavedInput &&
+      this.dimensionBaseRevisionRef.trim().toLowerCase() === this.dimensionSavedBase;
+  }
+
+  async saveDimensionDraft(): Promise<void> {
+    const workspace = this.data();
+    if (!workspace?.canSaveDimensionSchema || this.dimensionBusy() || this.dimensionUnknown()) return;
+    let definitions: DimensionDefinition[];
+    try {
+      if (this.dimensionDefinitionsJson.length > 200000) throw new Error('Dimension schema input exceeds the supported size.');
+      definitions = dimensionDefinitions(JSON.parse(this.dimensionDefinitionsJson));
+    } catch (error) {
+      this.dimensionError.set(error instanceof Error ? error.message : 'Enter a valid dimension definitions JSON array.');
+      return;
+    }
+    const base = this.dimensionBaseRevisionRef.trim();
+    if (base && !guidPattern.test(base)) { this.dimensionError.set('The published base revision must be an exact GUID.'); return; }
+    const current = this.dimensionDraft();
+    const body: DimensionDraftBody = {
+      baseRevisionRef: base || null,
+      definitions,
+      ...(current ? { draftRevisionRef: current.draftRevisionRef, expectedCanonicalDigest: current.canonicalDigest } : {}),
+    };
+    this.dimensionBusy.set(true); this.dimensionMessage.set(''); this.dimensionError.set('');
+    const client = this.clientId(), generation = this.session.invalidation();
+    try {
+      const result = await this.api.command<unknown>(`/api/ui/clients/${client}/dimension-schemas/drafts`, body);
+      if (generation !== this.session.invalidation() || client !== this.clientId()) return;
+      if (!result.ok) {
+        this.dimensionUnknown.set(result.unknown);
+        this.dimensionMessage.set(result.message);
+        return;
+      }
+      const receipt = decodeDimensionDraftReceipt(result.value);
+      const normalizedBody: DimensionDraftBody = { baseRevisionRef: body.baseRevisionRef, definitions: receipt.definitions,
+        draftRevisionRef: receipt.draftRevisionRef, expectedCanonicalDigest: receipt.canonicalDigest };
+      this.dimensionDraft.set(receipt);
+      this.dimensionDraftBody = normalizedBody;
+      this.dimensionBaseRevisionRef = body.baseRevisionRef ?? '';
+      this.dimensionDefinitionsJson = JSON.stringify(receipt.definitions, null, 2);
+      this.dimensionSavedInput = this.dimensionDefinitionsJson;
+      this.dimensionSavedBase = this.dimensionBaseRevisionRef.trim().toLowerCase();
+      this.dimensionReviewed = false;
+      this.dimensionImpactAcknowledged = false;
+      this.dimensionMessage.set('Exact dimension schema draft saved. A different authorized reviewer must publish it.');
+    } catch {
+      this.dimensionUnknown.set(true);
+      this.dimensionMessage.set('The draft response could not be verified. Do not submit the command again.');
+    } finally {
+      if (generation === this.session.invalidation() && client === this.clientId()) this.dimensionBusy.set(false);
+    }
+  }
+
+  async publishDimensionDraft(): Promise<void> {
+    const workspace = this.data(), receipt = this.dimensionDraft(), body = this.dimensionDraftBody;
+    if (!workspace?.canPublishDimensionSchema || !receipt || !body || !this.dimensionReviewed || !this.dimensionImpactAcknowledged ||
+        !this.dimensionDraftMatchesInput() || this.dimensionBusy() || this.dimensionUnknown()) return;
+    this.dimensionBusy.set(true); this.dimensionMessage.set(''); this.dimensionError.set('');
+    const client = this.clientId(), generation = this.session.invalidation();
+    try {
+      const result = await this.api.command<unknown>(`/api/ui/clients/${client}/dimension-schemas/${receipt.schemaId}/publish`,
+        { ...body, impactAcknowledged: true });
+      if (generation !== this.session.invalidation() || client !== this.clientId()) return;
+      if (!result.ok) {
+        this.dimensionUnknown.set(result.unknown);
+        this.dimensionMessage.set(result.message);
+        this.dimensionReviewed = false;
+        return;
+      }
+      const published = decodeDimensionPublication(result.value);
+      if (published.schemaId !== receipt.schemaId || published.revision !== receipt.revision) throw new Error('Published revision mismatch.');
+      this.dimensionPublication.set(published);
+      this.dimensionDraft.set(null);
+      this.dimensionDraftBody = null;
+      this.dimensionReviewed = false;
+      this.dimensionImpactAcknowledged = false;
+      this.dimensionMessage.set('Dimension schema revision published by an independent reviewer.');
+      await this.readDimensionRevision(generation, client);
+    } catch {
+      if (generation === this.session.invalidation() && client === this.clientId()) {
+        this.dimensionUnknown.set(true);
+        this.dimensionMessage.set('The publication response could not be verified. Do not submit the command again.');
+      }
+    } finally {
+      if (generation === this.session.invalidation() && client === this.clientId()) this.dimensionBusy.set(false);
+    }
+  }
+
+  async readDimensionRevision(generation = this.session.invalidation(), client = this.clientId()): Promise<void> {
+    const publication = this.dimensionPublication();
+    if (!publication) return;
+    this.dimensionRead?.unsubscribe(); this.dimensionResolved.set(null); this.dimensionError.set('');
+    try {
+      const reference = await this.api.get<ResolvedDimensionRevision>(
+        `/api/ui/clients/${client}/dimension-schemas/${publication.schemaId}/revisions/${publication.revision}` +
+        `?revisionId=${publication.schemaRevisionRef}&canonicalDigestVersion=${publication.canonicalDigestVersion}&canonicalDigest=${publication.canonicalDigest}`,
+        decodeResolvedDimensionRevision);
+      if (generation !== this.session.invalidation() || client !== this.clientId()) return;
+      if (reference.clientId !== client || reference.reference.schemaId !== publication.schemaId ||
+          reference.reference.revisionId !== publication.schemaRevisionRef || reference.reference.revision !== publication.revision ||
+          reference.reference.canonicalDigest !== publication.canonicalDigest) throw new Error('Exact revision identity mismatch.');
+      this.dimensionResolved.set(reference);
+    } catch (error) {
+      if (generation === this.session.invalidation() && client === this.clientId())
+        this.dimensionError.set(error instanceof Error ? error.message : 'The exact published revision could not be resolved.');
+    }
+  }
+
+  usePublishedDimensionBase(): void {
+    const publication = this.dimensionPublication();
+    if (!publication || this.dimensionBusy() || this.dimensionUnknown() || !this.data()?.canSaveDimensionSchema) return;
+    this.dimensionBaseRevisionRef = publication.schemaRevisionRef;
+    this.dimensionDefinitionsJson = '[]';
+    this.dimensionDraft.set(null); this.dimensionDraftBody = null; this.dimensionSavedInput = ''; this.dimensionSavedBase = '';
+    this.dimensionReviewed = false; this.dimensionImpactAcknowledged = false;
+    this.dimensionMessage.set('The exact published revision is selected as the successor base. Enter and review the new definitions.');
+    this.dimensionInputChanged();
   }
 
 }

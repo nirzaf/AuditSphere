@@ -9,7 +9,8 @@ namespace AuditSphereOps.Application.Accounting;
 
 public sealed record ChartRevisionItem(Guid Id, string Version, string SourceScope, string Status, string EffectiveFrom,
   string? EffectiveTo, Guid PreparedBy, Guid? PublishedBy, string? PublishedAt);
-public sealed record ChartWorkspace(Guid ClientId, IReadOnlyList<ChartRevisionItem> Items, bool HasMore);
+public sealed record ChartWorkspace(Guid ClientId, IReadOnlyList<ChartRevisionItem> Items, bool HasMore,
+  bool CanSaveDimensionSchema, bool CanPublishDimensionSchema);
 public static class ChartWorkspaceQuery
 {
   public static async Task<CommandResult<ChartWorkspace>> GetAsync(IClientAccountingDbContext db, ActorContext actor,
@@ -23,9 +24,18 @@ public static class ChartWorkspaceQuery
       .OrderByDescending(x => x.Version).ThenBy(x => x.Id).Take(101).ToListAsync(ct);
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, request, ct)).Succeeded)
       return CommandResult<ChartWorkspace>.Fail(ErrorCodes.ScopeDenied, "Charts unavailable.");
+    var canSaveDimensionSchema = (await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, clientId,
+        RequiredRoles: ["AccountingPreparer", "AccountingReviewer", "Manager", "Partner", "Administrator"],
+        InternalOnly: true), ct)).Succeeded;
+    var canPublishDimensionSchema = (await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, clientId,
+        RequiredRoles: ["AccountingReviewer", "Manager", "Partner", "Administrator"],
+        InternalOnly: true), ct)).Succeeded;
     return CommandResult<ChartWorkspace>.Ok(new(clientId, charts.Take(100).Select(x => new ChartRevisionItem(x.Id,
       x.Version.ToString(CultureInfo.InvariantCulture), x.SourceScope, x.Status, x.EffectiveFrom.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
       x.EffectiveTo?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), x.CreatedByUserId, x.PublishedByUserId,
-      x.PublishedAt?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture))).ToArray(), charts.Count > 100));
+      x.PublishedAt?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture))).ToArray(), charts.Count > 100,
+      canSaveDimensionSchema, canPublishDimensionSchema));
   }
 }

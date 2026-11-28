@@ -1,4 +1,6 @@
+using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Application.Accounting;
+using AuditSphereOps.Domain.Shared;
 
 namespace AuditSphereOps.Api.Ui;
 
@@ -22,36 +24,36 @@ public static partial class UiEndpoints
       ReadAsync(http, (db, actor, ct) => TrialBalanceIntakeWorkspaceQuery.GetAsync(db, actor, id, ct)))
       .WithUiResponse<TrialBalanceIntakeWorkspace>(includeBadRequest: false);
     // Preview validates without persisting anything, but still requires antiforgery because it accepts an upload.
-    group.MapPost("/engagements/{id:guid}/tb-intake/preview", async (Guid id, HttpContext http) =>
-    {
-      var file = await ReadUploadAsync(http, "file", MaxTrialBalanceUploadBytes);
-      if (file is null) return Invalid("Choose an Excel or CSV file up to 25 MB.");
-      return await CommandAsync(http, async (db, actor, ct) =>
+    group.MapPost("/engagements/{id:guid}/tb-intake/preview", (Guid id, HttpContext http) =>
+      CommandAsync(http, async (db, actor, ct) =>
       {
+        var file = await ReadUploadAsync(http, "file", MaxTrialBalanceUploadBytes);
+        if (file is null) return CommandResult<TrialBalanceUploadReview>.Fail("request.invalid", "Choose an Excel or CSV file up to 25 MB.");
         return await TrialBalanceUploadWorkspace.PreviewAsync(db, actor, id, file.Value.Name, file.Value.Content, ct);
-      });
-    }).Accepts<TrialBalanceUploadFileForm>("multipart/form-data")
+      })).WithMetadata(new ApiRateClassAttribute(ApiRateClass.FileUpload))
+      .Accepts<TrialBalanceUploadFileForm>("multipart/form-data")
       .WithUiResponse<UiValueResponse<TrialBalanceUploadReview>>(includePayloadTooLarge: true);
-    group.MapPost("/engagements/{id:guid}/tb-intake/import", async (Guid id, HttpContext http) =>
-    {
-      var file = await ReadUploadAsync(http, "file", MaxTrialBalanceUploadBytes);
-      if (file is null) return Invalid("Choose an Excel or CSV file up to 25 MB.");
-      return await CommandAsync(http, async (db, actor, ct) =>
+    group.MapPost("/engagements/{id:guid}/tb-intake/import", (Guid id, HttpContext http) =>
+      CommandAsync(http, async (db, actor, ct) =>
       {
+        var file = await ReadUploadAsync(http, "file", MaxTrialBalanceUploadBytes);
+        if (file is null) return CommandResult<TrialBalanceUploadReview>.Fail("request.invalid", "Choose an Excel or CSV file up to 25 MB.");
         var form = await http.Request.ReadFormAsync(ct);
         return await TrialBalanceUploadWorkspace.ImportAsync(db, actor, id, file.Value.Name, file.Value.Content,
           form["revision"].ToString(), form["fileSha256"].ToString(), form["reviewed"].ToString() == "true", ct);
-      });
-    }).Accepts<TrialBalanceUploadImportForm>("multipart/form-data")
+      })).WithMetadata(new ApiRateClassAttribute(ApiRateClass.FileUpload))
+      .Accepts<TrialBalanceUploadImportForm>("multipart/form-data")
       .WithUiResponse<UiValueResponse<TrialBalanceUploadReview>>(
         includeConflict: true, includePayloadTooLarge: true);
     // Reconciliation parses the reselected exact file and reads receipts; it performs no import or retry.
-    group.MapPost("/engagements/{id:guid}/tb-intake/reconcile", async (Guid id, HttpContext http) =>
-    {
-      var file = await ReadUploadAsync(http, "file", MaxTrialBalanceUploadBytes);
-      if (file is null) return Invalid("Choose an Excel or CSV file up to 25 MB.");
-      return await CommandAsync(http, (db, actor, ct) => TrialBalanceUploadWorkspace.PreviewAsync(db, actor, id, file.Value.Name, file.Value.Content, ct));
-    }).Accepts<TrialBalanceUploadFileForm>("multipart/form-data")
+    group.MapPost("/engagements/{id:guid}/tb-intake/reconcile", (Guid id, HttpContext http) =>
+      CommandAsync(http, async (db, actor, ct) =>
+      {
+        var file = await ReadUploadAsync(http, "file", MaxTrialBalanceUploadBytes);
+        if (file is null) return CommandResult<TrialBalanceUploadReview>.Fail("request.invalid", "Choose an Excel or CSV file up to 25 MB.");
+        return await TrialBalanceUploadWorkspace.PreviewAsync(db, actor, id, file.Value.Name, file.Value.Content, ct);
+      })).WithMetadata(new ApiRateClassAttribute(ApiRateClass.FileUpload))
+      .Accepts<TrialBalanceUploadFileForm>("multipart/form-data")
       .WithUiResponse<UiValueResponse<TrialBalanceUploadReview>>(includePayloadTooLarge: true);
     group.MapGet("/datasets/{id:guid}/mapping-memory", (Guid id, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => MappingMemoryService.ProposeAsync(db, actor, id, ct)))

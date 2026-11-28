@@ -25,7 +25,42 @@ internal sealed record EngagementProjectionAuthorization(CommandResult Read, boo
 
 public static class AuthorizationDecision
 {
-  private sealed record GrantFact(string Role, Guid? ClientId, Guid? EngagementId, DateTimeOffset? ExpiresAt);
+  internal sealed record GrantFact(string Role, Guid? ClientId, Guid? EngagementId, DateTimeOffset? ExpiresAt);
+
+  internal sealed class BatchAuthorizationSnapshot(
+    CommandResult identity,
+    string userKind,
+    IReadOnlyList<GrantFact> grants,
+    IReadOnlySet<Guid> clients,
+    IReadOnlyDictionary<Guid, Guid> engagements)
+  {
+    private static readonly CommandResult Denied = CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    internal CommandResult Identity => identity;
+    internal string UserKind => userKind;
+    internal IReadOnlyList<GrantFact> Grants => grants;
+    internal bool ContainsClient(Guid clientId) => clients.Contains(clientId);
+    internal bool TryGetEngagementClient(Guid engagementId, out Guid clientId) =>
+      engagements.TryGetValue(engagementId, out clientId);
+
+    internal CommandResult Authorize(ActorContext actor, AuthorizationRequest request, DateTimeOffset at)
+    {
+      if (!identity.Succeeded) return identity;
+      if (request.FirmId != actor.FirmId || !request.InternalOnly || request.RequireProfessionalWork ||
+          request.ClientId is { } clientId && !clients.Contains(clientId))
+        return Denied;
+      var effectiveClient = request.ClientId;
+      if (request.EngagementId is { } engagementId)
+      {
+        if (!engagements.TryGetValue(engagementId, out var storedClient) ||
+            request.ClientId.HasValue && request.ClientId != storedClient)
+          return Denied;
+        effectiveClient ??= storedClient;
+      }
+      var result = EvaluateGrants(request, effectiveClient, grants, at);
+      return result.Succeeded && IsClientActor(actor, userKind) ? Denied : result;
+    }
+  }
 
   internal sealed class ReadSnapshot(Func<DateTimeOffset, IReadOnlyList<CommandResult>> evaluate)
   {
@@ -78,6 +113,53 @@ public static class AuthorizationDecision
       if (!candidates.Any(g => allowed.Contains(g.Role))) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
     }
     return CommandResult.Ok();
+  }
+
+  internal static async Task<BatchAuthorizationSnapshot> LoadBatchAuthorizationSnapshotAsync(
+    IAuditSphereDbContext db,
+    ActorContext actor,
+    IEnumerable<Guid>? requestedClientIds,
+    IEnumerable<Guid>? requestedEngagementIds,
+    bool includeGrantTargets,
+    CancellationToken ct)
+  {
+    var denied = CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    if (actor.UserId == Guid.Empty || actor.FirmId == Guid.Empty)
+      return new BatchAuthorizationSnapshot(denied, string.Empty, [], new HashSet<Guid>(), new Dictionary<Guid, Guid>());
+
+    var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == actor.UserId, ct);
+    var identity = ValidateIdentity(actor, actor.FirmId, user?.FirmId, user?.Disabled ?? false, user?.SessionEpoch ?? 0);
+    if (!identity.Succeeded || user is null)
+      return new BatchAuthorizationSnapshot(identity, user?.UserKind ?? string.Empty, [], new HashSet<Guid>(), new Dictionary<Guid, Guid>());
+
+    var grants = await db.RoleGrants.AsNoTracking()
+      .Where(g => g.UserId == actor.UserId && g.FirmId == actor.FirmId && g.RevokedAt == null)
+      .Select(g => new GrantFact(g.Role, g.ClientId, g.EngagementId, g.ExpiresAt))
+      .ToListAsync(ct);
+
+    var clientIdSet = new HashSet<Guid>(requestedClientIds ?? []);
+    var engagementIdSet = new HashSet<Guid>(requestedEngagementIds ?? []);
+    if (includeGrantTargets)
+    {
+      foreach (var grant in grants)
+      {
+        if (grant.ClientId is { } cId) clientIdSet.Add(cId);
+        if (grant.EngagementId is { } eId) engagementIdSet.Add(eId);
+      }
+    }
+
+    var clientIds = clientIdSet.ToArray();
+    var engagementIds = engagementIdSet.ToArray();
+    var clients = clientIds.Length == 0
+      ? new HashSet<Guid>()
+      : (await db.PracticeClients.AsNoTracking().Where(c => c.FirmId == actor.FirmId && clientIds.Contains(c.Id))
+          .Select(c => c.Id).ToListAsync(ct)).ToHashSet();
+    var engagements = engagementIds.Length == 0
+      ? new Dictionary<Guid, Guid>()
+      : await db.Engagements.AsNoTracking().Where(e => e.FirmId == actor.FirmId && engagementIds.Contains(e.Id))
+          .ToDictionaryAsync(e => e.Id, e => e.PracticeClientId, ct);
+
+    return new BatchAuthorizationSnapshot(identity, user.UserKind, grants, clients, engagements);
   }
 
   private static bool IsClientActor(ActorContext actor, string userKind) =>

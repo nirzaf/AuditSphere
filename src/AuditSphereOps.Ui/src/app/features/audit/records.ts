@@ -27,6 +27,14 @@ export const decodeFinding = obj({ id: guid, engagementId: guid, findingType: te
 export const decodeReviewPoint = obj({ id: guid, engagementId: guid, targetKind: text, targetId: guid, targetRevision: reviewPointTargetRevision, raisedByUserId: guid, raisedAt: instant,
   significant: bool, cleared: bool, comment: text, status: text, dispositionRevision: reviewPointRevision, canChangeDisposition: bool });
 const gate = obj({ state: text, detail: text });
+const MAX_RELEASE_CHECKPOINT_BYTES = 7_000_000;
+function hexDigest(bytes: ArrayBuffer): string { return Array.from(new Uint8Array(bytes), value => value.toString(16).padStart(2, '0')).join(''); }
+function base64Bytes(bytes: Uint8Array): string {
+  let binary = '';
+  for (let start = 0; start < bytes.length; start += 0x8000)
+    binary += String.fromCharCode(...bytes.subarray(start, Math.min(start + 0x8000, bytes.length)));
+  return btoa(binary);
+}
 export const decodeRelease = obj({ id: guid, status: text, targetKind: text, targetRevision: int, revision: int, manifestDigest: text, createdAt: instant,
   checkpoint: gate, attestation: gate, lineage: gate, preflightReady: bool });
 export const decodeArchiveManifestResult = obj({ archiveId: guid, manifestId: guid, manifestVersion: int, status: text,
@@ -42,6 +50,35 @@ export const decodeArchive = obj({ id: guid, engagementId: guid, status: text, c
     operationId: nullable(guid), targetRevision: nullable(int), manifestVersion: nullable(int), manifestSha256: nullable(sha256),
     latestFileReadBackAt: nullable(instant), permissionReadBackAt: nullable(instant), note: text })),
   manifestId: nullable(guid), canReview: bool });
+const archiveCopyFile = obj({ sourceKind: text, sourceKeySha256: sha256, sourceId: nullable(guid), manifestEntryId: nullable(guid), sourceVersion: text,
+  sourceSha256: sha256, sourceByteCount: nat, relativePath: text, destinationTenantId: text, destinationSiteId: text, destinationDriveId: text,
+  destinationLibraryRootItemId: text, hasExactTargetBinding: bool, destinationItemId: text, destinationVersion: text, readBackSha256: sha256,
+  readBackByteCount: nat, verificationOutcome: text, readBackAt: instant });
+const archiveCopyPermission = obj({ expectedPermissionsJson: text, expectedPermissionsSha256: sha256, observedPermissionsJson: text,
+  observedPermissionsSha256: sha256, hasUniquePermissionScope: bool, hasExactTargetBinding: bool, observedStaffSha256: sha256,
+  observedTenantId: text, observedSiteId: text, observedDriveId: text, observedLibraryRootItemId: text, comparisonOutcome: text, observedAt: instant });
+const archiveCopyOperationResult = obj({ operationId: guid, attemptToken: nat, archiveId: guid, clientId: guid, manifestId: guid,
+  manifestVersion: int, manifestSha256: sha256, recordsProfileId: guid, recordsProfileVersion: int, releaseId: guid, checkpointId: guid,
+  clientSharePointSiteId: nullable(guid), targetRevisionId: guid, targetRevision: int, targetConfigurationSha256: sha256,
+  authorizedStaffSha256: sha256, protocolOutcome: text, files: arr(archiveCopyFile, 1000), permissions: archiveCopyPermission });
+export const decodeArchiveCopyEvidence = obj({ operationId: guid, firmId: guid, clientId: guid, engagementId: guid, operationStatus: text,
+  operationResultDigest: nullable(sha256), result: nullable(archiveCopyOperationResult),
+  fileReceipts: arr(obj({ receiptId: guid, attemptToken: nat, sourceKind: text, sourceKeySha256: sha256, sourceId: nullable(guid),
+    manifestEntryId: nullable(guid), sourceVersion: text, sourceSha256: sha256, sourceByteCount: nat, relativePath: text,
+    destinationTenantId: text, destinationSiteId: text, destinationDriveId: text, destinationLibraryRootItemId: text,
+    hasExactTargetBinding: bool, destinationItemId: text, destinationVersion: text, readBackSha256: sha256, readBackByteCount: nat,
+    verificationOutcome: text, readBackAt: instant }), 1000),
+  permissionObservations: arr(obj({ observationId: guid, attemptToken: nat, expectedPermissionsJson: text, expectedPermissionsSha256: sha256,
+    observedPermissionsJson: text, observedPermissionsSha256: sha256, hasUniquePermissionScope: bool, hasExactTargetBinding: bool,
+    observedStaffSha256: sha256, observedTenantId: text, observedSiteId: text, observedDriveId: text, observedLibraryRootItemId: text,
+    comparisonOutcome: text, observedAt: instant }), 1000) });
+export const decodeArchiveCopyVerificationPlan = obj({ schemaVersion: int, operationId: guid, firmId: guid, tenantId: text, clientId: guid,
+  engagementId: guid, archiveId: guid, manifestId: guid, manifestVersion: int, manifestSha256: sha256, recordsProfileId: guid,
+  recordsProfileVersion: int, releaseId: guid, releasedArtifactId: guid, checkpointId: guid, clientSharePointSiteId: nullable(guid),
+  targetRevisionId: guid, targetRevision: int, targetConfigurationSha256: sha256, authorizedStaffSha256: sha256,
+  destinationTenantId: text, destinationSiteId: text, destinationDriveId: text, destinationLibraryRootItemId: text, staffGroupId: text,
+  expectedPermissionsSha256: sha256, files: arr(obj({ sourceKind: text, sourceKeySha256: sha256, sourceId: nullable(guid),
+    manifestEntryId: nullable(guid), sourceVersion: text, sourceSha256: sha256, sourceByteCount: nat, relativePath: text }), 1000) });
 type ArchiveActionOwner = { token: number; archiveId: string; engagementId: string; actor: ReturnType<SessionService['current']>; sessionGeneration: number };
 const sum = (rows: { reviewedTestCount: number }[]) => rows.reduce((n, r) => n + r.reviewedTestCount, 0);
 
@@ -261,6 +298,16 @@ export class ReviewPointRecord {
             <dt>Protection attestation</dt><dd [class.error-text]="c.attestation.state !== 'VERIFIED' && c.attestation.state !== 'ABSENT'">{{ c.attestation.state.toLowerCase() }} — {{ c.attestation.detail }}</dd>
             <dt>Signature lineage</dt><dd [class.error-text]="c.lineage.state !== 'VERIFIED' && c.lineage.state !== 'ABSENT'">{{ c.lineage.state.toLowerCase() }} — {{ c.lineage.detail }}</dd></dl>
           <p><small>No external records-provider acceptance is claimed by this workbench.</small></p></section>
+        <section class="panel" aria-labelledby="checkpoint-heading"><h2 id="checkpoint-heading">Request exact external checkpoint</h2>
+          <p>This queues the existing durable checkpoint operation. The worker performs the provider action and records readback; queuing does not mean the checkpoint succeeded.</p>
+          <label>Exact candidate manifest file<input type="file" accept="application/json,.json" (change)="selectCheckpointManifest($event)" [disabled]="cmd.busy() || cmd.uncertain()" /></label>
+          @if (checkpointManifestMessage()) { <p [attr.role]="checkpointManifestReady() ? 'status' : 'alert'">{{ checkpointManifestMessage() }}</p> }
+          @if (checkpointManifestDigest()) { <p>Selected file SHA-256 <code>{{ checkpointManifestDigest() }}</code> · candidate <code>{{ c.manifestDigest }}</code></p> }
+          <label>Authorized release key <input type="password" name="checkpointKey" [(ngModel)]="checkpointKey" maxlength="200" autocomplete="off" required (ngModelChange)="checkpointReviewed.set(false)" /></label>
+          <label><input type="checkbox" [ngModel]="checkpointReviewed()" (ngModelChange)="checkpointReviewed.set($event)" name="checkpointReviewed" /> I reviewed this exact candidate digest and authorize the checkpoint request.</label>
+          <button matButton="outlined" type="button" (click)="requestCheckpoint(c)" [disabled]="!canRequestCheckpoint(c) || cmd.busy() || cmd.uncertain()">{{ cmd.busy() ? 'Queueing checkpoint…' : 'Queue checkpoint request' }}</button>
+          <p><small>The key is held only in this page's memory and sent to the existing authenticated endpoint. An unknown outcome locks another request; refresh the candidate and reconcile the persisted gate.</small></p>
+        </section>
         <section class="panel" aria-labelledby="issue-heading"><h2 id="issue-heading">Issue exact package</h2>
           <p>This command rechecks current scope, approval applicability, revisions, generations, holds, manifest and recovery mode. It does not sign files or call a provider.</p>
           <label>Authorized release key <input type="password" name="releaseKey" [(ngModel)]="key" maxlength="200" autocomplete="off" required /></label>
@@ -273,6 +320,7 @@ export class ReviewPointRecord {
 })
 export class ReleaseCandidate {
   private readonly api = inject(Api);
+  private readonly session = inject(SessionService);
   readonly id = routeGuid();
   readonly rec = this.api.resource(() => (this.id() ? `/api/ui/releases/${this.id()}` : null), (raw, path) => {
     const candidate = decodeRelease(raw, path);
@@ -289,6 +337,88 @@ export class ReleaseCandidate {
     }
   });
   key = '';
+  readonly checkpointBytes = signal<Uint8Array | null>(null);
+  readonly checkpointManifestDigest = signal('');
+  readonly checkpointManifestMessage = signal('');
+  readonly checkpointManifestReady = signal(false);
+  readonly checkpointReviewed = signal(false);
+  checkpointKey = '';
+  private checkpointOwner: { id: string; epoch: number } | null = null;
+  private checkpointScope = '';
+  private readonly clearCheckpointOnIdentityChange = effect(() => {
+    const scope = `${this.id() ?? ''}:${this.session.invalidation()}`;
+    if (scope === this.checkpointScope) return;
+    this.checkpointScope = scope;
+    this.clearCheckpointInput();
+  });
+
+  private clearCheckpointInput(): void {
+    this.checkpointOwner = null;
+    this.checkpointBytes.set(null);
+    this.checkpointManifestDigest.set('');
+    this.checkpointManifestMessage.set('');
+    this.checkpointManifestReady.set(false);
+    this.checkpointReviewed.set(false);
+    this.checkpointKey = '';
+  }
+
+  private checkpointOwnerIsCurrent(owner: { id: string; epoch: number } | null): owner is { id: string; epoch: number } {
+    return !!owner && owner.id === this.id() && owner.epoch === this.session.invalidation();
+  }
+
+  async selectCheckpointManifest(event: Event): Promise<void> {
+    const owner = this.id() ? { id: this.id()!, epoch: this.session.invalidation() } : null;
+    const input = event.target as HTMLInputElement, file = input.files?.item(0) ?? null;
+    this.clearCheckpointInput();
+    if (!file) { this.checkpointManifestMessage.set('Select the exact manifest file for this candidate.'); return; }
+    if (file.size < 1 || file.size > MAX_RELEASE_CHECKPOINT_BYTES) {
+      this.checkpointManifestMessage.set('The manifest file is empty or exceeds the supported 7 MB bound.'); return;
+    }
+    if (!owner) { this.checkpointManifestMessage.set('Load the exact release candidate before selecting its manifest.'); return; }
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const digest = hexDigest(await crypto.subtle.digest('SHA-256', bytes));
+      if (!this.checkpointOwnerIsCurrent(owner)) return;
+      const candidate = this.rec.data();
+      if (bytes.length !== file.size || !candidate || candidate.id !== owner.id || digest !== candidate.manifestDigest.toLowerCase()) {
+        this.checkpointManifestMessage.set('The selected file does not match the currently displayed candidate digest. No request was sent.'); return;
+      }
+      this.checkpointOwner = owner;
+      this.checkpointBytes.set(bytes); this.checkpointManifestDigest.set(digest); this.checkpointManifestReady.set(true);
+      this.checkpointManifestMessage.set(`Exact manifest verified locally (${bytes.length} bytes). Review the key and request explicitly.`);
+    } catch {
+      if (this.checkpointOwnerIsCurrent(owner)) this.checkpointManifestMessage.set('The manifest file could not be read or hashed. No request was sent.');
+    }
+  }
+  canRequestCheckpoint(candidate: ReturnType<typeof decodeRelease>): boolean {
+    return candidate.id === this.id() && this.checkpointOwnerIsCurrent(this.checkpointOwner) && candidate.status === 'READY' && candidate.checkpoint.state !== 'VERIFIED' &&
+      this.checkpointManifestReady() && this.checkpointManifestDigest() === candidate.manifestDigest.toLowerCase() &&
+      !!this.checkpointBytes()?.length && !!this.checkpointKey.trim() && this.checkpointReviewed();
+  }
+  async requestCheckpoint(candidate: ReturnType<typeof decodeRelease>): Promise<void> {
+    if (!this.canRequestCheckpoint(candidate)) return;
+    const owner = this.checkpointOwner;
+    const id = candidate.id, revision = candidate.revision, digest = candidate.manifestDigest.toLowerCase();
+    const bytes = this.checkpointBytes()!, key = this.checkpointKey;
+    this.checkpointKey = '';
+    await this.cmd.run<unknown>(`/api/ui/releases/${id}/checkpoint`, {
+      expectedCandidateRevision: revision, authorizedReleaseKey: key, manifestDigest: digest, manifestBytesBase64: base64Bytes(bytes),
+    }, 'Checkpoint operation queued. Refresh to review worker readback; this is not a verified checkpoint.', value => {
+      if (!this.checkpointOwnerIsCurrent(owner)) return;
+      try { this.cmd.message.set(`Checkpoint operation ${decode(guid, value)} queued. Refresh to review worker readback.`); }
+      catch { this.cmd.uncertain.set(true); this.cmd.failed.set(true); this.cmd.message.set('The queue response could not be verified. Refresh persisted candidate state before reconciliation.'); }
+    });
+    if (!this.checkpointOwnerIsCurrent(owner)) {
+      this.cmd.message.set('');
+      this.cmd.failed.set(false);
+      return;
+    }
+    this.checkpointReviewed.set(false);
+    if (!this.cmd.uncertain() && !this.cmd.failed()) {
+      this.checkpointBytes.set(null); this.checkpointManifestDigest.set(''); this.checkpointManifestReady.set(false);
+      this.checkpointManifestMessage.set(''); this.rec.reload();
+    }
+  }
   issue(id: string, revision: number, digest: string): void {
     const key = this.key; this.key = '';
     void this.cmd.run<string>(`/api/ui/releases/${id}/issue`, { expectedRevision: revision, manifestDigest: digest, releaseKey: key }, '',
@@ -364,6 +494,36 @@ export class ReleaseCandidate {
             <dt>Target revision</dt><dd>{{ copy.targetRevision ?? '—' }}</dd><dt>Manifest</dt><dd>{{ copy.manifestVersion ?? '—' }} · <code>{{ copy.manifestSha256 ?? '—' }}</code></dd>
             <dt>Latest file readback</dt><dd>{{ copy.latestFileReadBackAt ?? 'Not observed' }}</dd><dt>Permission readback</dt><dd>{{ copy.permissionReadBackAt ?? 'Not observed' }}</dd></dl>
           <p><small>{{ copy.note }}</small></p>
+          @if (copy.operationId; as operationId) {
+            <div class="actions">
+              <button matButton="outlined" type="button" (click)="readCopyEvidence(a)" [disabled]="copyReadBusy()">Read exact operation evidence</button>
+              <button matButton="outlined" type="button" (click)="readCopyVerificationPlan(a)" [disabled]="copyReadBusy()">Read current verification plan</button>
+            </div>
+            @if (copyReadBusy()) { <p role="status">Loading exact secondary-copy evidence…</p> }
+            @if (copyReadError()) { <p role="alert">{{ copyReadError() }}</p> }
+            @if (copyEvidence(); as evidence) {
+              <section class="panel" aria-label="Secondary-copy operation evidence">
+                <h3>Operation evidence</h3>
+                <p>Operation {{ evidence.operationId }} · {{ evidence.operationStatus }} · result {{ evidence.operationResultDigest ?? 'Not recorded' }}</p>
+                @if (evidence.result; as result) {
+                  <p>Protocol {{ result.protocolOutcome }} · attempt {{ result.attemptToken }} · manifest {{ result.manifestVersion }} · target revision {{ result.targetRevision }}</p>
+                  <p>{{ evidence.fileReceipts.length }} file readbacks · {{ evidence.permissionObservations.length }} permission observations</p>
+                  <div class="table-scroll"><table><caption>Exact file readbacks</caption><thead><tr><th>Source</th><th>Readback</th><th>Bytes</th><th>Outcome</th><th>Observed at</th></tr></thead><tbody>
+                    @for (file of evidence.fileReceipts; track file.receiptId) { <tr><td>{{ file.relativePath }}</td><td><code>{{ file.readBackSha256 }}</code></td><td>{{ file.readBackByteCount }}</td><td>{{ file.verificationOutcome }}</td><td>{{ file.readBackAt }}</td></tr> }
+                    @empty { <tr><td colspan="5">No retained file readbacks are available for this operation.</td></tr> }
+                  </tbody></table></div>
+                } @else { <p>The operation has no published result yet. No provider success is inferred.</p> }
+              </section>
+            }
+            @if (copyPlan(); as plan) {
+              <section class="panel" aria-label="Current secondary-copy verification plan">
+                <h3>Current verification plan</h3>
+                <p>Operation {{ plan.operationId }} · archive {{ plan.archiveId }} · manifest {{ plan.manifestVersion }} · <code>{{ plan.manifestSha256 }}</code></p>
+                <p>Separate destination: {{ plan.destinationTenantId }} / {{ plan.destinationSiteId }} / {{ plan.destinationDriveId }} / {{ plan.destinationLibraryRootItemId }}</p>
+                <p>{{ plan.files.length }} exact source files · target revision {{ plan.targetRevision }} · permissions {{ plan.expectedPermissionsSha256 }}</p>
+              </section>
+            }
+          }
         } @else { <p>Secondary-copy evidence is not available to this session role.</p> }
       </section>
       @if (a.canExport && a.manifestStatus === 'REVIEWED' && a.completenessStatus === 'COMPLETE') {
@@ -435,6 +595,11 @@ export class ArchiveRecord {
     return owner !== null && this.isCurrentAction(owner);
   });
   readonly actionError = signal('');
+  readonly copyEvidence = signal<ReturnType<typeof decodeArchiveCopyEvidence> | null>(null);
+  readonly copyPlan = signal<ReturnType<typeof decodeArchiveCopyVerificationPlan> | null>(null);
+  readonly copyReadBusy = signal(false);
+  readonly copyReadError = signal('');
+  private copyReadSequence = 0;
   private generation = 0;
   readonly pendingIntent = signal<ArchiveReference | null>(null);
   readonly recoveryUnavailable = signal(false);
@@ -474,7 +639,49 @@ export class ArchiveRecord {
     inject(DestroyRef).onDestroy(() => { this.destroyed = true; this.invalidate(); params.unsubscribe(); route.unsubscribe(); });
   }
   private invalidate(): void {
-    ++this.generation; this.additionalEntries.set([]); this.nextOrdinal.set(null); this.loadingEntries.set(false); this.entriesError.set('');
+    ++this.generation; ++this.copyReadSequence; this.copyEvidence.set(null); this.copyPlan.set(null); this.copyReadBusy.set(false); this.copyReadError.set('');
+    this.additionalEntries.set([]); this.nextOrdinal.set(null); this.loadingEntries.set(false); this.entriesError.set('');
+  }
+  private copyReadIsCurrent(archive: ReturnType<typeof decodeArchive>, operationId: string,
+    actor: ReturnType<SessionService['current']>, epoch: number, sequence: number): boolean {
+    return !this.destroyed && sequence === this.copyReadSequence && this.archive() === archive &&
+      this.session.current() === actor && this.session.invalidation() === epoch &&
+      archive.secondarySharePointCopy?.operationId === operationId;
+  }
+  async readCopyEvidence(archive: ReturnType<typeof decodeArchive>): Promise<void> {
+    const operationId = archive.secondarySharePointCopy?.operationId, actor = this.session.current(), epoch = this.session.invalidation();
+    if (!operationId || !actor?.staff || this.archive() !== archive || this.copyReadBusy()) return;
+    const sequence = ++this.copyReadSequence; this.copyReadBusy.set(true); this.copyReadError.set(''); this.copyEvidence.set(null); this.copyPlan.set(null);
+    try {
+      const evidence = await this.api.get(`/api/ui/records/archive-copies/${operationId}/evidence`, decodeArchiveCopyEvidence);
+      if (!this.copyReadIsCurrent(archive, operationId, actor, epoch, sequence)) return;
+      if (evidence.operationId !== operationId || evidence.engagementId !== archive.engagementId ||
+          evidence.result && (evidence.result.operationId !== operationId || evidence.result.archiveId !== archive.id))
+        throw new Error('The returned evidence does not match this archive operation.');
+      this.copyEvidence.set(evidence);
+    } catch (error) {
+      if (this.copyReadIsCurrent(archive, operationId, actor, epoch, sequence))
+        this.copyReadError.set(error instanceof Error ? error.message : 'Secondary-copy evidence is unavailable.');
+    } finally {
+      if (this.copyReadIsCurrent(archive, operationId, actor, epoch, sequence)) this.copyReadBusy.set(false);
+    }
+  }
+  async readCopyVerificationPlan(archive: ReturnType<typeof decodeArchive>): Promise<void> {
+    const operationId = archive.secondarySharePointCopy?.operationId, actor = this.session.current(), epoch = this.session.invalidation();
+    if (!operationId || !actor?.staff || this.archive() !== archive || this.copyReadBusy()) return;
+    const sequence = ++this.copyReadSequence; this.copyReadBusy.set(true); this.copyReadError.set(''); this.copyEvidence.set(null); this.copyPlan.set(null);
+    try {
+      const plan = await this.api.get(`/api/ui/records/archive-copies/${operationId}/verification-plan`, decodeArchiveCopyVerificationPlan);
+      if (!this.copyReadIsCurrent(archive, operationId, actor, epoch, sequence)) return;
+      if (plan.operationId !== operationId || plan.archiveId !== archive.id || plan.engagementId !== archive.engagementId)
+        throw new Error('The returned verification plan does not match this archive operation.');
+      this.copyPlan.set(plan);
+    } catch (error) {
+      if (this.copyReadIsCurrent(archive, operationId, actor, epoch, sequence))
+        this.copyReadError.set(error instanceof Error ? error.message : 'Secondary-copy verification plan is unavailable.');
+    } finally {
+      if (this.copyReadIsCurrent(archive, operationId, actor, epoch, sequence)) this.copyReadBusy.set(false);
+    }
   }
   refresh(): void { this.invalidate(); this.baseEpoch.set(-1); this.rec.reload(); }
   async buildManifest(archive: ReturnType<typeof decodeArchive>): Promise<void> {

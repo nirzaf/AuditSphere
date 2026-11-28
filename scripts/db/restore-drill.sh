@@ -7,8 +7,8 @@ db_host="127.0.0.1"
 db_port="5433"
 source_db="auditsphere"
 db_user="postgres"
-evidence_file="${AUDITSPHERE_EVIDENCE_FILE:-.local/autonomous/evidence/restore-drill-latest.json}"
 source_commit="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse HEAD)"
+evidence_file="${AUDITSPHERE_EVIDENCE_FILE:-artifacts/completion/$source_commit/restore-drill.json}"
 if [[ -n "${PGSQL_HOME:-}" ]]; then
   psql_bin="${PGSQL_HOME%/}/psql"
   if [[ ! -x "$psql_bin" ]]; then

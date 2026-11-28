@@ -38,11 +38,15 @@ public static partial class ClientSalesInvoiceWorkflow
     var active=await db.ClientAccountingProfiles.AnyAsync(x=>x.FirmId==actor.FirmId&&x.ClientId==clientId&&x.SourceMode==ClientAccountingSourceModes.NativeBookkeeping,ct)
       && await ClientBookkeepingAuthorization.IsCurrentDecisionAcceptedAsync(db,actor.FirmId,clientId,ct:ct);
     var sourceDraft=submission is null?draft:await db.ClientSalesInvoiceDrafts.AsNoTracking().SingleOrDefaultAsync(x=>x.FirmId==actor.FirmId&&x.ClientId==clientId&&x.Id==submission.DraftId,ct);
-    ClientSalesInvoiceDraftSnapshot? sourceSnapshot=null;
-    if(sourceDraft is not null && Hash(sourceDraft.SnapshotJson)==sourceDraft.SnapshotHash)
-      try { sourceSnapshot=JsonSerializer.Deserialize<ClientSalesInvoiceDraftSnapshot>(sourceDraft.SnapshotJson); } catch(JsonException) { }
-    if(posted && (sourceSnapshot is null || sourceSnapshot.TaxTreatment!="NONE"))return CommandResult<ClientSalesInvoiceLifecycleView>.Fail(ErrorCodes.ProtectedState,"The posted untaxed invoice source lines cannot be verified.");
-    var sourceLines=(sourceSnapshot?.Lines??[]).Select(x=>new ClientSalesInvoiceSourceLineView(x.LineNumber,x.Description,x.AccountCode,x.Net)).ToArray();
+    if(sourceDraft is null || !string.Equals(Hash(sourceDraft.SnapshotJson),sourceDraft.SnapshotHash,StringComparison.Ordinal))
+      return CommandResult<ClientSalesInvoiceLifecycleView>.Fail(ErrorCodes.ProtectedState,"The retained sales invoice draft cannot be verified.");
+    ClientSalesInvoiceDraftSnapshot? sourceSnapshot;
+    try { sourceSnapshot=JsonSerializer.Deserialize<ClientSalesInvoiceDraftSnapshot>(sourceDraft.SnapshotJson); }
+    catch(JsonException) { return CommandResult<ClientSalesInvoiceLifecycleView>.Fail(ErrorCodes.ProtectedState,"The retained sales invoice snapshot cannot be read."); }
+    if(sourceSnapshot is null)
+      return CommandResult<ClientSalesInvoiceLifecycleView>.Fail(ErrorCodes.ProtectedState,"The retained sales invoice snapshot cannot be read.");
+    if(posted && sourceSnapshot.TaxTreatment!="NONE")return CommandResult<ClientSalesInvoiceLifecycleView>.Fail(ErrorCodes.ProtectedState,"The posted untaxed invoice source lines cannot be verified.");
+    var sourceLines=(sourceSnapshot.Lines??[]).Select(x=>new ClientSalesInvoiceSourceLineView(x.LineNumber,x.Description,x.AccountCode,x.Net)).ToArray();
     var maker=draft.CreatedByUserId==actor.UserId;
     var canRevise=active&&maker&&(submission is null||decision?.Decision=="RETURN");
     var canSubmit=active&&maker&&state=="DRAFT";

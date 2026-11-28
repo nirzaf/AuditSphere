@@ -22,7 +22,8 @@ public sealed record TenantAdministrationSettings(
     bool Enabled(string name) => section.GetValue<bool>($"{name}:Enabled");
     var enrolled = string.Equals(configuration["MailAuthorization:Evidence:Source"]?.Trim(), "ENROLLED", StringComparison.OrdinalIgnoreCase);
     MailAuthorizationRuntimeOptions? mailAuthorization = null;
-    if (enrolled && Enabled("OutboundMail") && Guid.TryParse(configuration["Worker:FirmId"], out var firmId))
+    var rawFirmId = configuration["Application:FirmId"] ?? configuration["Setup:FirmId"] ?? configuration["Worker:FirmId"];
+    if (enrolled && Enabled("OutboundMail") && Guid.TryParse(rawFirmId, out var firmId))
     {
       try
       {
@@ -30,7 +31,10 @@ public sealed record TenantAdministrationSettings(
           typeof(MailAuthorizationRuntimeOptions).Assembly, typeof(MailAuthorizationDeploymentConfiguration).Assembly);
         mailAuthorization = MailAuthorizationDeploymentConfiguration.Read(configuration, firmId, commit);
       }
-      catch (InvalidOperationException) { /* Missing public bindings leave enrollment unavailable. */ }
+      catch (InvalidOperationException ex)
+      {
+        Serilog.Log.Warning(ex, "Enrolled mail authorization evidence could not be loaded for firm {FirmId}.", firmId);
+      }
     }
     return new(new TenantAdministrationOptions(
         tenant,

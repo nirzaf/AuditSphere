@@ -37,11 +37,16 @@ public sealed class PbcTransferDiscovery(
           o.Status != OperationState.AUTHORIZATION_BLOCKED && o.Status != OperationState.PROVIDER_BLOCKED &&
           o.Status != OperationState.CANCELLED_WITH_DISPOSITION))
       .OrderBy(i => i.CompletedAt).ThenBy(i => i.Id).Take(BatchSize).ToListAsync(ct);
+    var uploaderIds = staged.Select(x => x.UploaderUserId).Distinct().ToArray();
+    var uploaderEpochs = await read.Users.AsNoTracking().Where(x => x.FirmId == options.FirmId && uploaderIds.Contains(x.Id))
+      .ToDictionaryAsync(x => x.Id, x => x.SessionEpoch, ct);
     var count = 0;
     foreach (var intent in staged)
     {
       if (intent.TransferOperationId is not null)
         continue; // A bound transfer operation already owns this intent.
+      if (!uploaderEpochs.TryGetValue(intent.UploaderUserId, out var originatorSessionEpoch))
+        continue; // Keep the staged intent visible for recovery if its retained originator is missing.
       await using var db = await factory.CreateAsync(ct);
       await using var tx = await db.Database.BeginTransactionAsync(ct);
       var payload = JsonSerializer.Serialize(new
@@ -49,7 +54,8 @@ public sealed class PbcTransferDiscovery(
         uploadIntentId = intent.Id.ToString("D"),
         intentRevision = intent.Revision,
         finalSha256Hex = intent.DeclaredSha256Hex.ToLowerInvariant(),
-        declaredByteCount = intent.DeclaredByteCount
+        declaredByteCount = intent.DeclaredByteCount,
+        originatorSessionEpoch
       });
       var result = await store.EnqueueAsync(db, new OperationRequest(
         intent.FirmId, intent.ClientId, intent.EngagementId, PbcDocumentTransferHandler.Kind,

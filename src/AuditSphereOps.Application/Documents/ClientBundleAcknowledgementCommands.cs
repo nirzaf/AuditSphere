@@ -15,7 +15,7 @@ public static class ClientBundleAcknowledgementCommands
   {
     if (!received)
       return CommandResult<Guid>.Fail("receipt.confirmation-required", "Confirm receipt of the exact final bundle before recording an acknowledgement.");
-    if (!actor.Roles.Contains("ClientUser", StringComparer.Ordinal))
+    if (!actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Bundle unavailable.");
     if (!await db.Users.AsNoTracking().AnyAsync(x => x.Id == actor.UserId && x.FirmId == actor.FirmId && x.UserKind == "Client" && !x.Disabled, ct))
       return CommandResult<Guid>.Fail(ErrorCodes.ScopeDenied, "Bundle unavailable.");

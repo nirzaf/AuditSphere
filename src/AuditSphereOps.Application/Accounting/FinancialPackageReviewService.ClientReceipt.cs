@@ -22,7 +22,7 @@ public static partial class FinancialPackageReviewService
     IClientAccountingDbContext db, ActorContext actor, Guid financialPackageId, Guid requestId, CancellationToken ct = default)
   {
     if (financialPackageId == Guid.Empty || requestId == Guid.Empty ||
-        !actor.Roles.Contains("ClientUser", StringComparer.Ordinal))
+        !actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase))
       return CommandResult<ClientFinancialPackageDecisionReceipt>.Fail(ErrorCodes.ScopeDenied, "Package unavailable.");
 
     var package = await db.FinancialPackages.AsNoTracking().SingleOrDefaultAsync(x =>

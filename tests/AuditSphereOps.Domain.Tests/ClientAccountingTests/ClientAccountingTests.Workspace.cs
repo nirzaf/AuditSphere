@@ -23,6 +23,8 @@ public sealed partial class ClientAccountingTests
        new("bank", "1200", "Bank", "ASSET", "DEBIT", true, "assets")])).Succeeded);
     var charts = await ChartWorkspaceQuery.GetAsync(db, actor, scope.ClientA);
     Assert.Equal("1", Assert.Single(charts.Value!.Items).Version);
+    Assert.True(charts.Value.CanSaveDimensionSchema);
+    Assert.False(charts.Value.CanPublishDimensionSchema);
     var first = await ClientAccountingService.GetChartRevisionAccountsAsync(db, actor, created.Value, 1, 1, expectedClientId: scope.ClientA);
     Assert.True(first.Succeeded, first.Message);
     Assert.Equal(3, first.Value!.TotalCount);
@@ -40,6 +42,9 @@ public sealed partial class ClientAccountingTests
     var preparerReview = await ChartPublicationQuery.GetAsync(db, actor, scope.ClientA, created.Value);
     Assert.False(preparerReview.Value!.CanPublish);
     var reviewer = Actor(scope.Reviewer, "AccountingReviewer");
+    var reviewerWorkspace = await ChartWorkspaceQuery.GetAsync(db, reviewer, scope.ClientA);
+    Assert.True(reviewerWorkspace.Value!.CanSaveDimensionSchema);
+    Assert.True(reviewerWorkspace.Value.CanPublishDimensionSchema);
     var snapshot = await ChartPublicationQuery.GetAsync(db, reviewer, scope.ClientA, created.Value);
     Assert.True(snapshot.Value!.CanPublish);
     Assert.Equal(3, snapshot.Value.AccountCount);

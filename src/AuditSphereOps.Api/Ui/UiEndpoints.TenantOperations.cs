@@ -1,6 +1,7 @@
 using AuditSphereOps.Application.Microsoft365;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 
 namespace AuditSphereOps.Api.Ui;
 
@@ -59,14 +60,17 @@ public static partial class UiEndpoints
       if (!input.Reviewed) return CommandResult<Guid>.Fail("review.required", "Review the group, purpose and reason before allowlisting.");
       return await ManagedGroupService.ApproveGroupAsync(db, actor, http.RequestServices.GetRequiredService<IMicrosoftGroupMembershipProvider>(),
         http.RequestServices.GetRequiredService<TenantAdministrationSettings>().Options, input.GroupObjectId, input.Purpose, input.Reason, DateTimeOffset.UtcNow, ct);
-    })).WithUiResponse<UiValueResponse<Guid>>();
+    })).WithMetadata(new ApiRateClassAttribute(ApiRateClass.M365Administration))
+      .WithUiResponse<UiValueResponse<Guid>>();
     group.MapPost("/administration/groups/{id:guid}/members", (Guid id, UiGroupMemberPage input, HttpContext http) => CommandAsync(http,
       (db, actor, ct) => ManagedGroupService.ListMembersAsync(db, actor, http.RequestServices.GetRequiredService<IMicrosoftGroupMembershipProvider>(),
         http.RequestServices.GetRequiredService<TenantAdministrationSettings>().Options, id, input.PageToken, DateTimeOffset.UtcNow, ct)))
+      .WithMetadata(new ApiRateClassAttribute(ApiRateClass.M365Administration))
       .WithUiResponse<UiValueResponse<DirectoryGroupMemberPage>>();
     group.MapPost("/administration/groups/{id:guid}/preview", (Guid id, UiGroupMembershipPreview input, HttpContext http) => CommandAsync(http,
       (db, actor, ct) => ManagedGroupService.PreviewMembershipAsync(db, actor, http.RequestServices.GetRequiredService<IMicrosoftGroupMembershipProvider>(),
         http.RequestServices.GetRequiredService<TenantAdministrationSettings>().Options, id, input.UserId, DateTimeOffset.UtcNow, ct)))
+      .WithMetadata(new ApiRateClassAttribute(ApiRateClass.M365Administration))
       .WithUiResponse<UiValueResponse<ManagedGroupMembershipPreview>>();
     group.MapPost("/administration/groups/change", (UiChangeGroupMembership input, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
     {
@@ -75,12 +79,14 @@ public static partial class UiEndpoints
         return CommandResult<GroupMembershipChangeResult>.Fail("review.required", "Review the exact group, user and current membership before changing it.");
       return await ManagedGroupService.ChangeMembershipAsync(db, actor, http.RequestServices.GetRequiredService<IMicrosoftGroupMembershipProvider>(),
         http.RequestServices.GetRequiredService<TenantAdministrationSettings>().Options, input.Request, DateTimeOffset.UtcNow, ct);
-    })).WithUiResponse<UiValueResponse<GroupMembershipChangeResult>>(includeConflict: true);
+    })).WithMetadata(new ApiRateClassAttribute(ApiRateClass.M365Administration))
+      .WithUiResponse<UiValueResponse<GroupMembershipChangeResult>>(includeConflict: true);
     group.MapPost("/administration/groups/{id:guid}/retire", (Guid id, UiRetireManagedGroup input, HttpContext http) => CommandAsync(http, async (db, actor, ct) =>
     {
       if (!await TenantAdministration.IsCurrentAdministratorAsync(db, actor, ct)) return TenantAdministration.Denied();
       if (!input.Reviewed) return CommandResult.Fail("review.required", "Review the retirement reason. Existing Microsoft memberships are not removed by retiring this allowlist entry.");
       return await ManagedGroupService.RetireGroupAsync(db, actor, id, input.Reason, DateTimeOffset.UtcNow, ct);
-    })).WithUiResponse<UiValueResponse<bool>>();
+    })).WithMetadata(new ApiRateClassAttribute(ApiRateClass.M365Administration))
+      .WithUiResponse<UiValueResponse<bool>>();
   }
 }

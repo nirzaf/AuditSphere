@@ -185,8 +185,10 @@ function isProfileSaveAcknowledgement(value: unknown, profile: Profile | null): 
           <label>Jurisdiction <input name="jurisdiction" [(ngModel)]="form.jurisdiction" required maxlength="100" /></label>
           <label>Functional currency <input name="currency" [(ngModel)]="form.currency" required pattern="[A-Z]{3}" maxlength="3" /></label>
           <label>Fiscal start month <input name="month" type="number" [(ngModel)]="form.month" required min="1" max="12" /></label>
-          <label>Fiscal start day <input name="day" type="number" [(ngModel)]="form.day" required min="1" max="31" /></label>
-          @if (!fiscalCalendarValid()) { <p role="alert">Enter a possible Gregorian month and day. February 29 is allowed as a stored start date.</p> }
+          <label>Fiscal start day <input name="day" type="number" [(ngModel)]="form.day" required min="1" [max]="fiscalDayMaximum()" /></label>
+          @if (fiscalLeapDayPolicyRequired()) {
+            <p role="alert">February 29 requires an approved non-leap-year rollover policy before it can be selected as a recurring fiscal boundary. Obtain that policy approval or choose another valid fiscal start date. An unchanged historical February 29 may be retained.</p>
+          } @else if (!fiscalCalendarValid()) { <p role="alert">Enter a possible Gregorian month and day.</p> }
           <label>Source system <input name="source" [(ngModel)]="form.source" required maxlength="100" /></label>
           <label>Source identifier <input name="identifier" [(ngModel)]="form.identifier" maxlength="200" /></label>
           <label>Book source mode <select name="sourceMode" [(ngModel)]="form.sourceMode" [disabled]="sourceModeSelectionDisabled(w)">
@@ -479,7 +481,14 @@ export class AccountingWorkspace {
 
   fiscalCalendarValid(): boolean {
     return Number.isInteger(this.form.month) && this.form.month >= 1 && this.form.month <= 12 &&
-      Number.isInteger(this.form.day) && this.form.day >= 1 && this.form.day <= this.fiscalDayMaximum();
+      Number.isInteger(this.form.day) && this.form.day >= 1 && this.form.day <= this.fiscalDayMaximum() &&
+      !this.fiscalLeapDayPolicyRequired();
+  }
+
+  fiscalLeapDayPolicyRequired(): boolean {
+    const profile = this.workspace()?.profile;
+    return this.form.month === 2 && this.form.day === 29 &&
+      (!profile || profile.fiscalMonth !== 2 || profile.fiscalDay !== 29);
   }
 
   profileReasonRequired(w: Workspace): boolean {

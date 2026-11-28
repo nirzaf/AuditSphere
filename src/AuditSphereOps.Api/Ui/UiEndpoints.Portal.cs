@@ -195,6 +195,7 @@ public static partial class UiEndpoints
         var form = await http.Request.ReadFormAsync(ct);
         return await AuditDeliverableService.UploadSignedRepresentationAsync(db, actor, id, form["expectedHash"].ToString(), form["signatory"].ToString(), upload.Value.Content, ct);
       }))
+      .WithMetadata(new AuditSphereOps.Api.HttpBoundary.ApiRateClassAttribute(AuditSphereOps.Api.HttpBoundary.ApiRateClass.FileUpload))
       .Accepts<PortalSignedRepresentationForm>("multipart/form-data")
       .WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
     group.MapPost("/portal/first-sign-in", (PortalFirstSignInInput i, HttpContext http) => CommandAsync(http,

@@ -9,7 +9,7 @@ namespace AuditSphereOps.Api;
 
 public static partial class ApiHost
 {
-  private static AuthenticationConfiguration ConfigureAuthentication(WebApplicationBuilder builder, bool legacyPresentation)
+  private static AuthenticationConfiguration ConfigureAuthentication(WebApplicationBuilder builder)
   {
     var identity = builder.Configuration.GetSection("Identity");
     var tenantId = identity["TenantId"];

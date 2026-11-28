@@ -893,8 +893,16 @@ public sealed class CommercialWorkflowTests
     var w = await SeedAsync(pg);
     var (_, _, proposalId) = await DraftProposalAsync(pg, w);
     var supervisorRateId = Guid.NewGuid();
+    var growthRates = Enumerable.Range(0, 100).Select(i => new RateCardVersion
+    {
+      Id = Guid.NewGuid(), FirmId = w.FirmId, Version = 1, Role = $"Lookup role {i:000}", Activity = "Audit",
+      Currency = "QAR", RatePerHour = 100m + i, Status = PracticeTimeStates.RateApproved,
+      CreatedByUserId = w.Partner.UserId, ApprovedByUserId = w.Manager.UserId,
+      CreatedAt = DateTimeOffset.UtcNow, ApprovedAt = DateTimeOffset.UtcNow
+    }).ToArray();
     await using (var seed = new AuditSphereDbContext(pg.Options))
     {
+      seed.RateCardVersions.AddRange(growthRates);
       seed.RateCardVersions.Add(new RateCardVersion
       {
         Id = supervisorRateId, FirmId = w.FirmId, Version = 1, Role = "Audit Supervisor", Activity = "Audit",
@@ -932,12 +940,12 @@ public sealed class CommercialWorkflowTests
     Assert.Equal("quotation.invalid", repeatedDirect.ErrorCode);
     Assert.Equal(1, repeatedDirect.RateReads);
     Assert.True(distinctDirect.Succeeded);
-    Assert.Equal(2, distinctDirect.RateReads);
+    Assert.Equal(1, distinctDirect.RateReads);
     Assert.False(repeatedAlias.Succeeded);
     Assert.Equal("quotation.invalid", repeatedAlias.ErrorCode);
-    Assert.Equal(2, repeatedAlias.RateReads);
+    Assert.Equal(1, repeatedAlias.RateReads);
     Assert.True(distinctAlias.Succeeded);
-    Assert.Equal(3, distinctAlias.RateReads);
+    Assert.Equal(1, distinctAlias.RateReads);
 
     await using (var verify = new AuditSphereDbContext(pg.Options))
     {
@@ -953,7 +961,72 @@ public sealed class CommercialWorkflowTests
       new("Senior", "Audit", 1m, supervisorRateId), new("Supervisor", "Audit", 2m, Guid.NewGuid()));
     Assert.False(staleAlias.Succeeded);
     Assert.Equal(ErrorCodes.StaleRevision, staleAlias.ErrorCode);
-    Assert.Equal(3, staleAlias.RateReads);
+    Assert.Equal(1, staleAlias.RateReads);
+
+    // The existing fallback is exact in activity; a batch must not widen its match.
+    var missingAlias = await PriceAndCountAsync(new QuotationHoursLine("Senior", "audit", 1m));
+    Assert.False(missingAlias.Succeeded);
+    Assert.Equal("quotation.invalid", missingAlias.ErrorCode);
+    Assert.Equal(1, missingAlias.RateReads);
+
+    foreach (var count in new[] { 1, 8, 32, 100 })
+    {
+      var population = growthRates.Take(count).Select(rate =>
+        new QuotationHoursLine(rate.Role, rate.Activity, 1m, rate.Id)).ToArray();
+      var saved = await PriceAndCountAsync(population);
+      Assert.True(saved.Succeeded, saved.ErrorCode);
+      Assert.Equal(1, saved.RateReads);
+      await using var verify = new AuditSphereDbContext(pg.Options);
+      var version = await verify.QuotationVersions.AsNoTracking().SingleAsync(x => x.Id == saved.VersionId);
+      var lines = JsonSerializer.Deserialize<QuotationLineResult[]>(
+        version.LinesJson, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+      Assert.Equal("QAR", version.Currency);
+      Assert.Equal(count * (199m + count) / 2m, version.Fee); // 100 + ... + (99 + count), at one hour each.
+      Assert.Equal(population.Select(x => x.ExpectedRateCardId), lines.Select(x => (Guid?)x.RateCardVersionId));
+      Assert.Equal(population.Select(x => x.Role), lines.Select(x => x.Role));
+      Assert.Equal(growthRates.Take(count).Select(x => x.RatePerHour), lines.Select(x => x.RatePerHour));
+    }
+
+    var directRateId = Guid.NewGuid();
+    await using (var seed = new AuditSphereDbContext(pg.Options))
+    {
+      seed.RateCardVersions.AddRange(
+        new RateCardVersion
+        {
+          Id = directRateId, FirmId = w.FirmId, Version = 1, Role = "Senior", Activity = "Audit",
+          Currency = "QAR", RatePerHour = 450m, Status = PracticeTimeStates.RateApproved,
+          CreatedByUserId = w.Partner.UserId, ApprovedByUserId = w.Manager.UserId,
+          CreatedAt = DateTimeOffset.UtcNow, ApprovedAt = DateTimeOffset.UtcNow
+        },
+        new RateCardVersion
+        {
+          Id = Guid.NewGuid(), FirmId = w.FirmId, Version = 2, Role = "Senior", Activity = "Audit",
+          Currency = "QAR", RatePerHour = 900m, Status = PracticeTimeStates.RateDraft,
+          CreatedByUserId = w.Partner.UserId, CreatedAt = DateTimeOffset.UtcNow
+        },
+        new RateCardVersion
+        {
+          Id = Guid.NewGuid(), FirmId = w.FirmId, Version = 3, Role = "Senior", Activity = "Audit",
+          Currency = "USD", RatePerHour = 900m, Status = PracticeTimeStates.RateApproved,
+          CreatedByUserId = w.Partner.UserId, ApprovedByUserId = w.Manager.UserId,
+          CreatedAt = DateTimeOffset.UtcNow, ApprovedAt = DateTimeOffset.UtcNow
+        });
+      await seed.SaveChangesAsync();
+    }
+    var directOverride = await PriceAndCountAsync(
+      new(" senior ", " audit ", 1m, directRateId), new("Supervisor", "Audit", 2m, supervisorRateId));
+    Assert.True(directOverride.Succeeded, directOverride.ErrorCode);
+    Assert.Equal(1, directOverride.RateReads);
+    await using (var verify = new AuditSphereDbContext(pg.Options))
+    {
+      var version = await verify.QuotationVersions.AsNoTracking().SingleAsync(x => x.Id == directOverride.VersionId);
+      var lines = JsonSerializer.Deserialize<QuotationLineResult[]>(
+        version.LinesJson, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+      Assert.Equal(1450m, version.Fee);
+      Assert.Equal(new[] { directRateId, supervisorRateId }, lines.Select(x => x.RateCardVersionId));
+      Assert.Equal(new[] { 450m, 500m }, lines.Select(x => x.RatePerHour));
+      Assert.Equal(("senior", "audit"), (lines[0].Role, lines[0].Activity));
+    }
   }
 
   [Fact]

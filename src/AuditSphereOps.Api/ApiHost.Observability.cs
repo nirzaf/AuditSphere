@@ -8,7 +8,7 @@ namespace AuditSphereOps.Api;
 
 public static partial class ApiHost
 {
-  private static void ConfigureObservability(WebApplicationBuilder builder, bool legacyPresentation)
+  private static void ConfigureObservability(WebApplicationBuilder builder)
   {
     // Serilog console bootstrap (§45.8); file/central sinks land with operations hardening.
     Log.Logger = new LoggerConfiguration()

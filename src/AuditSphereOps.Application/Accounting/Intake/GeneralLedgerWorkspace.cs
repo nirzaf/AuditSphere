@@ -21,6 +21,7 @@ public sealed record GeneralLedgerSourceContext(Guid BatchId, Guid ClientId, Gui
 {
   public string OriginKind { get; init; } = SourceImportOrigins.External;
   public IReadOnlyList<string> UnavailableMetadata { get; init; } = [];
+  public bool CanAnalyzeJournalRisk { get; init; }
 }
 public sealed record GeneralLedgerSourceWorkspaceDto(GeneralLedgerSourceContext Context,
   GeneralLedgerLineFilter Filter, GeneralLedgerLinesPage Rows, int JournalLineLimit);
@@ -120,6 +121,6 @@ public static class GeneralLedgerWorkspace
       batch.RawFileSha256Hex, batch.NormalizedDatasetDigest, batch.ProfileVersion, batch.ParserVersion,
       batch.CreatedByUserId, batch.CreatedAt, selected.Value)
       { OriginKind = batch.OriginKind, UnavailableMetadata = batch.OriginKind == SourceImportOrigins.NativeLedger
-          ? NativeGeneralLedgerSourceWorkspace.UnavailableMetadata : [] });
+          ? NativeGeneralLedgerSourceWorkspace.UnavailableMetadata : [], CanAnalyzeJournalRisk = true });
   }
 }

@@ -18,8 +18,13 @@ public static partial class AccountingAnalysisService
     IClientAccountingDbContext db, ActorContext actor, JournalRiskFlagRequest request,
     CancellationToken ct = default)
   {
-    if (string.IsNullOrWhiteSpace(request.RuleCode) || string.IsNullOrWhiteSpace(request.Reason) ||
-        string.IsNullOrWhiteSpace(request.EvidenceReference) || request.Score is < 0 or > 100)
+    if (request is null || request.ClientId == Guid.Empty || request.EngagementId == Guid.Empty ||
+        request.ImportBatchId == Guid.Empty || request.TransactionId == Guid.Empty ||
+        string.IsNullOrWhiteSpace(request.RuleCode) || request.RuleCode.Trim().Length > 100 ||
+        string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > 2000 ||
+        string.IsNullOrWhiteSpace(request.EvidenceReference) || request.EvidenceReference.Trim().Length > 2000 ||
+        request.Score is < 0 or > 100 || (request.ManagementExplanation?.Trim().Length ?? 0) > 4000 ||
+        (request.CorroborationReference?.Trim().Length ?? 0) > 2000)
       return CommandResult<Guid>.Fail(ErrorCodes.Accounting.ReconciliationRejected, "A journal flag needs a rule, reason, evidence and bounded score.");
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, PreparerRoles, InternalOnly: true), ct);
@@ -33,8 +38,8 @@ public static partial class AccountingAnalysisService
       Id = Guid.CreateVersion7(), FirmId = actor.FirmId, ClientId = request.ClientId, EngagementId = request.EngagementId,
       ImportBatchId = request.ImportBatchId, TransactionId = request.TransactionId, RuleCode = request.RuleCode.Trim().ToUpperInvariant(),
       Reason = request.Reason.Trim(), Score = request.Score, EvidenceReference = request.EvidenceReference.Trim(),
-      SelectedForTesting = request.SelectedForTesting, ManagementExplanation = request.ManagementExplanation.Trim(),
-      CorroborationReference = request.CorroborationReference.Trim(),
+      SelectedForTesting = request.SelectedForTesting, ManagementExplanation = request.ManagementExplanation?.Trim() ?? string.Empty,
+      CorroborationReference = request.CorroborationReference?.Trim() ?? string.Empty,
       CreatedByUserId = actor.UserId, CreatedAt = DateTimeOffset.UtcNow
     };
     db.JournalRiskFlags.Add(flag);

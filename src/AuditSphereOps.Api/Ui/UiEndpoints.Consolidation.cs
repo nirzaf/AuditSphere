@@ -4,6 +4,7 @@ using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Api.HttpBoundary;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
@@ -642,7 +643,8 @@ public static partial class UiEndpoints
 
       http.Response.Headers.ETag = $"\"{export.Value!.ContentSha256}\"";
       return Results.File(export.Value.Content, "application/json", export.Value.FileName);
-    }).Produces<Stream>(StatusCodes.Status200OK, "application/json")
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+      .Produces<Stream>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");
@@ -664,7 +666,8 @@ public static partial class UiEndpoints
 
       http.Response.Headers.ETag = $"\"{export.Value!.ContentSha256}\"";
       return Results.File(export.Value.Content, "application/json", export.Value.FileName);
-    }).Produces<Stream>(StatusCodes.Status200OK, "application/json")
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+      .Produces<Stream>(StatusCodes.Status200OK, "application/json")
       .Produces<UiCodeErrorResponse>(StatusCodes.Status401Unauthorized, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status409Conflict, "application/json");

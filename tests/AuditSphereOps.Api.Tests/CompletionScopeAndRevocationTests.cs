@@ -23,7 +23,7 @@ public sealed partial class CompletionScopeAndRevocationTests(Xunit.Abstractions
   // Operations that are public by design: the sign-in and consent protocol pages and the SPA shell entry.
   private static readonly HashSet<string> PublicOperations = new(StringComparer.Ordinal)
   {
-    "GET /", "GET /auth/sign-in", "GET /auth/sign-out", "GET /auth/landing", "GET /auth/access-not-assigned",
+    "GET /", "GET /auth/sign-in", "POST /auth/sign-out", "GET /auth/landing", "GET /auth/access-not-assigned",
     "GET /auth/m365-consent/callback", "GET /auth/m365-consent/identity-callback",
   };
 

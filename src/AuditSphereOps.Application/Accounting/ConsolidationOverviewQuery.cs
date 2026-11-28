@@ -72,8 +72,8 @@ public static class ConsolidationOverviewQuery
       new AuthorizationRequest(actor.FirmId, RequiredRoles: ["Manager", "Partner", "Administrator"],
         InternalOnly: true, RequireFirmWide: true), ct);
 
-    var oversight = await AdministratorOversightReadAuthorization.AuthorizeAsync(db, actor, ct);
-    var candidateGroupIds = oversight.Succeeded
+    var oversightEligible = await AdministratorOversightReadAuthorization.CheckEligibilityAsync(db, actor, ct);
+    var candidateGroupIds = oversightEligible.Succeeded
       ? await db.ClientGroups.AsNoTracking().Where(x => x.FirmId == actor.FirmId).OrderBy(x => x.Id)
         .Select(x => x.Id).Take(501).ToArrayAsync(ct)
       : await db.GroupAccessGrants.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.RevokedAt == null)
@@ -85,10 +85,15 @@ public static class ConsolidationOverviewQuery
     foreach (var groupId in candidateGroupIds)
     {
       var access = await AuthorizeGroupReadAsync(db, actor, groupId, ct);
-      if (access.Succeeded || oversight.Succeeded)
+      if (access.Succeeded)
       {
         groupIds.Add(groupId);
-        accessModes[groupId] = access.Succeeded ? "OPERATIONAL" : AdministratorOversightReadAuthorization.ReadOnly;
+        accessModes[groupId] = "OPERATIONAL";
+      }
+      else if (oversightEligible.Succeeded && (await AdministratorOversightReadAuthorization.AuthorizeAsync(db, actor, ct)).Succeeded)
+      {
+        groupIds.Add(groupId);
+        accessModes[groupId] = AdministratorOversightReadAuthorization.ReadOnly;
       }
     }
     var groups = await db.ClientGroups.AsNoTracking().Where(x => x.FirmId == actor.FirmId && groupIds.Contains(x.Id)).OrderBy(x => x.Name).ToListAsync(ct);

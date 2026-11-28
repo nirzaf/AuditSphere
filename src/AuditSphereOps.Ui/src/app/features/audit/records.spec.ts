@@ -8,6 +8,7 @@ import { BehaviorSubject } from 'rxjs';
 import { Api } from '../../core/api';
 import { SessionService } from '../../core/session';
 import { archiveIntentKey } from './archive-intent-recovery';
+import { decode as decodeValue } from '../../core/decode';
 import {
   decodePopulation,
   decodeFinding,
@@ -15,7 +16,10 @@ import {
   decodeRelease,
   decodeArchive,
   decodeArchiveCommercialBundlePage,
+  decodeArchiveCopyEvidence,
+  decodeArchiveCopyVerificationPlan,
   ArchiveRecord,
+  ReleaseCandidate,
 } from './records';
 
 const id1 = '11111111-1111-4111-8111-111111111111';
@@ -189,12 +193,16 @@ describe('Archive intent recovery', () => {
     let nextResourceIsBundle = false;
     const session = { current: signal({ userId: id1, firmId: id3, generation: '1', staff: true }), invalidation: signal(0), refresh: vi.fn() };
     const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
-    TestBed.configureTestingModule({ imports: [ArchiveRecord], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
-      { provide: ActivatedRoute, useValue: { paramMap: params } }, { provide: SessionService, useValue: session },
-      { provide: Api, useValue: { resource: (_url: unknown, decoder: typeof decodeArchive) => {
+    let copyReadPayload: unknown = null;
+    const api = { get: vi.fn(async (_url: string, decoder: typeof decodeArchiveCopyEvidence | typeof decodeArchiveCopyVerificationPlan) =>
+      decoder === decodeArchiveCopyEvidence ? decodeValue(decodeArchiveCopyEvidence, copyReadPayload) : decodeValue(decodeArchiveCopyVerificationPlan, copyReadPayload)),
+      resource: (_url: unknown, decoder: typeof decodeArchive) => {
         if (nextResourceIsBundle) { nextResourceIsBundle = false; return bundleResource; }
         nextResourceIsBundle = true; decode = decoder; return resource;
-      } } }] });
+      } };
+    TestBed.configureTestingModule({ imports: [ArchiveRecord], providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
+      { provide: ActivatedRoute, useValue: { paramMap: params } }, { provide: SessionService, useValue: session },
+      { provide: Api, useValue: api }] });
     let fixture = TestBed.createComponent(ArchiveRecord);
     const raw = { id: id1, engagementId: id2, status: review ? 'MANIFEST_BUILT' : 'ISSUED', createdAt: '2026-11-01T10:00:00Z',
       profileId: 'ISQM1-PROFILE', profileVersion: 1, manifestVersion: review ? 1 : null, manifestId: review ? id2 : null,
@@ -218,7 +226,8 @@ describe('Archive intent recovery', () => {
       fixture.componentInstance.reviewBundleSelection();
     }
     return { get component() { return fixture.componentInstance; }, get fixture() { return fixture; }, read, resource, bundleResource, session, params,
-      http: TestBed.inject(HttpTestingController), recreate: async () => { fixture.destroy(); fixture = TestBed.createComponent(ArchiveRecord); await read(); } };
+      http: TestBed.inject(HttpTestingController), api, setCopyReadPayload: (value: unknown) => { copyReadPayload = value; },
+      recreate: async () => { fixture.destroy(); fixture = TestBed.createComponent(ArchiveRecord); await read(); } };
   }
   const receipt = (action: string, completenessStatus = 'COMPLETE') => ({ value: {
     archiveId: id1, manifestId: id2, manifestVersion: 1, digest: hash64, entryCount: 0,
@@ -279,6 +288,41 @@ describe('Archive intent recovery', () => {
     expect(request.request.body).toEqual(body);
     request.flush(receipt('build', 'INCOMPLETE')); await retry;
     expect(sessionStorage.getItem(key)).toBeNull();
+    h.http.verify();
+  });
+
+  it('reads only the exact secondary-copy operation evidence and verification plan', async () => {
+    const h = await setup();
+    const copy = { state: 'REQUESTED', operationId: id4, targetRevision: 2, manifestVersion: 1,
+      manifestSha256: hash64, latestFileReadBackAt: null, permissionReadBackAt: null, note: 'Pending exact readback.' };
+    await h.read({ secondarySharePointCopy: copy });
+    h.setCopyReadPayload({ operationId: id4, firmId: id3, clientId: id4, engagementId: id2, operationStatus: 'PENDING',
+      operationResultDigest: null, result: null, fileReceipts: [], permissionObservations: [] });
+    await h.component.readCopyEvidence(h.component.archive()!);
+    expect(h.api.get).toHaveBeenLastCalledWith(`/api/ui/records/archive-copies/${id4}/evidence`, decodeArchiveCopyEvidence);
+    expect(h.component.copyEvidence()?.operationId).toBe(id4);
+
+    h.setCopyReadPayload({ schemaVersion: 1, operationId: id4, firmId: id3, tenantId: id3, clientId: id4, engagementId: id2,
+      archiveId: id1, manifestId: id2, manifestVersion: 1, manifestSha256: hash64, recordsProfileId: id3,
+      recordsProfileVersion: 1, releaseId: id4, releasedArtifactId: id1, checkpointId: id2, clientSharePointSiteId: null,
+      targetRevisionId: id3, targetRevision: 2, targetConfigurationSha256: hash64, authorizedStaffSha256: hash64,
+      destinationTenantId: id3, destinationSiteId: 'site-id', destinationDriveId: 'drive-id',
+      destinationLibraryRootItemId: 'root-id', staffGroupId: 'group-id', expectedPermissionsSha256: hash64, files: [] });
+    await h.component.readCopyVerificationPlan(h.component.archive()!);
+    expect(h.api.get).toHaveBeenLastCalledWith(`/api/ui/records/archive-copies/${id4}/verification-plan`, decodeArchiveCopyVerificationPlan);
+    expect(h.component.copyPlan()?.archiveId).toBe(id1);
+    h.http.verify();
+  });
+
+  it('rejects secondary-copy readback for a different operation', async () => {
+    const h = await setup();
+    await h.read({ secondarySharePointCopy: { state: 'REQUESTED', operationId: id4, targetRevision: 2, manifestVersion: 1,
+      manifestSha256: hash64, latestFileReadBackAt: null, permissionReadBackAt: null, note: 'Pending exact readback.' } });
+    h.setCopyReadPayload({ operationId: id3, firmId: id3, clientId: id4, engagementId: id2,
+      operationStatus: 'PENDING', operationResultDigest: null, result: null, fileReceipts: [], permissionObservations: [] });
+    await h.component.readCopyEvidence(h.component.archive()!);
+    expect(h.component.copyEvidence()).toBeNull();
+    expect(h.component.copyReadError()).toContain('does not match');
     h.http.verify();
   });
 
@@ -401,5 +445,99 @@ describe('Archive export visibility', () => {
     expect(page.textContent).toContain('Manifest version 1');
     expect(page.textContent).toContain('Manifest hash');
     if (linkVisible) expect(exportLink?.textContent).toContain('Download read-only evidence export');
+  });
+});
+
+describe('Release checkpoint UI handoff', () => {
+  afterEach(() => { TestBed.resetTestingModule(); vi.restoreAllMocks(); });
+
+  function openRelease() {
+    const data = signal<ReturnType<typeof decodeRelease> | null>(null);
+    const resource = { data, loading: signal(false), error: signal(''), reload: vi.fn() };
+    const api = { resource: vi.fn(() => resource), command: vi.fn().mockResolvedValue({ ok: true, value: id2 }) };
+    const session = { current: signal({ userId: id3, firmId: id4, generation: '1', staff: true }), invalidation: signal(0), refresh: vi.fn() };
+    const params = new BehaviorSubject(convertToParamMap({ id: id1 }));
+    TestBed.configureTestingModule({
+      imports: [ReleaseCandidate],
+      providers: [provideRouter([]), provideHttpClient(),
+        { provide: ActivatedRoute, useValue: { paramMap: params } },
+        { provide: Api, useValue: api }, { provide: SessionService, useValue: session }],
+    });
+    const fixture = TestBed.createComponent(ReleaseCandidate);
+    data.set(decodeRelease({ id: id1, status: 'READY', targetKind: 'FINANCIAL_PACKAGE', targetRevision: 1, revision: 4,
+      manifestDigest: hash64, createdAt: '2026-11-01T10:00:00Z', checkpoint: { state: 'ABSENT', detail: 'Not recorded' },
+      attestation: { state: 'ABSENT', detail: 'Not required' }, lineage: { state: 'ABSENT', detail: 'Optional' }, preflightReady: false }, 'release'));
+    fixture.detectChanges();
+    return { fixture, data, api, params, session, component: fixture.componentInstance };
+  }
+
+  async function manifestFile() {
+    const bytes = new TextEncoder().encode('manifest');
+    const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), x => x.toString(16).padStart(2, '0')).join('');
+    return { file: new File([bytes], 'release-manifest.json', { type: 'application/json' }), digest };
+  }
+
+  it('sends the exact reviewed manifest and one-time key only to the existing checkpoint endpoint', async () => {
+    const { fixture, component, api, data } = openRelease();
+    const { file, digest } = await manifestFile();
+    data.set({ ...component.rec.data()!, manifestDigest: digest });
+    await component.selectCheckpointManifest({ target: { files: { item: () => file } } } as unknown as Event);
+    component.checkpointKey = 'synthetic-authorized-key';
+    component.checkpointReviewed.set(true);
+    const candidate = component.rec.data()!;
+    expect(component.canRequestCheckpoint(candidate)).toBe(true);
+
+    await component.requestCheckpoint(candidate);
+
+    expect(api.command).toHaveBeenCalledTimes(1);
+    expect(api.command).toHaveBeenCalledWith('/api/ui/releases/' + id1 + '/checkpoint', {
+      expectedCandidateRevision: 4, authorizedReleaseKey: 'synthetic-authorized-key', manifestDigest: candidate.manifestDigest,
+      manifestBytesBase64: 'bWFuaWZlc3Q=',
+    }, 'POST');
+    expect(component.checkpointKey).toBe('');
+    expect(component.checkpointBytes()).toBeNull();
+    expect(component.cmd.message()).toContain('queued');
+    expect(component.cmd.message()).not.toContain('verified checkpoint');
+    fixture.destroy();
+  });
+
+  it('clears manifest, key and assent after route or session identity changes', async () => {
+    const { fixture, component, params, session, data } = openRelease();
+    const { file, digest } = await manifestFile();
+    data.set({ ...component.rec.data()!, manifestDigest: digest });
+    await component.selectCheckpointManifest({ target: { files: { item: () => file } } } as unknown as Event);
+    component.checkpointKey = 'synthetic-authorized-key';
+    component.checkpointReviewed.set(true);
+    expect(component.checkpointBytes()).not.toBeNull();
+
+    params.next(convertToParamMap({ id: id2 }));
+    TestBed.tick(); fixture.detectChanges();
+    expect(component.checkpointBytes()).toBeNull();
+    expect(component.checkpointKey).toBe('');
+    expect(component.checkpointReviewed()).toBe(false);
+
+    const { file: nextFile } = await manifestFile();
+    params.next(convertToParamMap({ id: id1 }));
+    TestBed.tick(); fixture.detectChanges();
+    data.set({ ...component.rec.data()!, manifestDigest: digest });
+    await component.selectCheckpointManifest({ target: { files: { item: () => nextFile } } } as unknown as Event);
+    component.checkpointKey = 'second-synthetic-key';
+    component.checkpointReviewed.set(true);
+    session.invalidation.set(1); fixture.detectChanges();
+    expect(component.checkpointBytes()).toBeNull();
+    expect(component.checkpointKey).toBe('');
+    expect(component.checkpointReviewed()).toBe(false);
+    fixture.destroy();
+  });
+
+  it('refuses a manifest that does not match the current candidate digest', async () => {
+    const { fixture, component, api } = openRelease();
+    const file = new File(['different manifest'], 'release-manifest.json', { type: 'application/json' });
+    await component.selectCheckpointManifest({ target: { files: { item: () => file } } } as unknown as Event);
+    component.checkpointKey = 'synthetic-authorized-key'; component.checkpointReviewed.set(true);
+    expect(component.checkpointManifestReady()).toBe(false);
+    expect(component.canRequestCheckpoint(component.rec.data()!)).toBe(false);
+    expect(api.command).not.toHaveBeenCalled();
+    fixture.destroy();
   });
 });

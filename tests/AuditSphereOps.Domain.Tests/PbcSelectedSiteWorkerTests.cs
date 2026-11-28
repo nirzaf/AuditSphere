@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
+using AuditSphereOps.Application.Security;
 using AuditSphereOps.Domain.Documents;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Shared;
@@ -7,6 +8,7 @@ using AuditSphereOps.Infrastructure.Providers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using System.Text.Json;
 
 namespace AuditSphereOps.Domain.Tests;
 
@@ -679,6 +681,123 @@ public sealed class PbcSelectedSiteWorkerTests
       new PbcRepositoryBindingResolver(h.Factory).ResolveAsync(h.Scope(h.A, staged.UploadIntentId), default));
     Assert.True(await h.Worker.ProcessNextAsync());
     Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, (await h.OperationAsync(staged.UploadIntentId)).Status);
+  }
+
+  [Fact]
+  public async Task StagedTransfer_AfterNormalGrantRevocation_CannotCompleteOrPublish()
+  {
+    // Offline only: ordinary service commands, disposable PostgreSQL data and in-memory Graph.
+    var (h, graph) = await CreateAsync();
+    await using var _h = h;
+    await h.ProvisionAsync(h.A);
+    var content = Document("normal grant revocation");
+    var staged = await h.UploadAsync(h.A, h.RequestA, content);
+    var queued = await h.OperationAsync(staged.UploadIntentId);
+    Assert.Equal(OperationState.PENDING, queued.Status);
+    var providerItems = graph.Items.OrderBy(x => x.Id).ToArray();
+    var uploadSessionCalls = graph.UploadSessionCalls;
+    var folderCreates = graph.FolderCreates;
+    await using var verify = h.Db();
+    var before = await verify.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == staged.UploadIntentId);
+    var requestBefore = await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == h.RequestA);
+    Assert.Equal(PbcUploadStates.Staged, before.State);
+    Assert.Equal(PbcStates.PartiallyReceived, requestBefore.State);
+
+    await using (var db = h.Db())
+    {
+      var grant = await db.RoleGrants.SingleAsync(x => x.UserId == h.A.Staff.Id &&
+        x.ClientId == h.A.ClientId && x.EngagementId == h.A.EngagementId &&
+        x.Role == "Staff" && x.RevokedAt == null);
+      var revoked = await RoleAdministrationService.RevokeRoleGrantAsync(db, h.Admin,
+        new RevokeRoleGrantRequest(grant.Id, Reason: "Synthetic PBC completion authorization regression"));
+      Assert.True(revoked.Succeeded, revoked.ErrorCode);
+    }
+
+    await using (var db = h.Db())
+    {
+      // Use the current session for this direct command; the already queued operation retains its enqueue-time epoch.
+      var staff = await db.Users.AsNoTracking().SingleAsync(x => x.Id == h.A.Staff.Id);
+      var denied = await PbcService.CompleteUploadAsync(db, PbcSeed.Actor(staff, "Staff"),
+        new CompletePbcUploadRequest(staged.UploadIntentId, staged.DeclaredSha256Hex), h.Store, h.Handler);
+      Assert.Equal(ErrorCodes.ScopeDenied, denied.ErrorCode);
+    }
+
+    Assert.True(await h.Worker.ProcessNextAsync());
+
+    var operation = await h.OperationAsync(staged.UploadIntentId);
+    var intent = await verify.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == staged.UploadIntentId);
+    var request = await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == h.RequestA);
+    Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, operation.Status);
+    Assert.Equal(queued.Id, operation.Id);
+    Assert.Null(operation.ResultIdentity);
+    Assert.Null(operation.ResultDigest);
+    Assert.Equal((before.State, before.Revision, before.TransferOperationId, before.FinalSha256Hex),
+      (intent.State, intent.Revision, intent.TransferOperationId, intent.FinalSha256Hex));
+    Assert.Null(intent.ProviderRegisteredAt);
+    Assert.Null(intent.ProviderReceiptDigest);
+    Assert.Equal((requestBefore.State, requestBefore.Revision, requestBefore.UpdatedAt),
+      (request.State, request.Revision, request.UpdatedAt));
+    Assert.False(await verify.PbcDocumentRegistrations.AnyAsync(x => x.PbcUploadIntentId == intent.Id));
+    Assert.False(await verify.DocumentReferences.AnyAsync());
+    Assert.False(await verify.DocumentSnapshots.AnyAsync());
+    Assert.Single(await verify.DurableOperations.Where(x => x.TargetId == intent.Id).ToListAsync());
+    Assert.Equal(uploadSessionCalls, graph.UploadSessionCalls);
+    Assert.Equal(folderCreates, graph.FolderCreates);
+    Assert.Equal(providerItems, graph.Items.OrderBy(x => x.Id).ToArray());
+    var chunk = await verify.PbcUploadChunks.AsNoTracking().SingleAsync(x => x.PbcUploadIntentId == intent.Id);
+    Assert.Equal(content, await File.ReadAllBytesAsync(chunk.StagedPath!));
+  }
+
+  [Theory]
+  [InlineData("session-epoch")]
+  [InlineData("disabled")]
+  public async Task StagedTransfer_BlocksBeforeProviderWhenOriginatorSessionIsInvalidated(string invalidation)
+  {
+    var (h, graph) = await CreateAsync();
+    await using var _h = h;
+    await h.ProvisionAsync(h.A);
+    var staged = await h.UploadAsync(h.A, h.RequestA, Document("originator invalidation"));
+    var queued = await h.OperationAsync(staged.UploadIntentId);
+    Assert.Equal(h.A.Staff.Id, queued.OriginatorId);
+    using (var payload = JsonDocument.Parse(queued.PayloadJson))
+      Assert.Equal(h.A.Staff.SessionEpoch, payload.RootElement.GetProperty("originatorSessionEpoch").GetInt64());
+
+    var providerItems = graph.Items.OrderBy(x => x.Id).ToArray();
+    var uploadSessionCalls = graph.UploadSessionCalls;
+    var folderCreates = graph.FolderCreates;
+    await using (var db = h.Db())
+    {
+      var users = db.Users.Where(x => x.FirmId == h.A.FirmId && x.Id == h.A.Staff.Id);
+      var changed = invalidation switch
+      {
+        "session-epoch" => await users.ExecuteUpdateAsync(setters =>
+          setters.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1)),
+        "disabled" => await users.ExecuteUpdateAsync(setters =>
+          setters.SetProperty(x => x.Disabled, true)),
+        _ => throw new ArgumentOutOfRangeException(nameof(invalidation))
+      };
+      Assert.Equal(1, changed);
+    }
+
+    Assert.True(await h.Worker.ProcessNextAsync());
+
+    var operation = await h.OperationAsync(staged.UploadIntentId);
+    await using var verify = h.Db();
+    var intent = await verify.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == staged.UploadIntentId);
+    var request = await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == h.RequestA);
+    Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, operation.Status);
+    Assert.Null(operation.ResultIdentity);
+    Assert.Null(operation.ResultDigest);
+    Assert.Equal(PbcUploadStates.Staged, intent.State);
+    Assert.Null(intent.ProviderRegisteredAt);
+    Assert.Null(intent.ProviderReceiptDigest);
+    Assert.Equal(PbcStates.PartiallyReceived, request.State);
+    Assert.False(await verify.PbcDocumentRegistrations.AnyAsync(x => x.PbcUploadIntentId == intent.Id));
+    Assert.False(await verify.DocumentReferences.AnyAsync());
+    Assert.False(await verify.DocumentSnapshots.AnyAsync());
+    Assert.Equal(uploadSessionCalls, graph.UploadSessionCalls);
+    Assert.Equal(folderCreates, graph.FolderCreates);
+    Assert.Equal(providerItems, graph.Items.OrderBy(x => x.Id).ToArray());
   }
 
   [Fact]

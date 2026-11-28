@@ -180,32 +180,32 @@ public static partial class UiEndpoints
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(group.MapPost("/finance/periods", (FirmPeriodInput input, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => LedgerService.CreateFirmPeriodAsync(db, actor,
         new CreateFirmPeriodRequest(input.PeriodCode ?? ""), ct))));
-    var journalCreate = group.MapUiPost("/finance/journals", async http =>
+    var journalCreate = group.MapUiPost("/finance/journals", http => CommandAsync(http, async (db, actor, ct) =>
     {
-      if (!http.Request.HasFormContentType) return Invalid("Send the journal details and supporting document as a multipart form.");
-      var form = await http.Request.ReadFormAsync(http.RequestAborted);
+      if (!http.Request.HasFormContentType) return AuditSphereOps.Domain.Shared.CommandResult<Guid>.Fail("request.invalid", "Send the journal details and supporting document as a multipart form.");
+      var form = await http.Request.ReadFormAsync(ct);
       FirmJournalInput? input;
       try { input = JsonSerializer.Deserialize<FirmJournalInput>(form["journal"].ToString(), UiJson); }
-      catch (JsonException) { return Invalid("The journal details are invalid."); }
-      if (input is null) return Invalid("Journal details are required.");
+      catch (JsonException) { return AuditSphereOps.Domain.Shared.CommandResult<Guid>.Fail("request.invalid", "The journal details are invalid."); }
+      if (input is null) return AuditSphereOps.Domain.Shared.CommandResult<Guid>.Fail("request.invalid", "Journal details are required.");
       var evidenceFile = form.Files.GetFile("evidence");
       var evidence = await ReadUploadAsync(http, "evidence", LedgerService.MaxJournalEvidenceBytes);
       if (evidenceFile is not null && evidence is null)
-        return Invalid("The supporting document must be between 1 byte and 5 MB.");
+        return AuditSphereOps.Domain.Shared.CommandResult<Guid>.Fail("request.invalid", "The supporting document must be between 1 byte and 5 MB.");
       if (input.Lines is null || input.Lines.Count is < 2 or > 200)
-        return Invalid("A journal needs 2 to 200 reviewed lines.");
+        return AuditSphereOps.Domain.Shared.CommandResult<Guid>.Fail("request.invalid", "A journal needs 2 to 200 reviewed lines.");
       var lines = new List<FirmJournalLineRequest>(input.Lines.Count);
       foreach (var line in input.Lines)
       {
         if (line is null || !TryDecimal(line.Debit, out var debit) || !TryDecimal(line.Credit, out var credit))
-          return Invalid("Enter each debit and credit as an exact decimal amount.");
+          return AuditSphereOps.Domain.Shared.CommandResult<Guid>.Fail("request.invalid", "Enter each debit and credit as an exact decimal amount.");
         lines.Add(new FirmJournalLineRequest(line.FirmAccountId, line.Description ?? "", debit, credit));
       }
-      return await CommandAsync(http, (db, actor, ct) => LedgerService.CreateFirmJournalDraftAsync(db, actor,
+      return await LedgerService.CreateFirmJournalDraftAsync(db, actor,
         new CreateFirmJournalDraftRequest(input.PeriodId, input.JournalNumber ?? "", "MANUAL",
           input.SourceKey ?? "", 1, input.PostingPurpose ?? "", input.Currency ?? "", lines,
-          evidence?.Name, evidence?.ContentType, evidence?.Content), ct));
-    });
+          evidence?.Name, evidence?.ContentType, evidence?.Content), ct);
+    })).WithMetadata(new ApiRateClassAttribute(ApiRateClass.FileUpload));
     journalCreate.Accepts<FinanceJournalForm>("multipart/form-data");
     journalCreate.Produces(StatusCodes.Status413PayloadTooLarge);
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<Guid>>(journalCreate, includeConflict: true);
@@ -224,7 +224,7 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Firm-Journal-Evidence-SHA256"] = result.Value.Sha256;
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(result.Value.Content, "application/octet-stream", result.Value.FileName);
-    }).Produces<Stream>(StatusCodes.Status200OK, "application/octet-stream")
+    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export)).Produces<Stream>(StatusCodes.Status200OK, "application/octet-stream")
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden, "application/json");
     UiEndpointContractMetadata.WithUiResponse<UiValueResponse<bool>>(group.MapPost("/finance/journals/{id:guid}/submit", (Guid id, HttpContext http) =>
       CommandAsync(http, (db, actor, ct) => LedgerService.SubmitFirmJournalAsync(db, actor, id, ct))));

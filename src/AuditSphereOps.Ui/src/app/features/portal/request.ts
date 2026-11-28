@@ -622,6 +622,17 @@ export class ClientPbcRequest {
     } catch { if (!abort.signal.aborted) { this.failed.set(true); this.uploadUncertain.set(true); this.message.set(UNKNOWN_OUTCOME); } }
     finally { this.busy.set(false); if (generation === this.session.invalidation()) this.ws.reload(); }
   }
+  private readXsrfToken(): string | null {
+    const prefix = 'XSRF-TOKEN=';
+    const tokens = document.cookie.split(/;\s*/).filter(part => part.startsWith(prefix));
+    if (tokens.length !== 1) return null;
+    try {
+      const value = decodeURIComponent(tokens[0].slice(prefix.length));
+      return value.length > 0 ? value : null;
+    } catch {
+      return null;
+    }
+  }
   private async sendChunks(file: File, hash: string, requestId: string, uploadId: string, capability: string,
     offset: number, nextChunkIndex: number, generation: number, abort: AbortController): Promise<void> {
     if (!/^[0-9a-f]{64}$/i.test(capability) || !Number.isSafeInteger(offset) || !Number.isSafeInteger(nextChunkIndex) ||
@@ -630,8 +641,15 @@ export class ClientPbcRequest {
     for (let chunk = nextChunkIndex, position = offset; position < file.size; chunk++) {
       const bytes = await file.slice(position, Math.min(position + CHUNK, file.size)).arrayBuffer(); const sha = await fingerprint(bytes);
       if (generation !== this.session.invalidation() || abort.signal.aborted) return;
+      const xsrf = this.readXsrfToken();
+      if (!xsrf) {
+        this.failed.set(true);
+        this.uploadUncertain.set(false);
+        this.message.set('Upload access changed. Refresh your session before continuing.');
+        return;
+      }
       const response = await fetch(`/api/pbc/uploads/${uploadId}/chunks/${chunk}`, { method: 'POST', credentials: 'same-origin', signal: abort.signal,
-        headers: { 'Content-Type': 'application/octet-stream', 'X-Upload-Offset': String(position), 'X-Content-SHA256': sha, 'X-Pbc-Upload-Capability': capability }, body: bytes });
+        headers: { 'Content-Type': 'application/octet-stream', 'X-Upload-Offset': String(position), 'X-Content-SHA256': sha, 'X-Pbc-Upload-Capability': capability, 'X-XSRF-TOKEN': xsrf }, body: bytes });
       if (!response.ok) {
         this.failed.set(true);
         this.uploadUncertain.set(response.status === 0 || response.status >= 500 || response.status === 409);

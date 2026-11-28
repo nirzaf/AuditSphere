@@ -24,8 +24,8 @@ describe('Selected SharePoint resource and template review',() => {
     TestBed.inject(SessionService).current.set({userId:id,firmId:id,generation:'0',staff:true});
   });
   afterEach(() => { TestBed.inject(HttpTestingController).verify({ignoreCancelled:true}); TestBed.resetTestingModule(); });
-  function open() { const fixture=TestBed.createComponent(SharePointAdministration), http=TestBed.inject(HttpTestingController);
-    fixture.detectChanges(); http.expectOne(prefix+'resources').flush(snapshot); TestBed.tick();
+  function open(response: Record<string, unknown> = snapshot) { const fixture=TestBed.createComponent(SharePointAdministration), http=TestBed.inject(HttpTestingController);
+    fixture.detectChanges(); http.expectOne(prefix+'resources').flush(response); TestBed.tick();
     return {fixture,c:fixture.componentInstance,http}; }
   it('clears review when exact resource IDs change and sends only the reviewed revision',async () => {
     const {fixture,c,http}=open(); c.resourceForm.controls.reviewed.setValue(true); c.resourceForm.controls.driveId.setValue('drive-2');
@@ -86,5 +86,27 @@ describe('Selected SharePoint resource and template review',() => {
     expect(currentVerification('VERIFIED','2026-10-03T00:00:00Z',now)).toBe(false); expect(editableResource('ACTIVE')).toBe(false);
     expect(() => decode(selectedResources,{...snapshot,workspace:{...snapshot.workspace,templates:Array(101).fill(snapshot.workspace.templates[0])}})).toThrow();
     expect(() => decode(selectedResources,{...snapshot,workspace:{...snapshot.workspace,draft:{...snapshot.workspace.draft,tenantId:'email@example.test'}}})).toThrow();
+  });
+  it('activates only the exact reviewed and current archive resource binding',async () => {
+    const response = { ...snapshot, workspace: { ...snapshot.workspace, draft: { ...snapshot.workspace.draft, state:'VERIFIED' },
+      verification: { state:'VERIFIED', diagnosticCode:'exact-resource-and-control-denial', observedAt:new Date(Date.now()-1000).toISOString(), verificationId:id } } };
+    const {fixture,c,http}=open(response);
+    expect(c.canActivateArchive()).toBe(false);
+    c.archiveActivateReviewed.setValue(true);
+    expect(c.canActivateArchive()).toBe(true);
+    const pending=c.activateArchiveResource(); await Promise.resolve(); await Promise.resolve();
+    const request=http.expectOne(prefix+'resources/activate-archive');
+    expect(request.request.body).toEqual({ draftId:id, expectedRevision:'4', connectionRevisionId:id, capabilityVerificationId:id,
+      tenantId:id, siteId:'site-1', driveId:'drive-1', rootFolderId:'root-1', displayUrl:'https://synthetic.sharepoint.com/sites/working',
+      accessProfile:'APP_MEDIATED', reviewed:true });
+    request.flush({value:id}); await pending;
+    http.expectOne(prefix+'resources').flush(response); TestBed.tick();
+    expect(c.archiveActivateReviewed.value).toBe(false); fixture.destroy();
+  });
+  it('refuses archive activation after selected-site proof becomes stale',async () => {
+    const response = { ...snapshot, workspace: { ...snapshot.workspace, draft: { ...snapshot.workspace.draft, state:'VERIFIED' },
+      verification: { state:'VERIFIED', diagnosticCode:'exact-resource-and-control-denial', observedAt:'2020-01-01T00:00:00Z', verificationId:id } } };
+    const {fixture,c,http}=open(response); c.archiveActivateReviewed.setValue(true);
+    expect(c.canActivateArchive()).toBe(false); await c.activateArchiveResource(); http.expectNone(prefix+'resources/activate-archive'); fixture.destroy();
   });
 });

@@ -6,7 +6,7 @@ import { Api } from '../../core/api';
 import { decode } from '../../core/decode';
 import { SessionService } from '../../core/session';
 import { SHARED } from '../../core/ui';
-import { clientSites, siteLink, workspacePage, workspaceResult, workspaceReview } from './workspace-contracts';
+import { clientSiteIntentReceipt, clientSiteOperatorReview, clientSites, siteLink, workspacePage, workspaceResult, workspaceReview } from './workspace-contracts';
 
 const prefix = '/api/ui/administration/microsoft365/';
 @Component({ selector:'audit-workspace-administration', imports:[ReactiveFormsModule, RouterLink, MatButtonModule, ...SHARED], template:`
@@ -62,9 +62,30 @@ const prefix = '/api/ui/administration/microsoft365/';
       <div class="table-scroll"><table><caption>Client-site and membership verification</caption><thead><tr><th>Client</th><th>Site</th><th>Membership</th><th>Last verified members</th><th>Last site verification</th><th>Last membership verification</th><th>Operation</th><th>Error</th><th>Required action</th></tr></thead><tbody>
         @for(s of status.clients; track s.clientId) { <tr><td>{{ s.clientName }}</td><td><audit-status [value]="s.state" />
           @if(siteLink(s.state,s.url); as link) { <a [href]="link" target="_blank" rel="noopener noreferrer">Open verified site</a> }</td>
-          <td><audit-status [value]="s.membershipState" /></td><td>{{ s.verifiedMembers }}</td><td>{{ s.verifiedAt ?? 'Never' }}</td><td>{{ s.membershipVerifiedAt ?? 'Never' }}</td><td>{{ s.operationState ?? 'Not queued' }}</td><td>{{ s.errorCode ?? 'None' }}</td><td>{{ s.requiredAction }}</td></tr> }
+          <td><audit-status [value]="s.membershipState" /></td><td>{{ s.verifiedMembers }}</td><td>{{ s.verifiedAt ?? 'Never' }}</td><td>{{ s.membershipVerifiedAt ?? 'Never' }}</td><td>{{ s.operationState ?? 'Not queued' }}</td><td>{{ s.errorCode ?? 'None' }}</td><td>{{ s.requiredAction }}
+            <div class="actions"><button matButton type="button" (click)="reviewClientSiteIntent(s.clientId, false)" [disabled]="busy() || intentBusy() || intentUnknown()">Review site request</button>
+              <button matButton type="button" (click)="reviewClientSiteIntent(s.clientId, true)" [disabled]="busy() || intentBusy() || intentUnknown()">Review staff reconciliation</button></div></td></tr> }
       </tbody></table></div>
     }
+    <audit-state [loading]="intentReview.loading()" [error]="intentReview.error()" label="Client-site intent review" />
+    @if(intentReview.data(); as intent) {
+      <section class="panel" aria-label="Client-site operator intent review">
+        <h3>{{ intentMode()?.reconcileOnly ? 'Review staff-only membership reconciliation' : 'Review dedicated-site request' }}</h3>
+        <p>Client <code>{{ intent.clientId }}</code> · tenant <code>{{ intent.tenantId }}</code> · site {{ intent.url ?? 'Unavailable' }}</p>
+        <p>Current worker eligibility: <audit-status [value]="intent.eligible ? 'READY' : 'BLOCKED'" /> · {{ intent.requiredAction }}</p>
+        <p>Membership <audit-status [value]="intent.membershipState" /> · receipt {{ intent.receiptState }} · operation {{ intent.operationState ?? 'Not queued' }}</p>
+        @if(intent.publishedReceipt; as receipt) { <p>Published operation <code>{{ receipt.operationId }}</code> · evidence {{ receipt.digest }}</p> }
+        <form [formGroup]="intentForm" (ngSubmit)="requestClientSiteIntent()">
+          <label>Reason<textarea formControlName="reason" maxlength="1000" rows="3"></textarea></label>
+          <label><input type="checkbox" formControlName="reviewed" /> I reviewed this exact client, current worker state and requested action.</label>
+          <button matButton="filled" [disabled]="!canRequestClientSiteIntent()">Request reviewed worker action</button>
+          <button matButton type="button" (click)="closeClientSiteIntent()" [disabled]="intentBusy()">Close review</button>
+        </form>
+      </section>
+    }
+    @if(intentUnknown()) { <p role="alert">The request outcome is unknown. Refresh current client-site evidence and review it again before requesting any action.</p>
+      <button matButton type="button" (click)="refreshClientSiteIntent()" [disabled]="intentBusy()">Refresh client-site evidence</button> }
+    @if(intentMessage()) { <p [attr.role]="intentFailed() ? 'alert' : 'status'">{{ intentMessage() }}</p> }
   </section>
 `,styles:`label { display:block; margin-block:.8rem; } textarea { display:block; width:100%; box-sizing:border-box; } dd { overflow-wrap:anywhere; } nav { display:flex; align-items:center; gap:1rem; }` })
 export class WorkspaceAdministration {
@@ -73,18 +94,53 @@ export class WorkspaceAdministration {
   readonly ws = this.api.resource(() => prefix+'workspaces?page='+this.page(), workspacePage, 'Current firm-wide Administrator access is required.');
   readonly sites = this.api.resource(() => prefix+'client-sites',clientSites,'Current firm-wide Administrator access is required.');
   readonly review = this.api.resource(() => { const t=this.target(); return t ? prefix+'workspaces/'+(t.engagement ? 'engagements/' : 'clients/')+t.id+'/review' : null; },workspaceReview);
+  readonly intentMode = signal<{clientId:string;reconcileOnly:boolean}|null>(null);
+  readonly intentReview = this.api.resource(() => { const t=this.intentMode(); return t ? prefix+'client-sites/'+t.clientId+'/'+(t.reconcileOnly?'staff-review':'review') : null; },raw=>{
+    const mode=this.intentMode(), view=decode(clientSiteOperatorReview,raw);
+    if(!mode || view.clientId!==mode.clientId) throw new Error('Client-site review identity mismatch');
+    return view;
+  },'The current client-site intent is unavailable in the authenticated firm scope.');
   readonly form = this.fb.group({ reason:['',[Validators.required,Validators.maxLength(1000),Validators.pattern(/\S/)]], reviewed:[false,Validators.requiredTrue] });
+  readonly intentForm = this.fb.group({ reason:['',[Validators.required,Validators.maxLength(1000),Validators.pattern(/\S/)]], reviewed:[false,Validators.requiredTrue] });
   readonly busy=signal(false); readonly uncertain=signal(false); readonly message=signal(''); readonly failed=signal(false); readonly siteLink=siteLink;
+  readonly intentBusy=signal(false); readonly intentUnknown=signal(false); readonly intentMessage=signal(''); readonly intentFailed=signal(false);
   private refreshing=false;
   constructor() {
     effect(() => { this.review.data(); this.form.reset(); });
     effect(() => { const w=this.ws.data(); if(w && this.refreshing) { this.refreshing=false; this.uncertain.set(false); this.message.set('Persisted state refreshed. Select the target and review it again.'); } });
-    effect(() => { this.session.invalidation(); this.target.set(null); this.message.set(''); this.failed.set(false); this.uncertain.set(false); });
+    effect(() => { this.session.invalidation(); this.target.set(null); this.message.set(''); this.failed.set(false); this.uncertain.set(false);
+      this.intentMode.set(null); this.intentForm.reset(); this.intentMessage.set(''); this.intentFailed.set(false); this.intentUnknown.set(false); });
   }
   select(id:string,engagement:boolean):void { if(this.busy() || this.uncertain()) return; this.form.reset(); this.target.set({id,engagement}); }
   closeReview():void { if(!this.busy()) this.target.set(null); }
   move(change:number):void { if(this.busy() || this.uncertain()) return; this.closeReview(); this.page.update(p=>Math.max(0,p+change)); }
   refresh():void { if(this.busy()) return; this.target.set(null); this.form.reset(); this.refreshing=true; this.ws.reload(); this.sites.reload(); }
+  reviewClientSiteIntent(clientId:string,reconcileOnly:boolean):void {
+    if(this.intentBusy() || this.intentUnknown() || !this.sites.data()?.clients.some(x=>x.clientId===clientId)) return;
+    this.intentForm.reset(); this.intentMessage.set(''); this.intentFailed.set(false); this.intentMode.set({clientId,reconcileOnly});
+  }
+  closeClientSiteIntent():void { if(!this.intentBusy()) { this.intentMode.set(null); this.intentForm.reset(); } }
+  canRequestClientSiteIntent():boolean {
+    const mode=this.intentMode(),view=this.intentReview.data();
+    return !!mode && !!view && view.clientId===mode.clientId && view.eligible && this.intentForm.valid &&
+      !this.intentBusy() && !this.intentUnknown();
+  }
+  async requestClientSiteIntent():Promise<void> {
+    if(!this.canRequestClientSiteIntent()) return;
+    const mode=this.intentMode()!,view=this.intentReview.data()!,epoch=this.session.invalidation(); this.intentBusy.set(true);
+    try {
+      const result=await this.api.command(prefix+'client-sites/'+mode.clientId+'/request',{
+        reviewToken:view.reviewToken,reconcileOnly:mode.reconcileOnly,...this.intentForm.getRawValue()});
+      if(epoch!==this.session.invalidation() || this.intentMode()!==mode) return;
+      this.intentForm.controls.reviewed.setValue(false); this.intentFailed.set(!result.ok);
+      if(result.ok) {
+        try { const receipt=decode(clientSiteIntentReceipt,result.value); if(receipt.clientId!==mode.clientId) throw new Error('Client-site request scope changed');
+          this.intentMessage.set(`${receipt.state}${receipt.operationId ? ': '+receipt.operationId : ''}`); this.intentMode.set(null); this.intentForm.reset(); this.sites.reload(); }
+        catch { this.intentUnknown.set(true); this.intentFailed.set(true); this.intentMessage.set('The request response could not be verified. Refresh persisted evidence before reconciliation.'); }
+      } else { this.intentMessage.set(result.message); if(result.unknown) this.intentUnknown.set(true); }
+    } finally { this.intentBusy.set(false); }
+  }
+  refreshClientSiteIntent():void { if(this.intentBusy()) return; this.intentUnknown.set(false); this.intentMode.set(null); this.intentForm.reset(); this.sites.reload(); }
   canProvision():boolean { const r=this.review.data(),t=this.target(); return !!r?.eligible && !!t && r.targetId===t.id &&
     r.kind===(t.engagement?'ENGAGEMENT':'CLIENT') && !!this.ws.data()?.providerConfigured && this.form.valid && !this.busy() && !this.uncertain(); }
   async provision():Promise<void> {

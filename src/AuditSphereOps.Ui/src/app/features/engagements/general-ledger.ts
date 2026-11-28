@@ -9,8 +9,11 @@ import {
   decodeLedgerCatalogue,
   decodeLedgerJournal,
   decodeLedgerSource,
+  decodeJournalRiskCandidates,
 } from './general-ledger-contracts';
+import { guidPattern } from '../../core/contracts';
 const blank = () => ({ account: '', from: '', to: '', journal: '', counterparty: '' });
+type JournalRiskCandidate = ReturnType<typeof decodeJournalRiskCandidates>[number];
 @Component({
   selector: 'audit-general-ledger',
   imports: [RouterLink, FormField, MatButtonModule, ...SHARED],
@@ -198,6 +201,70 @@ const blank = () => ({ account: '', from: '', to: '', journal: '', counterparty:
             Selection is per engagement and source kind, across reporting periods. Sealing and
             debit/credit balance do not prove completeness, acceptance or a professional conclusion.
           </p>
+          @if (s.context.canAnalyzeJournalRisk) {
+            <section class="panel" aria-labelledby="journal-risk-heading">
+              <h3 id="journal-risk-heading">Journal-risk review indicators</h3>
+              <p>Indicators support human review; they are not fraud conclusions. This uses the exact sealed source above.</p>
+              <form class="filters" (submit)="$event.preventDefault(); runJournalRiskAnalysis()">
+                <label>Analysis year end (within this source period)
+                  <input type="date" [value]="riskYearEnd()" (input)="setRiskYearEnd($event)" required />
+                </label>
+                <label>High-value threshold (exact decimal)
+                  <input inputmode="decimal" [value]="riskThreshold()" (input)="setRiskThreshold($event)" maxlength="20" required />
+                </label>
+                <label>Year-end window (days)
+                  <input type="number" min="0" max="90" step="1" [value]="riskWindowDays()" (input)="setRiskWindowDays($event)" required />
+                </label>
+                <button matButton="filled" type="submit" [disabled]="riskBusy() || stale() || !validRiskInputs()">
+                  {{ riskBusy() ? 'Analyzing…' : 'Analyze sealed source' }}
+                </button>
+              </form>
+              @if (riskError()) { <p role="alert">{{ riskError() }}</p> }
+              @if (riskMessage()) { <p [attr.role]="riskFlagUnknown() ? 'alert' : 'status'">{{ riskMessage() }}</p> }
+              @if (riskCandidates(); as candidates) {
+                <p role="status">{{ candidates.length }} bounded review indicators. No indicator is a professional conclusion.</p>
+                @if (candidates.length) {
+                  <div class="table-scroll" tabindex="0" role="region" aria-label="Journal risk indicators">
+                    <table><thead><tr><th>Journal</th><th>Date</th><th>Indicator</th><th>Score</th><th>Amount</th><th>Action</th></tr></thead>
+                      <tbody>@for (candidate of riskCandidatePage(); track candidate.transactionId + candidate.ruleCode) {
+                        <tr><td>{{ candidate.stableJournalId }}</td><td>{{ candidate.postingDate }}</td><td>{{ candidate.ruleCode }} · {{ candidate.reason }}</td>
+                          <td>{{ candidate.score }}</td><td>{{ candidate.absoluteAmount }}</td><td>
+                            <button matButton type="button" (click)="beginJournalRiskFlag(candidate)"
+                              [disabled]="stale() || riskFlagBusy() || riskFlagUnknown() || isRiskFlagPending(candidate)">Review indicator</button>
+                          </td></tr>
+                      }</tbody>
+                    </table>
+                  </div>
+                  <nav class="actions" aria-label="Journal risk indicator pages">
+                    <button matButton type="button" (click)="riskPage.update(p => p - 1)" [disabled]="riskPage() === 0">Previous indicators</button>
+                    <span>Page {{ riskPage() + 1 }} of {{ riskPages(candidates.length) }}</span>
+                    <button matButton type="button" (click)="riskPage.update(p => p + 1)" [disabled]="riskPage() + 1 >= riskPages(candidates.length)">Next indicators</button>
+                  </nav>
+                }
+              }
+              @if (riskFlagCandidate(); as candidate) {
+                <form class="filters" aria-label="Review journal risk indicator" (submit)="$event.preventDefault(); recordJournalRiskFlag()">
+                  <h4>{{ candidate.ruleCode }} · {{ candidate.stableJournalId }}</h4>
+                  <p>{{ candidate.reason }} Score {{ candidate.score }}. Confirm the source indicator and add an exact supporting evidence reference.</p>
+                  <label>Evidence reference
+                    <input [value]="riskEvidenceReference()" (input)="setRiskEvidenceReference($event)" maxlength="2000" required />
+                  </label>
+                  <label>Management explanation (optional)
+                    <textarea [value]="riskManagementExplanation()" (input)="setRiskManagementExplanation($event)" maxlength="4000" rows="3"></textarea>
+                  </label>
+                  <label>Corroboration reference (optional)
+                    <input [value]="riskCorroborationReference()" (input)="setRiskCorroborationReference($event)" maxlength="2000" />
+                  </label>
+                  <label><input type="checkbox" [checked]="riskSelectedForTesting()" (change)="setRiskSelectedForTesting($event)" /> Select this indicator for testing</label>
+                  <label><input type="checkbox" [checked]="riskFlagReviewed()" (change)="setRiskFlagReviewed($event)" /> I reviewed this exact indicator and source.</label>
+                  <div class="actions">
+                    <button matButton="filled" type="submit" [disabled]="riskFlagBusy() || riskFlagUnknown() || !riskFlagReviewed() || !riskEvidenceReference().trim() || stale()">Record reviewed indicator</button>
+                    <button matButton type="button" (click)="cancelJournalRiskFlag()" [disabled]="riskFlagBusy()">Cancel</button>
+                  </div>
+                </form>
+              }
+            </section>
+          }
           @if (!stale()) {
             <p>
               {{ s.rows.totalCount }} filtered lines · Debit {{ s.rows.totalDebit }} · Credit
@@ -363,6 +430,24 @@ export class GeneralLedger {
   readonly batchId = signal<string | null>(null);
   readonly rowPage = signal(1);
   readonly journalId = signal<string | null>(null);
+  readonly riskYearEnd = signal('');
+  readonly riskThreshold = signal('100000.000000');
+  readonly riskWindowDays = signal('5');
+  readonly riskCandidates = signal<JournalRiskCandidate[] | null>(null);
+  readonly riskPage = signal(0);
+  readonly riskBusy = signal(false);
+  readonly riskError = signal('');
+  readonly riskMessage = signal('');
+  readonly riskFlagCandidate = signal<JournalRiskCandidate | null>(null);
+  readonly riskEvidenceReference = signal('');
+  readonly riskManagementExplanation = signal('');
+  readonly riskCorroborationReference = signal('');
+  readonly riskSelectedForTesting = signal(false);
+  readonly riskFlagReviewed = signal(false);
+  readonly riskFlagBusy = signal(false);
+  readonly riskFlagUnknown = signal(false);
+  private readonly unknownRiskFlagKeys = new Set<string>();
+  private riskInputGeneration = 0;
   readonly model = signal(blank());
   readonly fields = form(this.model, (p) => {
     maxLength(p.account, 100);
@@ -442,6 +527,7 @@ export class GeneralLedger {
         this.rowPage.set(1);
         this.model.set(blank());
         this.applied.set(blank());
+        this.clearJournalRiskState(true);
       });
     });
   }
@@ -489,6 +575,7 @@ export class GeneralLedger {
     this.rowPage.set(1);
     this.model.set(blank());
     this.applied.set(blank());
+    this.clearJournalRiskState(false);
     this.batchId.set(id);
   }
   apply() {
@@ -501,6 +588,7 @@ export class GeneralLedger {
   }
   refreshSource() {
     this.journalId.set(null);
+    this.clearJournalRiskState(false);
     this.source.reload();
   }
   refreshCatalogue() {
@@ -523,6 +611,132 @@ export class GeneralLedger {
     if (page < 1 || page > this.pages(c.totalCount, 20)) return;
     this.batchId.set(null);
     this.journalId.set(null);
+    this.clearJournalRiskState(false);
     this.cataloguePage.set(page);
+  }
+
+  validRiskInputs(): boolean {
+    const date = this.riskYearEnd();
+    const [year, month, day] = date.split('-').map(Number);
+    const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const dateValid = /^\d{4}-\d{2}-\d{2}$/.test(date) && year > 0 && month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1];
+    const threshold = this.riskThreshold();
+    const [whole = '', fraction = ''] = threshold.split('.');
+    const thresholdValid = /^\d{1,13}(?:\.\d{1,6})?$/.test(threshold) &&
+      (whole.length < 13 || whole <= '9999999999999') && /[1-9]/.test(whole + fraction);
+    const windowDays = this.riskWindowDays();
+    return dateValid && thresholdValid && /^(?:0|[1-9]\d?)$/.test(windowDays) && Number(windowDays) <= 90;
+  }
+
+  setRiskYearEnd(event: Event): void { if (this.riskFlagBusy()) return; this.riskYearEnd.set((event.target as HTMLInputElement).value); this.invalidateRiskAnalysis(); }
+  setRiskThreshold(event: Event): void { if (this.riskFlagBusy()) return; this.riskThreshold.set((event.target as HTMLInputElement).value); this.invalidateRiskAnalysis(); }
+  setRiskWindowDays(event: Event): void { if (this.riskFlagBusy()) return; this.riskWindowDays.set((event.target as HTMLInputElement).value); this.invalidateRiskAnalysis(); }
+  setRiskEvidenceReference(event: Event): void { this.riskEvidenceReference.set((event.target as HTMLInputElement).value); this.riskFlagReviewed.set(false); }
+  setRiskManagementExplanation(event: Event): void { this.riskManagementExplanation.set((event.target as HTMLTextAreaElement).value); this.riskFlagReviewed.set(false); }
+  setRiskCorroborationReference(event: Event): void { this.riskCorroborationReference.set((event.target as HTMLInputElement).value); this.riskFlagReviewed.set(false); }
+  setRiskSelectedForTesting(event: Event): void { this.riskSelectedForTesting.set((event.target as HTMLInputElement).checked); this.riskFlagReviewed.set(false); }
+  setRiskFlagReviewed(event: Event): void { this.riskFlagReviewed.set((event.target as HTMLInputElement).checked); }
+
+  riskCandidatePage(): JournalRiskCandidate[] {
+    const candidates = this.riskCandidates() ?? [];
+    return candidates.slice(this.riskPage() * 50, this.riskPage() * 50 + 50);
+  }
+  riskPages(total: number): number { return Math.max(1, Math.ceil(total / 50)); }
+
+  async runJournalRiskAnalysis(): Promise<void> {
+    const source = this.source.data();
+    if (!source || !source.context.canAnalyzeJournalRisk || this.stale() || !this.validRiskInputs() || this.riskBusy()) return;
+    const engagementId = this.id(), clientId = source.context.clientId, batchId = source.context.batchId;
+    const generation = this.session.invalidation(), inputGeneration = ++this.riskInputGeneration;
+    this.riskBusy.set(true); this.riskError.set(''); this.riskMessage.set(''); this.riskCandidates.set(null);
+    try {
+      const result = await this.api.command<unknown>(`/api/ui/engagements/${engagementId}/journal-risk/analyze`, {
+        clientId, importBatchId: batchId, yearEnd: this.riskYearEnd(), highValueThreshold: this.riskThreshold(),
+        yearEndWindowDays: Number(this.riskWindowDays()),
+      });
+      if (generation !== this.session.invalidation() || inputGeneration !== this.riskInputGeneration || engagementId !== this.id() || batchId !== this.batchId()) return;
+      if (!result.ok) { this.riskError.set(result.message); return; }
+        this.riskCandidates.set(decodeJournalRiskCandidates(result.value, '$'));
+      this.riskPage.set(0);
+      this.riskMessage.set('Analysis is complete for the selected sealed source. Review indicators individually; no professional conclusion has been made.');
+    } catch {
+      if (generation === this.session.invalidation() && inputGeneration === this.riskInputGeneration && engagementId === this.id() && batchId === this.batchId())
+        this.riskError.set('The bounded analysis response could not be verified. Refresh the source before continuing.');
+    } finally {
+      if (generation === this.session.invalidation() && inputGeneration === this.riskInputGeneration && engagementId === this.id() && batchId === this.batchId()) this.riskBusy.set(false);
+    }
+  }
+
+  beginJournalRiskFlag(candidate: JournalRiskCandidate): void {
+    const source = this.source.data();
+    if (!source?.context.canAnalyzeJournalRisk || this.stale() || this.riskFlagBusy() || this.isRiskFlagPending(candidate)) return;
+    if (!this.riskCandidates()?.some(x => x.transactionId === candidate.transactionId && x.ruleCode === candidate.ruleCode)) return;
+    this.riskFlagCandidate.set(candidate);
+    this.riskEvidenceReference.set(''); this.riskManagementExplanation.set(''); this.riskCorroborationReference.set('');
+    this.riskSelectedForTesting.set(false); this.riskFlagReviewed.set(false);
+  }
+
+  isRiskFlagPending(candidate: JournalRiskCandidate): boolean {
+    const batchId = this.source.data()?.context.batchId;
+    return !!batchId && this.unknownRiskFlagKeys.has(`${batchId}:${candidate.transactionId}:${candidate.ruleCode}`);
+  }
+
+  async recordJournalRiskFlag(): Promise<void> {
+    const source = this.source.data(), candidate = this.riskFlagCandidate();
+    const evidenceReference = this.riskEvidenceReference().trim();
+    if (!source?.context.canAnalyzeJournalRisk || !candidate || this.stale() || this.riskFlagBusy() || this.riskFlagUnknown() ||
+        !this.riskFlagReviewed() || !evidenceReference || evidenceReference.length > 2000 ||
+        this.riskManagementExplanation().trim().length > 4000 || this.riskCorroborationReference().trim().length > 2000) return;
+    const engagementId = this.id(), clientId = source.context.clientId, batchId = source.context.batchId;
+    const generation = this.session.invalidation(), key = `${batchId}:${candidate.transactionId}:${candidate.ruleCode}`;
+    this.riskFlagBusy.set(true); this.riskError.set(''); this.riskMessage.set('');
+    try {
+      const result = await this.api.command<unknown>(`/api/ui/engagements/${engagementId}/journal-risk/flags`, {
+        clientId, importBatchId: batchId, transactionId: candidate.transactionId, ruleCode: candidate.ruleCode,
+        reason: candidate.reason, score: candidate.score, evidenceReference, selectedForTesting: this.riskSelectedForTesting(),
+        managementExplanation: this.riskManagementExplanation().trim(), corroborationReference: this.riskCorroborationReference().trim(),
+      });
+      if (generation !== this.session.invalidation() || engagementId !== this.id() || batchId !== this.batchId()) return;
+      if (!result.ok) {
+        if (result.unknown) { this.riskFlagUnknown.set(true); this.unknownRiskFlagKeys.add(key); }
+        this.riskMessage.set(result.message);
+        return;
+      }
+      if (typeof result.value !== 'string' || !guidPattern.test(result.value)) throw new Error('Invalid journal-risk flag identity.');
+      this.unknownRiskFlagKeys.add(key);
+      this.riskFlagCandidate.set(null);
+      this.riskMessage.set(`Reviewed indicator retained as ${result.value}. Open the accounting evidence queue for its independent review.`);
+    } catch {
+      if (generation === this.session.invalidation() && engagementId === this.id() && batchId === this.batchId()) {
+        this.riskFlagUnknown.set(true); this.unknownRiskFlagKeys.add(key);
+        this.riskMessage.set('The flag outcome is unknown. Do not submit it again; inspect the accounting evidence queue before taking further action.');
+      }
+    } finally {
+      if (generation === this.session.invalidation() && engagementId === this.id() && batchId === this.batchId()) this.riskFlagBusy.set(false);
+    }
+  }
+
+  cancelJournalRiskFlag(): void {
+    if (this.riskFlagBusy()) return;
+    this.riskFlagCandidate.set(null); this.riskEvidenceReference.set(''); this.riskManagementExplanation.set('');
+    this.riskCorroborationReference.set(''); this.riskSelectedForTesting.set(false); this.riskFlagReviewed.set(false);
+  }
+
+  private clearJournalRiskState(clearUnknown: boolean): void {
+    this.riskInputGeneration++;
+    this.riskCandidates.set(null); this.riskPage.set(0); this.riskBusy.set(false); this.riskError.set(''); this.riskMessage.set('');
+    this.riskFlagCandidate.set(null); this.riskEvidenceReference.set(''); this.riskManagementExplanation.set('');
+    this.riskCorroborationReference.set(''); this.riskSelectedForTesting.set(false); this.riskFlagReviewed.set(false);
+    this.riskFlagBusy.set(false); this.riskFlagUnknown.set(false);
+    if (clearUnknown) this.unknownRiskFlagKeys.clear();
+  }
+
+  private invalidateRiskAnalysis(): void {
+    this.riskInputGeneration++;
+    this.riskCandidates.set(null); this.riskPage.set(0); this.riskBusy.set(false); this.riskError.set('');
+    this.riskFlagCandidate.set(null); this.riskEvidenceReference.set(''); this.riskManagementExplanation.set('');
+    this.riskCorroborationReference.set(''); this.riskSelectedForTesting.set(false); this.riskFlagReviewed.set(false);
+    if (!this.riskFlagUnknown()) this.riskMessage.set('');
   }
 }

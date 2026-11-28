@@ -27,22 +27,23 @@ public static partial class UiEndpoints
         ? Task.FromResult(Invalid("Confirm that you reviewed the treatment before confirming it."))
         : CommandAsync(http, (db, actor, ct) => LedgerService.ConfirmEndOfServiceTreatmentAsync(db, actor, id, input.Note ?? "", ct)))
       .Produces<UiValueResponse<bool>>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403).Produces<UiFailureResponse>(409);
-    group.MapUiPost("/finance/end-of-service/accruals", async http =>
+    group.MapUiPost("/finance/end-of-service/accruals", http => CommandAsync(http, async (db, actor, ct) =>
     {
-      if (!http.Request.HasFormContentType) return Invalid("Send the accrual and any supporting document as a multipart form.");
-      var form = await http.Request.ReadFormAsync(http.RequestAborted);
+      if (!http.Request.HasFormContentType) return AuditSphereOps.Domain.Shared.CommandResult<Guid>.Fail("request.invalid", "Send the accrual and any supporting document as a multipart form.");
+      var form = await http.Request.ReadFormAsync(ct);
       if (!Guid.TryParse(form["periodId"], out var periodId) || !Guid.TryParse(form["requestId"], out var requestId) ||
           !TryDecimal(form["amount"], out var amount) || !TryDate(form["calculationDate"], out var calculationDate) ||
           form["reviewed"] != "true")
-        return Invalid("Period, amount, calculation date, request reference and the reviewed confirmation are required.");
+        return AuditSphereOps.Domain.Shared.CommandResult<Guid>.Fail("request.invalid", "Period, amount, calculation date, request reference and the reviewed confirmation are required.");
       var evidenceFile = form.Files.GetFile("evidence");
       var evidence = await ReadUploadAsync(http, "evidence", LedgerService.MaxJournalEvidenceBytes);
       if (evidenceFile is not null && evidence is null)
-        return Invalid("The supporting document must be between 1 byte and 5 MB.");
-      return await CommandAsync(http, (db, actor, ct) => LedgerService.CreateEndOfServiceAccrualDraftAsync(db, actor,
+        return AuditSphereOps.Domain.Shared.CommandResult<Guid>.Fail("request.invalid", "The supporting document must be between 1 byte and 5 MB.");
+      return await LedgerService.CreateEndOfServiceAccrualDraftAsync(db, actor,
         new CreateEndOfServiceAccrualRequest(periodId, amount, form["method"].ToString(), form["inputs"].ToString(), calculationDate,
-          form["reason"].ToString(), requestId, evidence?.Name, evidence?.ContentType, evidence?.Content), ct));
-    }).Accepts<EndOfServiceAccrualForm>("multipart/form-data")
+          form["reason"].ToString(), requestId, evidence?.Name, evidence?.ContentType, evidence?.Content), ct);
+    })).WithMetadata(new AuditSphereOps.Api.HttpBoundary.ApiRateClassAttribute(AuditSphereOps.Api.HttpBoundary.ApiRateClass.FileUpload))
+      .Accepts<EndOfServiceAccrualForm>("multipart/form-data")
       .Produces<UiValueResponse<Guid>>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403);
   }
 }

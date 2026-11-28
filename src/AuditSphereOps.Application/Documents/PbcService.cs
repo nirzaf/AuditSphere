@@ -951,7 +951,8 @@ public static partial class PbcService
       uploadIntentId = intent.Id.ToString("D"),
       intentRevision = nextRevision,
       finalSha256Hex = intent.DeclaredSha256Hex.ToLowerInvariant(),
-      declaredByteCount = intent.DeclaredByteCount
+      declaredByteCount = intent.DeclaredByteCount,
+      originatorSessionEpoch = actor.SessionEpoch
     });
     CommandResult<Guid> enqueued;
     try
@@ -1049,10 +1050,31 @@ public static partial class PbcService
     head.Length >= 4 && head[0] == 0xCA && head[1] == 0xFE && head[2] == 0xBA && head[3] == 0xBE || // Java class
     head.Length >= 2 && head[0] == (byte)'#' && head[1] == (byte)'!'; // Shebang script
 
-  private static async Task<CommandResult> AuthorizeStaffAsync(
+  internal static async Task<CommandResult> AuthorizeStaffAsync(
     IAuditSphereDbContext db, ActorContext actor, Guid clientId, Guid engagementId, CancellationToken ct) =>
     await AuthorizationDecision.AuthorizeAsync(db, actor,
       new AuthorizationRequest(actor.FirmId, clientId, engagementId, StaffRoles, InternalOnly: true), ct);
+
+  internal static async Task<CommandResult> AuthorizeClientUploadTransferAsync(
+    IAuditSphereDbContext db, ActorContext actor, Guid clientId, Guid engagementId, Guid pbcRequestId,
+    CancellationToken ct)
+  {
+    var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.Id == actor.UserId, ct);
+    if (user is null || user.Disabled || user.UserKind != "Client" || user.SessionEpoch != actor.SessionEpoch)
+      return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var request = await db.PbcRequests.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == actor.FirmId && x.ClientId == clientId && x.EngagementId == engagementId && x.Id == pbcRequestId, ct);
+    if (request is null) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+    var participant = await ClientPortalService.IsRequestParticipantAsync(db, actor, request, ct);
+    if (!participant) return CommandResult.Fail(ErrorCodes.ScopeDenied, "Access denied.");
+
+    var authorization = await AuthorizationDecision.AuthorizeAsync(db, actor,
+      new AuthorizationRequest(actor.FirmId, clientId, engagementId, ["ClientUser"]), ct);
+    if (!authorization.Succeeded) return authorization;
+    return await ClientPortalService.RequireUploadWindowAsync(db, actor, engagementId, ct);
+  }
 
   private static async Task<CommandResult> AuthorizeClientAsync(
     IAuditSphereDbContext db, ActorContext actor, PbcRequest request, CancellationToken ct)

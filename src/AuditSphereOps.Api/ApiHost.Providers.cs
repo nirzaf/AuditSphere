@@ -61,8 +61,10 @@ public static partial class ApiHost
         builder.Configuration["ReportSigning:CertificatePath"] ?? string.Empty,
         builder.Configuration["ReportSigning:PrivateKeyPath"] ?? string.Empty,
         builder.Configuration.GetValue("ReportSigning:Required", false))));
+    builder.Services.AddHttpClient("selected-site-token", client => client.Timeout = TimeSpan.FromSeconds(30))
+      .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
     builder.Services.AddTransient<ISelectedSiteTokenSource>(services =>
-      new CertificateSelectedSiteTokenSource(services.GetRequiredService<IHttpClientFactory>().CreateClient(),
+      new CertificateSelectedSiteTokenSource(services.GetRequiredService<IHttpClientFactory>().CreateClient("selected-site-token"),
         new SelectedSiteCertificateOptions(
           builder.Configuration["SelectedSite:TenantId"] ?? string.Empty,
           builder.Configuration["SelectedSite:ClientId"] ?? string.Empty,
@@ -71,7 +73,7 @@ public static partial class ApiHost
           builder.Configuration["SelectedSite:PrivateKeyPath"] ?? string.Empty)));
     builder.Services.AddTransient<GraphSelectedResourceProbe>(services =>
       new GraphSelectedResourceProbe(services.GetRequiredService<IAuditSphereDbContextFactory>(),
-        services.GetRequiredService<IHttpClientFactory>().CreateClient(),
+        services.GetRequiredService<IHttpClientFactory>().CreateClient("selected-site-graph"),
         services.GetRequiredService<ISelectedSiteTokenSource>()));
     builder.Services.AddTransient<ISelectedSiteBoundaryProbe>(services =>
       services.GetRequiredService<GraphSelectedResourceProbe>());

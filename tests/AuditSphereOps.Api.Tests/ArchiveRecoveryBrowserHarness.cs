@@ -89,13 +89,13 @@ public static class ArchiveRecoveryBrowserHarness
     var fault = new LostResponseFilter(pg, archiveId, evidenceDirectory, ct, exerciseActorReplacement ? 3 : 2);
     var configuration = new Dictionary<string, string?>
     {
-      ["contentRoot"] = "/Users/qts/Repos/AuditSphere/src/AuditSphereOps.Api",
+      ["contentRoot"] = BrowserHarnessPaths.ApiContentRoot,
       ["ConnectionStrings:AuditSphere"] = pg.ConnectionString,
       ["DevelopmentIdentity:Enabled"] = "true", ["DevelopmentIdentity:Subject"] = user.Subject,
       ["DevelopmentIdentity:TenantId"] = user.TenantId,
       ["Application:AllowSimulationAdapters"] = "true", ["ExternalEffects:Enabled"] = "false",
       ["AngularUi:Enabled"] = "true", ["AngularUi:CanonicalRoutes"] = "true",
-      ["AngularUi:BuildPath"] = "/Users/qts/Repos/AuditSphere/src/AuditSphereOps.Ui/dist/auditsphere-ui/browser"
+      ["AngularUi:BuildPath"] = BrowserHarnessPaths.AngularBuildPath
     };
     await using var host = new StandaloneApiApplicationFactory(configuration, services => services.AddSingleton<IStartupFilter>(fault));
     host.UseKestrel(options => options.Listen(IPAddress.Loopback, 0));

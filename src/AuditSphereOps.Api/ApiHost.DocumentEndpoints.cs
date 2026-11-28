@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Security.Cryptography;
 using AuditSphereOps.Api.Contracts;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.OpenApi;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Domain.Shared;
@@ -23,12 +24,19 @@ public static partial class ApiHost
       int chunkIndex,
       HttpContext http,
       TrustedActorResolver actorResolver,
+      IAntiforgery antiforgery,
       IDbContextFactory<AuditSphereDbContext> dbFactory,
       CancellationToken ct) =>
     {
       var actor = await actorResolver.ResolveAsync(http.User, ct);
       if (actor is null)
         return Results.Unauthorized();
+      try { await antiforgery.ValidateRequestAsync(http); }
+      catch (AntiforgeryValidationException)
+      {
+        return Results.Json(new ApiError("csrf.invalid", "Refresh the page and try again.", http.TraceIdentifier),
+          statusCode: StatusCodes.Status403Forbidden);
+      }
       var origin = http.Request.Headers.Origin.ToString();
       if (string.IsNullOrWhiteSpace(origin) || !Uri.TryCreate(origin, UriKind.Absolute, out var originUri))
         return Results.Forbid();
@@ -120,7 +128,8 @@ public static partial class ApiHost
           try { if (File.Exists(path)) File.Delete(path); } catch (IOException) { }
         }
       }
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.FileUpload))
+    }).RequireAuthorization(HttpPolicies.AuthenticatedSession())
+      .WithMetadata(new ApiRateClassAttribute(ApiRateClass.FileUpload))
       .Accepts<Stream>("application/octet-stream")
       .WithMetadata(
         new ManualParameterMetadata("Origin", ParameterLocation.Header, true, JsonSchemaType.String,
@@ -214,7 +223,9 @@ public static partial class ApiHost
         await input.CopyToAsync(http.Response.Body, ct);
       }
       return Results.Empty;
-    }).Produces<Stream>(StatusCodes.Status200OK, "application/octet-stream")
+    }).RequireAuthorization(HttpPolicies.AuthenticatedSession())
+      .WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+      .Produces<Stream>(StatusCodes.Status200OK, "application/octet-stream")
       .WithMetadata(new RetainedBinaryContentTypeMetadata())
       .Produces(StatusCodes.Status401Unauthorized)
       .Produces(StatusCodes.Status403Forbidden)
@@ -241,7 +252,8 @@ public static partial class ApiHost
       http.Response.Headers.CacheControl = "no-store";
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(document.Bytes, document.ContentType, document.FileName);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+    }).RequireAuthorization(HttpPolicies.AuthenticatedSession())
+      .WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
       .Produces<Stream>(StatusCodes.Status200OK, AuditSphereOps.Application.Practice.CommercialDocumentRenderer.DocxContentType)
       .Produces(StatusCodes.Status401Unauthorized)
       .Produces(StatusCodes.Status403Forbidden)
@@ -260,10 +272,12 @@ public static partial class ApiHost
       await using var db = await dbFactory.CreateDbContextAsync(ct);
       var result = await AuditSphereOps.Application.Completion.AuditDeliverableService.GetForDownloadAsync(db, actor, deliverableId, ct);
       if (!result.Succeeded) return Results.Forbid();
+      if (await actorResolver.ResolveAsync(http.User, ct) is null) return Results.Unauthorized();
       http.Response.Headers.CacheControl = "no-store";
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(result.Value!.Content, result.Value.ContentType, result.Value.FileName);
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+    }).RequireAuthorization(HttpPolicies.AuthenticatedSession())
+      .WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
       .Produces<Stream>(StatusCodes.Status200OK, "application/pdf")
       .Produces<Stream>(StatusCodes.Status200OK, AuditSphereOps.Application.Completion.AuditDeliverableRenderer.DocxContentType)
       .Produces(StatusCodes.Status401Unauthorized)
@@ -279,10 +293,12 @@ public static partial class ApiHost
       await using var db = await dbFactory.CreateDbContextAsync(ct);
       var result = await AuditSphereOps.Application.Completion.AuditDeliverableService.GetSignedRepresentationAsync(db, actor, scanId, ct);
       if (!result.Succeeded) return Results.Forbid();
+      if (await actorResolver.ResolveAsync(http.User, ct) is null) return Results.Unauthorized();
       http.Response.Headers.CacheControl = "no-store";
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(result.Value!.Content, "application/pdf", $"Management-signed-LOR-{scanId}.pdf");
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+    }).RequireAuthorization(HttpPolicies.AuthenticatedSession())
+      .WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
       .Produces<Stream>(StatusCodes.Status200OK, "application/pdf")
       .Produces(StatusCodes.Status401Unauthorized)
       .Produces(StatusCodes.Status403Forbidden)
@@ -296,10 +312,12 @@ public static partial class ApiHost
       await using var db = await dbFactory.CreateDbContextAsync(ct);
       var result = await AuditSphereOps.Application.Completion.AuditDeliverableService.GetBundleAsync(db, actor, bundleId, ct);
       if (!result.Succeeded) return Results.Forbid();
+      if (await actorResolver.ResolveAsync(http.User, ct) is null) return Results.Unauthorized();
       http.Response.Headers.CacheControl = "no-store";
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(result.Value!.Content, "application/zip", $"Final-audit-bundle-{bundleId}.zip");
-    }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
+    }).RequireAuthorization(HttpPolicies.AuthenticatedSession())
+      .WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
       .Produces<Stream>(StatusCodes.Status200OK, "application/zip")
       .Produces(StatusCodes.Status401Unauthorized)
       .Produces(StatusCodes.Status403Forbidden)

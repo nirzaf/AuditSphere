@@ -234,6 +234,57 @@ class CiBuildArtifactTests(unittest.TestCase):
         self.assertEqual(101, result["runId"])
         self.assertEqual(2, result["runAttempt"])
 
+    def test_partial_retry_uses_only_the_proven_inherited_producer(self) -> None:
+        run = {
+            "id": 101, "run_attempt": 2, "run_number": 101, "head_sha": SOURCE_SHA,
+            "head_branch": "master", "event": "push", "status": "completed",
+            "conclusion": "success", "path": ".github/workflows/ci.yml",
+        }
+        artifact = {
+            "id": 7, "name": "auditsphere-release-build-101-1", "expired": False,
+            "size_in_bytes": 123, "created_at": "2026-11-27T12:31:01Z",
+        }
+        job = {
+            "name": "Build · .NET Release outputs", "run_id": 101, "head_sha": SOURCE_SHA,
+            "status": "completed", "conclusion": "success",
+            "started_at": "2026-11-27T11:59:49Z", "completed_at": "2026-11-27T12:31:04Z",
+            "steps": [{
+                "name": "Upload exact-run Release outputs", "conclusion": "success",
+                "started_at": "2026-11-27T12:30:53Z", "completed_at": "2026-11-27T12:31:01Z",
+            }],
+        }
+        cases = (
+            ("carried producer", {}, {}, {}, True),
+            ("expired artifact", {"expired": True}, {}, {}, False),
+            ("late unrelated artifact", {"created_at": "2026-11-27T12:42:00Z"}, {}, {}, False),
+            ("different source", {}, {"head_sha": "b" * 40}, {}, False),
+            ("failed original producer", {}, {"conclusion": "failure"}, {}, False),
+            ("new producer execution", {}, {}, {"started_at": "2026-11-27T12:00:00Z"}, False),
+            ("skipped latest producer", {}, {}, {"conclusion": "skipped"}, False),
+            ("unproven original upload", {}, {"steps": []}, {}, False),
+        )
+        for label, artifact_changes, old_changes, current_changes, available in cases:
+            with self.subTest(label=label):
+                def fake_api(_api_url: str, _token: str, path: str) -> dict[str, object]:
+                    if "/artifacts?" in path:
+                        return {"artifacts": [artifact | artifact_changes]}
+                    if "/attempts/1/jobs?" in path:
+                        return {"jobs": [job | {"id": 501, "run_attempt": 1} | old_changes]}
+                    if "/attempts/2/jobs?" in path:
+                        return {"jobs": [job | {"id": 502, "run_attempt": 2} | current_changes]}
+                    return {"workflow_runs": [run]} if "event=push" in path else {"workflow_runs": []}
+
+                with patch.object(build_artifact, "_github_json", side_effect=fake_api):
+                    selected = build_artifact.find_fast_build_artifact(
+                        api_url="https://api.github.com", token="test-token",
+                        repository="nirzaf/AuditSphere", branch="master", source_sha=SOURCE_SHA,
+                    )
+                self.assertEqual(available, selected["available"])
+                if available:
+                    self.assertEqual(1, selected["runAttempt"])
+                    self.assertEqual(artifact["name"], selected["artifactName"])
+                    self.assertEqual(SOURCE_SHA, selected["sourceSha"])
+
     def test_find_cli_emits_workflow_outputs_for_available_and_missing_artifacts(self) -> None:
         output = Path(self.temp.name) / "github-output"
         available = {

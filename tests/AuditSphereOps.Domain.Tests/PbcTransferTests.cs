@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.Json;
 using AuditSphereOps.Application.Documents;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
@@ -604,6 +605,85 @@ public sealed partial class PbcTransferTests
   }
 
   [Fact]
+  public async Task DiscoveredClientTransfer_UsesCurrentUploaderAuthorityAndCompletes()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var transfer = await CreateDiscoveredClientTransferAsync(pg);
+    try
+    {
+      var operation = await ReadOperationAsync(pg, transfer.Staged.UploadIntentId);
+      Assert.Equal(transfer.Fixture.Client.Id, operation.OriginatorId);
+      using (var payload = JsonDocument.Parse(operation.PayloadJson))
+        Assert.Equal(transfer.Fixture.Client.SessionEpoch,
+          payload.RootElement.GetProperty("originatorSessionEpoch").GetInt64());
+
+      Assert.True(await transfer.Worker.ProcessNextAsync());
+
+      await using var verify = new AuditSphereDbContext(pg.Options);
+      var completed = await verify.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == operation.Id);
+      var intent = await verify.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == transfer.Staged.UploadIntentId);
+      Assert.Equal(OperationState.COMPLETED, completed.Status);
+      Assert.Equal(PbcUploadStates.Received, intent.State);
+      Assert.Equal(transfer.Staged.DeclaredSha256Hex, intent.ProviderReceiptDigest);
+      Assert.True(File.Exists(Path.Combine(transfer.ProviderRoot, transfer.Staged.UploadIntentId.ToString("N"))));
+    }
+    finally { PbcSeed.DeleteDirectory(transfer.Staged.StagingRoot); }
+  }
+
+  [Theory]
+  [InlineData("revoked")]
+  [InlineData("disabled")]
+  [InlineData("session-epoch")]
+  public async Task DiscoveredClientTransfer_BlocksBeforeProviderWhenOriginatorAuthorityChanges(string change)
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var transfer = await CreateDiscoveredClientTransferAsync(pg);
+    try
+    {
+      var queued = await ReadOperationAsync(pg, transfer.Staged.UploadIntentId);
+      await using (var db = new AuditSphereDbContext(pg.Options))
+      {
+        if (change == "revoked")
+        {
+          await db.RoleGrants.Where(x => x.FirmId == transfer.Fixture.FirmId &&
+              x.UserId == transfer.Fixture.Client.Id && x.ClientId == transfer.Fixture.ClientId &&
+              x.EngagementId == transfer.Fixture.EngagementId && x.Role == "ClientUser" && x.RevokedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.RevokedAt, DateTimeOffset.UtcNow));
+        }
+        else if (change == "disabled")
+        {
+          await db.Users.Where(x => x.FirmId == transfer.Fixture.FirmId && x.Id == transfer.Fixture.Client.Id)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.Disabled, true));
+        }
+        else
+        {
+          await db.Users.Where(x => x.FirmId == transfer.Fixture.FirmId && x.Id == transfer.Fixture.Client.Id)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.SessionEpoch, x => x.SessionEpoch + 1));
+        }
+      }
+
+      Assert.True(await transfer.Worker.ProcessNextAsync());
+
+      await using var verify = new AuditSphereDbContext(pg.Options);
+      var blocked = await verify.DurableOperations.AsNoTracking().SingleAsync(x => x.Id == queued.Id);
+      var intent = await verify.PbcUploadIntents.AsNoTracking().SingleAsync(x => x.Id == transfer.Staged.UploadIntentId);
+      var request = await verify.PbcRequests.AsNoTracking().SingleAsync(x => x.Id == transfer.RequestId);
+      Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, blocked.Status);
+      Assert.Null(blocked.ResultIdentity);
+      Assert.Null(blocked.ResultDigest);
+      Assert.Equal(PbcUploadStates.Staged, intent.State);
+      Assert.Null(intent.ProviderRegisteredAt);
+      Assert.Null(intent.ProviderReceiptDigest);
+      Assert.Equal(PbcStates.PartiallyReceived, request.State);
+      Assert.False(File.Exists(Path.Combine(transfer.ProviderRoot, transfer.Staged.UploadIntentId.ToString("N"))));
+      Assert.False(await verify.PbcDocumentRegistrations.AnyAsync(x => x.PbcUploadIntentId == intent.Id));
+      Assert.False(await verify.DocumentReferences.AnyAsync());
+      Assert.False(await verify.DocumentSnapshots.AnyAsync());
+    }
+    finally { PbcSeed.DeleteDirectory(transfer.Staged.StagingRoot); }
+  }
+
+  [Fact]
   public async Task NewUpload_IsRefused_AfterProviderReception()
   {
     await using var pg = await PgTestSchema.CreateAsync();
@@ -710,6 +790,34 @@ public sealed partial class PbcTransferTests
     var worker = new WorkerHost(new OperationDispatcher(store, registry, options),
       [discovery], NullLogger<WorkerHost>.Instance);
     return new TransferContext(fixture, requestId, staged, providerRoot, worker);
+  }
+
+  private async Task<TransferContext> CreateDiscoveredClientTransferAsync(PgTestSchema pg)
+  {
+    var fixture = await PbcSeed.SeedAsync(pg);
+    var staff = PbcSeed.Actor(fixture.Staff, "Staff");
+    var client = PbcSeed.Actor(fixture.Client, "ClientUser");
+    var requestId = await PbcSeed.CreateSentAcknowledgedRequestAsync(pg, fixture, staff, client);
+    var staged = await PbcSeed.StageUploadAsync(pg, fixture, client, requestId,
+      "%PDF-1.7 client-discovered transfer"u8.ToArray());
+    var providerRoot = Path.Combine(staged.StagingRoot, "provider");
+    var factory = new OperationContextFactory(new PbcSeed.OptionsDbContextFactory(pg.Options));
+    var store = new PostgresOperationStore(factory);
+    var handler = new PbcDocumentTransferHandler(factory,
+      new SimulationPbcProviderSink(providerRoot));
+    var options = new WorkerOptions(fixture.FirmId, "Test", AllowSimulationAdapters: true);
+    var discovery = new PbcTransferDiscovery(factory, store, handler, options);
+    Assert.Equal(1, await discovery.EnqueuePendingAsync(CancellationToken.None));
+    var worker = new WorkerHost(new OperationDispatcher(store,
+      new DurableOperationRegistry([handler], options), options), [discovery], NullLogger<WorkerHost>.Instance);
+    return new TransferContext(fixture, requestId, staged, providerRoot, worker);
+  }
+
+  private static async Task<DurableOperation> ReadOperationAsync(PgTestSchema pg, Guid uploadIntentId)
+  {
+    await using var db = new AuditSphereDbContext(pg.Options);
+    return await db.DurableOperations.AsNoTracking().SingleAsync(x =>
+      x.TargetId == uploadIntentId && x.OperationKind == PbcDocumentTransferHandler.Kind);
   }
 
   private sealed class ScriptedSink : IPbcProviderSink

@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json.Nodes;
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Domain.Accounting;
 using AuditSphereOps.Infrastructure.Persistence;
@@ -82,5 +85,109 @@ public sealed partial class ClientAccountingTests
       Assert.Equal(2, (await ClientOperationalGeneralLedgerWorkspace.GetAsync(db, reviewer, scope.ClientA, periodId)).Value!.TotalEntries);
       Assert.Empty(await db.FirmJournals.ToListAsync());
     }
+
+    Assert.Single((await ReadPurchaseInvoicesAsync()).Value!);
+    await AddCorruptPendingPurchaseSubmissionAsync(malformedJson: false);
+    var mismatchedSnapshot = await ReadPurchaseInvoicesAsync();
+    Assert.False(mismatchedSnapshot.Succeeded);
+    Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ProtectedState, mismatchedSnapshot.ErrorCode);
+
+    await AddCorruptPendingPurchaseSubmissionAsync(malformedJson: true);
+    var malformedSnapshot = await ReadPurchaseInvoicesAsync();
+    Assert.False(malformedSnapshot.Succeeded);
+    Assert.Equal(AuditSphereOps.Domain.Shared.ErrorCodes.ProtectedState, malformedSnapshot.ErrorCode);
+
+    async Task<AuditSphereOps.Domain.Shared.CommandResult<IReadOnlyList<ClientPurchaseInvoiceView>>> ReadPurchaseInvoicesAsync()
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      return await ClientPurchaseInvoiceWorkflow.GetInvoicesAsync(db, maker, scope.ClientA);
+    }
+
+    async Task AddCorruptPendingPurchaseSubmissionAsync(bool malformedJson)
+    {
+      await using var db = new AuditSphereDbContext(pg.Options);
+      await using var tx = await db.Database.BeginTransactionAsync();
+      var originalSubmission = await db.ClientPurchaseInvoiceSubmissions.AsNoTracking().SingleAsync(x => x.Id == submissionId);
+      var originalDraft = await db.ClientPurchaseInvoiceDrafts.AsNoTracking().SingleAsync(x => x.Id == originalSubmission.DraftId);
+      var originalJournal = await db.ClientOperationalJournals.AsNoTracking().SingleAsync(x => x.Id == originalSubmission.JournalId);
+      var originalLines = await db.ClientOperationalJournalLines.AsNoTracking()
+        .Where(x => x.JournalId == originalJournal.Id).OrderBy(x => x.LineNumber).ToArrayAsync();
+      var invoiceKey = Guid.CreateVersion7();
+      var draftKey = Guid.CreateVersion7();
+      var journalKey = Guid.CreateVersion7();
+      var commandKey = Guid.CreateVersion7();
+      var voucherReference = $"CORRUPT-{Guid.NewGuid():N}";
+      var json = malformedJson ? "{" : "{}";
+      var snapshotHash = malformedJson
+        ? Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(json)))
+        : new string('0', 64);
+      var draft = db.Entry(originalDraft).CurrentValues.ToObject() as ClientPurchaseInvoiceDraft
+        ?? throw new InvalidOperationException("Could not clone the immutable purchase invoice fixture.");
+      draft.Id = draftKey;
+      draft.InvoiceId = invoiceKey;
+      draft.Revision = 1;
+      draft.PreviousRevisionId = null;
+      draft.PreviousRevision = null;
+      draft.CommandId = commandKey;
+      draft.IntentHash = Hash(commandKey.ToString("D"));
+      draft.VoucherReference = voucherReference;
+      draft.SnapshotJson = json;
+      draft.SnapshotHash = snapshotHash;
+      draft.CreatedAt = DateTimeOffset.UtcNow;
+
+      var journal = db.Entry(originalJournal).CurrentValues.ToObject() as ClientOperationalJournal
+        ?? throw new InvalidOperationException("Could not clone the immutable purchase journal fixture.");
+      journal.Id = journalKey;
+      journal.JournalNumber = $"CORRUPT-{Guid.NewGuid():N}";
+      journal.Status = "DRAFT";
+      journal.Revision = 1;
+      journal.SubmittedAt = null;
+      journal.PostedByUserId = null;
+      journal.PostedAt = null;
+      journal.PostingSequence = null;
+      journal.CreatedAt = DateTimeOffset.UtcNow;
+      db.ClientPurchaseInvoiceDrafts.Add(draft);
+      db.ClientOperationalJournals.Add(journal);
+      foreach (var sourceLine in originalLines)
+      {
+        var line = db.Entry(sourceLine).CurrentValues.ToObject() as ClientOperationalJournalLine
+          ?? throw new InvalidOperationException("Could not clone the immutable purchase journal line fixture.");
+        line.Id = Guid.CreateVersion7();
+        line.JournalId = journalKey;
+        db.ClientOperationalJournalLines.Add(line);
+      }
+      await db.SaveChangesAsync();
+
+      var manifest = JsonNode.Parse(originalSubmission.ManifestJson)!.AsObject();
+      manifest["InvoiceId"] = invoiceKey.ToString("D");
+      manifest["DraftId"] = draftKey.ToString("D");
+      manifest["DraftRevision"] = 1;
+      manifest["DraftHash"] = snapshotHash;
+      manifest["VoucherReference"] = voucherReference;
+      var manifestJson = manifest.ToJsonString();
+      var submission = db.Entry(originalSubmission).CurrentValues.ToObject() as ClientPurchaseInvoiceSubmission
+        ?? throw new InvalidOperationException("Could not clone the immutable purchase submission fixture.");
+      submission.Id = Guid.CreateVersion7();
+      submission.InvoiceId = invoiceKey;
+      submission.DraftId = draftKey;
+      submission.DraftRevision = 1;
+      submission.JournalId = journalKey;
+      submission.JournalSubmittedRevision = 1;
+      submission.CommandId = commandKey;
+      submission.IntentHash = Hash(Guid.CreateVersion7().ToString("D"));
+      submission.ManifestJson = manifestJson;
+      submission.ManifestHash = Hash(manifestJson);
+      submission.CreatedAt = DateTimeOffset.UtcNow;
+      submission.SourceReceiptId = null;
+      submission.SourceReceiptHash = null;
+      db.ClientPurchaseInvoiceSubmissions.Add(submission);
+      journal.Status = "SUBMITTED";
+      journal.Revision = 2;
+      journal.SubmittedAt = DateTimeOffset.UtcNow;
+      await db.SaveChangesAsync();
+      await tx.CommitAsync();
+    }
+
+    static string Hash(string value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
   }
 }

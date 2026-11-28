@@ -1,5 +1,6 @@
 using AuditSphereOps.Application.Accounting;
 using AuditSphereOps.Api.Authentication;
+using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +12,7 @@ public static partial class UiEndpoints
   public sealed record SalesSubmitHttpInput(Guid CommandId,string ExpectedDraftRevision,Guid ReceivableRoleId,string NoTaxReason,
     Guid? SourceReceiptId,string SourceBasis,string PreviewDigest,bool Reviewed);
   public sealed record SalesReviewHttpInput(Guid CommandId,Guid SubmissionId,string Decision,string Reason,string PreviewDigest,bool Reviewed);
-  private static IResult SalesFailure(string? code)=>Results.Json(new{code},statusCode:code=="scope.denied"?403:code=="command.receipt-not-found"?404:400);
+  private static IResult SalesFailure(string? code)=>Results.Json(new{code},statusCode:code=="scope.denied"?403:code=="command.receipt-not-found"?404:code==ErrorCodes.ProtectedState?409:400);
   private static void MapClientSalesInvoiceEndpoints(RouteGroupBuilder group)
   {
     group.MapGet("/accounting/clients/{clientId:guid}/sales-invoices/{invoiceId:guid}/lifecycle",async(Guid clientId,Guid invoiceId,
@@ -24,7 +25,8 @@ public static partial class UiEndpoints
       return result.Succeeded?Results.Ok(result.Value):SalesFailure(result.ErrorCode);
     }).Produces<ClientSalesInvoiceLifecycleView>()
       .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
-      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status409Conflict);
 
     group.MapPost("/accounting/clients/{clientId:guid}/sales-invoices/{invoiceId:guid}/preview",async(Guid clientId,Guid invoiceId,SalesSubmitHttpInput input,
       HttpContext http,TrustedActorResolver resolver,IAntiforgery csrf,IDbContextFactory<AuditSphereDbContext> factory)=>{

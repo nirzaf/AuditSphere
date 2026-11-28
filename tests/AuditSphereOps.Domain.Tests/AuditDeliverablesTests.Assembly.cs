@@ -1827,6 +1827,18 @@ public sealed partial class AuditDeliverablesTests
         Assert.Throws<OperationBlockedException>(() => OperationEncoding.Matches(operation, handler));
       }
 
+      foreach (var corruption in new[] { "digest", "malformed-json" })
+      {
+        var corruptRead = new ArchiveCopyResultReadFault(first.OperationId, corruption);
+        var corruptOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+          .AddInterceptors(corruptRead).Options;
+        await using var db = new AuditSphereDbContext(corruptOptions);
+        var corruptResult = await ArchiveCopyService.ReadEvidenceAsync(db, partner, first.OperationId);
+        Assert.True(corruptRead.Fired);
+        Assert.False(corruptResult.Succeeded);
+        Assert.Equal(ErrorCodes.ProtectedState, corruptResult.ErrorCode);
+      }
+
       var revokeInterceptor = new ArchiveCopyRevokeOnPermissionReadInterceptor(pg.ConnectionString, w.FirmId, partner.UserId);
       var revokedReadOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
         .AddInterceptors(revokeInterceptor).Options;
@@ -1847,6 +1859,24 @@ public sealed partial class AuditDeliverablesTests
     finally
     {
       if (Directory.Exists(checkpointRoot)) Directory.Delete(checkpointRoot, recursive: true);
+    }
+  }
+
+  private sealed class ArchiveCopyResultReadFault(Guid operationId, string corruption) : IMaterializationInterceptor
+  {
+    public bool Fired { get; private set; }
+
+    public object InitializedInstance(MaterializationInterceptionData data, object entity)
+    {
+      if (entity is not DurableOperation operation || operation.Id != operationId) return entity;
+      if (corruption == "digest") operation.ResultDigest = new string('0', 64);
+      else
+      {
+        operation.ResultIdentity = "{";
+        operation.ResultDigest = Hashing.Sha256Hex(Encoding.UTF8.GetBytes(operation.ResultIdentity));
+      }
+      Fired = true;
+      return entity;
     }
   }
 

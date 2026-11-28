@@ -48,20 +48,21 @@ public static partial class UiEndpoints
       return Results.File(Encoding.UTF8.GetBytes(result.Value.Csv), "text/csv; charset=utf-8", result.Value.FileName);
     }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export))
       .Produces<string>(200, "text/csv").Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403).Produces<UiFailureResponse>(409);
-    group.MapUiPost("/finance/books/expenses", async http =>
+    group.MapUiPost("/finance/books/expenses", http => CommandAsync(http, async (db, actor, ct) =>
     {
-      if (!http.Request.HasFormContentType) return Invalid("Send the expense as a form with its source document.");
-      var form = await http.Request.ReadFormAsync(http.RequestAborted);
+      if (!http.Request.HasFormContentType) return AuditSphereOps.Domain.Shared.CommandResult<Guid>.Fail("request.invalid", "Send the expense as a form with its source document.");
+      var form = await http.Request.ReadFormAsync(ct);
       if (!TryDate(form["expenseDate"], out var date) || !TryDecimal(form["amount"], out var amount) ||
           !Guid.TryParse(form["expenseAccountId"], out var expense) || !Guid.TryParse(form["paymentAccountId"], out var payment) ||
           !Guid.TryParse(form["requestId"], out var requestId) || string.IsNullOrWhiteSpace(form["requestHash"]))
-        return Invalid("Date, amount, both accounts and the exact expense request reference are required.");
+        return AuditSphereOps.Domain.Shared.CommandResult<Guid>.Fail("request.invalid", "Date, amount, both accounts and the exact expense request reference are required.");
       var evidence = await ReadUploadAsync(http, "evidence", FirmExpenseService.MaxEvidenceBytes);
-      if (evidence is null) return Invalid("Attach a source document up to 5 MB.");
-      return await CommandAsync(http, (db, actor, ct) => FirmExpenseService.RecordAsync(db, actor, new RecordFirmExpenseRequest(date, form["category"].ToString(),
+      if (evidence is null) return AuditSphereOps.Domain.Shared.CommandResult<Guid>.Fail("request.invalid", "Attach a source document up to 5 MB.");
+      return await FirmExpenseService.RecordAsync(db, actor, new RecordFirmExpenseRequest(date, form["category"].ToString(),
         form["payee"].ToString(), form["description"].ToString(), amount, form["currency"].ToString(), expense, payment,
-        evidence.Value.Name, evidence.Value.ContentType, evidence.Value.Content, requestId, form["requestHash"].ToString()), ct));
-    }).Accepts<FirmExpenseForm>("multipart/form-data")
+        evidence.Value.Name, evidence.Value.ContentType, evidence.Value.Content, requestId, form["requestHash"].ToString()), ct);
+    })).WithMetadata(new ApiRateClassAttribute(ApiRateClass.FileUpload))
+      .Accepts<FirmExpenseForm>("multipart/form-data")
       .Produces<UiValueResponse<Guid>>().Produces<UiFailureResponse>(400).Produces<UiFailureResponse>(403).Produces<UiFailureResponse>(409);
     group.MapGet("/finance/books/expenses/receipts/{requestId:guid}", (Guid requestId, string requestHash, HttpContext http) =>
       ReadAsync(http, (db, actor, ct) => FirmExpenseService.LookupCreationAsync(db, actor, requestId, requestHash, ct)))

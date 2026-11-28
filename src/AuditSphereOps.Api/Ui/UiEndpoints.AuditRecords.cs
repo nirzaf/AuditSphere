@@ -152,7 +152,8 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Content-Type-Options"] = "nosniff";
       return Results.File(export.Content, "application/json; charset=utf-8", export.FileName,
         enableRangeProcessing: false);
-    }).Produces<Stream>(StatusCodes.Status200OK, "application/json")
+    }).WithMetadata(new AuditSphereOps.Api.HttpBoundary.ApiRateClassAttribute(AuditSphereOps.Api.HttpBoundary.ApiRateClass.Export))
+      .Produces<Stream>(StatusCodes.Status200OK, "application/json")
       .Produces<UiFailureResponse>(StatusCodes.Status400BadRequest)
       .Produces<UiFailureResponse>(StatusCodes.Status403Forbidden);
     const string workpaperCommands="/audit/workpapers/{id:guid}/commands";

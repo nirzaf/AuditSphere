@@ -19,18 +19,16 @@ public static partial class UiEndpoints
     foreach (var action in new[] { "preview", "reconcile", "import" })
     {
       var command = action;
-      var endpoint = group.MapPost("/engagements/{id:guid}/general-ledger/" + action, async (Guid id, HttpContext http) =>
-      {
-        var file = await ReadUploadAsync(http, "file", GeneralLedgerCsvProfile.MaxBytes);
-        if (file is null) return Invalid("Choose a GL CSV file up to 10,000,000 bytes.");
-        return await CommandAsync(http, async (db, actor, ct) =>
+      var endpoint = group.MapPost("/engagements/{id:guid}/general-ledger/" + action, (Guid id, HttpContext http) =>
+        CommandAsync(http, async (db, actor, ct) =>
         {
+          var file = await ReadUploadAsync(http, "file", GeneralLedgerCsvProfile.MaxBytes);
+          if (file is null) return AuditSphereOps.Domain.Shared.CommandResult<GeneralLedgerUploadReview>.Fail("request.invalid", "Choose a GL CSV file up to 10,000,000 bytes.");
           if (command != "import") return await GeneralLedgerUploadWorkspace.PreviewAsync(db, actor, id, file.Value.Name, file.Value.Content, ct);
           var form = await http.Request.ReadFormAsync(ct);
           return await GeneralLedgerUploadWorkspace.ImportAsync(db, actor, id, file.Value.Name, file.Value.Content,
             form["revision"].ToString(), form["fileSha256"].ToString(), form["reviewed"].ToString() == "true", ct);
-        });
-      }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.FileUpload));
+        })).WithMetadata(new ApiRateClassAttribute(ApiRateClass.FileUpload));
       if (command == "import") endpoint.Accepts<GeneralLedgerUploadImportForm>("multipart/form-data");
       else endpoint.Accepts<GeneralLedgerUploadFileForm>("multipart/form-data");
       UiEndpointContractMetadata.WithUiResponse<UiValueResponse<GeneralLedgerUploadReview>>(endpoint,

@@ -388,6 +388,59 @@ def _github_json(api_url: str, token: str, path: str) -> dict[str, Any]:
     return payload
 
 
+def _retained_release_artifacts(
+    artifacts: Any, run_id: int, latest_attempt: int,
+) -> dict[int, dict[str, Any]]:
+    candidates: dict[int, dict[str, Any]] = {}
+    ambiguous: set[int] = set()
+    for artifact in artifacts if isinstance(artifacts, list) else []:
+        if not isinstance(artifact, dict) or not isinstance(artifact.get("name"), str):
+            continue
+        match = re.fullmatch(rf"{ARTIFACT_PREFIX}-{run_id}-([1-9][0-9]{{0,8}})", artifact["name"])
+        if (
+            match is None or artifact.get("expired") is not False
+            or type(artifact.get("id")) is not int or artifact["id"] < 1
+            or type(artifact.get("size_in_bytes")) is not int or artifact["size_in_bytes"] < 1
+        ):
+            continue
+        attempt = int(match[1])
+        if attempt > latest_attempt or attempt in ambiguous:
+            continue
+        if attempt in candidates:
+            del candidates[attempt]
+            ambiguous.add(attempt)
+        else:
+            candidates[attempt] = artifact
+    return candidates
+
+
+def _release_producer_execution(jobs: Any, run_id: int, source_sha: str) -> tuple[str, str, str, str] | None:
+    if not isinstance(jobs, list):
+        return None
+    producers = [job for job in jobs if isinstance(job, dict) and job.get("name") == "Build · .NET Release outputs"]
+    if len(producers) != 1:
+        return None
+    job = producers[0]
+    if (
+        job.get("run_id") != run_id or job.get("head_sha") != source_sha
+        or job.get("status") != "completed" or job.get("conclusion") != "success"
+        or not isinstance(job.get("steps"), list)
+    ):
+        return None
+    uploads = [
+        step for step in job["steps"]
+        if isinstance(step, dict) and step.get("name") == "Upload exact-run Release outputs"
+    ]
+    if len(uploads) != 1 or uploads[0].get("conclusion") != "success":
+        return None
+    upload = uploads[0]
+    stamps = job.get("started_at"), job.get("completed_at"), upload.get("started_at"), upload.get("completed_at")
+    if not all(isinstance(stamp, str) and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z", stamp) for stamp in stamps):
+        return None
+    start, end, upload_start, upload_end = stamps
+    return (start, end, upload_start, upload_end) if start <= upload_start <= upload_end <= end else None
+
+
 def find_fast_build_artifact(
     *,
     api_url: str,
@@ -446,7 +499,6 @@ def find_fast_build_artifact(
         attempt = run.get("run_attempt")
         if not isinstance(run_id, int) or not isinstance(attempt, int) or run_id < 1 or attempt < 1:
             continue
-        expected_name = f"{ARTIFACT_PREFIX}-{run_id}-{attempt}"
         try:
             artifacts = _github_json(
                 api_url,
@@ -459,23 +511,45 @@ def find_fast_build_artifact(
                 "available": False,
                 "reason": f"GitHub Actions artifact metadata unavailable{f' (HTTP {status})' if status else ''}",
             }
-        for artifact in artifacts if isinstance(artifacts, list) else []:
-            if (
-                isinstance(artifact, dict)
-                and artifact.get("name") == expected_name
-                and artifact.get("expired") is False
-                and isinstance(artifact.get("size_in_bytes"), int)
-                and artifact["size_in_bytes"] > 0
-            ):
-                return {
-                    "available": True,
-                    "reason": "exact-source successful master CI artifact found",
-                    "runId": run_id,
-                    "runAttempt": attempt,
-                    "artifactId": artifact.get("id"),
-                    "artifactName": expected_name,
-                    "sourceSha": source_sha,
-                }
+        candidates = _retained_release_artifacts(artifacts, run_id, attempt)
+        if attempt not in candidates and candidates:
+            # A partial rerun can carry a successful producer forward. GitHub
+            # copies its job record under a new ID and attempt, but preserves the
+            # actual job and artifact-upload intervals across those copies.
+            def execution(attempt_number: int) -> tuple[str, str, str, str] | None:
+                jobs = _github_json(
+                    api_url, token,
+                    f"/repos/{repo}/actions/runs/{run_id}/attempts/{attempt_number}/jobs?per_page=100",
+                ).get("jobs", [])
+                return _release_producer_execution(jobs, run_id, source_sha)
+
+            try:
+                current_execution = execution(attempt)
+                if current_execution is None:
+                    continue
+                for producer_attempt in sorted(candidates, reverse=True):
+                    artifact_time = candidates[producer_attempt].get("created_at")
+                    if (
+                        isinstance(artifact_time, str)
+                        and current_execution[2] <= artifact_time <= current_execution[3]
+                        and execution(producer_attempt) == current_execution
+                    ):
+                        attempt = producer_attempt
+                        break
+            except (OSError, urllib.error.URLError, json.JSONDecodeError, ValueError):
+                continue
+
+        if attempt in candidates:
+            artifact = candidates[attempt]
+            return {
+                "available": True,
+                "reason": "exact-source successful master CI artifact found",
+                "runId": run_id,
+                "runAttempt": attempt,
+                "artifactId": artifact["id"],
+                "artifactName": artifact["name"],
+                "sourceSha": source_sha,
+            }
     return {"available": False, "reason": "no matching successful fast-CI artifact"}
 
 

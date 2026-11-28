@@ -14,7 +14,12 @@ const review={targetId:id,kind:'CLIENT',name:'Synthetic client',currentState:'WA
 const siteStatus={enabled:true,policyState:'ROLLOUT_BOUNDARY_REQUIRED',configuredRolloutBoundary:null,effectiveRolloutBoundary:null,
   eligibleClientCount:0,existingClientsOutsideRollout:3,tenantConsentState:'REQUIRED',workerReadiness:'NOT_RUNNING',
   workerDiagnosticCode:'client-site-worker-heartbeat-stale',workerLastSeenAt:null,microsoftPermissionState:'BLOCKED_TENANT_CONSENT',
-  microsoftPermissionVerifiedAt:null,clients:[]};
+  microsoftPermissionVerifiedAt:null,clients:[{clientId:id,clientName:'Synthetic client',state:'REQUESTED',membershipState:'PENDING',url:null,
+    verifiedMembers:0,verifiedAt:null,membershipVerifiedAt:null,operationState:null,requiredAction:'Review current worker readiness',errorCode:null}]};
+const intentReview={clientId:id,tenantId:id,createdAt:'2026-10-01T00:00:00Z',rolloutBoundary:'2026-10-01T00:00:00Z',url:'https://synthetic.sharepoint.com/sites/client',
+  ownershipMarker:'AuditSphere:synthetic',reviewToken:'b'.repeat(64),staffAuthorizationDigest:'c'.repeat(64),staffObjectIds:[],eligible:true,
+  requiredAction:'Ready for the existing worker discovery cycle.',state:'NOT_REQUESTED',membershipState:'PENDING',operationId:null,operationState:null,
+  receiptState:'NOT_PUBLISHED',publishedReceipt:null};
 
 describe('Workspace provisioning review',()=>{
   beforeEach(()=>{ TestBed.configureTestingModule({imports:[WorkspaceAdministration],providers:[{provide:APP_BASE_HREF,useValue:"/ui/"},provideRouter([]),provideHttpClient(),provideHttpClientTesting()]});
@@ -52,5 +57,38 @@ describe('Workspace provisioning review',()=>{
     expect(()=>decode(clientSites,{...siteStatus,clients:Array(101).fill({})})).toThrow();expect(siteLink('READY','https://synthetic.sharepoint.com/sites/client')).toContain('/sites/client');
     for(const url of ['javascript:alert(1)','https://synthetic.sharepoint.com/sites/a?token=secret','https://synthetic.sharepoint.com.evil.test/','https://user:pass@synthetic.sharepoint.com/']) expect(siteLink('READY',url)).toBeNull();
     expect(siteLink('BLOCKED_EXTERNAL','https://synthetic.sharepoint.com/sites/client')).toBeNull();
+  });
+  it('reviews the server-owned client-site intent before submitting the exact reviewed worker request',async()=>{
+    const {fixture,c,http}=open();
+    c.reviewClientSiteIntent(id,false);TestBed.tick();
+    http.expectOne(prefix+'client-sites/'+id+'/review').flush(intentReview);TestBed.tick();
+    expect(c.canRequestClientSiteIntent()).toBe(false);
+    c.intentForm.setValue({reason:'Reviewed synthetic worker request',reviewed:true});
+    expect(c.canRequestClientSiteIntent()).toBe(true);
+    const pending=c.requestClientSiteIntent(),request=http.expectOne(prefix+'client-sites/'+id+'/request');
+    expect(request.request.body).toEqual({reviewToken:intentReview.reviewToken,reconcileOnly:false,reason:'Reviewed synthetic worker request',reviewed:true});
+    request.flush({value:{clientId:id,state:'PENDING_DISCOVERY',operationId:null}});await pending;
+    expect(c.intentMessage()).toBe('PENDING_DISCOVERY');
+    http.expectOne(prefix+'client-sites').flush(siteStatus);fixture.destroy();
+  });
+  it('uses the distinct staff-review route and retains its reviewed reconcile-only action',async()=>{
+    const {fixture,c,http}=open();
+    c.reviewClientSiteIntent(id,true);TestBed.tick();
+    http.expectOne(prefix+'client-sites/'+id+'/staff-review').flush(intentReview);TestBed.tick();
+    c.intentForm.setValue({reason:'Reviewed staff membership evidence',reviewed:true});
+    expect(c.canRequestClientSiteIntent()).toBe(true);
+    const pending=c.requestClientSiteIntent(),request=http.expectOne(prefix+'client-sites/'+id+'/request');
+    expect(request.request.body).toEqual({reviewToken:intentReview.reviewToken,reconcileOnly:true,reason:'Reviewed staff membership evidence',reviewed:true});
+    request.flush({value:{clientId:id,state:'PENDING_DISCOVERY',operationId:null}});await pending;
+    expect(c.intentMessage()).toBe('PENDING_DISCOVERY');
+    http.expectOne(prefix+'client-sites').flush(siteStatus);fixture.destroy();
+  });
+  it('refuses a client-site review response for a different selected client',()=>{
+    const {fixture,c,http}=open();
+    c.reviewClientSiteIntent(id,false);TestBed.tick();
+    http.expectOne(prefix+'client-sites/'+id+'/review').flush({...intentReview,clientId:'22222222-2222-4222-8222-222222222222'});TestBed.tick();
+    expect(c.canRequestClientSiteIntent()).toBe(false);
+    expect(c.intentReview.error()).toContain('Unsupported response');
+    fixture.destroy();
   });
 });

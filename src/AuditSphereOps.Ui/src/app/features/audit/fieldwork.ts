@@ -7,7 +7,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { Api, CommandState, routeGuid } from '../../core/api';
 import { decodeBankReconciliationCommandLookup, decodeBankReconciliationCommandPreview, decodeBankReconciliationCommandReceipt,
   decodeBankReconciliationCommandState, decodeBankReconciliationDetail, decodeBankReconciliationPage,
-  decodeFieldwork, decodeManagerReview, decodeProgramOptions, focusRisks, type Fieldwork } from './fieldwork-contracts';
+  decodeAreaSummary, decodeFieldwork, decodeManagerReview, decodeProgramOptions, focusRisks, type Fieldwork } from './fieldwork-contracts';
 import { SessionService } from '../../core/session';
 import { PlanningCommandState } from './planning-command-state';
 import { PlanningCommandReview } from './planning-command-review';
@@ -75,6 +75,14 @@ function bankCommandPending(raw: unknown): PendingBankCommand | null {
   styles: '.submitted-evidence-json { white-space:pre-wrap; overflow-wrap:anywhere; max-inline-size:100%; }',
 })
 export class AuditFieldwork {
+  readonly areaOptions = [
+    ['CASH_BANK', 'Cash & bank'], ['RECEIVABLES', 'Trade receivables'], ['INVENTORY', 'Inventory'],
+    ['REVENUE', 'Revenue / sales'], ['PAYABLES', 'Purchases & trade payables'], ['FIXED_ASSETS', 'Fixed assets'],
+    ['EXPENSES', 'Expenses'], ['PAYROLL', 'Payroll'], ['LOANS', 'Loans & borrowings'], ['EQUITY', 'Equity / share capital'],
+    ['RELATED_PARTIES', 'Related parties'], ['TAX_STATUTORY', 'Tax & statutory liabilities'], ['JOURNALS_FRAUD', 'Journal entries & fraud'],
+    ['ANALYTICAL_REVIEW', 'Analytical review'], ['GOING_CONCERN', 'Going concern'], ['SUBSEQUENT_EVENTS', 'Subsequent events'],
+    ['FINANCIAL_STATEMENTS', 'Financial statements & disclosures'], ['AUDIT_DIFFERENCES', 'Audit differences & adjustments'],
+  ] as const;
   private readonly api = inject(Api);
   private readonly tabDrafts = inject(TabDrafts);
   private readonly route = inject(ActivatedRoute);
@@ -96,6 +104,19 @@ export class AuditFieldwork {
   readonly managerReview = this.api.resource(() => this.id() && this.ws.data()?.canReviewSelections
     ? `/api/ui/engagements/${this.id()}/manager-review` : null, decodeManagerReview,
     'Manager review summary unavailable: an authorized reviewer scope is required.');
+  readonly areaSummaryOpen = signal(false);
+  readonly areaCode = signal('CASH_BANK');
+  readonly areaSummary = this.api.resource(() => this.areaSummaryOpen() && this.id() &&
+    (this.ws.data()?.canManageFieldwork || this.ws.data()?.canReviewSelections)
+      ? `/api/ui/engagements/${this.id()}/fieldwork/areas/${this.areaCode()}/summary` : null,
+    (raw, path) => {
+      const summary = decodeAreaSummary(raw, path);
+      if (summary.engagementId !== this.id() || summary.areaCode !== this.areaCode())
+        throw new Error('Area summary does not match this engagement and selected area.');
+      return summary;
+    }, 'The selected audit area summary is unavailable in your authorized engagement scope.');
+  readonly adHocEditingId = signal<string | null>(null);
+  readonly adHocEditWording = signal('');
   readonly bankInspectionOpen = signal(false);
   readonly bankOffset = signal(0);
   readonly bankSelection = signal<string | null>(null);
@@ -240,6 +261,10 @@ export class AuditFieldwork {
         this.aggregateConclusion = w?.aggregate?.conclusion ?? '';
         this.sampling.workspaceUnavailable();
         this.sourceIntake.workspaceUnavailable();
+        if (!w || !w.procedures.some(p => p.id === this.adHocEditingId())) {
+          this.adHocEditingId.set(null);
+          this.adHocEditWording.set('');
+        }
       });
     });
   }
@@ -642,12 +667,40 @@ export class AuditFieldwork {
     const s = this.section() ?? this.firstSection(w);
     return s === 0 ? w.procedures : w.procedures.filter((p) => (p.sourceSectionNumber ?? -2) === s);
   }
-  send(url: string, body: unknown, ok: string, after?: () => void): Promise<boolean> {
+  openAreaSummary(): void {
+    if (!(this.ws.data()?.canManageFieldwork || this.ws.data()?.canReviewSelections)) return;
+    this.areaSummaryOpen.set(true);
+  }
+  selectAreaSummary(areaCode: string): void {
+    this.areaCode.set(areaCode);
+  }
+  canEditAdHoc(w: Fieldwork, p: Fieldwork['procedures'][number]): boolean {
+    return w.canManageFieldwork && p.sourceProcedureId.startsWith('ADHOC-') && p.status === 'PLANNED' && p.workpaperId === null;
+  }
+  beginAdHocEdit(p: Fieldwork['procedures'][number]): void {
+    const w = this.ws.data();
+    if (!w || !this.canEditAdHoc(w, p) || this.fieldworkCommandBlocked()) return;
+    this.adHocEditingId.set(p.id);
+    this.adHocEditWording.set(p.effectiveWording ?? '');
+    this.cmd.message.set(''); this.cmd.failed.set(false);
+  }
+  cancelAdHocEdit(): void {
+    this.adHocEditingId.set(null);
+    this.adHocEditWording.set('');
+  }
+  saveAdHocEdit(procedureId: string): Promise<boolean> {
+    const w = this.ws.data(), procedure = w?.procedures.find(p => p.id === procedureId), wording = this.adHocEditWording();
+    if (!w || !procedure || !this.canEditAdHoc(w, procedure) || this.adHocEditingId() !== procedureId ||
+        !wording.trim() || wording.trim().length > 4000 || this.fieldworkCommandBlocked()) return Promise.resolve(false);
+    return this.send(`/api/ui/engagements/${w.engagementId}/fieldwork/ad-hoc/${procedureId}`, { wording },
+      'Ad hoc wording revision recorded.', () => this.cancelAdHocEdit(), 'PUT');
+  }
+  send(url: string, body: unknown, ok: string, after?: () => void, method: 'POST' | 'PUT' = 'POST'): Promise<boolean> {
     const release = this.acquireFieldworkCommand();
     if (!release) return Promise.resolve(false);
     const owner = this.captureOwner(), operation = this.commandGeneration;
     this.cmd.message.set(''); this.cmd.failed.set(false); this.cmd.code.set('');
-    return this.api.command(url, body).then(result => {
+    return this.api.command(url, body, method).then(result => {
       if (!owner() || operation !== this.commandGeneration) {
         if (!result.ok && result.unknown) {
           this.priorScopeCommandUnknown = true;

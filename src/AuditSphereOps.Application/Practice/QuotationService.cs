@@ -69,39 +69,42 @@ public static class QuotationService
     // Fail closed: every line must resolve to the latest APPROVED rate card for its role, activity and currency.
     var currency = proposal.Currency.ToUpperInvariant();
     var priced = new List<QuotationLineInput>();
-    // Keep these caches local to one SaveAsync: rates can change between commands, but identical approved lookups
-    // within this transaction cannot select a different latest version.
-    var resolvedRates = new Dictionary<(string Role, string Activity, string Currency), RateCardVersion?>();
-    var canonicalRates = new Dictionary<(string Role, string Activity, string Currency), RateCardVersion?>();
-    foreach (var line in request.Lines)
+    var lines = request.Lines.Select(line => new
     {
-      var role = (line.Role ?? string.Empty).Trim();
-      var activity = (line.Activity ?? string.Empty).Trim();
-      var inputKey = (role, activity, currency);
-      if (!resolvedRates.TryGetValue(inputKey, out var card))
-      {
-        card = await db.RateCardVersions.AsNoTracking()
-          .Where(x => x.FirmId == actor.FirmId && x.Status == PracticeTimeStates.RateApproved && x.Currency == currency &&
-            x.Role.ToUpper() == role.ToUpper() && x.Activity.ToUpper() == activity.ToUpper())
-          .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
-        // The same STE aliases that price time and budgets price a quotation line, so Senior and Audit Supervisor never diverge.
-        // The direct query already checked the input role; cache only the canonical fallback shared by its aliases.
-        if (card is null && SteChargeOutRateBaseline.CanonicalRole(role) is { } canonical
-          && !string.Equals(canonical, role, StringComparison.Ordinal))
-        {
-          var canonicalKey = (canonical, activity, currency);
-          if (!canonicalRates.TryGetValue(canonicalKey, out card))
-          {
-            card = await PracticeTimeService.ApprovedCardOrAliasAsync(
-              db, actor.FirmId, canonical, activity, currency, ct, stored: true);
-            canonicalRates[canonicalKey] = card;
-          }
-        }
-        resolvedRates[inputKey] = card;
-      }
+      Role = (line.Role ?? string.Empty).Trim(), Activity = (line.Activity ?? string.Empty).Trim(),
+      line.Hours, line.ExpectedRateCardId
+    }).ToArray();
+    var lookups = new HashSet<(string Role, string Activity, bool Exact)>();
+    foreach (var line in lines)
+    {
+      lookups.Add((line.Role, line.Activity, false));
+      if (SteChargeOutRateBaseline.CanonicalRole(line.Role) is { } canonical && canonical != line.Role)
+        lookups.Add((canonical, line.Activity, true));
+    }
+    // Batch the same top-one queries, retaining database case folding for direct matches and the exact
+    // canonical fallback used by ApprovedCardOrAliasAsync. Only selected IDs/rates leave the database.
+    // These results belong to this authorized save transaction and are never shared across requests.
+    var rateQuery = db.RateCardVersions.AsNoTracking().Where(x => false)
+      .Select(x => new { Role = string.Empty, Activity = string.Empty, Exact = false, x.Id, x.RatePerHour });
+    foreach (var (role, activity, exact) in lookups)
+    {
+      var approved = db.RateCardVersions.AsNoTracking().Where(x => x.FirmId == actor.FirmId &&
+        x.Status == PracticeTimeStates.RateApproved && x.Currency == currency);
+      var matching = exact
+        ? approved.Where(x => x.Role == role && x.Activity == activity)
+        : approved.Where(x => x.Role.ToUpper() == role.ToUpper() && x.Activity.ToUpper() == activity.ToUpper());
+      rateQuery = rateQuery.Concat(matching.OrderByDescending(x => x.Version).Take(1)
+        .Select(x => new { Role = role, Activity = activity, Exact = exact, x.Id, x.RatePerHour }));
+    }
+    var rates = (await rateQuery.ToListAsync(ct)).ToDictionary(x => (x.Role, x.Activity, x.Exact));
+    foreach (var line in lines)
+    {
+      rates.TryGetValue((line.Role, line.Activity, false), out var card);
+      if (card is null && SteChargeOutRateBaseline.CanonicalRole(line.Role) is { } canonical && canonical != line.Role)
+        rates.TryGetValue((canonical, line.Activity, true), out card);
       if (line.ExpectedRateCardId.HasValue && line.ExpectedRateCardId != card?.Id)
         return CommandResult<Guid>.Fail(ErrorCodes.StaleRevision, "An approved rate changed; refresh the quotation.");
-      priced.Add(new(role, activity, line.Hours, card?.RatePerHour ?? 0m, card?.Id ?? Guid.Empty));
+      priced.Add(new(line.Role, line.Activity, line.Hours, card?.RatePerHour ?? 0m, card?.Id ?? Guid.Empty));
     }
     var input = new QuotationPricingInput(currency, priced, request.ComplexityFactor, request.RiskPremiumPercent, request.DiscountPercent);
     var invalid = QuotationCalculator.Validate(input);

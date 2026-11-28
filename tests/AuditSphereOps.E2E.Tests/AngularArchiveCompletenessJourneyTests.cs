@@ -13,6 +13,23 @@ namespace AuditSphereOps.E2E.Tests;
 [Trait("Category", "AuthorizationAndScope")]
 public sealed class AngularArchiveCompletenessJourneyTests
 {
+  private static async Task SignOutAsync(IPage page)
+  {
+    var redirected = await page.EvaluateAsync<bool>("""
+      async () => {
+        const cookie = document.cookie.split(';').map(value => value.trim())
+          .find(value => value.startsWith('XSRF-TOKEN='));
+        if (!cookie) throw new Error('The readable CSRF cookie is unavailable.');
+        const token = decodeURIComponent(cookie.slice('XSRF-TOKEN='.length));
+        const response = await fetch('/auth/sign-out', {
+          method: 'POST', credentials: 'same-origin', headers: { 'X-XSRF-TOKEN': token }
+        });
+        return response.redirected;
+      }
+      """);
+    Assert.True(redirected, "The CSRF-protected sign-out request did not complete its redirect.");
+  }
+
   [Fact]
   [Trait("CaseId", "AS-PAR-002-ANGULAR-ARCHIVE-PAGING-01")]
   public async Task LargeManifestLoadsInBoundedOrderedPages()
@@ -470,7 +487,7 @@ public sealed class AngularArchiveCompletenessJourneyTests
 
     await page.ReloadAsync();
     Assert.Equal(retained, await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey));
-    await page.GotoAsync(origin + "/auth/sign-out");
+    await SignOutAsync(page);
     Assert.Equal(retained, await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey));
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(route));
     await Assertions.Expect(page.GetByText(unconfirmed, new() { Exact = true })).ToBeVisibleAsync();
@@ -503,7 +520,7 @@ public sealed class AngularArchiveCompletenessJourneyTests
       new() { Name = "Retry original review", Exact = true })).ToHaveCountAsync(0);
     Assert.Equal(retained, await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey));
 
-    await page.GotoAsync(origin + "/auth/sign-out");
+    await SignOutAsync(page);
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(route));
     await Assertions.Expect(page.GetByText(unconfirmed, new() { Exact = true })).ToBeVisibleAsync();
     await Assertions.Expect(page.GetByRole(AriaRole.Button,

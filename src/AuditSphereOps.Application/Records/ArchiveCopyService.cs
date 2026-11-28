@@ -324,11 +324,21 @@ public static partial class ArchiveCopyService
         return CommandResult<ArchiveCopyEvidenceReadback>.Fail(authorization.ErrorCode!, authorization.Message!);
 
       ArchiveCopyOperationResult? result = null;
-      if (operation.ResultIdentity is not null && operation.ResultDigest is not null &&
-          string.Equals(operation.ResultDigest, Hashing.Sha256Hex(Encoding.UTF8.GetBytes(operation.ResultIdentity)), StringComparison.Ordinal))
+      if ((operation.ResultIdentity is null) != (operation.ResultDigest is null))
+        return CommandResult<ArchiveCopyEvidenceReadback>.Fail(ErrorCodes.ProtectedState, "The retained archive-copy operation result is incomplete.");
+      if (operation.ResultIdentity is not null)
       {
-        try { result = JsonSerializer.Deserialize<ArchiveCopyOperationResult>(operation.ResultIdentity); }
-        catch (JsonException) { }
+        if (!string.Equals(operation.ResultDigest, Hashing.Sha256Hex(Encoding.UTF8.GetBytes(operation.ResultIdentity)), StringComparison.Ordinal))
+          return CommandResult<ArchiveCopyEvidenceReadback>.Fail(ErrorCodes.ProtectedState, "The retained archive-copy operation result digest does not match.");
+        try
+        {
+          result = JsonSerializer.Deserialize<ArchiveCopyOperationResult>(operation.ResultIdentity)
+            ?? throw new JsonException();
+        }
+        catch (JsonException)
+        {
+          return CommandResult<ArchiveCopyEvidenceReadback>.Fail(ErrorCodes.ProtectedState, "The retained archive-copy operation result cannot be read.");
+        }
       }
       var receipts = await db.ArchiveCopyFileReceipts.AsNoTracking().Where(x =>
           x.FirmId == actor.FirmId && x.ClientId == payload.ClientId && x.EngagementId == payload.EngagementId && x.OperationId == operation.Id)

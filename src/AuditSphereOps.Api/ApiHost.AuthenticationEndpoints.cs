@@ -1,5 +1,8 @@
+using System.Net;
 using System.Security.Claims;
 using AuditSphereOps.Application.Microsoft365;
+using AuditSphereOps.Api.HttpBoundary;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -12,7 +15,7 @@ namespace AuditSphereOps.Api;
 
 public static partial class ApiHost
 {
-  private static void MapAuthenticationEndpoints(WebApplication app, AuthenticationConfiguration identity, bool legacyPresentation = false)
+  private static void MapAuthenticationEndpoints(WebApplication app, AuthenticationConfiguration identity)
   {
     var oidcConfigured = identity.OidcConfigured;
     var developmentIdentityEnabled = identity.DevelopmentIdentityEnabled;
@@ -152,31 +155,44 @@ public static partial class ApiHost
           ? Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/portal"))
           : Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/app"));
       }).Produces(StatusCodes.Status302Found);
-      app.MapGet("/auth/sign-out", async (HttpContext http) =>
+      app.MapPost("/auth/sign-out", async (HttpContext http, IAntiforgery antiforgery, IHostEnvironment environment) =>
       {
+        try { await antiforgery.ValidateRequestAsync(http); }
+        catch (AntiforgeryValidationException)
+        {
+          return Results.Json(new ApiError("csrf.invalid", "Refresh the page and try again.", http.TraceIdentifier),
+            statusCode: StatusCodes.Status403Forbidden);
+        }
         await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        http.Response.Cookies.Delete("XSRF-TOKEN", new CookieOptions
+        {
+          Path = "/",
+          SameSite = SameSiteMode.Strict,
+          Secure = http.Request.IsHttps || !(environment.IsDevelopment() || environment.IsEnvironment("Test"))
+        });
         return Results.Redirect("/");
-      }).Produces(StatusCodes.Status302Found);
+      }).Produces(StatusCodes.Status302Found)
+        .Produces<ApiError>(StatusCodes.Status403Forbidden, "application/json");
     }
 
-    // The standalone Angular API owns the root redirect. A legacy Web host instead
-    // maps `/` to its Razor home component, so registering both creates an ambiguous route.
-    if (!legacyPresentation)
-      app.MapGet("/", () => Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/app")))
-        .Produces(StatusCodes.Status302Found);
-    app.MapGet("/auth/access-not-assigned", (HttpContext http) =>
+    app.MapGet("/", () => Results.Redirect(AngularRouteOwnership.Destination(app.Configuration, "/app")))
+      .Produces(StatusCodes.Status302Found);
+    app.MapGet("/auth/access-not-assigned", (HttpContext http, IAntiforgery antiforgery) =>
     {
       http.Response.Headers.CacheControl = "no-store";
-      const string page = """
+      var tokens = antiforgery.GetAndStoreTokens(http);
+      var fieldName = WebUtility.HtmlEncode(tokens.FormFieldName);
+      var requestToken = WebUtility.HtmlEncode(tokens.RequestToken ?? string.Empty);
+      var page = $$"""
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>AuditSphere access not assigned</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>body{font-family:system-ui,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;background:#f6f7f9;color:#1c1f23}
-main{max-width:34rem;padding:2rem;text-align:center}a.button{display:inline-block;margin-top:1rem;padding:.6rem 1.2rem;border:1px solid #5b6470;border-radius:.4rem;text-decoration:none}</style></head>
+main{max-width:34rem;padding:2rem;text-align:center}button.button{display:inline-block;margin-top:1rem;padding:.6rem 1.2rem;border:1px solid #5b6470;border-radius:.4rem;background:#ffffff;color:inherit;font:inherit;cursor:pointer}</style></head>
 <body><main><h1>Access not assigned</h1>
 <p>Your Microsoft identity has no current AuditSphere access. Contact an authorized AuditSphere administrator to be granted a role and scope.</p>
 <p>Forwarding an invitation link cannot grant access.</p>
-<p><a class="button" href="/auth/sign-out">Sign out</a></p></main></body>
+<form method="post" action="/auth/sign-out"><input type="hidden" name="{{fieldName}}" value="{{requestToken}}"><button type="submit" class="button">Sign out</button></form></main></body>
 </html>
 """;
       return Results.Text(page, "text/html; charset=utf-8", statusCode: StatusCodes.Status403Forbidden);

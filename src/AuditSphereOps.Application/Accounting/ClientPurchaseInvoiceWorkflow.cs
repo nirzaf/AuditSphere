@@ -559,13 +559,24 @@ public static class ClientPurchaseInvoiceWorkflow
     var drafts = draftIds.Length == 0 ? new Dictionary<Guid, ClientPurchaseInvoiceDraft>() : await db.ClientPurchaseInvoiceDrafts.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && draftIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
     var itemIds = ids.Length == 0 ? new HashSet<Guid>() : await db.ClientPurchaseInvoiceOpenItems.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == clientId && ids.Contains(x.SubmissionId)).Select(x => x.SubmissionId).ToHashSetAsync(ct);
     if (!(await Authorize(db, actor, clientId, Preparers, ct)).Succeeded) return CommandResult<IReadOnlyList<ClientPurchaseInvoiceView>>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    return CommandResult<IReadOnlyList<ClientPurchaseInvoiceView>>.Ok(submissions.Select(x => {
-      decisions.TryGetValue(x.Id, out var decision); drafts.TryGetValue(x.DraftId, out var draft);
-      ClientPurchaseInvoiceSnapshot? snapshot = null; if (draft is not null && Hash(draft.SnapshotJson) == draft.SnapshotHash) try { snapshot = JsonSerializer.Deserialize<ClientPurchaseInvoiceSnapshot>(draft.SnapshotJson); } catch (JsonException) { }
-      return new ClientPurchaseInvoiceView(x.InvoiceId, x.SupplierId, x.SupplierInvoiceReference, snapshot?.VoucherReference ?? "", decision is null ? "SUBMITTED" : decision.Decision == "APPROVE" ? "POSTED" : "RETURNED",
-        draft?.Currency ?? "", draft is null ? "" : Money(draft.GrossAmount), draft is null ? "" : Date(draft.DueDate), snapshot?.ReceiptDate ?? "", snapshot?.LateArrival ?? false,
-        snapshot?.PossibleDuplicateCount > 0, x.Id, x.JournalId, x.CreatedByUserId, decision?.Decision, decision?.Reason, decision?.DuplicateResolutionReason, itemIds.Contains(x.Id));
-    }).ToArray());
+    var views = new List<ClientPurchaseInvoiceView>(submissions.Count);
+    foreach (var x in submissions)
+    {
+      decisions.TryGetValue(x.Id, out var decision);
+      if (!drafts.TryGetValue(x.DraftId, out var draft) || !string.Equals(Hash(draft.SnapshotJson), draft.SnapshotHash, StringComparison.Ordinal))
+        return CommandResult<IReadOnlyList<ClientPurchaseInvoiceView>>.Fail(ErrorCodes.ProtectedState, "The retained supplier invoice draft cannot be verified.");
+      ClientPurchaseInvoiceSnapshot? snapshot;
+      try { snapshot = JsonSerializer.Deserialize<ClientPurchaseInvoiceSnapshot>(draft.SnapshotJson); }
+      catch (JsonException) { return CommandResult<IReadOnlyList<ClientPurchaseInvoiceView>>.Fail(ErrorCodes.ProtectedState, "The retained supplier invoice snapshot cannot be read."); }
+      if (snapshot is null)
+        return CommandResult<IReadOnlyList<ClientPurchaseInvoiceView>>.Fail(ErrorCodes.ProtectedState, "The retained supplier invoice snapshot cannot be read.");
+      views.Add(new ClientPurchaseInvoiceView(x.InvoiceId, x.SupplierId, x.SupplierInvoiceReference, snapshot.VoucherReference ?? "",
+        decision is null ? "SUBMITTED" : decision.Decision == "APPROVE" ? "POSTED" : "RETURNED",
+        draft.Currency, Money(draft.GrossAmount), Date(draft.DueDate), snapshot.ReceiptDate ?? "", snapshot.LateArrival,
+        snapshot.PossibleDuplicateCount > 0, x.Id, x.JournalId, x.CreatedByUserId, decision?.Decision, decision?.Reason,
+        decision?.DuplicateResolutionReason, itemIds.Contains(x.Id)));
+    }
+    return CommandResult<IReadOnlyList<ClientPurchaseInvoiceView>>.Ok(views);
   }
 
   private static ClientPurchaseInvoiceReceipt Receipt(ClientPurchaseInvoiceSubmission row) => new(row.CommandId, row.InvoiceId, row.Id, "SUBMIT", row.CreatedByUserId, row.IntentHash, "SUBMITTED", null);

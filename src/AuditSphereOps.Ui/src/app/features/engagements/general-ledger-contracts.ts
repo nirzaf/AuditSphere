@@ -55,6 +55,7 @@ const context = obj({
   rawFileSha256: str(64),
   originKind: oneOf('EXTERNAL', 'NATIVE_LEDGER'),
   unavailableMetadata: arr(str(2000), 100),
+  canAnalyzeJournalRisk: bool,
   sourceHash: sha256,
   profileVersion: str(100),
   parserVersion: str(100),
@@ -178,3 +179,8 @@ export function decodeLedgerJournal(raw: unknown) {
     throw new Error('Unsupported journal detail');
   return j;
 }
+
+export const decodeJournalRiskCandidates = arr(obj({
+  criteriaVersion: str(100), transactionId: guid, stableJournalId: str(200), postingDate: date,
+  ruleCode: str(100), reason: str(2000), score: dec, sourceOriginAvailable: bool, absoluteAmount: dec,
+}), 25000);

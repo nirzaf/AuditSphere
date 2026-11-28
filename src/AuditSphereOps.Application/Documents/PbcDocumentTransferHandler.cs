@@ -1,8 +1,10 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using AuditSphereOps.Application.Abstractions;
 using AuditSphereOps.Application.Operations;
 using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Documents;
+using AuditSphereOps.Domain.Shared;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuditSphereOps.Application.Documents;
@@ -100,13 +102,22 @@ public sealed class PbcDocumentTransferHandler(
       var payload = ReadPayload(request.PayloadJson, request.TargetId, request.ExpectedRevision);
       if (request.ClientId is null || request.EngagementId is null)
         throw new OperationBlockedException("invalid-transfer-request");
-      return JsonSerializer.Serialize(new
-      {
-        uploadIntentId = payload.UploadIntentId.ToString("D"),
-        intentRevision = payload.IntentRevision,
-        finalSha256Hex = payload.FinalSha256Hex,
-        declaredByteCount = payload.DeclaredByteCount
-      });
+      return payload.OriginatorSessionEpoch is { } sessionEpoch
+        ? JsonSerializer.Serialize(new
+        {
+          uploadIntentId = payload.UploadIntentId.ToString("D"),
+          intentRevision = payload.IntentRevision,
+          finalSha256Hex = payload.FinalSha256Hex,
+          declaredByteCount = payload.DeclaredByteCount,
+          originatorSessionEpoch = sessionEpoch
+        })
+        : JsonSerializer.Serialize(new
+        {
+          uploadIntentId = payload.UploadIntentId.ToString("D"),
+          intentRevision = payload.IntentRevision,
+          finalSha256Hex = payload.FinalSha256Hex,
+          declaredByteCount = payload.DeclaredByteCount
+        });
     }
     catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
     {
@@ -125,6 +136,7 @@ public sealed class PbcDocumentTransferHandler(
         !await db.PbcRequests.AnyAsync(r => r.FirmId == op.FirmId && r.Id == intents[0].PbcRequestId &&
           r.ClientId == op.ClientId && r.EngagementId == op.EngagementId, ct))
       throw new OperationBlockedException("transfer-scope-or-revision-conflict", authorization: true);
+    await RevalidateRequesterAsync(db, op, ct);
   }
 
   public async Task<OperationResult> ExecuteEffectAsync(DurableOperation op, CancellationToken ct)
@@ -134,6 +146,7 @@ public sealed class PbcDocumentTransferHandler(
     // Verify every staged byte before contacting the provider: the local effect then either
     // happened completely or not at all, with no partial provider start.
     await VerifyStagedBytesAsync(plan, ct);
+    await RevalidateRequesterAsync(op, ct);
     var receipt = await sink.UploadAsync(plan, ct);
     if (string.IsNullOrWhiteSpace(receipt.Identity) || !IsSha256(receipt.ContentSha256Hex) ||
         !string.Equals(receipt.ContentSha256Hex, payload.FinalSha256Hex, StringComparison.OrdinalIgnoreCase) ||
@@ -148,6 +161,7 @@ public sealed class PbcDocumentTransferHandler(
     if (op.ClientId is null || op.EngagementId is null)
       throw new OperationBlockedException("transfer-scope-or-revision-conflict", authorization: true);
     var scope = new PbcTransferScope(op.FirmId, op.ClientId.Value, op.EngagementId.Value, payload.UploadIntentId);
+    // The worker's locked validation rechecks requester authority before this read-only probe.
     // Unknown outcome: probe the intent target instead of trusting the operation row; a known
     // identity is re-read exactly as reported.
     var receipt = string.IsNullOrWhiteSpace(op.ResultIdentity)
@@ -175,6 +189,7 @@ public sealed class PbcDocumentTransferHandler(
     if (!string.Equals(verifiedRemoteResult.Digest, payload.FinalSha256Hex, StringComparison.OrdinalIgnoreCase))
       throw new OperationBlockedException("provider-receipt-conflict");
 
+    await RevalidateRequesterAsync(db, op, ct);
     var intent = await db.PbcUploadIntents.SingleAsync(x =>
       x.FirmId == op.FirmId && x.Id == op.TargetId, ct);
     if (intent.Revision != op.ExpectedRevision || intent.TransferOperationId != op.Id)
@@ -250,6 +265,45 @@ public sealed class PbcDocumentTransferHandler(
     intent.ProviderReceiptDigest, registeredAt = intent.ProviderRegisteredAt
   });
 
+  private async Task RevalidateRequesterAsync(DurableOperation op, CancellationToken ct)
+  {
+    await using var db = await factory.CreateAsync(ct);
+    await RevalidateRequesterAsync(db, op, ct);
+  }
+
+  private static async Task RevalidateRequesterAsync(IAuditSphereDbContext db, DurableOperation op, CancellationToken ct)
+  {
+    if (op.OriginatorId is null || op.OriginatorId == Guid.Empty || op.ClientId is null || op.EngagementId is null)
+      throw new OperationBlockedException("transfer-requester-authorization-denied", authorization: true);
+    var payload = ReadPayload(op.PayloadJson, op.TargetId, op.ExpectedRevision);
+    var requester = await db.Users.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == op.FirmId && x.Id == op.OriginatorId, ct);
+    if (requester is null || requester.Disabled)
+      throw new OperationBlockedException("transfer-requester-authorization-denied", authorization: true);
+    if (payload.OriginatorSessionEpoch is { } expectedEpoch && requester.SessionEpoch != expectedEpoch)
+      throw new OperationBlockedException("transfer-requester-authorization-denied", authorization: true);
+
+    var intent = await db.PbcUploadIntents.AsNoTracking().SingleOrDefaultAsync(x =>
+      x.FirmId == op.FirmId && x.ClientId == op.ClientId && x.EngagementId == op.EngagementId &&
+      x.Id == op.TargetId && x.Revision == op.ExpectedRevision, ct);
+    if (intent is null || intent.PbcRequestId == Guid.Empty ||
+        (requester.UserKind.Equals("Client", StringComparison.OrdinalIgnoreCase) && intent.UploaderUserId != requester.Id))
+      throw new OperationBlockedException("transfer-requester-authorization-denied", authorization: true);
+
+    var effectiveEpoch = payload.OriginatorSessionEpoch ?? requester.SessionEpoch;
+    var actor = requester.UserKind.Equals("Staff", StringComparison.OrdinalIgnoreCase)
+      ? new ActorContext(requester.Id, op.FirmId, effectiveEpoch, [])
+      : requester.UserKind.Equals("Client", StringComparison.OrdinalIgnoreCase)
+        ? new ActorContext(requester.Id, op.FirmId, effectiveEpoch, ["ClientUser"])
+        : throw new OperationBlockedException("transfer-requester-authorization-denied", authorization: true);
+    var authorization = requester.UserKind.Equals("Staff", StringComparison.OrdinalIgnoreCase)
+      ? await PbcService.AuthorizeStaffAsync(db, actor, op.ClientId.Value, op.EngagementId.Value, ct)
+      : await PbcService.AuthorizeClientUploadTransferAsync(db, actor, op.ClientId.Value, op.EngagementId.Value,
+        intent.PbcRequestId, ct);
+    if (!authorization.Succeeded)
+      throw new OperationBlockedException("transfer-requester-authorization-denied", authorization: true);
+  }
+
   private async Task<PbcTransferPlan> LoadPlanAsync(
     DurableOperation op, PbcTransferPayload payload, CancellationToken ct)
   {
@@ -324,7 +378,15 @@ public sealed class PbcDocumentTransferHandler(
           hashElement.GetString() is not { Length: 64 } hash || !IsSha256(hash) ||
           !byteElement.TryGetInt64(out var bytes) || bytes <= 0)
         throw new OperationBlockedException("invalid-transfer-request");
-      return new(id, revision, hash.ToLowerInvariant(), bytes);
+      long? originatorSessionEpoch = null;
+      if (root.TryGetProperty("originatorSessionEpoch", out var epochElement) &&
+          epochElement.ValueKind != JsonValueKind.Null)
+      {
+        if (!epochElement.TryGetInt64(out var parsedEpoch) || parsedEpoch < 0)
+          throw new OperationBlockedException("invalid-transfer-request");
+        originatorSessionEpoch = parsedEpoch;
+      }
+      return new(id, revision, hash.ToLowerInvariant(), bytes, originatorSessionEpoch);
     }
     catch (OperationBlockedException)
     {
@@ -340,7 +402,8 @@ public sealed class PbcDocumentTransferHandler(
     value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F');
 
   private sealed record PbcTransferPayload(
-    Guid UploadIntentId, long IntentRevision, string FinalSha256Hex, long DeclaredByteCount);
+    Guid UploadIntentId, long IntentRevision, string FinalSha256Hex, long DeclaredByteCount,
+    long? OriginatorSessionEpoch = null);
 }
 
 /// <summary>

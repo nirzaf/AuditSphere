@@ -286,8 +286,11 @@ describe('Accounting workspace mode and period navigation', () => {
     await select(fixture, clientB, clientWorkspace(clientB, 'Client B', guid(32), []));
 
     for (const [month, day, valid] of [
-      [2, 28, true], [2, 29, true], [2, 30, false], [2, 31, false],
-      [4, 30, true], [4, 31, false], [1, 31, true],
+      [2, 28, true], [2, 29, false], [2, 30, false], [2, 31, false],
+      [4, 30, true], [4, 31, false], [6, 30, true], [6, 31, false],
+      [9, 30, true], [9, 31, false], [11, 30, true], [11, 31, false],
+      [1, 31, true], [12, 31, true], [0, 1, false], [13, 1, false],
+      [1, 0, false], [1, 32, false], [1.5, 1, false], [1, 1.5, false],
     ] as const) {
       workspace.form.month = month;
       workspace.form.day = day;
@@ -319,14 +322,71 @@ describe('Accounting workspace mode and period navigation', () => {
 
     setInput('day', '29');
     await settle(fixture);
+    expect(workspace.fiscalCalendarValid()).toBe(false);
+    expect(saveButton.disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('February 29 requires an approved non-leap-year rollover policy');
+    workspace.saveProfile();
+    http.expectNone(request => request.method === 'POST' && request.url.endsWith('/profile'));
+    expect(workspace.form.day).toBe(29);
+
+    setInput('day', '28');
+    await settle(fixture);
     expect(workspace.fiscalCalendarValid()).toBe(true);
     expect(saveButton.disabled).toBe(false);
     workspace.saveProfile();
     const request = http.expectOne(request => request.method === 'POST' && request.url === `/api/ui/accounting/clients/${clientB}/profile`);
-    expect(request.request.body).toMatchObject({ fiscalMonth: 2, fiscalDay: 29, reason: 'Reviewed fiscal calendar change' });
+    expect(request.request.body).toMatchObject({ fiscalMonth: 2, fiscalDay: 28, reason: 'Reviewed fiscal calendar change' });
     request.flush({ code: 'accounting.mapping-invalid' }, { status: 400, statusText: 'Bad Request' });
     await settle(fixture);
     expect(workspace.form.month).toBe(2);
+    expect(workspace.form.day).toBe(28);
+  });
+
+  it('preserves an unchanged historical February 29 during a non-fiscal revision', async () => {
+    const fixture = await open();
+    const workspace = fixture.componentInstance;
+    const response = clientWorkspace(clientB, 'Client B', guid(32), []);
+    response.profile.fiscalMonth = 2;
+    response.profile.fiscalDay = 29;
+    await select(fixture, clientB, response);
+    expect(workspace.form.month).toBe(2);
+    expect(workspace.form.day).toBe(29);
+    expect(workspace.fiscalCalendarValid()).toBe(true);
+    expect(fixture.nativeElement.textContent).not.toContain('February 29 requires');
+    const identifier = fixture.nativeElement.querySelector('input[name="identifier"]') as HTMLInputElement;
+    identifier.value = 'REVISED-SYNTHETIC-IDENTIFIER';
+    identifier.dispatchEvent(new Event('input'));
+    const reviewed = fixture.nativeElement.querySelector('input[name="reviewed"]') as HTMLInputElement;
+    reviewed.checked = true;
+    reviewed.dispatchEvent(new Event('change'));
+    await settle(fixture);
+    const button = fixture.nativeElement.querySelector('input[name="day"]').closest('form').querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    workspace.saveProfile();
+    const request = http.expectOne(request => request.method === 'POST' && request.url.endsWith('/profile'));
+    expect(request.request.body).toMatchObject({ fiscalMonth: 2, fiscalDay: 29, sourceIdentifier: 'REVISED-SYNTHETIC-IDENTIFIER' });
+    request.flush({ code: 'accounting.mapping-invalid' }, { status: 400, statusText: 'Bad Request' });
+    await settle(fixture);
+    expect(workspace.form.day).toBe(29);
+  });
+
+  it('refuses February 29 when creating a profile without an approved rollover policy', async () => {
+    const fixture = await open();
+    const workspace = fixture.componentInstance;
+    await select(fixture, clientB, { ...clientWorkspace(clientB, 'Client B', guid(32), []), profile: null });
+    for (const [name, value] of [['jurisdiction', 'QA'], ['currency', 'QAR'], ['month', '2'], ['day', '29'], ['source', 'SYNTHETIC']]) {
+      const input = fixture.nativeElement.querySelector(`input[name="${name}"]`) as HTMLInputElement;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    }
+    const reviewed = fixture.nativeElement.querySelector('input[name="reviewed"]') as HTMLInputElement;
+    reviewed.checked = true;
+    reviewed.dispatchEvent(new Event('change'));
+    await settle(fixture);
+    expect(workspace.fiscalCalendarValid()).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain('February 29 requires an approved non-leap-year rollover policy');
+    workspace.saveProfile();
+    http.expectNone(request => request.method === 'POST' && request.url.endsWith('/profile'));
     expect(workspace.form.day).toBe(29);
   });
 

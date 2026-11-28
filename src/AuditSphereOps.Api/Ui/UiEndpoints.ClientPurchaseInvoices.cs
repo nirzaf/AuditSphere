@@ -93,7 +93,8 @@ public static partial class UiEndpoints
       return result.Succeeded ? Results.Ok(result.Value) : SalesFailure(result.ErrorCode);
     }).Produces<IReadOnlyList<ClientPurchaseInvoiceView>>()
       .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status400BadRequest)
-      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden);
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status403Forbidden)
+      .Produces<ClientNativeErrorHttpResponse>(StatusCodes.Status409Conflict);
 
     group.MapPost("/accounting/clients/{clientId:guid}/purchase-invoices/{invoiceId:guid}/preview", async (Guid clientId, Guid invoiceId,
       PurchaseSubmitHttpInput input, HttpContext http, TrustedActorResolver resolver, IAntiforgery csrf, IDbContextFactory<AuditSphereDbContext> factory) =>

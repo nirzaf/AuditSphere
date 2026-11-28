@@ -184,14 +184,18 @@ public sealed class OpenApiContractTests
     Assert.True(signOut.TryGetProperty("204", out var noContent));
     Assert.False(noContent.TryGetProperty("content", out _));
     Assert.False(signOut.TryGetProperty("200", out _));
-    foreach (var path in new[] { "/", "/auth/sign-in", "/auth/landing", "/auth/sign-out",
-      "/auth/m365-consent/callback", "/auth/m365-consent/identity-callback" })
+    foreach (var (path, method) in new[]
     {
-      var responses = paths.GetProperty(path).GetProperty("get").GetProperty("responses");
+      ("/", "get"), ("/auth/sign-in", "get"), ("/auth/landing", "get"), ("/auth/sign-out", "post"),
+      ("/auth/m365-consent/callback", "get"), ("/auth/m365-consent/identity-callback", "get")
+    })
+    {
+      var responses = paths.GetProperty(path).GetProperty(method).GetProperty("responses");
       Assert.True(responses.TryGetProperty("302", out var redirect), $"{path} must describe its redirect.");
       Assert.False(redirect.TryGetProperty("content", out _));
       Assert.False(responses.TryGetProperty("200", out _));
     }
+    Assert.False(paths.GetProperty("/auth/sign-out").TryGetProperty("get", out _));
     var denied = paths.GetProperty("/auth/access-not-assigned").GetProperty("get").GetProperty("responses").GetProperty("403");
     Assert.True(denied.GetProperty("content").TryGetProperty("text/html", out _));
     Assert.False(denied.GetProperty("content").TryGetProperty("application/json", out _));

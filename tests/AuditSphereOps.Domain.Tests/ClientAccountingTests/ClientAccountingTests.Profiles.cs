@@ -7,6 +7,8 @@ using AuditSphereOps.Domain.Completion;
 using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 
 namespace AuditSphereOps.Domain.Tests;
@@ -311,13 +313,19 @@ public sealed partial class ClientAccountingTests
     static ClientAccountingProfileRequest Request(Guid clientId, int month, int day, string? reason = null) =>
       new(clientId, "QA", "QAR", month, day, "SYNTHETIC-LEDGER", "TEST-IDENTIFIER", Reason: reason);
 
-    var invalidPairs = new[] { (Month: 2, Day: 30), (Month: 2, Day: 31), (Month: 4, Day: 31) };
+    var invalidPairs = new[]
+    {
+      (Month: 2, Day: 30), (Month: 2, Day: 31), (Month: 4, Day: 31),
+      (Month: 6, Day: 31), (Month: 9, Day: 31), (Month: 11, Day: 31),
+      (Month: 0, Day: 1), (Month: 13, Day: 1), (Month: 1, Day: 0), (Month: 1, Day: 32)
+    };
     foreach (var (month, day) in invalidPairs)
     {
       var refusedCreate = await ClientAccountingService.CreateProfileAsync(db, preparer,
         Request(scope.ClientB, month, day));
       Assert.False(refusedCreate.Succeeded);
       Assert.Equal(ErrorCodes.Accounting.MappingInvalid, refusedCreate.ErrorCode);
+      Assert.Equal("A valid client accounting profile is required.", refusedCreate.Message);
     }
     Assert.False(await db.ClientAccountingProfiles.AnyAsync(x => x.ClientId == scope.ClientB));
 
@@ -330,9 +338,15 @@ public sealed partial class ClientAccountingTests
 
     var createdLeapDay = await ClientAccountingService.CreateProfileAsync(db, preparer,
       Request(scope.ClientB, 2, 29));
-    Assert.True(createdLeapDay.Succeeded, createdLeapDay.Message);
-    var leapDayProfile = await db.ClientAccountingProfiles.SingleAsync(x => x.Id == createdLeapDay.Value);
-    Assert.Equal((2, 29), (leapDayProfile.FiscalYearStartMonth, leapDayProfile.FiscalYearStartDay));
+    Assert.False(createdLeapDay.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.MappingInvalid, createdLeapDay.ErrorCode);
+    Assert.Contains("approved non-leap-year rollover policy", createdLeapDay.Message);
+    Assert.Contains("choose another valid fiscal start date", createdLeapDay.Message);
+    Assert.False(await db.ClientAccountingProfiles.AnyAsync(x => x.ClientId == scope.ClientB));
+    Assert.False(await db.ClientAccountingProfileRevisionRecords.AnyAsync(x => x.ClientId == scope.ClientB));
+    var createdFebruary = await ClientAccountingService.CreateProfileAsync(db, preparer,
+      Request(scope.ClientB, 2, 28));
+    Assert.True(createdFebruary.Succeeded, createdFebruary.Message);
 
     foreach (var (month, day) in invalidPairs)
     {
@@ -342,6 +356,12 @@ public sealed partial class ClientAccountingTests
       Assert.False(refusedRevision.Succeeded);
       Assert.Equal(ErrorCodes.Accounting.MappingInvalid, refusedRevision.ErrorCode);
     }
+    var refusedLeapDay = await ClientAccountingService.ReviseProfileAsync(db, preparer,
+      new ClientAccountingProfileRevisionRef(januaryProfile.Id, 1),
+      Request(scope.ClientA, 2, 29, "A reason is not an approved rollover policy"));
+    Assert.False(refusedLeapDay.Succeeded);
+    Assert.Equal(ErrorCodes.Accounting.MappingInvalid, refusedLeapDay.ErrorCode);
+    Assert.Equal(createdLeapDay.Message, refusedLeapDay.Message);
     var afterRefusals = await db.ClientAccountingProfiles.AsNoTracking().SingleAsync(x => x.Id == januaryProfile.Id);
     Assert.Equal(1, afterRefusals.Revision);
     Assert.Equal((1, 31), (afterRefusals.FiscalYearStartMonth, afterRefusals.FiscalYearStartDay));
@@ -350,7 +370,11 @@ public sealed partial class ClientAccountingTests
     Assert.Equal(originalRevision.Id, historyAfterRefusals.Id);
     Assert.Equal((1, 31), (historyAfterRefusals.FiscalYearStartMonth, historyAfterRefusals.FiscalYearStartDay));
 
-    var validRevisions = new[] { (Month: 2, Day: 28), (Month: 2, Day: 29), (Month: 4, Day: 30), (Month: 1, Day: 31) };
+    var validRevisions = new[]
+    {
+      (Month: 2, Day: 28), (Month: 4, Day: 30), (Month: 6, Day: 30),
+      (Month: 9, Day: 30), (Month: 11, Day: 30), (Month: 12, Day: 31), (Month: 1, Day: 31)
+    };
     long expectedRevision = 1;
     foreach (var (month, day) in validRevisions)
     {
@@ -364,19 +388,132 @@ public sealed partial class ClientAccountingTests
 
     var retainedRevisions = await db.ClientAccountingProfileRevisionRecords.AsNoTracking()
       .Where(x => x.ProfileId == januaryProfile.Id).OrderBy(x => x.Revision).ToArrayAsync();
-    Assert.Equal(5, retainedRevisions.Length);
+    Assert.Equal(expectedRevision, retainedRevisions.Length);
     Assert.Equal(originalRevision.Id, retainedRevisions[0].Id);
     Assert.Equal((1, 31), (retainedRevisions[0].FiscalYearStartMonth, retainedRevisions[0].FiscalYearStartDay));
 
     await using var directWriteDb = new AuditSphereDbContext(pg.Options);
-    var databaseRefusal = await Assert.ThrowsAsync<PostgresException>(() =>
-      directWriteDb.Database.ExecuteSqlInterpolatedAsync(
-        $"UPDATE client_accounting_profiles SET fiscal_year_start_month = 4, fiscal_year_start_day = 31 WHERE id = {januaryProfile.Id}"));
-    Assert.Equal("23514", databaseRefusal.SqlState);
-    Assert.Equal("ck_client_accounting_profile_values", databaseRefusal.ConstraintName);
+    foreach (var (month, day) in invalidPairs)
+    {
+      var databaseRefusal = await Assert.ThrowsAsync<PostgresException>(() =>
+        directWriteDb.Database.ExecuteSqlInterpolatedAsync(
+          $"UPDATE client_accounting_profiles SET fiscal_year_start_month = {month}, fiscal_year_start_day = {day} WHERE id = {januaryProfile.Id}"));
+      Assert.Equal("23514", databaseRefusal.SqlState);
+      Assert.Equal("ck_client_accounting_profile_values", databaseRefusal.ConstraintName);
+    }
     var unchanged = await db.ClientAccountingProfiles.AsNoTracking().SingleAsync(x => x.Id == januaryProfile.Id);
     Assert.Equal((1, 31), (unchanged.FiscalYearStartMonth, unchanged.FiscalYearStartDay));
-    Assert.Equal(5, await db.ClientAccountingProfileRevisionRecords.CountAsync(x => x.ProfileId == januaryProfile.Id));
+    Assert.Equal(expectedRevision, await db.ClientAccountingProfileRevisionRecords.CountAsync(x => x.ProfileId == januaryProfile.Id));
+  }
+
+  [Fact]
+  [Trait("Profile", "Database")]
+  public async Task ProfileFiscalCalendarMigration_RefusesInvalidRetainedPairsAndPreservesLeapDayOnRoundTrip()
+  {
+    const string baseline = "20261126161139_GeneralLedgerCompletenessCalculationVersion";
+    const string calendar = "20261126185024_ClientFiscalCalendarMonthDay";
+    const string previous = "20261126233605_AuditBankReconciliationCommandReceipts";
+    const string leapDayGuard = "20261128120000_ClientFiscalLeapDayTransitionGuard";
+    await using var pg = await PgTestSchema.CreateAsync(baseline);
+    var scope = await SeedAsync(pg);
+    var preparer = Actor(scope.Preparer, "AccountingPreparer");
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var leapDay = new ClientAccountingProfile
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientA,
+      Jurisdiction = "QA", FunctionalCurrency = "QAR", FiscalYearStartMonth = 2, FiscalYearStartDay = 29,
+      SourceSystem = "SYNTHETIC-RETAINED", SourceSystemIdentifier = "RETAINED-LEAP-DAY",
+      CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+    };
+    var invalid = new ClientAccountingProfile
+    {
+      Id = Guid.CreateVersion7(), FirmId = scope.FirmId, ClientId = scope.ClientB,
+      Jurisdiction = "QA", FunctionalCurrency = "QAR", FiscalYearStartMonth = 2, FiscalYearStartDay = 30,
+      SourceSystem = "SYNTHETIC-RETAINED", SourceSystemIdentifier = "INVALID-LEGACY",
+      CreatedByUserId = scope.Preparer.Id, CreatedAt = DateTimeOffset.UtcNow
+    };
+    db.ClientAccountingProfiles.AddRange(leapDay, invalid);
+    db.ClientAccountingProfileRevisionRecords.AddRange(
+      ClientAccountingProfileRevisionRecord.FromProfile(leapDay, Guid.CreateVersion7(), null, null, scope.Preparer.Id, leapDay.CreatedAt),
+      ClientAccountingProfileRevisionRecord.FromProfile(invalid, Guid.CreateVersion7(), null, null, scope.Preparer.Id, invalid.CreatedAt));
+    await db.SaveChangesAsync();
+    var retainedHistory = await db.ClientAccountingProfileRevisionRecords.AsNoTracking().OrderBy(x => x.Id).ToArrayAsync();
+    var migrator = db.GetService<IMigrator>();
+    var originalHistory = (await db.Database.GetAppliedMigrationsAsync()).ToArray();
+    const string constraintSql = """
+      SELECT pg_get_constraintdef(oid) AS "Value" FROM pg_constraint
+      WHERE conrelid = 'client_accounting_profiles'::regclass AND conname = 'ck_client_accounting_profile_values'
+      """;
+    var originalConstraint = await db.Database.SqlQueryRaw<string>(constraintSql).SingleAsync();
+
+    // Only synthetic rows are varied. A failed upgrade must roll back its dropped check
+    // and history entry, leaving the retained value for reviewed correction, not guessing it.
+    foreach (var (month, day) in new[] { (2, 30), (2, 31), (4, 31), (6, 31), (9, 31), (11, 31) })
+    {
+      await db.Database.ExecuteSqlInterpolatedAsync(
+        $"UPDATE client_accounting_profiles SET fiscal_year_start_month = {month}, fiscal_year_start_day = {day} WHERE id = {invalid.Id}");
+      var failure = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(calendar));
+      Assert.Equal("23514", failure.SqlState);
+      Assert.Equal("ck_client_accounting_profile_values", failure.ConstraintName);
+      Assert.Equal(originalHistory, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
+      Assert.Equal(originalConstraint, await db.Database.SqlQueryRaw<string>(constraintSql).SingleAsync());
+      var unchanged = await db.ClientAccountingProfiles.AsNoTracking().SingleAsync(x => x.Id == invalid.Id);
+      Assert.Equal((month, day), (unchanged.FiscalYearStartMonth, unchanged.FiscalYearStartDay));
+      Assert.Equivalent(retainedHistory, await db.ClientAccountingProfileRevisionRecords.AsNoTracking().OrderBy(x => x.Id).ToArrayAsync(), strict: true);
+    }
+
+    // Explicit synthetic fixture correction; production correction requires qualified review.
+    await db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE client_accounting_profiles SET fiscal_year_start_month = 2, fiscal_year_start_day = 28 WHERE id = {invalid.Id}");
+    await migrator.MigrateAsync(calendar);
+    Assert.Contains(calendar, await db.Database.GetAppliedMigrationsAsync());
+    await migrator.MigrateAsync(baseline);
+    Assert.Equal(originalHistory, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
+    Assert.Equal(originalConstraint, await db.Database.SqlQueryRaw<string>(constraintSql).SingleAsync());
+    await migrator.MigrateAsync(previous);
+    var beforeGuard = await db.ClientAccountingProfiles.AsNoTracking().OrderBy(x => x.Id).ToArrayAsync();
+    await migrator.MigrateAsync(leapDayGuard);
+    Assert.False(db.Database.HasPendingModelChanges());
+    Assert.Equivalent(beforeGuard, await db.ClientAccountingProfiles.AsNoTracking().OrderBy(x => x.Id).ToArrayAsync(), strict: true);
+
+    var insertRefusal = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+      INSERT INTO client_accounting_profiles
+        (id, firm_id, client_id, jurisdiction, functional_currency, fiscal_year_start_month, fiscal_year_start_day,
+         source_system, source_system_identifier, source_mode, status, revision, created_by_user_id, created_at)
+      SELECT {Guid.CreateVersion7()}, firm_id, client_id, jurisdiction, functional_currency, 2, 29,
+        source_system, source_system_identifier, source_mode, status, revision, created_by_user_id, created_at
+      FROM client_accounting_profiles WHERE id = {invalid.Id}
+      """));
+    Assert.Equal("23514", insertRefusal.SqlState);
+    Assert.Equal("ck_client_fiscal_leap_day_transition", insertRefusal.ConstraintName);
+    Assert.Contains("approved non-leap-year rollover policy", insertRefusal.MessageText);
+    var updateRefusal = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
+      $"UPDATE client_accounting_profiles SET fiscal_year_start_day = 29 WHERE id = {invalid.Id}"));
+    Assert.Equal("ck_client_fiscal_leap_day_transition", updateRefusal.ConstraintName);
+    Assert.Equivalent(beforeGuard, await db.ClientAccountingProfiles.AsNoTracking().OrderBy(x => x.Id).ToArrayAsync(), strict: true);
+    Assert.Equivalent(retainedHistory, await db.ClientAccountingProfileRevisionRecords.AsNoTracking().OrderBy(x => x.Id).ToArrayAsync(), strict: true);
+
+    // The migration and its downgrade preserve every current value and immutable snapshot.
+    await migrator.MigrateAsync(previous);
+    Assert.DoesNotContain(leapDayGuard, await db.Database.GetAppliedMigrationsAsync());
+    Assert.Equivalent(beforeGuard, await db.ClientAccountingProfiles.AsNoTracking().OrderBy(x => x.Id).ToArrayAsync(), strict: true);
+    await migrator.MigrateAsync(leapDayGuard);
+    db.ChangeTracker.Clear();
+    var revised = await ClientAccountingService.ReviseProfileAsync(db, preparer,
+      new ClientAccountingProfileRevisionRef(leapDay.Id, 1),
+      new ClientAccountingProfileRequest(scope.ClientA, "QA", "QAR", 2, 29, "SYNTHETIC-RETAINED", "REVISED-IDENTIFIER"));
+    Assert.True(revised.Succeeded, revised.Message);
+    Assert.Equal(2, revised.Value);
+    var retained = await db.ClientAccountingProfiles.AsNoTracking().SingleAsync(x => x.Id == leapDay.Id);
+    Assert.Equal((2, 29), (retained.FiscalYearStartMonth, retained.FiscalYearStartDay));
+    Assert.Equal("REVISED-IDENTIFIER", retained.SourceSystemIdentifier);
+    var revisions = await db.ClientAccountingProfileRevisionRecords.AsNoTracking()
+      .Where(x => x.ProfileId == leapDay.Id).OrderBy(x => x.Revision).ToArrayAsync();
+    Assert.Equal(2, revisions.Length);
+    Assert.Equal(revisions[0].Id, revisions[1].PreviousRevisionId);
+    Assert.All(revisions, x => Assert.Equal((2, 29), (x.FiscalYearStartMonth, x.FiscalYearStartDay)));
+    foreach (var historical in retainedHistory)
+      Assert.Equivalent(historical, await db.ClientAccountingProfileRevisionRecords.AsNoTracking().SingleAsync(x => x.Id == historical.Id), strict: true);
   }
 
   [Fact]

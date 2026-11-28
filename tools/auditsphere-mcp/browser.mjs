@@ -125,7 +125,7 @@ async function browserRequest({ origin, path, method, session, json, file, chunk
       const problem = await checkSession();
       if (problem) return problem;
     }
-    if (method !== "GET" && !chunk) {
+    if (method !== "GET") {
       // Read only the Angular antiforgery cookie, never authentication tokens.
       const prefix = "XSRF-TOKEN=";
       const tokens = document.cookie.split(/;\s*/).filter(part => part.startsWith(prefix));

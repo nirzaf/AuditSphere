@@ -10,6 +10,23 @@ namespace AuditSphereOps.E2E.Tests;
 [Trait("Category", "AuditCompletion")]
 public sealed class AngularVariancePreparationRecoveryJourneyTests
 {
+  private static async Task SignOutAsync(IPage page)
+  {
+    var redirected = await page.EvaluateAsync<bool>("""
+      async () => {
+        const cookie = document.cookie.split(';').map(value => value.trim())
+          .find(value => value.startsWith('XSRF-TOKEN='));
+        if (!cookie) throw new Error('The readable CSRF cookie is unavailable.');
+        const token = decodeURIComponent(cookie.slice('XSRF-TOKEN='.length));
+        const response = await fetch('/auth/sign-out', {
+          method: 'POST', credentials: 'same-origin', headers: { 'X-XSRF-TOKEN': token }
+        });
+        return response.redirected;
+      }
+      """);
+    Assert.True(redirected, "The CSRF-protected sign-out request did not complete its redirect.");
+  }
+
   [Fact]
   [Trait("CaseId", "R03-VARIANCE-PREPARATION-RECOVERY")]
   public async Task LostPreparationResponseRemainsBoundToItsOriginalPeriod()
@@ -99,7 +116,7 @@ public sealed class AngularVariancePreparationRecoveryJourneyTests
     Assert.Equal(preparer.Id, sessionBefore.RootElement.GetProperty("userId").GetGuid());
     var sessionEpochBefore = sessionBefore.RootElement.GetProperty("generation").GetString();
 
-    await page.GotoAsync(origin + "/auth/sign-out");
+    await SignOutAsync(page);
     Assert.Equal(saved, await page.EvaluateAsync<string?>("key => sessionStorage.getItem(key)", storageKey));
     await page.GotoAsync(origin + "/auth/sign-in?returnUrl=" + Uri.EscapeDataString(completion));
     await Assertions.Expect(pending).ToContainTextAsync(requestId.ToString("D"));

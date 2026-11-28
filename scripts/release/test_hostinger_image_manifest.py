@@ -138,6 +138,40 @@ class HostingerImageManifestTests(unittest.TestCase):
                     attempt=ATTEMPT,
                 )
 
+    def test_assemble_preserves_same_run_image_attempts_without_accepting_future_attempts(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            records_dir = Path(temporary) / "records"
+            self.create_records(records_dir)
+            manifest = image_manifest.assemble_manifest(
+                records_dir=records_dir,
+                repository=REPOSITORY,
+                source_sha=SOURCE_SHA,
+                run_id=RUN_ID,
+                attempt=2,
+            )
+            self.assertEqual(2, manifest["workflowRunAttempt"])
+            self.assertEqual({1}, {image["workflowRunAttempt"] for image in manifest["images"].values()})
+            image_manifest.verify_manifest(
+                manifest=manifest,
+                repository=REPOSITORY,
+                source_sha=SOURCE_SHA,
+                run_id=RUN_ID,
+                attempt=2,
+            )
+
+            worker_path = records_dir / "worker.json"
+            worker = json.loads(worker_path.read_text(encoding="utf-8"))
+            worker["workflowRunAttempt"] = 3
+            worker_path.write_text(json.dumps(worker), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid or future workflow attempt"):
+                image_manifest.assemble_manifest(
+                    records_dir=records_dir,
+                    repository=REPOSITORY,
+                    source_sha=SOURCE_SHA,
+                    run_id=RUN_ID,
+                    attempt=2,
+                )
+
     def test_reference_export_binds_the_artifact_bytes_and_rejects_ambiguous_json(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

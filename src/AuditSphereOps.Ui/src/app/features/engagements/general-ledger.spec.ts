@@ -26,6 +26,7 @@ const context = {
   rawFileSha256: 'a'.repeat(64),
   originKind: 'EXTERNAL',
   unavailableMetadata: [] as string[],
+  canAnalyzeJournalRisk: true,
   sourceHash: 'b'.repeat(64),
   profileVersion: 'syn-v1',
   parserVersion: 'syn-v1',
@@ -311,5 +312,63 @@ describe('Native bounded general ledger inspection', () => {
         },
       }),
     ).toThrow();
+  });
+
+  it('runs indicators against the exact sealed source and records a reviewed flag once', async () => {
+    const { f, c, http } = open();
+    c.riskYearEnd.set('2026-06-30');
+    c.riskThreshold.set('50.000000');
+    c.riskWindowDays.set('3');
+    const analysis = c.runJournalRiskAnalysis();
+    const analyze = http.expectOne(`/api/ui/engagements/${id}/journal-risk/analyze`);
+    expect(analyze.request.body).toEqual({ clientId: id, importBatchId: batch,
+      yearEnd: '2026-06-30', highValueThreshold: '50.000000', yearEndWindowDays: 3 });
+    const candidate = { criteriaVersion: 'journal-risk.v1', transactionId: other, stableJournalId: 'J-001',
+      postingDate: '2026-06-30', ruleCode: 'YEAR_END_ENTRY', reason: 'Review indicator only.', score: '60',
+      sourceOriginAvailable: true, absoluteAmount: '100.000000' };
+    analyze.flush({ value: [candidate] });
+    await analysis;
+    expect(c.riskCandidates()).toEqual([candidate]);
+
+    c.beginJournalRiskFlag(c.riskCandidates()![0]);
+    c.riskEvidenceReference.set('WP-001');
+    c.riskFlagReviewed.set(true);
+    const record = c.recordJournalRiskFlag();
+    const flag = http.expectOne(`/api/ui/engagements/${id}/journal-risk/flags`);
+    expect(flag.request.body).toEqual({ clientId: id, importBatchId: batch, transactionId: other,
+      ruleCode: 'YEAR_END_ENTRY', reason: 'Review indicator only.', score: '60', evidenceReference: 'WP-001',
+      selectedForTesting: false, managementExplanation: '', corroborationReference: '' });
+    flag.flush({ value: '44444444-4444-4444-8444-444444444444' });
+    await record;
+    expect(c.riskFlagCandidate()).toBeNull();
+    expect(c.riskMessage()).toContain('independent review');
+    f.destroy();
+  });
+
+  it('does not retry an uncertain journal-risk flag or offer analysis outside server capability', async () => {
+    const { f, c, http } = open();
+    c.riskYearEnd.set('2026-06-30');
+    const analysis = c.runJournalRiskAnalysis();
+    const candidate = { criteriaVersion: 'journal-risk.v1', transactionId: other, stableJournalId: 'J-001',
+      postingDate: '2026-06-30', ruleCode: 'YEAR_END_ENTRY', reason: 'Review indicator only.', score: '60',
+      sourceOriginAvailable: true, absoluteAmount: '100.000000' };
+    http.expectOne(`/api/ui/engagements/${id}/journal-risk/analyze`).flush({ value: [candidate] });
+    await analysis;
+    c.beginJournalRiskFlag(c.riskCandidates()![0]); c.riskEvidenceReference.set('WP-001'); c.riskFlagReviewed.set(true);
+    const command = c.recordJournalRiskFlag();
+    http.expectOne(`/api/ui/engagements/${id}/journal-risk/flags`).flush({}, { status: 503, statusText: 'Unavailable' });
+    await command;
+    expect(c.riskFlagUnknown()).toBe(true);
+    expect(c.isRiskFlagPending(candidate)).toBe(true);
+    await c.recordJournalRiskFlag();
+    http.expectNone(`/api/ui/engagements/${id}/journal-risk/flags`);
+    f.destroy();
+
+    const denied = open({ ...source, context: { ...context, canAnalyzeJournalRisk: false } });
+    expect(denied.f.nativeElement.textContent).not.toContain('Journal-risk review indicators');
+    denied.c.riskYearEnd.set('2026-06-30');
+    await denied.c.runJournalRiskAnalysis();
+    denied.http.expectNone(`/api/ui/engagements/${id}/journal-risk/analyze`);
+    denied.f.destroy();
   });
 });

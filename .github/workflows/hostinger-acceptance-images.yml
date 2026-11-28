@@ -339,6 +339,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      actions: read
     steps:
       - name: Check out image workflow source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -346,23 +347,54 @@ jobs:
           ref: ${{ needs.resolve-source.outputs.source_sha }}
           persist-credentials: false
 
-      - name: Download API digest record
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: hostinger-image-digest-api-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/hostinger-image-records
+      - name: Select exact-run image digest records from current or prior attempts
+        id: image-records
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?per_page=100")"
+          selected=()
+          for image_key in api worker migrations; do
+            prefix="hostinger-image-digest-${image_key}-${GITHUB_RUN_ID}-"
+            artifact_id="$(jq -er \
+              --arg prefix "$prefix" \
+              --argjson current_attempt "$GITHUB_RUN_ATTEMPT" \
+              '[.artifacts[]
+                | select(.expired == false)
+                | select((.name | ltrimstr($prefix)) | test("^[1-9][0-9]{0,4}$"))
+                | . as $artifact
+                | ($artifact.name | ltrimstr($prefix) | tonumber) as $attempt
+                | select($attempt <= $current_attempt)
+                | select($artifact.size_in_bytes > 0 and $artifact.size_in_bytes <= 1048576)
+                | {id: $artifact.id, attempt: $attempt}]
+               | if length == 0 then error("no retained digest record for " + $prefix)
+                 elif (group_by(.attempt) | any(length > 1)) then error("duplicate digest records for " + $prefix)
+                 else sort_by(.attempt) | last | .id
+                 end' <<< "$artifacts")"
+            selected+=("$artifact_id")
+          done
+          printf 'artifact_ids=%s\n' "$(IFS=,; echo "${selected[*]}")" >> "$GITHUB_OUTPUT"
 
-      - name: Download worker digest record
+      - name: Download selected image digest records
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: hostinger-image-digest-worker-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/hostinger-image-records
+          artifact-ids: ${{ steps.image-records.outputs.artifact_ids }}
+          path: ${{ runner.temp }}/hostinger-image-records/downloaded
 
-      - name: Download migrations digest record
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: hostinger-image-digest-migrations-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/hostinger-image-records
+      - name: Select one source-bound record for each image
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/hostinger-image-records"
+          mkdir -p "$root/selected"
+          for image_key in api worker migrations; do
+            mapfile -d '' matches < <(find "$root/downloaded" -type f -name "$image_key.json" -print0)
+            if (( ${#matches[@]} != 1 )); then
+              echo "::error::Expected exactly one retained $image_key image record."
+              exit 1
+            fi
+            cp -- "${matches[0]}" "$root/selected/$image_key.json"
+          done
 
       - name: Assemble complete source-bound image manifest
         env:
@@ -375,7 +407,7 @@ jobs:
             exit 1
           fi
           python3 scripts/release/hostinger_image_manifest.py assemble \
-            --records-dir "$RUNNER_TEMP/hostinger-image-records" \
+            --records-dir "$RUNNER_TEMP/hostinger-image-records/selected" \
             --output "$RUNNER_TEMP/hostinger-image-manifest.json" \
             --repository "$GITHUB_REPOSITORY" \
             --source-sha "$SOURCE_SHA" \

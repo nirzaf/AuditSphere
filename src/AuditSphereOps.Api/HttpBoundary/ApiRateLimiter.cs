@@ -84,7 +84,8 @@ public static class ApiRateLimiter
     var path = httpContext.Request.Path;
     if (path.StartsWithSegments("/auth/m365-consent") ||
         path.StartsWithSegments("/api/ui/administration/microsoft365") ||
-        path.StartsWithSegments("/api/ui/administration/directory"))
+        path.StartsWithSegments("/api/ui/administration/directory") ||
+        path.StartsWithSegments("/api/ui/administration/groups"))
       return ApiRateClass.M365Administration;
     if (path.StartsWithSegments("/auth/sign-in"))
       return ApiRateClass.Authentication;

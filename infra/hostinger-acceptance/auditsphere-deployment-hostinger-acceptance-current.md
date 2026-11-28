@@ -111,6 +111,14 @@ operator must first install Git and Docker Compose if unavailable, create `/opt/
 owner-only access, and check out the approved source revision there. Do not run OS upgrades or
 restart the VPS as part of this deployment.
 
+For a successful partial fast-CI rerun, an image build may reuse the earlier
+Release artifact only when both attempt records prove the same successful
+.NET producer execution and upload window for the exact current source. The
+artifact manifest must still verify the original producer attempt and digest.
+If that evidence is missing, rerun all CI jobs on the exact candidate before
+trying the image workflow again; do not substitute an artifact from another
+commit or workflow.
+
 Before an upgrade, verify the exact candidate's fast CI, full release contract and immutable image checkouts/digests, then its restored-copy migration rehearsal and independently checked cleanup. Revalidate the live baseline before a source/image-bound plan and preflight are used. A release containing Administrator oversight history also requires the actual retention and independent-history-reviewer policy recorded for that rollout; a technical pass supplies neither policy nor professional EQR approval. Current implementation retains this history without automatic expiry, blocks modification/deletion/truncation and restricts history reading to current firm-wide Staff Administrators. Finite disposal or additional reviewer access requires implementation and verification before adoption.
 
 The storage layout below is the checked-in provisioning configuration, not proof of an existing server's volume backing. Inspect actual container mounts and Docker volume driver options before every backup; existing named volumes can retain earlier options. Quiesce the relevant application writers for the final database dump/catalog and capture all actual mutable volume contents, mounted credentials, private configuration and overlays. Preserve prior images and existing access. Do not assume that backing up only the storage image covers every active mount, or recreate existing volumes to make them match the template. Rehearsal backups are separate from final cutover backups.

@@ -338,8 +338,11 @@ public static class ClientPortalService
     var intent = await db.ClientPortalIntents.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.PracticeClientId == clientId, ct);
     if (intent is null) return null;
     var upper = intent.RecipientEmail.ToUpperInvariant();
+    var now = DateTimeOffset.UtcNow;
     var hasAccess = await db.Users.AsNoTracking().AnyAsync(u => u.FirmId == firmId && u.Email.ToUpper() == upper &&
-      db.RoleGrants.Any(g => g.UserId == u.Id && g.Role == "ClientUser" && g.ClientId == clientId && g.RevokedAt == null), ct);
+      !u.Disabled && u.UserKind == "Client" &&
+      db.RoleGrants.Any(g => g.FirmId == firmId && g.UserId == u.Id && g.Role == "ClientUser" &&
+        g.ClientId == clientId && g.RevokedAt == null && (g.ExpiresAt == null || g.ExpiresAt > now)), ct);
     var cleared = await CommercialOnboardingClearedAsync(db, firmId, clientId, intent.ActivatedEngagementId, ct);
     return new(!cleared ? ClientPortalIntentStates.AwaitingAcceptance : hasAccess ? ClientPortalIntentStates.Invited : ClientPortalIntentStates.ReadyToInvite,
       intent.RecipientEmail, intent.UpdatedAt, cleared && hasAccess);
@@ -353,9 +356,14 @@ public static class ClientPortalService
       new AuthorizationRequest(actor.FirmId, request.ClientId, request.EngagementId, ["ClientUser"]), ct);
   }
 
-  private static async Task<bool> HoldsClientGrantAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct) =>
-    await db.RoleGrants.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId && x.Role == "ClientUser" &&
-      x.ClientId != null && x.RevokedAt == null, ct);
+  private static async Task<bool> HoldsClientGrantAsync(IAuditSphereDbContext db, ActorContext actor, CancellationToken ct)
+  {
+    var now = DateTimeOffset.UtcNow;
+    return await db.RoleGrants.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.UserId == actor.UserId &&
+      x.Role == "ClientUser" && x.ClientId != null && x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > now), ct)
+      && await db.Users.AsNoTracking().AnyAsync(u => u.FirmId == actor.FirmId && u.Id == actor.UserId &&
+        !u.Disabled && u.UserKind == "Client" && u.SessionEpoch == actor.SessionEpoch, ct);
+  }
 
   private static async Task<(string Path, DateTimeOffset? ObservedAt)> DeriveIdentityPathAsync(IAuditSphereDbContext db, AppUser user, CancellationToken ct)
   {

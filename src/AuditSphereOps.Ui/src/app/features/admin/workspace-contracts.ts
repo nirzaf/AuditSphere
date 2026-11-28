@@ -14,6 +14,14 @@ export const clientSites = obj({ enabled: bool, policyState: text, configuredRol
   effectiveRolloutBoundary: nullable(instant), eligibleClientCount: nat, existingClientsOutsideRollout: nat,
   tenantConsentState: text, workerReadiness: text, workerDiagnosticCode: nullable(text), workerLastSeenAt: nullable(instant),
   microsoftPermissionState: text, microsoftPermissionVerifiedAt: nullable(instant), clients: arr(clientSiteRow, 100) });
+const clientSitePublishedReceipt = obj({ operationId: guid, digest: sha256, completedAt: nullable(instant), siteId: str(2000),
+  driveId: str(2000), rootItemId: str(2000), staffGroupId: str(2000), staffAuthorizationDigest: sha256,
+  managedStaffObjectIds: arr(str(200), 500), residualAccessReferences: arr(str(2000), 500) });
+export const clientSiteOperatorReview = obj({ clientId: guid, tenantId: str(200), createdAt: instant, rolloutBoundary: nullable(instant),
+  url: nullable(str(2000)), ownershipMarker: nullable(str(200)), reviewToken: sha256, staffAuthorizationDigest: sha256,
+  staffObjectIds: arr(str(200), 500), eligible: bool, requiredAction: str(2000), state: text, membershipState: text,
+  operationId: nullable(guid), operationState: nullable(text), receiptState: text, publishedReceipt: nullable(clientSitePublishedReceipt) });
+export const clientSiteIntentReceipt = obj({ clientId: guid, state: text, operationId: nullable(guid) });
 
 /** Only a verified site may be opened; never render signed URLs or arbitrary URI schemes as links. */
 export function siteLink(state: string, value: string | null): string | null {

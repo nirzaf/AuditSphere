@@ -204,10 +204,9 @@ if (liveMail)
       throw new InvalidOperationException("Mail:Provider must be Graph, Smtp, Resend or UseSend.");
   }
   // The bearer key is never replayed to a redirect target.
-  builder.Services.AddSingleton(provider is "GRAPH" or "USESEND"
-    ? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false })
-      { Timeout = TimeSpan.FromSeconds(30) }
-    : new HttpClient { Timeout = TimeSpan.FromSeconds(30) });
+  builder.Services.AddSingleton(
+    new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false })
+      { Timeout = TimeSpan.FromSeconds(30) });
   builder.Services.AddSingleton<PbcMailDeliveryHandler>(sp => new PbcMailDeliveryHandler(
     sp.GetRequiredService<IAuditSphereDbContextFactory>(),
     sp.GetRequiredService<IPbcMailSender>(),
@@ -361,7 +360,7 @@ else
 // Simulation adapters compose only in a Test environment with the explicit enablement flag.
 // In Development the PBC transfer operations remain queued pending an approved provider
 // boundary; the durable queue records the truthful pending state instead of executing.
-var simulationAllowed = !liveMail && !livePbc && !liveClientSites && !clientSitesWorker && workerOptions.EnvironmentName == "Test" && workerOptions.AllowSimulationAdapters;
+var simulationAllowed = !liveMail && !livePbc && !liveClientSites && !clientSitesWorker && !liveReleaseCheckpoint && workerOptions.EnvironmentName == "Test" && workerOptions.AllowSimulationAdapters;
 if (simulationAllowed)
 {
   var providerRoot = builder.Configuration["Storage:PbcProviderSimulationRoot"]

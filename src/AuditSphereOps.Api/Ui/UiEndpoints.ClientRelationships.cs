@@ -111,7 +111,7 @@ public static partial class UiEndpoints
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
 
       try { await csrf.ValidateRequestAsync(http); }
-      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 400); }
+      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
 
       await using var db = await factory.CreateDbContextAsync(http.RequestAborted);
       if (!long.TryParse(input.ExpectedRevision, NumberStyles.None, CultureInfo.InvariantCulture, out var expRev) || expRev < 0)
@@ -142,7 +142,7 @@ public static partial class UiEndpoints
       if (actor is null) return Results.Json(new { code = "session.unavailable" }, statusCode: 401);
 
       try { await csrf.ValidateRequestAsync(http); }
-      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 400); }
+      catch (AntiforgeryValidationException) { return Results.Json(new { code = "csrf.invalid" }, statusCode: 403); }
 
       if (input is null || id == Guid.Empty || !long.TryParse(input.ExpectedRevision, NumberStyles.None,
           CultureInfo.InvariantCulture, out var expectedRevision) || expectedRevision < 0)

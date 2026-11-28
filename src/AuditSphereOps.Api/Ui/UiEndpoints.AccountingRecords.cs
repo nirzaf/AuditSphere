@@ -12,6 +12,11 @@ public static partial class UiEndpoints
 {
   public sealed record TrialBalanceExportInput(long Revision);
   public sealed record SourceAcceptanceInput(string Revision, string EvidenceReference, bool Reviewed);
+  public sealed record JournalRiskAnalysisHttpInput(Guid ClientId, Guid ImportBatchId, string YearEnd,
+    string HighValueThreshold, int YearEndWindowDays = 5);
+  public sealed record JournalRiskFlagHttpInput(Guid ClientId, Guid ImportBatchId, Guid TransactionId,
+    string RuleCode, string Reason, string Score, string EvidenceReference, bool SelectedForTesting = false,
+    string? ManagementExplanation = null, string? CorroborationReference = null);
 
   private static void MapAccountingRecordEndpoints(RouteGroupBuilder group)
   {
@@ -68,6 +73,31 @@ public static partial class UiEndpoints
       http.Response.Headers["X-Journal-Revision"] = export.Value.JournalRevision.ToString(System.Globalization.CultureInfo.InvariantCulture);
       return Results.File(Encoding.UTF8.GetBytes(export.Value.Csv), "text/csv; charset=utf-8", export.Value.FileName);
     }).WithMetadata(new ApiRateClassAttribute(ApiRateClass.Export)));
+    group.MapPost("/engagements/{id:guid}/journal-risk/analyze", (Guid id, JournalRiskAnalysisHttpInput input, HttpContext http) =>
+    {
+      if (input is null || !TryDate(input.YearEnd, out var yearEnd) || !TryDecimal(input.HighValueThreshold, out var threshold))
+        return Task.FromResult(Invalid("Provide yearEnd (YYYY-MM-DD) and highValueThreshold as decimal."));
+      return CommandAsync(http, (db, actor, ct) => AccountingAnalysisService.AnalyzeJournalRiskAsync(
+        db, actor, new JournalRiskAnalysisRequest(input.ClientId, id, input.ImportBatchId, yearEnd, threshold, input.YearEndWindowDays), ct));
+    }).WithUiResponse<UiValueResponse<IReadOnlyList<JournalRiskCandidate>>>(includeConflict: true);
+    group.MapPost("/engagements/{id:guid}/journal-risk/flags", (Guid id, JournalRiskFlagHttpInput input, HttpContext http) =>
+    {
+      if (input is null || !TryDecimal(input.Score, out var score))
+        return Task.FromResult(Invalid("Provide score as a decimal value between 0 and 100."));
+      return CommandAsync(http, (db, actor, ct) => AccountingAnalysisService.AddJournalRiskFlagAsync(
+        db, actor, new JournalRiskFlagRequest(
+          input.ClientId,
+          id,
+          input.ImportBatchId,
+          input.TransactionId,
+          input.RuleCode ?? string.Empty,
+          input.Reason ?? string.Empty,
+          score,
+          input.EvidenceReference ?? string.Empty,
+          input.SelectedForTesting,
+          input.ManagementExplanation ?? string.Empty,
+          input.CorroborationReference ?? string.Empty), ct));
+    }).WithUiResponse<UiValueResponse<Guid>>(includeConflict: true);
   }
 }
 
