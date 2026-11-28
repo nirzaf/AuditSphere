@@ -2693,7 +2693,7 @@
           },
           "existingTest": {
             "path": "tests/AuditSphereOps.Domain.Tests/AuditDeliverablesTests.cs",
-            "method": "CurrentPartnerClearanceProjectsPartnerApprovalBeforeOpinionSelection",
+            "method": "CompletionProjectsExactRepresentationClearanceAndOpinionDecisionIdentities",
             "execution": "NOT_RUN_BY_TRACING_SIDECAR"
           },
           "disposition": "VERIFY_ONLY",
