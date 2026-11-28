@@ -70,7 +70,7 @@ public static partial class AuditDeliverableService
   private static async Task<Facts> FactsAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
   {
     var engagement = await db.Engagements.AsNoTracking().SingleAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
-    var client = await db.PracticeClients.AsNoTracking().SingleAsync(x => x.Id == engagement.PracticeClientId, ct);
+    var client = await db.PracticeClients.AsNoTracking().SingleAsync(x => x.FirmId == actor.FirmId && x.Id == engagement.PracticeClientId, ct);
     var materialityAssessment = await db.MaterialityAssessments.AsNoTracking().Where(x =>
       x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId)
       .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).FirstOrDefaultAsync(ct);
@@ -180,25 +180,40 @@ public static partial class AuditDeliverableService
     return facts.SamplingEvidenceDigest is null ? Digest(basis) : Digest(new { basis, facts.SamplingEvidenceDigest });
   }
 
+  internal sealed record DeliverableMeta(Guid Id, Guid FirmId, Guid ClientId, Guid EngagementId, string Kind, int Version,
+    string InputDigest, string InputSummaryJson, Guid? SignedFromDeliverableId, string ContentSha256, Guid CreatedByUserId,
+    DateTimeOffset CreatedAt);
+
   /// <summary>True while the facts a deliverable was generated from are unchanged (a signed copy follows its source).</summary>
   public static async Task<bool> IsCurrentAsync(IAuditSphereDbContext db, ActorContext actor, AuditDeliverable deliverable, CancellationToken ct = default)
   {
-    var client = actor.Roles.Contains("ClientUser");
+    var client = actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase);
     if (deliverable.FirmId != actor.FirmId || !(await AuthorizationDecision.AuthorizeAsync(db, actor,
         new(actor.FirmId, deliverable.ClientId, deliverable.EngagementId, client ? ["ClientUser"] : ReaderRoles, InternalOnly: !client), ct)).Succeeded) return false;
     return await IsCurrentForAuthorizedScopeAsync(db, actor, deliverable, ct);
   }
 
-  internal static async Task<bool> IsCurrentForAuthorizedScopeAsync(IAuditSphereDbContext db, ActorContext actor, AuditDeliverable deliverable, CancellationToken ct)
+  internal static Task<bool> IsCurrentForAuthorizedScopeAsync(IAuditSphereDbContext db, ActorContext actor, AuditDeliverable deliverable, CancellationToken ct) =>
+    IsCurrentForAuthorizedScopeAsync(db, actor, ToMeta(deliverable), ct);
+
+  internal static async Task<bool> IsCurrentForAuthorizedScopeAsync(IAuditSphereDbContext db, ActorContext actor, DeliverableMeta deliverable, CancellationToken ct)
   {
     if (deliverable.SignedFromDeliverableId is { } source)
-      return await db.AuditDeliverables.AsNoTracking().SingleOrDefaultAsync(x => x.Id == source && x.FirmId == deliverable.FirmId &&
-        x.EngagementId == deliverable.EngagementId, ct) is { } unsigned && await IsCurrentForAuthorizedScopeAsync(db, actor, unsigned, ct);
+      return await db.AuditDeliverables.AsNoTracking().Where(x => x.Id == source && x.FirmId == deliverable.FirmId &&
+          x.EngagementId == deliverable.EngagementId)
+        .Select(x => new DeliverableMeta(x.Id, x.FirmId, x.ClientId, x.EngagementId, x.Kind, x.Version,
+          x.InputDigest, x.InputSummaryJson, x.SignedFromDeliverableId, x.ContentSha256, x.CreatedByUserId, x.CreatedAt))
+        .SingleOrDefaultAsync(ct) is { } unsigned && await IsCurrentForAuthorizedScopeAsync(db, actor, unsigned, ct);
     var latest = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == deliverable.FirmId && x.EngagementId == deliverable.EngagementId &&
       x.Kind == deliverable.Kind && x.SignedFromDeliverableId == null).MaxAsync(x => (int?)x.Version, ct);
     if (latest != deliverable.Version) return false;
     return deliverable.InputDigest == await ExpectedDigestAsync(db, actor, deliverable.EngagementId, deliverable.Kind, ct);
   }
+
+  private static DeliverableMeta ToMeta(AuditDeliverable deliverable) => new(
+    deliverable.Id, deliverable.FirmId, deliverable.ClientId, deliverable.EngagementId, deliverable.Kind, deliverable.Version,
+    deliverable.InputDigest, deliverable.InputSummaryJson, deliverable.SignedFromDeliverableId, deliverable.ContentSha256,
+    deliverable.CreatedByUserId, deliverable.CreatedAt);
 
   private static async Task<string> ExpectedDigestAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, string kind, CancellationToken ct)
   {
@@ -809,6 +824,10 @@ public static partial class AuditDeliverableService
     return CommandResult<Guid>.Ok(decision.Id);
   }
 
+  internal static bool EqrDecisionMatchesReportBasis(EqrDecision decision, DeliverableMeta report) =>
+    decision.ReviewedFactsDigest == report.InputDigest &&
+    decision.ReviewedReportDeliverableId == report.Id && decision.ReviewedReportSha256 == report.ContentSha256;
+
   internal static bool EqrDecisionMatchesReportBasis(EqrDecision decision, AuditDeliverable report) =>
     decision.ReviewedFactsDigest == report.InputDigest &&
     decision.ReviewedReportDeliverableId == report.Id && decision.ReviewedReportSha256 == report.ContentSha256;
@@ -900,7 +919,7 @@ public static partial class AuditDeliverableService
       return prior.ReviewId == reviewId && prior.RequestSha256 == requestHash
         ? CommandResult<Guid>.Ok(prior.Id)
         : CommandResult<Guid>.Fail("idempotency.conflict", "This request identity was already used for different comment content or target.");
-    var fromClient = actor.Roles.Contains("ClientUser");
+    var fromClient = actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase);
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, review.ClientId, review.EngagementId,
       fromClient ? ["ClientUser"] : ReaderRoles, InternalOnly: !fromClient), ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
@@ -958,9 +977,12 @@ public static partial class AuditDeliverableService
   {
     var firmId = actor.FirmId;
     var letter = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == firmId && x.EngagementId == engagementId && x.Kind == DeliverableKinds.RepresentationLetter)
-      .OrderByDescending(x => x.Version).FirstOrDefaultAsync(ct);
+      .OrderByDescending(x => x.Version)
+      .Select(x => new DeliverableMeta(x.Id, x.FirmId, x.ClientId, x.EngagementId, x.Kind, x.Version,
+        x.InputDigest, x.InputSummaryJson, x.SignedFromDeliverableId, x.ContentSha256, x.CreatedByUserId, x.CreatedAt))
+      .FirstOrDefaultAsync(ct);
     if (letter is null) return "Generate the management representation letter and have client management acknowledge it first.";
-    if (!await IsCurrentAsync(db, actor, letter, ct)) return "The representation letter is stale; generate and obtain a signed current version.";
+    if (!await IsCurrentForAuthorizedScopeAsync(db, actor, letter, ct)) return "The representation letter is stale; generate and obtain a signed current version.";
     var ack = await db.ClientDeliverableReviews.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == firmId && x.DeliverableId == letter.Id, ct);
     if (ack?.AcknowledgedSha256 != letter.ContentSha256) return "Client management has not acknowledged the current representation letter.";
     if (!await db.SignedRepresentationLetters.AnyAsync(x => x.FirmId == firmId && x.DeliverableId == letter.Id &&
@@ -1060,7 +1082,7 @@ public static partial class AuditDeliverableService
   {
     var deliverable = await db.AuditDeliverables.AsNoTracking().SingleOrDefaultAsync(x => x.Id == deliverableId && x.FirmId == actor.FirmId, ct);
     if (deliverable is null) return CommandResult<AuditDeliverable>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    if (actor.Roles.Contains("ClientUser"))
+    if (actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase))
     {
       var shared = await db.ClientDeliverableReviews.AsNoTracking().AnyAsync(x => x.FirmId == actor.FirmId && x.DeliverableId == deliverableId, ct);
       var auth = shared ? await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, deliverable.ClientId, deliverable.EngagementId, ["ClientUser"]), ct)
@@ -1079,7 +1101,7 @@ public static partial class AuditDeliverableService
   {
     var engagement = await db.Engagements.AsNoTracking().SingleOrDefaultAsync(x => x.Id == engagementId && x.FirmId == actor.FirmId, ct);
     if (engagement is null) return [];
-    var client = actor.Roles.Contains("ClientUser");
+    var client = actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase);
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new AuthorizationRequest(actor.FirmId, engagement.PracticeClientId, engagementId,
       client ? ["ClientUser"] : ReaderRoles, InternalOnly: !client), ct);
     if (!auth.Succeeded) return [];
@@ -1220,8 +1242,11 @@ public static partial class AuditDeliverableService
   {
     var clearance = await db.PartnerCompletionClearances.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId).OrderByDescending(x => x.ClearedAt).FirstOrDefaultAsync(ct);
     if (clearance is null) return null;
-    var srm = await db.AuditDeliverables.AsNoTracking().SingleOrDefaultAsync(x => x.Id == clearance.SummaryReviewMemorandumId &&
-      x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
+    var srm = await db.AuditDeliverables.AsNoTracking().Where(x => x.Id == clearance.SummaryReviewMemorandumId &&
+      x.FirmId == actor.FirmId && x.EngagementId == engagementId)
+      .Select(x => new DeliverableMeta(x.Id, x.FirmId, x.ClientId, x.EngagementId, x.Kind, x.Version,
+        x.InputDigest, x.InputSummaryJson, x.SignedFromDeliverableId, x.ContentSha256, x.CreatedByUserId, x.CreatedAt))
+      .SingleOrDefaultAsync(ct);
     return srm is not null && await IsCurrentForAuthorizedScopeAsync(db, actor, srm, ct) ? clearance : null;
   }
 

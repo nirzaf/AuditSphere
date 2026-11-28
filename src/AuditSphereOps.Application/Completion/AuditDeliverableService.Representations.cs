@@ -102,7 +102,7 @@ public static partial class AuditDeliverableService
   {
     var scan = await db.SignedRepresentationLetters.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == scanId, ct);
     if (scan is null) return CommandResult<SignedRepresentationLetter>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var client = actor.Roles.Contains("ClientUser");
+    var client = actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase);
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, scan.ClientId, scan.EngagementId, client ? ["ClientUser"] : ReaderRoles, InternalOnly: !client), ct);
     return auth.Succeeded ? CommandResult<SignedRepresentationLetter>.Ok(scan) : CommandResult<SignedRepresentationLetter>.Fail(auth.ErrorCode!, auth.Message!);
   }
@@ -117,7 +117,7 @@ public static partial class AuditDeliverableService
     var engagement = await db.Engagements.AsNoTracking().Where(x => x.Id == engagementId && x.FirmId == actor.FirmId)
       .Select(x => new { x.PracticeClientId }).SingleOrDefaultAsync(ct);
     if (engagement is null) return [];
-    var client = actor.Roles.Contains("ClientUser");
+    var client = actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase);
     if (!(await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, engagement.PracticeClientId, engagementId, client ? ["ClientUser"] : ReaderRoles, InternalOnly: !client), ct)).Succeeded) return [];
 
     // Join the exact scoped deliverable so malformed cross-scope rows cannot consume a bounded slot or expose its version.
@@ -125,15 +125,19 @@ public static partial class AuditDeliverableService
       .Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId)
       .Join(db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId && x.EngagementId == engagementId),
         scan => scan.DeliverableId, letter => letter.Id,
-        (scan, letter) => new { scan.Id, scan.DeliverableId, letter.Version, scan.ManagementSignatory, scan.ContentSha256, scan.UploadedAt })
+        (scan, letter) => new
+        {
+          scan.Id,
+          scan.DeliverableId,
+          letter.Version,
+          scan.ManagementSignatory,
+          scan.ContentSha256,
+          scan.UploadedAt,
+          Letter = new DeliverableMeta(letter.Id, letter.FirmId, letter.ClientId, letter.EngagementId, letter.Kind, letter.Version,
+            letter.InputDigest, letter.InputSummaryJson, letter.SignedFromDeliverableId, letter.ContentSha256, letter.CreatedByUserId, letter.CreatedAt)
+        })
       .OrderByDescending(x => x.UploadedAt).ThenByDescending(x => x.Id).Take(maxItems).ToListAsync(ct);
 
-    var deliverableIds = scans.Select(x => x.DeliverableId).Distinct().ToArray();
-    var deliverables = deliverableIds.Length == 0
-      ? new Dictionary<Guid, AuditDeliverable>()
-      : await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.ClientId == engagement.PracticeClientId &&
-          x.EngagementId == engagementId && deliverableIds.Contains(x.Id))
-        .ToDictionaryAsync(x => x.Id, ct);
     var scanIds = scans.Select(x => x.Id).ToArray();
     var verifiedIds = scanIds.Length == 0
       ? new HashSet<Guid>()
@@ -147,7 +151,7 @@ public static partial class AuditDeliverableService
     {
       if (!currentByDeliverable.TryGetValue(scan.DeliverableId, out var isCurrent))
       {
-        isCurrent = await IsCurrentAsync(db, actor, deliverables[scan.DeliverableId], ct);
+        isCurrent = await IsCurrentForAuthorizedScopeAsync(db, actor, scan.Letter, ct);
         currentByDeliverable.Add(scan.DeliverableId, isCurrent);
       }
       result.Add(new(scan.Id, scan.DeliverableId, scan.Version, scan.ManagementSignatory, scan.ContentSha256, scan.UploadedAt,

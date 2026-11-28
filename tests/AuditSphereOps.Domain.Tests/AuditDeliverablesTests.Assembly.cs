@@ -434,6 +434,22 @@ public sealed partial class AuditDeliverablesTests
     var signedId = await SignedReportAsync(pg, w);
     await using (var db = new AuditSphereDbContext(pg.Options))
       Assert.True((await AuditDeliverableService.GenerateReportAsync(db, manager, w.EngagementId, DeliverableKinds.ManagementLetter)).Succeeded);
+    var bundleReadMeasurement = new DeliverableReadMeasurement();
+    var bundleReadOptions = new DbContextOptionsBuilder<AuditSphereDbContext>(pg.Options)
+      .AddInterceptors(bundleReadMeasurement).Options;
+    IReadOnlyList<SignedLetterView> signedLetters;
+    await using (var db = new AuditSphereDbContext(bundleReadOptions))
+      signedLetters = await AuditDeliverableService.SignedRepresentationsAsync(db, manager, w.EngagementId);
+    Assert.Single(signedLetters);
+    Assert.Equal(0, bundleReadMeasurement.MaterializedContentBytes);
+    await using (var db = new AuditSphereDbContext(bundleReadOptions))
+    {
+      var readerState = await AuditDeliverableService.BundleStateAsync(db, manager, w.EngagementId);
+      Assert.True(readerState.Succeeded, readerState.Message);
+      Assert.DoesNotContain(readerState.Value!.Blockers,
+        blocker => blocker.Contains("deciding Engagement Partner must sign a current auditor's report", StringComparison.Ordinal));
+      Assert.Equal(0, bundleReadMeasurement.MaterializedContentBytes);
+    }
     await using (var db = new AuditSphereDbContext(pg.Options))
     {
       Assert.Equal(ErrorCodes.ScopeDenied, (await AuditDeliverableService.AssembleBundleAsync(db, manager, w.EngagementId, true)).ErrorCode);

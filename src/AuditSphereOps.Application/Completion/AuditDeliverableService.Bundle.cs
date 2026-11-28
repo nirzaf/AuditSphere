@@ -47,7 +47,7 @@ public static partial class AuditDeliverableService
     await LockDeliverableEngagementAsync(db, actor.FirmId, engagementId, ct);
     auth = await AuthorizePartnerAsync(db, actor, engagementId, ct);
     if (!auth.Succeeded) return CommandResult<Guid>.Fail(auth.ErrorCode!, auth.Message!);
-    var inputs = await BundleInputsAsync(db, actor, engagementId, ct);
+    var inputs = await BundleInputsAsync(db, actor, engagementId, includeContent: true, ct);
     if (inputs.Blockers.Count != 0) return CommandResult<Guid>.Fail(ErrorCodes.GateBlocked, string.Join(" ", inputs.Blockers));
     var report = inputs.Report!; var management = inputs.Management!; var scan = inputs.Scan!;
     var release = inputs.Release!; var statements = inputs.Statements!; var composition = inputs.Composition!;
@@ -224,33 +224,39 @@ public static partial class AuditDeliverableService
     SignedRepresentationLetter? Scan, Release? Release, FinancialPackageArtifact? Statements,
     FinancialStatementComposition? Composition, FinancialPackageArtifact? StatementWord, FinancialPackageArtifact? StatementExcel, Invoice? Invoice);
 
-  private static async Task<BundleInputs> BundleInputsAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId, CancellationToken ct)
+  private static async Task<BundleInputs> BundleInputsAsync(IAuditSphereDbContext db, ActorContext actor, Guid engagementId,
+    bool includeContent, CancellationToken ct)
   {
     var blockers = new List<string>();
     var rows = await db.AuditDeliverables.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
-      .OrderByDescending(x => x.Version).ThenByDescending(x => x.CreatedAt).ToListAsync(ct);
-    var report = rows.FirstOrDefault(x => x.Kind == DeliverableKinds.IndependentAuditorsReport && x.SignedFromDeliverableId != null);
-    var reportBasis = report?.SignedFromDeliverableId is { } sourceReportId
+      .OrderByDescending(x => x.Version).ThenByDescending(x => x.CreatedAt)
+      .Select(x => new DeliverableMeta(x.Id, x.FirmId, x.ClientId, x.EngagementId, x.Kind, x.Version,
+        x.InputDigest, x.InputSummaryJson, x.SignedFromDeliverableId, x.ContentSha256, x.CreatedByUserId, x.CreatedAt))
+      .ToListAsync(ct);
+    var opinion = await CurrentOpinionForAuthorizedScopeAsync(db, actor, engagementId, ct);
+    var reportMeta = rows.FirstOrDefault(x => x.Kind == DeliverableKinds.IndependentAuditorsReport && x.SignedFromDeliverableId != null);
+    var reportBasis = reportMeta?.SignedFromDeliverableId is { } sourceReportId
       ? rows.SingleOrDefault(x => x.Id == sourceReportId && x.Kind == DeliverableKinds.IndependentAuditorsReport && x.SignedFromDeliverableId == null)
       : null;
-    if (report is null || report.CreatedByUserId != actor.UserId || !await IsCurrentAsync(db, actor, report, ct))
+    if (opinion is null || reportMeta is null || reportMeta.CreatedByUserId != opinion.DecidedByUserId ||
+        !await IsCurrentForAuthorizedScopeAsync(db, actor, reportMeta, ct))
       blockers.Add("The deciding Engagement Partner must sign a current auditor's report.");
-    if (report is not null)
+    if (reportMeta is not null)
     {
-      using var proof = JsonDocument.Parse(report.InputSummaryJson);
+      using var proof = JsonDocument.Parse(reportMeta.InputSummaryJson);
       if (!proof.RootElement.TryGetProperty("Seal", out var sealProof) || !sealProof.TryGetGuid(out var sealId) ||
           !await db.FirmSealSpecimens.AnyAsync(x => x.FirmId == actor.FirmId && x.Id == sealId, ct))
         blockers.Add("The signed report requires a recorded firm-seal version; regenerate and sign through the current workflow.");
     }
-    var management = rows.FirstOrDefault(x => x.Kind == DeliverableKinds.ManagementLetter);
-    if (management is null || !await IsCurrentAsync(db, actor, management, ct)) blockers.Add("Generate a current management letter.");
-    var letter = rows.FirstOrDefault(x => x.Kind == DeliverableKinds.RepresentationLetter);
-    var scan = letter is null ? null : await db.SignedRepresentationLetters.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.DeliverableId == letter.Id &&
-      x.DeliverableSha256 == letter.ContentSha256 && db.RepresentationLetterVerifications.Any(v => v.FirmId == actor.FirmId && v.SignedLetterId == x.Id))
-      .OrderByDescending(x => x.UploadedAt).FirstOrDefaultAsync(ct);
-    if (scan is null || letter is null || !await IsCurrentAsync(db, actor, letter, ct)) blockers.Add("A Partner-verified signed scan of the current representation letter is required.");
+    var managementMeta = rows.FirstOrDefault(x => x.Kind == DeliverableKinds.ManagementLetter);
+    if (managementMeta is null || !await IsCurrentForAuthorizedScopeAsync(db, actor, managementMeta, ct)) blockers.Add("Generate a current management letter.");
+    var letterMeta = rows.FirstOrDefault(x => x.Kind == DeliverableKinds.RepresentationLetter);
+    Guid? scanId = letterMeta is null ? null : await db.SignedRepresentationLetters.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.DeliverableId == letterMeta.Id &&
+      x.DeliverableSha256 == letterMeta.ContentSha256 && db.RepresentationLetterVerifications.Any(v => v.FirmId == actor.FirmId && v.SignedLetterId == x.Id))
+      .OrderByDescending(x => x.UploadedAt).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct);
+    if (scanId is null || letterMeta is null || !await IsCurrentForAuthorizedScopeAsync(db, actor, letterMeta, ct)) blockers.Add("A Partner-verified signed scan of the current representation letter is required.");
     var clientGate = await ClientGateAsync(db, actor, engagementId, ct);
-    if (clientGate is not null && scan is not null) blockers.Add(clientGate);
+    if (clientGate is not null && scanId is not null) blockers.Add(clientGate);
     var eqr = await db.EqrCases.AsNoTracking().FirstOrDefaultAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId, ct);
     if (eqr is not null)
     {
@@ -341,9 +347,31 @@ public static partial class AuditDeliverableService
     }
     if (invoice is null) blockers.Add("Finance must issue, review and post the final balance invoice for the linked 50/50 agreement; the advance must be paid.");
     if (await db.EngagementFileFreezes.AnyAsync(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && x.State == "FROZEN", ct)) blockers.Add("The engagement is frozen; an approved amendment is required.");
-    if (report is not null && Hashing.Sha256Hex(report.Content) != report.ContentSha256 || management is not null && Hashing.Sha256Hex(management.Content) != management.ContentSha256 ||
-        letter is not null && Hashing.Sha256Hex(letter.Content) != letter.ContentSha256 ||
-        scan is not null && Hashing.Sha256Hex(scan.Content) != scan.ContentSha256 || artifact is not null && Hashing.Sha256Hex(artifact.ArtifactBytes) != artifact.ArtifactSha256Hex ||
+
+    AuditDeliverable? report = null;
+    AuditDeliverable? management = null;
+    SignedRepresentationLetter? scan = null;
+    if (includeContent)
+    {
+      Guid[] selectedDeliverableIds = new[] { reportMeta?.Id, managementMeta?.Id, letterMeta?.Id }
+        .Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
+      var selectedDeliverables = selectedDeliverableIds.Length == 0
+        ? new Dictionary<Guid, AuditDeliverable>()
+        : await db.AuditDeliverables.AsNoTracking()
+          .Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId && selectedDeliverableIds.Contains(x.Id))
+          .ToDictionaryAsync(x => x.Id, ct);
+      report = reportMeta is not null ? selectedDeliverables.GetValueOrDefault(reportMeta.Id) : null;
+      management = managementMeta is not null ? selectedDeliverables.GetValueOrDefault(managementMeta.Id) : null;
+      var letter = letterMeta is not null ? selectedDeliverables.GetValueOrDefault(letterMeta.Id) : null;
+      scan = scanId is { } selectedScanId
+        ? await db.SignedRepresentationLetters.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == selectedScanId, ct)
+        : null;
+      if (report is not null && Hashing.Sha256Hex(report.Content) != report.ContentSha256 || management is not null && Hashing.Sha256Hex(management.Content) != management.ContentSha256 ||
+          letter is not null && Hashing.Sha256Hex(letter.Content) != letter.ContentSha256 ||
+          scan is not null && Hashing.Sha256Hex(scan.Content) != scan.ContentSha256)
+        blockers.Add("Stored artifact integrity verification failed.");
+    }
+    if (artifact is not null && Hashing.Sha256Hex(artifact.ArtifactBytes) != artifact.ArtifactSha256Hex ||
         statementWord is not null && Hashing.Sha256Hex(statementWord.ArtifactBytes) != statementWord.ArtifactSha256Hex ||
         statementExcel is not null && Hashing.Sha256Hex(statementExcel.ArtifactBytes) != statementExcel.ArtifactSha256Hex)
       blockers.Add("Stored artifact integrity verification failed.");
@@ -354,7 +382,7 @@ public static partial class AuditDeliverableService
   {
     var auth = await AuthorizeAsync(db, actor, engagementId, ReaderRoles, ct);
     if (!auth.Succeeded) return CommandResult<BundleAssemblyState>.Fail(auth.ErrorCode!, auth.Message!);
-    var inputs = await BundleInputsAsync(db, actor, engagementId, ct);
+    var inputs = await BundleInputsAsync(db, actor, engagementId, includeContent: false, ct);
     var bundles = await db.CommercialDeliverableBundles.AsNoTracking().Where(x => x.FirmId == actor.FirmId && x.EngagementId == engagementId)
       .OrderByDescending(x => x.AssembledAt).Take(10).Select(x => new BundleView(x.Id, x.ContentSha256, x.AssembledAt)).ToListAsync(ct);
     return CommandResult<BundleAssemblyState>.Ok(new(inputs.Blockers, bundles));
@@ -364,7 +392,7 @@ public static partial class AuditDeliverableService
   {
     var bundle = await db.CommercialDeliverableBundles.AsNoTracking().SingleOrDefaultAsync(x => x.FirmId == actor.FirmId && x.Id == bundleId, ct);
     if (bundle is null) return CommandResult<CommercialDeliverableBundle>.Fail(ErrorCodes.ScopeDenied, "Access denied.");
-    var client = actor.Roles.Contains("ClientUser");
+    var client = actor.Roles.Contains("ClientUser", StringComparer.OrdinalIgnoreCase);
     var auth = await AuthorizationDecision.AuthorizeAsync(db, actor, new(actor.FirmId, bundle.ClientId, bundle.EngagementId, client ? ["ClientUser"] : ReaderRoles, InternalOnly: !client), ct);
     return auth.Succeeded ? CommandResult<CommercialDeliverableBundle>.Ok(bundle) : CommandResult<CommercialDeliverableBundle>.Fail(auth.ErrorCode!, auth.Message!);
   }
