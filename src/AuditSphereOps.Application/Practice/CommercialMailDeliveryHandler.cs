@@ -78,7 +78,7 @@ public sealed class CommercialMailDeliveryHandler(IAuditSphereDbContextFactory f
     catch (OperationBlockedException)
     {
       await MarkDeliveryStateAsync(factory, op.FirmId, op.TargetId, CommercialDeliveryStates.Rejected, ct);
-      throw; // the provider refused the send; the email was not accepted
+      throw; // the email was not accepted
     }
     catch (Exception)
     {

@@ -8,6 +8,7 @@ using AuditSphereOps.Domain.Practice;
 using AuditSphereOps.Domain.Security;
 using AuditSphereOps.Domain.Shared;
 using AuditSphereOps.Infrastructure.Persistence;
+using AuditSphereOps.Infrastructure.Providers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -388,6 +389,43 @@ public sealed class CommercialPricingPolicyTests
       .SingleAsync(x => x.FirmId == w.FirmId && x.OperationKind == CommercialMailDeliveryHandler.Kind &&
         x.TargetId == mail.NotificationId);
     Assert.Equal(OperationState.AUTHORIZATION_BLOCKED, operation.Status);
+  }
+
+  [Fact]
+  public async Task CommercialMail_UnsupportedAttachmentRetainsRejectedNoticeWithoutAProviderReceipt()
+  {
+    await using var pg = await PgTestSchema.CreateAsync();
+    var w = await SeedAsync(pg);
+    var mail = await PrepareClientProposalMailAsync(pg, w);
+    using var transport = new UnusedMailTransport();
+    using var http = new HttpClient(transport);
+    var sender = new ResendPbcMailSender(http, new("synthetic-resend-key", "sender@example.test"));
+
+    await RunWorkerAsync(pg, w, sender);
+
+    await using var db = new AuditSphereDbContext(pg.Options);
+    var notice = await db.CommercialNotifications.AsNoTracking().SingleAsync(x => x.Id == mail.NotificationId);
+    Assert.Equal(CommercialDeliveryStates.Rejected, notice.DeliveryState);
+    Assert.Null(notice.DeliveredAt);
+    var operation = await db.DurableOperations.AsNoTracking().SingleAsync(x =>
+      x.FirmId == w.FirmId && x.OperationKind == CommercialMailDeliveryHandler.Kind && x.TargetId == mail.NotificationId);
+    Assert.Equal(OperationState.PROVIDER_BLOCKED, operation.Status);
+    // The dispatcher retains the safe blocked disposition; the sender test verifies its precise local reason.
+    Assert.Equal("provider-or-integrity-blocked", operation.ErrorCode);
+    Assert.Null(operation.ResultIdentity);
+    Assert.Null(operation.ResultDigest);
+    Assert.Equal(0, transport.Requests);
+  }
+
+  private sealed class UnusedMailTransport : HttpMessageHandler
+  {
+    public int Requests { get; private set; }
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+      Requests++;
+      throw new InvalidOperationException("The unsupported attachment must be refused before transmission.");
+    }
   }
 
   [Fact]

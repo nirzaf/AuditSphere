@@ -66,6 +66,29 @@ public sealed class UseSendPbcMailSenderTests
     Assert.Equal(0, handler.Calls);
   }
 
+  [Fact]
+  public async Task SmtpAndResend_RefuseAttachmentsBeforeTransmission()
+  {
+    var plan = Plan(new PbcMailAttachment("Offer.docx", "application/octet-stream", [1, 2, 3]));
+    var handler = new StubHandler(HttpStatusCode.OK);
+    using var http = new HttpClient(handler);
+    var smtp = new SmtpPbcMailSender(new("127.0.0.1", 1, false, Options.SenderAddress, null, null, null));
+    var resend = new ResendPbcMailSender(http, new(Key, Options.SenderAddress));
+
+    var smtpBlocked = await Assert.ThrowsAsync<OperationBlockedException>(() => smtp.SendAsync(plan, CancellationToken.None));
+    var resendBlocked = await Assert.ThrowsAsync<OperationBlockedException>(() => resend.SendAsync(plan, CancellationToken.None));
+
+    Assert.Equal("smtp-attachment-unsupported", smtpBlocked.Code);
+    Assert.Equal("resend-attachment-unsupported", resendBlocked.Code);
+    Assert.Equal(0, handler.Calls);
+
+    await resend.SendAsync(Plan(), CancellationToken.None);
+    Assert.Equal(1, handler.Calls);
+    Assert.Equal(Plan().CorrelationId.ToString("D"), Assert.Single(handler.Request!.Headers.GetValues("Idempotency-Key")));
+    using var text = JsonDocument.Parse(handler.Payload!);
+    Assert.Equal("Please review.", text.RootElement.GetProperty("text").GetString());
+  }
+
   [Theory]
   [InlineData(HttpStatusCode.Unauthorized, true)]
   [InlineData(HttpStatusCode.Forbidden, true)]

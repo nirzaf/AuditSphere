@@ -26,6 +26,8 @@ public sealed class SmtpPbcMailSender(SmtpMailOptions options) : IPbcMailSender
   public async Task SendAsync(PbcMailPlan plan, CancellationToken ct)
   {
     options.Validate();
+    if (plan.Attachment is not null)
+      throw new OperationBlockedException("smtp-attachment-unsupported");
     using var message = new MailMessage
     {
       From = new MailAddress(options.SenderAddress, options.SenderName),
@@ -55,6 +57,8 @@ public sealed class ResendPbcMailSender(HttpClient http, ResendMailOptions optio
   public async Task SendAsync(PbcMailPlan plan, CancellationToken ct)
   {
     options.Validate();
+    if (plan.Attachment is not null)
+      throw new OperationBlockedException("resend-attachment-unsupported");
     using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails");
     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
     request.Headers.TryAddWithoutValidation("Idempotency-Key", plan.CorrelationId.ToString("D"));
