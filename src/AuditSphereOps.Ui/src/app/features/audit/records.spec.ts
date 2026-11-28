@@ -1,4 +1,4 @@
-import { signal } from '@angular/core';
+import { PendingTasks, signal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -233,7 +233,7 @@ describe('Archive intent recovery', () => {
     first.error(new ProgressEvent('error')); await pending;
     await h.recreate();
     h.session.current.set({ ...h.session.current(), generation: '2' }); h.session.invalidation.set(1);
-    await h.fixture.whenStable();
+    h.fixture.detectChanges();
     expect(h.component.archive()).toBeNull(); expect(h.component.pendingIntent()).toBeNull();
     await h.read(action === 'review' ? { status: 'ASSEMBLY_REVIEWED', manifestStatus: 'REVIEWED', canReview: false } : {});
     expect(h.component.pendingIntent()?.raw).toBe(stored);
@@ -297,7 +297,16 @@ describe('Archive intent recovery', () => {
     if (change === 'actor') h.session.current.set({ ...h.session.current(), userId: id2 });
     else if (change === 'scope') h.params.next(convertToParamMap({ id: id3 }));
     else h.session.invalidation.set(1);
-    await h.fixture.whenStable(); request.flush(receipt('build')); await pending;
+    // Scope invalidation must reach the view while unrelated work is still pending.
+    const completeOtherWork = TestBed.inject(PendingTasks).add();
+    try {
+      h.fixture.detectChanges();
+      expect(h.component.pendingIntent()).toBeNull();
+      request.flush(receipt('build'));
+      await pending;
+    } finally {
+      completeOtherWork();
+    }
     expect(sessionStorage.getItem(key)).toBe(stored); expect(h.resource.reload).not.toHaveBeenCalled();
     expect(h.component.pendingIntent()).toBeNull(); expect(h.component.actionError()).toBe('');
   });
