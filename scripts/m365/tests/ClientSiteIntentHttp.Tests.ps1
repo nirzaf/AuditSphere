@@ -1,5 +1,8 @@
+#Requires -Version 7.4
+param([switch] $Offline)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+if (-not $Offline) { throw 'Pass -Offline.' }
 
 $moduleDirectory = Split-Path $PSScriptRoot -Parent
 Import-Module (Join-Path $moduleDirectory 'AuditSphere.M365.Enrollment.psm1') -Force
