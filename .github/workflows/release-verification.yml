@@ -11,7 +11,8 @@ run-name: AuditSphere release verification · ${{ inputs.ref || 'default branch'
 #
 # Every verification command runs through scripts/release/run-verification-step.sh, which records
 # its command and exact exit status in the job summary and preserves the full log. Per-project logs
-# and TRX files are uploaded as artifacts. No step uses continue-on-error.
+# and TRX files are uploaded as artifacts. Playwright cache restore/save and fast-CI build
+# artifact download/verification are best-effort; their failures do not waive verification.
 #
 # Resolve the operator's exact requested ref once, then check out that immutable commit in every
 # job. This preserves workflow_dispatch ref selection while preventing moving branches/tags from
