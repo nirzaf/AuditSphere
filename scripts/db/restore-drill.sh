@@ -8,6 +8,7 @@ db_port="5433"
 source_db="auditsphere"
 db_user="postgres"
 evidence_file="${AUDITSPHERE_EVIDENCE_FILE:-.local/autonomous/evidence/restore-drill-latest.json}"
+source_commit="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse HEAD)"
 if [[ -n "${PGSQL_HOME:-}" ]]; then
   psql_bin="${PGSQL_HOME%/}/psql"
   if [[ ! -x "$psql_bin" ]]; then
@@ -134,6 +135,7 @@ mkdir -p "$(dirname "$evidence_file")"
 printf '%s\n' \
   '{' \
   "  \"status\": \"PASS\"," \
+  "  \"sourceCommit\": \"$source_commit\"," \
   "  \"recordedAt\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," \
   "  \"databaseHost\": \"$db_host\"," \
   "  \"sourceDatabase\": \"$source_db\"," \

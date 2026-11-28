@@ -248,6 +248,47 @@ class OperationalEvidenceTests(unittest.TestCase):
             "findings": [],
         }
 
+    def test_local_restore_export_requires_safe_path_hash_and_exact_source(self) -> None:
+        commit = "a" * 40
+        timestamp = "2026-11-28T01:00:00Z"
+        observed = {
+            "sourceCommit": commit, "status": "PASS", "recordedAt": timestamp,
+            "databaseHost": "127.0.0.1", "expectedMigrationCount": 1,
+            "restoredMigrationCount": 1, "expectedLatestMigration": "Migration",
+            "restoredLatestMigration": "Migration", "checkpointDatabaseReconciliation": "PASS",
+            "accountingGroupManifestReconciliation": "PASS", "releaseDeliveryDuplicateKeys": 0,
+            "releaseDeliveryDuplicateCheck": "PASS", "externalCheckpointStoreVerification": "NOT_RUN",
+            "custodiallySeparateStorage": False, "productionRpoRto": "NOT_RUN",
+        }
+        relative = f"artifacts/completion/{commit}/restore-drill.json"
+        payload = json.dumps(observed).encode()
+        reference = {
+            "id": "RESTORE-001", "path": relative,
+            "sha256": hashlib.sha256(payload).hexdigest(), "sourceCommit": commit,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            export = root / relative
+            export.parent.mkdir(parents=True)
+            export.write_bytes(payload)
+
+            def check(**changes):
+                local = {"scope": "LOCAL_LOOPBACK", "recordedAtUtc": timestamp,
+                         "evidence": {**reference, **changes}}
+                return verify._validate_local_restore(local, commit, root, set(), set(), {})
+
+            self.assertEqual("LOCAL_ONLY", check())
+            self.assertEqual("UNKNOWN", check(sourceCommit="b" * 40))
+            self.assertEqual("UNKNOWN", check(path=".local/restore-drill-latest.json"))
+            self.assertEqual("UNKNOWN", check(path="artifacts/completion/../restore-drill.json"))
+            export.write_bytes(payload + b" ")
+            self.assertEqual("UNKNOWN", check())
+            export.unlink()
+            other = root / "other.json"
+            other.write_bytes(payload)
+            export.symlink_to(other)
+            self.assertEqual("UNKNOWN", check())
+
     def test_current_record_is_incomplete_and_missing_local_restore_stays_unknown(self) -> None:
         output = io.StringIO()
         with contextlib.redirect_stdout(output):

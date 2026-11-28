@@ -1436,6 +1436,7 @@ def _exact_json_match(actual: Any, expected: Any) -> bool:
 
 def _validate_local_restore(
     local: Any,
+    source_commit: str,
     root: Path,
     errors: set[str],
     blockers: set[str],
@@ -1449,14 +1450,16 @@ def _validate_local_restore(
     reference = local["evidence"]
     if not _validate_reference_shape(reference, errors):
         return "UNKNOWN"
-    if reference["path"] != "docs/evidence/restore-drill-latest.json":
+    export_path = f"artifacts/completion/{source_commit}/restore-drill.json"
+    exported = reference["path"] == export_path
+    if reference["path"] != "docs/evidence/restore-drill-latest.json" and not exported:
         errors.add("invalid-local-restore-identity")
         return "UNKNOWN"
     if not _verify_reference(reference, root, errors, blockers, cache):
         blockers.add("LOCAL_RESTORE_EVIDENCE_UNKNOWN")
         return "UNKNOWN"
     try:
-        observed = load_document(root / "docs/evidence/restore-drill-latest.json")
+        observed = load_document(root / reference["path"])
     except InputError:
         blockers.add("LOCAL_RESTORE_EVIDENCE_UNKNOWN")
         return "UNKNOWN"
@@ -1472,6 +1475,10 @@ def _validate_local_restore(
         return "UNKNOWN"
     valid = (
         observed.get("status") == "PASS"
+        and (not exported or (
+            reference["sourceCommit"] == source_commit
+            and observed.get("sourceCommit") == source_commit
+        ))
         and observed.get("recordedAt") == local["recordedAtUtc"]
         and observed.get("databaseHost") == "127.0.0.1"
         and type(observed.get("expectedMigrationCount")) is int
@@ -1611,7 +1618,7 @@ def evaluate(document: Any, repository_root: Path) -> dict[str, Any]:
     if not _object(recovery, {"localRestoreDrill", "productionRecovery"}, errors, "invalid-recovery-shape"):
         recovery = {}
     local_state = _validate_local_restore(
-        recovery.get("localRestoreDrill"), repository_root, errors, blockers, cache,
+        recovery.get("localRestoreDrill"), source_commit, repository_root, errors, blockers, cache,
     ) if "localRestoreDrill" in recovery else "UNKNOWN"
     if local_state == "UNKNOWN":
         blockers.add("LOCAL_RESTORE_EVIDENCE_UNKNOWN")
