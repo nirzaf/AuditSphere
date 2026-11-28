@@ -26,7 +26,7 @@
       "failureClass": null,
       "sourceCommit": null,
       "tool": {
-        "name": "dotnet list solution package --vulnerable --include-transitive --format json --no-restore",
+        "name": "dotnet list AuditSphereOps.slnx package --vulnerable --include-transitive --format json --no-restore",
         "version": null
       },
       "feed": {
