@@ -41,7 +41,8 @@ WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
   && rm -rf /var/lib/apt/lists/*
-COPY --from=bundle /out/efbundle /app/efbundle
-# The job receives the target connection string as the secret environment variable
-# ConnectionStrings__AuditSphere; efbundle applies pending migrations and exits non-zero on failure.
-ENTRYPOINT ["/bin/sh", "-c", "/app/efbundle --connection \"$ConnectionStrings__AuditSphere\""]
+COPY --from=bundle --chmod=0555 /out/efbundle /app/efbundle
+ENV AUDITSPHERE_MIGRATION_BUNDLE=1
+USER $APP_UID
+# The design-time factory reads ConnectionStrings__AuditSphere from the job environment.
+ENTRYPOINT ["/app/efbundle"]
